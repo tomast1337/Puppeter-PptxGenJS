@@ -1,0 +1,18 @@
+{
+  "name": "puppeter-pptxgenjs",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/jsdom": "^21.1.7"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "jsdom": "^26.1.0",
+    "pptxgenjs": "^4.0.1",
+    "puppeteer": "^24.15.0"
+  }
+}
