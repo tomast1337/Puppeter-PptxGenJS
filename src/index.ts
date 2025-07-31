@@ -3,7 +3,7 @@ import { PuppeteerGen } from "./PuppeterrGen";
 
 function main(pres: pptxgen | PuppeteerGen) {
     let slide = pres.addSlide();
-    slide.addText("Hello World from PptxGenJS!", { x: 1, y: 1, color: "363636" });
+    slide.addText("Hello World from PptxGenJS/PuppeteerGen!", { x: 1, y: 1, color: "#363636" });
     pres.writeFile({ fileName: `Hello-World-${pres.constructor.name}.${pres.constructor.name === "pptxgen" ? "pptx" : "pdf"}` });
 }
 
