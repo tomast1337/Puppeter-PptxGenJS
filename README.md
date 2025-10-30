@@ -217,17 +217,15 @@ The library automatically generates CSS that:
 ## Limitations
 
 Currently implemented:
-- Text with full styling
-- Tables with cell styling
+- Text with full styling (WIP support)
+- Tables with cell styling (WIP support)
 - Images (basic support)
 - Shapes (basic support)
-- Multiple slides
-- Custom layouts
+- Multiple slides (WIP support)
+- Custom layouts (WIP support)
 
 Not yet implemented:
 - Charts
-- Slide masters
-- Sections
 
 Not Planned:
 - Media (audio/video)
