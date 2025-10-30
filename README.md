@@ -226,7 +226,9 @@ Currently implemented:
 
 Not yet implemented:
 - Charts
-- Media (audio/video)
-- Notes
 - Slide masters
 - Sections
+
+Not Planned:
+- Media (audio/video)
+- Notes
