@@ -185,6 +185,15 @@ class PuppeteerSlide implements PptxSlide {
         
         if (options.align) {
             element.style.textAlign = alignToCSS(options.align);
+            // Also set justify-content for flex containers
+            const alignValue = options.align.toLowerCase();
+            if (alignValue === "center") {
+                element.style.justifyContent = "center";
+            } else if (alignValue === "right") {
+                element.style.justifyContent = "flex-end";
+            } else if (alignValue === "left") {
+                element.style.justifyContent = "flex-start";
+            }
         }
         
         if (options.valign) {
