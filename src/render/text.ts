@@ -5,8 +5,19 @@ function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     return `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${shadow.color}`;
 }
 
+function fontFamilyCSS(fontFace: string): string {
+    const escaped = fontFace.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+    // Chromium does not apply LibreOffice's Microsoft-font substitutions to
+    // an unknown single-family declaration. Keep the requested face first,
+    // then use the same metric-compatible sans fallback used by our fixtures.
+    const fallback = fontFace.toLowerCase().startsWith("calibri")
+        ? '"Noto Sans", Arial, "Liberation Sans", sans-serif'
+        : 'Arial, "Liberation Sans", sans-serif';
+    return `"${escaped}", ${fallback}`;
+}
+
 function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
-    element.style.fontFamily = run.fontFace;
+    element.style.fontFamily = fontFamilyCSS(run.fontFace);
     element.style.fontSize = `${run.fontSize}px`;
     element.style.color = run.color;
     element.style.fontWeight = run.bold ? "bold" : "normal";
@@ -54,7 +65,7 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
     element.style.marginBottom = `${paragraph.spaceAfter}px`;
     if (paragraph.lineHeight !== undefined) {
         element.style.lineHeight = paragraph.lineHeight < 10 ? String(paragraph.lineHeight) : `${paragraph.lineHeight}px`;
-    }
+    } else element.style.lineHeight = "1.2";
     if (paragraph.tabStops.length) {
         element.dataset.tabStops = paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",");
     }
