@@ -4,7 +4,7 @@ import { join } from "node:path";
 import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../../src/PuppeterrGen";
 import { PAGE_SIZES } from "../../src/pageLayouts";
-import { populateParityFixture } from "./fixture";
+import { PARITY_REGIONS, populateParityFixture } from "./fixture";
 
 const threshold = Number(process.env.VISUAL_DIFF_THRESHOLD ?? "0.12");
 if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
@@ -84,6 +84,25 @@ for (let index = 0; index < referencePages.length; index++) {
     pageScores.push(Number(normalizedScore));
 }
 
+const regionFailures: string[] = [];
+for (const region of PARITY_REGIONS) {
+    const pageIndex = region.page - 1;
+    const geometry = `${region.w}x${region.h}+${region.x}+${region.y}`;
+    const referenceCrop = join(artifacts, `reference-${region.name}.png`);
+    const actualCrop = join(artifacts, `actual-${region.name}.png`);
+    await run(["magick", join(artifacts, referencePages[pageIndex]!), "-crop", geometry, "+repage", referenceCrop]);
+    await run(["magick", join(artifacts, actualPages[pageIndex]!), "-crop", geometry, "+repage", actualCrop]);
+    const output = await run([
+        "magick", "compare", "-metric", "RMSE", referenceCrop, actualCrop,
+        join(artifacts, `diff-${region.name}.png`),
+    ], [0, 1]);
+    const metric = output.match(/\((\d*\.?\d+)\)/)?.[1];
+    if (!metric) throw new Error(`Could not parse region metric: ${output}`);
+    const score = Number(metric);
+    console.log(`${region.name}: ${score.toFixed(4)} (limit ${region.threshold.toFixed(4)})`);
+    if (score > region.threshold) regionFailures.push(`${region.name}: ${score.toFixed(4)} > ${region.threshold}`);
+}
+
 const worstScore = Math.max(...pageScores);
 console.log(`Visual parity RMSE by page: ${pageScores.map(score => score.toFixed(4)).join(", ")}`);
 console.log(`Acceptance threshold: ${threshold.toFixed(4)}`);
@@ -91,4 +110,7 @@ console.log(`Artifacts: ${artifacts}`);
 
 if (worstScore > threshold) {
     throw new Error(`Visual difference ${worstScore.toFixed(4)} exceeds ${threshold.toFixed(4)}`);
+}
+if (regionFailures.length) {
+    throw new Error(`Feature crop differences exceed acceptance:\n${regionFailures.join("\n")}`);
 }

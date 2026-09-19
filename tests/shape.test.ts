@@ -33,6 +33,22 @@ describe("shape normalization", () => {
         ], PAGE)).toBe("M 96 48 A 96 48 0 0 1 0 96");
     });
 
+    test("uses radial angles for noncircular DrawingML arcs", () => {
+        // A 45-degree ray meets a 2:1 ellipse at x = y, not at
+        // (rx * cos(45), ry * sin(45)). The second arc starts on that ray.
+        const path = normalizeCustomPath([
+            { x: 2, y: 0 },
+            { x: 0, y: 0, curve: { type: "arc", wR: 2, hR: 1, stAng: 0, swAng: 45 } },
+            { x: 0, y: 0, curve: { type: "arc", wR: 2, hR: 1, stAng: 45, swAng: 45 } },
+        ], PAGE);
+        const arcs = [...path.matchAll(/A ([\d. -]+)/g)].map(match => match[1]!.trim().split(/\s+/).map(Number));
+        const [x, y] = arcs[0]!.slice(-2) as [number, number];
+        expect(x).toBeCloseTo(y, 5);
+        expect((x / 192) ** 2 + (y / 96) ** 2).toBeCloseTo(1, 6);
+        expect(arcs[1]!.slice(-2)[0]).toBeCloseTo(0, 5);
+        expect(arcs[1]!.slice(-2)[1]).toBeCloseTo(96, 5);
+    });
+
     test("requires custom points and rejects unsupported presets", () => {
         expect(() => normalizeShape("custGeom", {}, 100, 100, PAGE)).toThrow("requires at least one point");
         expect(() => normalizeShape("cloud", {}, 100, 100, PAGE)).toThrow("Unsupported shape geometry: cloud");
@@ -66,10 +82,42 @@ describe("shape normalization", () => {
         expect((normalizeShape("bentArrow", {}, 120, 90, PAGE).geometry as { data: string }).data).toContain("A ");
         expect((normalizeShape("uturnArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/A /g)).toHaveLength(4);
         expect((normalizeShape("curvedRightArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/A /g)).toHaveLength(4);
-        const curvedUp = normalizeShape("curvedUpArrow", {}, 120, 90, PAGE).geometry as { data: string; transform?: string };
+        const curvedUp = normalizeShape("curvedUpArrow", {}, 120, 90, PAGE).geometry as {
+            data: string;
+            transform?: string;
+            faces?: ReadonlyArray<{ data: string; fillModifier?: string }>;
+            outlineData?: string;
+        };
         expect(curvedUp.data.match(/A /g)).toHaveLength(4);
-        expect(curvedUp.transform).toBe("matrix(0 -1 1 0 0 90)");
+        expect(curvedUp.faces).toHaveLength(2);
+        expect(curvedUp.faces?.[1]?.fillModifier).toBe("darkenLess");
+        expect(curvedUp.outlineData).toContain("A ");
+        expect(curvedUp.transform).toBe("matrix(0 1 1 0 0 0)");
         expect((normalizeShape("swooshArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/Q /g)).toHaveLength(2);
+    });
+
+    test("joins curved-arrow ellipses to both arrowhead shoulders and the fold", () => {
+        for (const [width, height] of [[134.4, 201.6], [240, 72], [120, 120], [72, 240]]) {
+            const geometry = normalizeShape("curvedRightArrow", {}, width!, height!, PAGE).geometry;
+            if (geometry.kind !== "path") throw new Error("Expected arrow path");
+            const main = geometry.faces![0]!.data;
+            const dark = geometry.faces![1]!.data;
+            const endpoints = (data: string) => [...data.matchAll(/A ([\d. -]+)/g)]
+                .map(match => match[1]!.trim().split(/\s+/).map(Number).slice(-2) as [number, number]);
+            const [shoulder, back] = endpoints(main) as [[number, number], [number, number]];
+            const [fold, top] = endpoints(dark) as [[number, number], [number, number]];
+            const thickness = Math.min(width!, height!) / 4;
+            const radius = height! / 2 - thickness * 3 / 4;
+            expect(shoulder[0]).toBeCloseTo(width! - thickness, 5);
+            expect(back[0]).toBeCloseTo(0, 5);
+            expect(back[1]).toBeCloseTo(radius + thickness, 5);
+            // The fold must lie on both translated ellipses.
+            for (const centerY of [radius, radius + thickness]) {
+                expect(((fold[0] - width!) / width!) ** 2 + ((fold[1] - centerY) / radius) ** 2).toBeCloseTo(1, 5);
+            }
+            expect(top[0]).toBeCloseTo(width!, 5);
+            expect(top[1]).toBeCloseTo(0, 5);
+        }
     });
 });
 
@@ -109,6 +157,21 @@ describe("SVG shape rendering", () => {
         expect(shape?.getAttribute("href")).toBe("#slide-2");
         expect(shape?.title).toBe("Details");
         expect(shape?.querySelector("path")?.getAttribute("d")).toBe("M 0 0 L 288 0 L 144 192 Z");
+    });
+
+    test("renders curved arrows as separately painted faces with one outline", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("curvedUpArrow", {
+            x: 1, y: 1, w: 2, h: 2,
+            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1.15 },
+        });
+
+        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const faces = geometry?.querySelectorAll<SVGPathElement>(".shape-face");
+        expect(faces).toHaveLength(2);
+        expect(faces?.[0]?.getAttribute("fill")).toBe("#5B9BD5");
+        expect(faces?.[1]?.getAttribute("fill")).toBe("#487caa");
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("stroke")).toBe("#843C0C");
     });
 
     test("never silently substitutes an unsupported shape", () => {

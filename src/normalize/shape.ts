@@ -38,17 +38,10 @@ function arcCommand(
 ): { command: string; end: { x: number; y: number } } {
     const rx = coordinate(curve.wR, "x", pageSize);
     const ry = coordinate(curve.hR, "y", pageSize);
-    const start = curve.stAng * Math.PI / 180;
-    const sweep = curve.swAng * Math.PI / 180;
-    const centerX = current.x - rx * Math.cos(start);
-    const centerY = current.y - ry * Math.sin(start);
-    const end = {
-        x: cleanNumber(centerX + rx * Math.cos(start + sweep)),
-        y: cleanNumber(centerY + ry * Math.sin(start + sweep)),
-    };
+    const arc = arcPathCommand([current.x, current.y], rx, ry, curve.stAng, curve.swAng);
     return {
-        command: `A ${rx} ${ry} 0 ${Math.abs(curve.swAng) > 180 ? 1 : 0} ${curve.swAng >= 0 ? 1 : 0} ${end.x} ${end.y}`,
-        end,
+        command: arc.command,
+        end: { x: cleanNumber(arc.end[0]), y: cleanNumber(arc.end[1]) },
     };
 }
 
@@ -113,11 +106,45 @@ function pointCommand(command: "M" | "L" | "Q", points: ReadonlyArray<PixelPoint
 }
 
 function arcEndpoint(current: PixelPoint, rx: number, ry: number, startDegrees: number, sweepDegrees: number): PixelPoint {
-    const start = startDegrees * Math.PI / 180;
-    const end = (startDegrees + sweepDegrees) * Math.PI / 180;
+    // DrawingML angles describe rays from the ellipse center, not the
+    // parametric angles used by (rx * cos(t), ry * sin(t)).
+    const parameter = (degrees: number) => {
+        const radians = degrees * Math.PI / 180;
+        return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
+    };
+    const start = parameter(startDegrees);
+    const end = parameter(startDegrees + sweepDegrees);
     const centerX = current[0] - rx * Math.cos(start);
     const centerY = current[1] - ry * Math.sin(start);
     return [centerX + rx * Math.cos(end), centerY + ry * Math.sin(end)];
+}
+
+function presetArcPath(rx: number, ry: number) {
+    const commands: string[] = [];
+    let current: PixelPoint = [0, 0];
+    return {
+        move(x: number, y: number) {
+            current = [x, y];
+            commands.push(pointCommand("M", [current]));
+            return this;
+        },
+        line(x: number, y: number) {
+            current = [x, y];
+            commands.push(pointCommand("L", [current]));
+            return this;
+        },
+        arc(start: number, sweep: number) {
+            const result = arcPathCommand(current, rx, ry, start, sweep);
+            current = result.end;
+            commands.push(result.command);
+            return this;
+        },
+        close() {
+            commands.push("Z");
+            return this;
+        },
+        data() { return commands.join(" "); },
+    };
 }
 
 function arcPathCommand(current: PixelPoint, rx: number, ry: number, startDegrees: number, sweepDegrees: number): { command: string; end: PixelPoint } {
@@ -246,7 +273,7 @@ function bentArrowPath(width: number, height: number): string {
     const thicknessHalf = thickness / 2;
     const delta = arrowHalf - thicknessHalf;
     const arrowHeight = short / 4;
-    const bend = Math.min(width - arrowHeight, height - delta) * 0.4375;
+    const bend = Math.min(short * 0.4375, width - arrowHeight, height - delta);
     const innerBend = Math.max(bend - thickness, 0);
     const x3 = thickness + innerBend;
     const x4 = width - arrowHeight;
@@ -271,7 +298,7 @@ function uturnArrowPath(width: number, height: number): string {
     const arrowHeight = short / 4;
     const y4 = y5 - arrowHeight;
     const x9 = width - delta;
-    const bend = Math.min(x9 / 2, y4) * 0.4375;
+    const bend = Math.min(short * 0.4375, x9 / 2, y4);
     const innerBend = Math.max(bend - thickness, 0);
     const x3 = thickness + innerBend;
     const x8 = width - arrowHalf;
@@ -291,64 +318,62 @@ function uturnArrowPath(width: number, height: number): string {
     return commands.join(" ");
 }
 
-type PathSegment =
-    | { kind: "move"; point: PixelPoint }
-    | { kind: "line"; point: PixelPoint }
-    | { kind: "arc"; end: PixelPoint; rx: number; ry: number; sweep: number }
-    | { kind: "close" };
-
-function transformCurvedSegments(segments: ReadonlyArray<PathSegment>, width: number, height: number, direction: "right" | "left" | "up" | "down"): string {
-    const transform = ([x, y]: PixelPoint): PixelPoint => direction === "right" ? [x, y]
-        : direction === "left" ? [width - x, y]
-            : direction === "up" ? [y, height - x]
-                : [width - y, x];
-    return segments.map(segment => {
-        if (segment.kind === "close") return "Z";
-        const [x, y] = transform(segment.kind === "arc" ? segment.end : segment.point);
-        if (segment.kind === "move") return `M ${cleanNumber(x)} ${cleanNumber(y)}`;
-        if (segment.kind === "line") return `L ${cleanNumber(x)} ${cleanNumber(y)}`;
-        const rotated = direction === "up" || direction === "down";
-        const sweep = direction === "left" ? -segment.sweep : segment.sweep;
-        return `A ${cleanNumber(rotated ? segment.ry : segment.rx)} ${cleanNumber(rotated ? segment.rx : segment.ry)} 0 ${Math.abs(sweep) > 180 ? 1 : 0} ${sweep >= 0 ? 1 : 0} ${cleanNumber(x)} ${cleanNumber(y)}`;
-    }).join(" ");
-}
-
-function curvedArrowPath(width: number, height: number, direction: "right" | "left" | "up" | "down"): string {
-    const sourceWidth = direction === "up" || direction === "down" ? height : width;
-    const sourceHeight = direction === "up" || direction === "down" ? width : height;
-    const short = Math.min(sourceWidth, sourceHeight);
+function curvedArrowGeometry(width: number, height: number, direction: "right" | "left" | "up" | "down"): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    // Default DrawingML curved-arrow guides. Transposing the horizontal
+    // definitions gives the vertical presets, including their face boundaries.
+    const vertical = direction === "up" || direction === "down";
+    const left = direction === "left" || direction === "up";
+    const w = vertical ? height : width;
+    const h = vertical ? width : height;
+    const short = Math.min(w, h);
     const thickness = short / 4;
     const arrowWidth = short / 2;
-    const radiusY = sourceHeight / 2 - (thickness + arrowWidth) / 4;
-    const q7 = radiusY * 2;
-    const idx = Math.sqrt(Math.max(0, q7 * q7 - thickness * thickness)) * sourceWidth / q7;
+    const radiusY = h / 2 - (thickness + arrowWidth) / 4;
+    const diameter = radiusY * 2;
+    const idx = Math.sqrt(diameter * diameter - thickness * thickness) * w / diameter;
     const arrowHeight = Math.min(short / 4, idx);
     const y3 = radiusY + thickness;
-    const dy = Math.sqrt(Math.max(0, sourceWidth * sourceWidth - arrowHeight * arrowHeight)) * radiusY / sourceWidth;
+    const dy = Math.sqrt(w * w - arrowHeight * arrowHeight) * radiusY / w;
     const y5 = radiusY + dy;
     const y7 = y3 + dy;
     const halfDifference = (arrowWidth - thickness) / 2;
     const y4 = y5 - halfDifference;
     const y8 = y7 + halfDifference;
-    const y6 = sourceHeight - arrowWidth / 2;
-    const x1 = sourceWidth - arrowHeight;
-    // DrawingML's `at2 x y` order is the inverse of Math.atan2(y, x).
+    const y6 = h - arrowWidth / 2;
+    const x1 = left ? arrowHeight : w - arrowHeight;
     const sweep = Math.atan2(dy, arrowHeight) * 180 / Math.PI;
-    let current: PixelPoint = [0, radiusY];
-    let arc = arcPathCommand(current, sourceWidth, radiusY, 180, -sweep);
-    const segments: PathSegment[] = [{ kind: "move", point: current }, { kind: "arc", end: arc.end, rx: sourceWidth, ry: radiusY, sweep: -sweep },
-        { kind: "line", point: [x1, y4] }, { kind: "line", point: [sourceWidth, y6] }, { kind: "line", point: [x1, y8] }, { kind: "line", point: [x1, y7] }];
-    current = [x1, y7];
-    arc = arcPathCommand(current, sourceWidth, radiusY, 180 - sweep, sweep);
-    segments.push({ kind: "arc", end: arc.end, rx: sourceWidth, ry: radiusY, sweep }, { kind: "close" });
-    segments.push(
-        { kind: "move", point: [sourceWidth, 0] },
-        { kind: "arc", end: [0, radiusY], rx: sourceWidth, ry: radiusY, sweep: -90 },
-        { kind: "line", point: [0, radiusY + thickness] },
-        { kind: "arc", end: [sourceWidth, thickness], rx: sourceWidth, ry: radiusY, sweep: 90 },
-        { kind: "close" },
-    );
-    return transformCurvedSegments(segments, width, height, direction);
+    const diagonal = Math.atan2(thickness / 2, idx) * 180 / Math.PI;
+    const path = () => presetArcPath(w, radiusY);
+    let main: string;
+    let dark: string;
+    let outline: string;
+    if (left) {
+        main = path().move(0, y6).line(x1, y4).line(x1, y5)
+            .arc(sweep, diagonal - sweep).arc(-diagonal, sweep + diagonal)
+            .line(x1, y8).close().data();
+        dark = path().move(w, y3).arc(0, -90).line(0, 0)
+            .arc(270, 90).close().data();
+        outline = path().move(w, y3).arc(0, -90).line(0, 0).arc(270, 90)
+            .line(w, y3).arc(0, sweep).line(x1, y8).line(0, y6)
+            .line(x1, y4).line(x1, y5).arc(sweep, diagonal - sweep).data();
+    } else {
+        main = path().move(0, radiusY).arc(180, -sweep)
+            .line(x1, y4).line(w, y6).line(x1, y8).line(x1, y7)
+            .arc(180 - sweep, sweep).close().data();
+        dark = path().move(w, thickness).arc(270, diagonal - 90)
+            .arc(180 - diagonal, 90 + diagonal).close().data();
+        outline = path().move(0, radiusY).arc(180, -sweep)
+            .line(x1, y4).line(w, y6).line(x1, y8).line(x1, y7)
+            .arc(180 - sweep, sweep).line(0, radiusY).arc(180, 90)
+            .line(w, thickness).arc(270, diagonal - 90).data();
+    }
+    return {
+        kind: "path",
+        data: `${main} ${dark}`,
+        faces: [{ data: main }, { data: dark, fillModifier: "darkenLess" }],
+        outlineData: outline,
+        transform: vertical ? "matrix(0 1 1 0 0 0)" : undefined,
+    };
 }
 
 function swooshArrowPath(width: number, height: number): string {
@@ -383,10 +408,6 @@ function arrowPath(shapeName: string, width: number, height: number): string | u
     if (shapeName === "bentUpArrow") return pixelPath(bentUpArrowPoints(width, height));
     if (shapeName === "bentArrow") return bentArrowPath(width, height);
     if (shapeName === "uturnArrow") return uturnArrowPath(width, height);
-    if (shapeName === "curvedRightArrow") return curvedArrowPath(width, height, "right");
-    if (shapeName === "curvedLeftArrow") return curvedArrowPath(width, height, "left");
-    if (shapeName === "curvedUpArrow") return curvedArrowPath(width, height, "up");
-    if (shapeName === "curvedDownArrow") return curvedArrowPath(width, height, "down");
     if (shapeName === "swooshArrow") return swooshArrowPath(width, height);
     if (shapeName === "notchedRightArrow") {
         const head = Math.min(width, height) / 2;
@@ -457,10 +478,10 @@ export function normalizeShape(
     } else if (shapeName === "ellipse") geometry = { kind: "ellipse" };
     else if (shapeName === "line" || shapeName === "lineInv") geometry = { kind: "line", inverse: shapeName === "lineInv" };
     else if (shapeName === "custGeom") geometry = { kind: "path", data: normalizeCustomPath(options.points, pageSize) };
-    else if (shapeName === "curvedRightArrow") geometry = { kind: "path", data: curvedArrowPath(width, height, "right") };
-    else if (shapeName === "curvedLeftArrow") geometry = { kind: "path", data: curvedArrowPath(width, height, "right"), transform: `matrix(-1 0 0 1 ${width} 0)` };
-    else if (shapeName === "curvedUpArrow") geometry = { kind: "path", data: curvedArrowPath(height, width, "right"), transform: `matrix(0 -1 1 0 0 ${height})` };
-    else if (shapeName === "curvedDownArrow") geometry = { kind: "path", data: curvedArrowPath(height, width, "right"), transform: `matrix(0 1 -1 0 ${width} 0)` };
+    else if (shapeName === "curvedRightArrow") geometry = curvedArrowGeometry(width, height, "right");
+    else if (shapeName === "curvedLeftArrow") geometry = curvedArrowGeometry(width, height, "left");
+    else if (shapeName === "curvedUpArrow") geometry = curvedArrowGeometry(width, height, "up");
+    else if (shapeName === "curvedDownArrow") geometry = curvedArrowGeometry(width, height, "down");
     else geometry = { kind: "path", data: presetPath(shapeName, width, height)! };
     return { name: shapeName, width, height, geometry, link };
 }

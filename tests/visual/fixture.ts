@@ -4,6 +4,23 @@ import { Buffer } from "node:buffer";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
+const CURVED_SHAPES = ["curvedRightArrow", "curvedLeftArrow", "curvedUpArrow", "curvedDownArrow"] as const;
+const CURVED_CASES = CURVED_SHAPES.flatMap((shape, index) => [
+    { page: 17, name: shape, shape, x: 0.6 + index * 1.85, y: 1, w: 1.4, h: 2.1 },
+    ...[
+        { label: "wide", y: 0.95, w: 2, h: 0.7 },
+        { label: "square", y: 2.05, w: 1.2, h: 1.2 },
+        { label: "tall", y: 3.8, w: 0.7, h: 1.3 },
+    ].map(size => ({ page: 18, name: `${shape}-${size.label}`, shape, x: 0.6 + index * 2.35, ...size })),
+]);
+
+// These tight crops include the stroke but exclude labels and unused slide area.
+export const PARITY_REGIONS = CURVED_CASES.map(({ page, name, x, y, w, h }) => ({
+    page, name, threshold: 0.08,
+    x: Math.floor(x * 96) - 3, y: Math.floor(y * 96) - 3,
+    w: Math.ceil(w * 96) + 7, h: Math.ceil(h * 96) + 7,
+}));
+
 const SAMPLE_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(`
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200" preserveAspectRatio="none">
   <rect width="200" height="100" fill="#4472C4"/><rect x="200" width="200" height="100" fill="#ED7D31"/>
@@ -464,19 +481,32 @@ export function populateParityFixture(presentation: Presentation): void {
         x: 0.5, y: 0.2, w: 9, h: 0.5,
         fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
     });
-    const curvedArrows: Array<[PptxGenJS.SHAPE_NAME, number, number]> = [
-        ["curvedRightArrow", 0.6, 1], ["curvedLeftArrow", 2.45, 1], ["curvedUpArrow", 4.3, 1],
-        ["curvedDownArrow", 6.15, 1], ["swooshArrow", 8, 1],
+    const curvedArrows = [
+        ...CURVED_CASES.filter(sample => sample.page === 17),
+        { shape: "swooshArrow" as const, x: 8, y: 1, w: 1.4, h: 2.1 },
     ];
-    curvedArrows.forEach(([shape, x, y], index) => {
+    curvedArrows.forEach(({ shape, x, y, w, h }, index) => {
         curvedArrowsSlide.addShape(shape, {
-            x, y, w: 1.4, h: 2.1,
+            x, y, w, h,
             fill: { color: index % 2 ? "ED7D31" : "5B9BD5", transparency: 5 },
-            line: { color: "843C0C", width: 1.15, transparency: 100 },
+            line: { color: "843C0C", width: 1.15 },
         });
         curvedArrowsSlide.addText(shape, {
             x: x - 0.2, y: 3.35, w: 1.8, h: 0.3,
             fontFace: "Arial", fontSize: 9, color: "363636", align: "center", margin: 0,
+        });
+    });
+
+    const curvedRatiosSlide = presentation.addSlide();
+    curvedRatiosSlide.addText("Curved arrows: aspect ratios", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    CURVED_CASES.filter(sample => sample.page === 18).forEach(({ shape, x, y, w, h }) => {
+        curvedRatiosSlide.addShape(shape, {
+            x, y, w, h,
+            fill: { color: "5B9BD5", transparency: 5 },
+            line: { color: "843C0C", width: 1.15 },
         });
     });
 }

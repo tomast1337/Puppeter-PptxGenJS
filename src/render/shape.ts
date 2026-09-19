@@ -3,6 +3,20 @@ import { applyGeometry, applyTransform } from "./style";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+function darkenLess(color: string): string {
+    const hex = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+    if (hex) {
+        const channel = (value: string) => Math.floor(parseInt(value, 16) * 0.8).toString(16).padStart(2, "0");
+        return `#${channel(hex[1]!)}${channel(hex[2]!)}${channel(hex[3]!)}`;
+    }
+    const rgb = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+    if (!rgb) return color;
+    const channels = [rgb[1], rgb[2], rgb[3]].map(value => Math.floor(Number(value) * 0.8));
+    return rgb[4] === undefined
+        ? `rgb(${channels.join(", ")})`
+        : `rgba(${channels.join(", ")}, ${rgb[4]})`;
+}
+
 function markerPath(type: NonNullable<NormalizedLine["beginArrow"]>): { tag: "path" | "ellipse" | "polygon"; value: string } | undefined {
     if (type === "none") return undefined;
     if (type === "oval") return { tag: "ellipse", value: "5,5,4,3" };
@@ -54,6 +68,26 @@ function geometryElement(document: Document, shape: NormalizedShape): SVGElement
         element.setAttribute("rx", String(shape.width / 2)); element.setAttribute("ry", String(shape.height / 2));
         return element;
     }
+    if (geometry.kind === "path" && geometry.faces?.length) {
+        const group = document.createElementNS(SVG_NS, "g");
+        if (geometry.transform) group.setAttribute("transform", geometry.transform);
+        for (const face of geometry.faces) {
+            const path = document.createElementNS(SVG_NS, "path");
+            path.classList.add("shape-face");
+            path.setAttribute("d", face.data);
+            if (face.fillModifier) path.dataset.fillModifier = face.fillModifier;
+            path.setAttribute("stroke", "none");
+            group.appendChild(path);
+        }
+        if (geometry.outlineData) {
+            const outline = document.createElementNS(SVG_NS, "path");
+            outline.classList.add("shape-outline");
+            outline.setAttribute("d", geometry.outlineData);
+            outline.setAttribute("fill", "none");
+            group.appendChild(outline);
+        }
+        return group;
+    }
     const element = document.createElementNS(SVG_NS, "path");
     if (geometry.kind === "line") {
         element.setAttribute("d", geometry.inverse ? `M 0 ${shape.height} L ${shape.width} 0` : `M 0 0 L ${shape.width} ${shape.height}`);
@@ -91,15 +125,22 @@ export function renderShape(document: Document, shape: NormalizedShape, style: N
     const defs = document.createElementNS(SVG_NS, "defs");
     const geometry = geometryElement(document, shape);
     geometry.classList.add("shape-geometry");
-    geometry.setAttribute("fill", shape.geometry.kind === "line" || !style.fill?.visible ? "none" : style.fill.color);
-    geometry.setAttribute("stroke", style.line?.visible ? style.line.color : "none");
-    geometry.setAttribute("stroke-width", String(style.line?.visible ? style.line.width : 0));
-    geometry.setAttribute("vector-effect", "non-scaling-stroke");
-    if (style.line?.dashArray) geometry.setAttribute("stroke-dasharray", style.line.dashArray);
+    const multiFace = shape.geometry.kind === "path" && Boolean(shape.geometry.faces?.length);
+    const baseFill = shape.geometry.kind === "line" || !style.fill?.visible ? "none" : style.fill.color;
+    const strokeTarget = multiFace ? geometry.querySelector<SVGPathElement>(".shape-outline") ?? geometry : geometry;
+    if (multiFace) {
+        geometry.querySelectorAll<SVGPathElement>(".shape-face").forEach(face => {
+            face.setAttribute("fill", face.dataset.fillModifier === "darkenLess" ? darkenLess(baseFill) : baseFill);
+        });
+    } else geometry.setAttribute("fill", baseFill);
+    strokeTarget.setAttribute("stroke", style.line?.visible ? style.line.color : "none");
+    strokeTarget.setAttribute("stroke-width", String(style.line?.visible ? style.line.width : 0));
+    strokeTarget.setAttribute("vector-effect", "non-scaling-stroke");
+    if (style.line?.dashArray) strokeTarget.setAttribute("stroke-dasharray", style.line.dashArray);
     if (style.line?.visible) {
         const base = `shape-${style.objectName.replace(/[^a-z\d]/gi, "-")}`;
-        if (addMarker(document, defs, `${base}-begin`, style.line.beginArrow ?? "none", style.line.color)) geometry.setAttribute("marker-start", `url(#${base}-begin)`);
-        if (addMarker(document, defs, `${base}-end`, style.line.endArrow ?? "none", style.line.color)) geometry.setAttribute("marker-end", `url(#${base}-end)`);
+        if (addMarker(document, defs, `${base}-begin`, style.line.beginArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-start", `url(#${base}-begin)`);
+        if (addMarker(document, defs, `${base}-end`, style.line.endArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-end", `url(#${base}-end)`);
     }
     svg.append(defs, geometry);
     outer.appendChild(svg);

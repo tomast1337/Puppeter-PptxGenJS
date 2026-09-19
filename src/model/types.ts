@@ -145,7 +145,13 @@ export type NormalizedShapeGeometry =
     | { kind: "rect"; radius: number }
     | { kind: "ellipse" }
     | { kind: "line"; inverse: boolean }
-    | { kind: "path"; data: string; transform?: string };
+    | {
+        kind: "path";
+        data: string;
+        transform?: string;
+        faces?: ReadonlyArray<{ data: string; fillModifier?: "darkenLess" }>;
+        outlineData?: string;
+    };
 
 export interface NormalizedShape {
     name: string;
