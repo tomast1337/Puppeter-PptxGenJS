@@ -13,11 +13,12 @@ const ARROW_SHAPES = Object.freeze([
     "rightArrowCallout", "leftArrowCallout", "upArrowCallout", "downArrowCallout",
     "leftRightArrowCallout", "upDownArrowCallout", "quadArrowCallout",
 ] as const);
+const CIRCULAR_SHAPES = Object.freeze(["arc", "pie", "pieWedge", "chord", "blockArc", "donut"] as const);
 
 export const CORE_SVG_SHAPES = Object.freeze([
     "rect", "roundRect", "ellipse", "line", "lineInv", "custGeom",
     "triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid",
-    ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES,
+    ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES,
 ] as const);
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
@@ -29,6 +30,16 @@ function coordinate(value: PptxGenJS.Coord, axis: "x" | "y", pageSize: PageSize)
 
 function cleanNumber(value: number): number {
     return Math.abs(value) < 1e-9 ? 0 : Number(value.toFixed(6));
+}
+
+function drawingAngleParameter(degrees: number, rx: number, ry: number): number {
+    const radians = degrees * Math.PI / 180;
+    return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
+}
+
+function ellipseRayPoint(cx: number, cy: number, rx: number, ry: number, degrees: number): PixelPoint {
+    const parameter = drawingAngleParameter(degrees, rx, ry);
+    return [cx + rx * Math.cos(parameter), cy + ry * Math.sin(parameter)];
 }
 
 function arcCommand(
@@ -108,12 +119,8 @@ function pointCommand(command: "M" | "L" | "Q", points: ReadonlyArray<PixelPoint
 function arcEndpoint(current: PixelPoint, rx: number, ry: number, startDegrees: number, sweepDegrees: number): PixelPoint {
     // DrawingML angles describe rays from the ellipse center, not the
     // parametric angles used by (rx * cos(t), ry * sin(t)).
-    const parameter = (degrees: number) => {
-        const radians = degrees * Math.PI / 180;
-        return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
-    };
-    const start = parameter(startDegrees);
-    const end = parameter(startDegrees + sweepDegrees);
+    const start = drawingAngleParameter(startDegrees, rx, ry);
+    const end = drawingAngleParameter(startDegrees + sweepDegrees, rx, ry);
     const centerX = current[0] - rx * Math.cos(start);
     const centerY = current[1] - ry * Math.sin(start);
     return [centerX + rx * Math.cos(end), centerY + ry * Math.sin(end)];
@@ -376,6 +383,82 @@ function curvedArrowGeometry(width: number, height: number, direction: "right" |
     };
 }
 
+function normalizedSweep(start: number, end: number): number {
+    const delta = ((end - start) % 360 + 360) % 360;
+    return delta === 0 ? 360 : delta;
+}
+
+function ellipseArcCommands(cx: number, cy: number, rx: number, ry: number, start: number, sweep: number): {
+    move: string;
+    arcs: string;
+    start: PixelPoint;
+    end: PixelPoint;
+} {
+    const first = ellipseRayPoint(cx, cy, rx, ry, start);
+    let current = first;
+    const commands: string[] = [];
+    const segmentCount = Math.max(1, Math.ceil(Math.abs(sweep) / 180));
+    const segmentSweep = sweep / segmentCount;
+    for (let index = 0; index < segmentCount; index++) {
+        const arc = arcPathCommand(current, rx, ry, start + segmentSweep * index, segmentSweep);
+        commands.push(arc.command);
+        current = arc.end;
+    }
+    return { move: pointCommand("M", [first]), arcs: commands.join(" "), start: first, end: current };
+}
+
+function circularShapeGeometry(
+    shapeName: typeof CIRCULAR_SHAPES[number],
+    options: PptxGenJS.ShapeProps,
+    width: number,
+    height: number,
+): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const defaults: Record<"arc" | "pie" | "chord" | "blockArc", readonly [number, number]> = {
+        arc: [270, 0], pie: [0, 270], chord: [45, 270], blockArc: [180, 0],
+    };
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radiusX = width / 2;
+    const radiusY = height / 2;
+    if (shapeName === "donut") {
+        const thickness = Math.min(width, height) / 4;
+        const innerX = Math.max(radiusX - thickness, 0.001);
+        const innerY = Math.max(radiusY - thickness, 0.001);
+        const outer = ellipseArcCommands(centerX, centerY, radiusX, radiusY, 180, 360);
+        const inner = ellipseArcCommands(centerX, centerY, innerX, innerY, 180, -360);
+        return { kind: "path", data: `${outer.move} ${outer.arcs} Z ${inner.move} ${inner.arcs} Z` };
+    }
+    if (shapeName === "pieWedge") {
+        const arc = ellipseArcCommands(width, height, width, height, 180, 90);
+        return { kind: "path", data: `${arc.move} ${arc.arcs} L ${cleanNumber(width)} ${cleanNumber(height)} Z` };
+    }
+    const defaultRange = defaults[shapeName];
+    const range = options.angleRange ?? defaultRange;
+    const start = ((range[0] % 360) + 360) % 360;
+    const end = ((range[1] % 360) + 360) % 360;
+    const sweep = normalizedSweep(start, end);
+    const outer = ellipseArcCommands(centerX, centerY, radiusX, radiusY, start, sweep);
+    if (shapeName === "arc") {
+        const face = `${outer.move} ${outer.arcs} L ${cleanNumber(centerX)} ${cleanNumber(centerY)} Z`;
+        const outline = `${outer.move} ${outer.arcs}`;
+        return { kind: "path", data: face, faces: [{ data: face }], outlineData: outline };
+    }
+    if (shapeName === "pie") {
+        return { kind: "path", data: `${outer.move} ${outer.arcs} L ${cleanNumber(centerX)} ${cleanNumber(centerY)} Z` };
+    }
+    if (shapeName === "chord") return { kind: "path", data: `${outer.move} ${outer.arcs} Z` };
+
+    const ratio = Math.min(1, Math.max(0, options.arcThicknessRatio ?? 0.5));
+    const thickness = Math.min(width, height) * ratio / 2;
+    const innerX = Math.max(radiusX - thickness, 0.001);
+    const innerY = Math.max(radiusY - thickness, 0.001);
+    const inner = ellipseArcCommands(centerX, centerY, innerX, innerY, end, -sweep);
+    return {
+        kind: "path",
+        data: `${outer.move} ${outer.arcs} L ${cleanNumber(inner.start[0])} ${cleanNumber(inner.start[1])} ${inner.arcs} Z`,
+    };
+}
+
 function swooshArrowPath(width: number, height: number): string {
     const short = Math.min(width, height);
     const ad1 = height / 4;
@@ -482,6 +565,9 @@ export function normalizeShape(
     else if (shapeName === "curvedLeftArrow") geometry = curvedArrowGeometry(width, height, "left");
     else if (shapeName === "curvedUpArrow") geometry = curvedArrowGeometry(width, height, "up");
     else if (shapeName === "curvedDownArrow") geometry = curvedArrowGeometry(width, height, "down");
+    else if (CIRCULAR_SHAPES.includes(shapeName as typeof CIRCULAR_SHAPES[number])) {
+        geometry = circularShapeGeometry(shapeName as typeof CIRCULAR_SHAPES[number], options, width, height);
+    }
     else geometry = { kind: "path", data: presetPath(shapeName, width, height)! };
     return { name: shapeName, width, height, geometry, link };
 }

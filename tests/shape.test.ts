@@ -119,6 +119,21 @@ describe("shape normalization", () => {
             expect(top[1]).toBeCloseTo(0, 5);
         }
     });
+
+    test("normalizes circular presets and their adjustment options", () => {
+        for (const shape of ["arc", "pie", "pieWedge", "chord", "blockArc", "donut"] as const) {
+            const geometry = normalizeShape(shape, {}, 160, 100, PAGE).geometry;
+            expect(geometry.kind).toBe("path");
+            if (geometry.kind === "path") expect(geometry.data).toContain("A ");
+        }
+        const arc = normalizeShape("arc", { angleRange: [30, 250] }, 160, 100, PAGE).geometry;
+        expect(arc.kind === "path" && arc.faces).toHaveLength(1);
+        expect(arc.kind === "path" && arc.outlineData).not.toContain("L 80 50");
+        const thin = normalizeShape("blockArc", { angleRange: [25, 300], arcThicknessRatio: 0.2 }, 160, 100, PAGE).geometry;
+        const thick = normalizeShape("blockArc", { angleRange: [25, 300], arcThicknessRatio: 0.8 }, 160, 100, PAGE).geometry;
+        expect(thin.kind === "path" && thin.data).not.toBe(thick.kind === "path" && thick.data);
+        expect((normalizeShape("donut", {}, 160, 100, PAGE).geometry as { data: string }).data.match(/M /g)).toHaveLength(2);
+    });
 });
 
 describe("SVG shape rendering", () => {
@@ -172,6 +187,19 @@ describe("SVG shape rendering", () => {
         expect(faces?.[0]?.getAttribute("fill")).toBe("#5B9BD5");
         expect(faces?.[1]?.getAttribute("fill")).toBe("#487caa");
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("stroke")).toBe("#843C0C");
+    });
+
+    test("renders arc fill separately from its curved-only outline", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("arc", {
+            x: 1, y: 1, w: 2, h: 1.5,
+            angleRange: [30, 250], fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 2 },
+        });
+        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
+        expect(geometry?.querySelector(".shape-face")?.getAttribute("fill")).toBe("#5B9BD5");
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")).not.toContain("L 96 72");
     });
 
     test("never silently substitutes an unsupported shape", () => {

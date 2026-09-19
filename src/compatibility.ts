@@ -58,7 +58,7 @@ export const COMPATIBILITY = Object.freeze({
         status: "partial",
         options: Object.freeze({
             x: "verified", y: "verified", w: "verified", h: "verified", objectName: "implemented",
-            align: "unsupported", angleRange: "unsupported", arcThicknessRatio: "unsupported",
+            align: "unsupported", angleRange: "implemented", arcThicknessRatio: "implemented",
             fill: "verified", fillTransparency: "implemented", flipH: "implemented", flipV: "implemented",
             hyperlink: "implemented", line: "implemented", lineTransparency: "implemented",
             lineDash: "implemented", lineBeginArrow: "implemented", lineEndArrow: "implemented",

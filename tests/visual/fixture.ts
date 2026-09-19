@@ -13,9 +13,25 @@ const CURVED_CASES = CURVED_SHAPES.flatMap((shape, index) => [
         { label: "tall", y: 3.8, w: 0.7, h: 1.3 },
     ].map(size => ({ page: 18, name: `${shape}-${size.label}`, shape, x: 0.6 + index * 2.35, ...size })),
 ]);
+const CIRCULAR_CASES: Array<{
+    page: number;
+    name: string;
+    shape: PptxGenJS.SHAPE_NAME;
+    x: number; y: number; w: number; h: number;
+    options?: Pick<PptxGenJS.ShapeProps, "angleRange" | "arcThicknessRatio">;
+}> = [
+    ["arc", 0.55, 1], ["pie", 3.55, 1], ["chord", 6.55, 1],
+    ["blockArc", 0.55, 3.15], ["donut", 3.55, 3.15], ["pieWedge", 6.55, 3.15],
+].map(([shape, x, y]) => ({ page: 19, name: String(shape), shape: shape as PptxGenJS.SHAPE_NAME, x: Number(x), y: Number(y), w: 2.2, h: 1.45 }));
+CIRCULAR_CASES.push(
+    { page: 20, name: "arc-custom", shape: "arc", x: 0.6, y: 1.1, w: 2.2, h: 1.5, options: { angleRange: [30, 250] } },
+    { page: 20, name: "pie-custom", shape: "pie", x: 3.9, y: 1.1, w: 2.2, h: 1.5, options: { angleRange: [210, 80] } },
+    { page: 20, name: "blockArc-thin", shape: "blockArc", x: 0.6, y: 3.3, w: 2.2, h: 1.5, options: { angleRange: [25, 300], arcThicknessRatio: 0.2 } },
+    { page: 20, name: "blockArc-thick", shape: "blockArc", x: 3.9, y: 3.3, w: 2.2, h: 1.5, options: { angleRange: [25, 300], arcThicknessRatio: 0.8 } },
+);
 
 // These tight crops include the stroke but exclude labels and unused slide area.
-export const PARITY_REGIONS = CURVED_CASES.map(({ page, name, x, y, w, h }) => ({
+export const PARITY_REGIONS = [...CURVED_CASES, ...CIRCULAR_CASES].map(({ page, name, x, y, w, h }) => ({
     page, name, threshold: 0.08,
     x: Math.floor(x * 96) - 3, y: Math.floor(y * 96) - 3,
     w: Math.ceil(w * 96) + 7, h: Math.ceil(h * 96) + 7,
@@ -509,4 +525,19 @@ export function populateParityFixture(presentation: Presentation): void {
             line: { color: "843C0C", width: 1.15 },
         });
     });
+
+    for (const pageNumber of [19, 20]) {
+        const circularSlide = presentation.addSlide();
+        circularSlide.addText(pageNumber === 19 ? "Circular shape presets" : "Adjusted arcs and thickness", {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        CIRCULAR_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h, options }) => {
+            circularSlide.addShape(shape, {
+                x, y, w, h, ...options,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
 }
