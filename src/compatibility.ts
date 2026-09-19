@@ -81,9 +81,10 @@ export const COMPATIBILITY = Object.freeze({
             textDirection: "verified", transparency: "verified", underline: "verified",
             fill: "verified", margin: "verified", border: "verified", colspan: "verified",
             rowspan: "verified", colW: "verified", rowH: "verified", inheritance: "verified",
-            autoPage: "unsupported", autoPageCharWeight: "unsupported", autoPageLineWeight: "unsupported",
-            autoPageRepeatHeader: "unsupported", autoPageHeaderRows: "unsupported",
-            autoPageSlideStartY: "unsupported", verbose: "unsupported", tableToSlides: "unsupported",
+            autoPage: "verified", autoPageCharWeight: "implemented", autoPageLineWeight: "implemented",
+            autoPageRepeatHeader: "verified", autoPageHeaderRows: "verified",
+            autoPageSlideStartY: "verified", newSlideStartY: "implemented",
+            verbose: "unsupported", tableToSlides: "unsupported",
         }),
     }),
 } as const);

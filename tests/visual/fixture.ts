@@ -126,19 +126,24 @@ const TABLE_CASES = [
     { page: 47, name: "table-inheritance", x: 0.5, y: 1, w: 4.25, h: 3.15 },
     { page: 47, name: "table-cell-options", x: 5.25, y: 1, w: 4.25, h: 3.15 },
 ] as const;
+const PAGINATION_CASES = [
+    { page: 48, name: "table-pagination-first", x: 0.5, y: 1, w: 9, h: 4 },
+    { page: 49, name: "table-pagination-second", x: 0.5, y: 0.75, w: 9, h: 4.5 },
+    { page: 50, name: "table-pagination-third", x: 0.5, y: 0.75, w: 9, h: 1.5 },
+] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 export const PARITY_REGIONS = [
     ...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES,
     ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES, ...SYMBOL_CASES,
-    ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES, ...TABLE_CASES,
+    ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES, ...TABLE_CASES, ...PAGINATION_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
     // fewer fully opaque pixels than Chromium. Geometry and divider positions
     // match; compound shapes and dense table grids need narrow rasterization
     // allowances. The table pages remain below 0.09 whole-slide RMSE.
-    threshold: name === "table-inheritance" ? 0.12
+    threshold: name === "table-inheritance" || name.startsWith("table-pagination-") ? 0.12
         : name.startsWith("table-") ? 0.09
             : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
     x: Math.floor(x * 96) - 3, y: Math.floor(y * 96) - 3,
@@ -819,5 +824,33 @@ export function populateParityFixture(presentation: Presentation): void {
         x: 5.25, y: 1, w: 4.25, h: 3.15,
         fontFace: "Arial", fontSize: 13, color: "363636", margin: 0.08,
         border: { type: "solid", color: "A6A6A6", pt: 1 },
+    });
+
+    const paginationSlide = presentation.addSlide();
+    paginationSlide.addText("Automatic table pagination", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const paginatedRows: PptxGenJS.TableRow[] = [[
+        { text: "ID", options: { bold: true, color: "FFFFFF", fill: { color: "4472C4" }, align: "center" } },
+        { text: "Description", options: { bold: true, color: "FFFFFF", fill: { color: "4472C4" }, align: "center" } },
+        { text: "State", options: { bold: true, color: "FFFFFF", fill: { color: "4472C4" }, align: "center" } },
+    ]];
+    for (let index = 1; index <= 29; index++) {
+        const fill = index % 2 === 0 ? { color: "EAF2F8" } : undefined;
+        paginatedRows.push([
+            { text: String(index).padStart(2, "0"), options: { fill, align: "center" } },
+            { text: `Paginated record ${index}`, options: { fill } },
+            { text: index % 3 === 0 ? "Review" : "Ready", options: { fill, color: index % 3 === 0 ? "C65911" : "548235", bold: true, align: "center" } },
+        ]);
+    }
+    paginationSlide.addTable(paginatedRows, {
+        x: 0.5, y: 1, colW: [1.4, 4.8, 2.8],
+        autoPage: true,
+        autoPageRepeatHeader: true,
+        autoPageHeaderRows: 1,
+        autoPageSlideStartY: 0.75,
+        fontFace: "Arial", fontSize: 12, color: "363636", margin: 0.05,
+        border: { type: "solid", color: "9EADBA", pt: 0.75 },
     });
 }

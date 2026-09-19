@@ -40,7 +40,7 @@ export function renderTable(document: Document, table: NormalizedTable): HTMLTab
             cellElement.style.padding = "0px";
             cellElement.style.overflow = "hidden";
             cellElement.style.position = "relative";
-            cellElement.style.verticalAlign = "top";
+            cellElement.style.verticalAlign = cell.text.verticalAlign;
             if (cell.fill?.visible) cellElement.style.backgroundColor = cell.fill.color;
             const [top, right, bottom, left] = cell.borders;
             cellElement.style.borderTop = borderCSS(top);
@@ -52,8 +52,12 @@ export function renderTable(document: Document, table: NormalizedTable): HTMLTab
             text.className = "table-cell-text";
             text.style.display = "flex";
             text.style.boxSizing = "border-box";
-            text.style.position = "absolute";
-            text.style.inset = "0px";
+            if (row.height !== undefined || table.height !== undefined) {
+                text.style.position = "absolute";
+                text.style.inset = "0px";
+            } else {
+                text.style.width = "100%";
+            }
             text.style.overflow = "hidden";
             renderText(document, text, cell.text);
             cellElement.appendChild(text);

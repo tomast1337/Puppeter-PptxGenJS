@@ -17,12 +17,19 @@ import { normalizeShape, normalizeShapeLine } from "./normalize/shape";
 import { renderShape } from "./render/shape";
 import { normalizeTable } from "./normalize/table";
 import { renderTable } from "./render/table";
+import { paginateTableRows } from "./normalize/tablePagination";
 
 class PuppeteerSlide implements PptxSlide {
-    constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document) {
+    constructor(
+        slideElm: HTMLDivElement,
+        pageSize: PageSize,
+        document: Document,
+        getContinuationSlide: (offset: number) => PuppeteerSlide,
+    ) {
         this.slideElm = slideElm;
         this.pageSize = pageSize;
         this.document = document;
+        this.getContinuationSlide = getContinuationSlide;
         this.background = {
             color: PPTX_DEFAULTS.slide.backgroundColor,
             type: "solid",
@@ -42,6 +49,7 @@ class PuppeteerSlide implements PptxSlide {
     private _bkgd: string = PPTX_DEFAULTS.slide.backgroundColor;
     private _color: string = PPTX_DEFAULTS.slide.color;
     private _hidden: boolean = PPTX_DEFAULTS.slide.hidden;
+    private readonly getContinuationSlide: (offset: number) => PuppeteerSlide;
     slideNumber: PptxGenJS.SlideNumberProps;
     newAutoPagedSlides: PptxGenJS.PresSlide[];
     private objectCounts: Record<string, number> = {};
@@ -140,6 +148,23 @@ class PuppeteerSlide implements PptxSlide {
     
     addTable(tableRows: PptxGenJS.TableRow[], options?: PptxGenJS.TableProps | undefined): PptxGenJS.Slide {
         const tableOptions = options ?? {};
+        this.newAutoPagedSlides = [];
+        if (tableOptions.autoPage) {
+            const pages = paginateTableRows(tableRows, tableOptions, this.pageSize);
+            const continuationSlides: PuppeteerSlide[] = [];
+            pages.forEach((page, index) => {
+                const target = index === 0 ? this : this.getContinuationSlide(index);
+                if (index > 0) continuationSlides.push(target);
+                target.addTable(page.rows, {
+                    ...tableOptions,
+                    y: page.y,
+                    rowH: page.rowHeights,
+                    autoPage: false,
+                });
+            });
+            this.newAutoPagedSlides = continuationSlides as unknown as PptxGenJS.PresSlide[];
+            return this;
+        }
         const table = normalizeTable(tableRows, tableOptions, this.pageSize);
         const tableContainer = this.document.createElement("div");
         tableContainer.className = "slide-element slide-table-container";
@@ -186,6 +211,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     private pageSize: PageSize;
     page: Document;
     private slideCount = 0;
+    private slides: PuppeteerSlide[] = [];
     
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE) {
         this.dom = new jsdom.JSDOM("<!DOCTYPE html><html><head></head><body></body></html>");
@@ -444,7 +470,13 @@ body {
         slideElm.className = "slide-container";
         slideElm.id = `slide-${++this.slideCount}`;
         this.page.body.appendChild(slideElm);
-        const slide = new PuppeteerSlide(slideElm, this.pageSize, this.page);
+        const slideIndex = this.slides.length;
+        const slide = new PuppeteerSlide(slideElm, this.pageSize, this.page, offset => {
+            const targetIndex = slideIndex + offset;
+            while (this.slides.length <= targetIndex) this.addSlide();
+            return this.slides[targetIndex]!;
+        });
+        this.slides.push(slide);
 
         if (typeof masterName === "object" && masterName !== null) {
             const props = masterName as { bkgd?: string; background?: PptxGenJS.BackgroundProps };
