@@ -87,11 +87,30 @@ for (const [index, shape] of ([
         { page: 31, name: `${shape}-tall`, shape, x: 0.8125 + index * 2.375, y: 2.75, w: 0.875, h: 1.5 },
     );
 }
+const SYMBOL_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide",
+    "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking",
+];
+const SYMBOL_CASES: Array<{
+    page: number; name: string; shape: PptxGenJS.SHAPE_NAME;
+    x: number; y: number; w: number; h: number;
+}> = SYMBOL_NAMES.map((shape, index) => ({
+    page: 32 + Math.floor(index / 8), name: shape, shape,
+    x: 0.5 + (index % 4) * 2.375, y: index % 8 < 4 ? 1 : 3, w: 1.5, h: 1.5,
+}));
+for (const [index, shape] of (["mathPlus", "heart", "moon", "sun", "smileyFace", "noSmoking"] as PptxGenJS.SHAPE_NAME[]).entries()) {
+    const page = 34 + Math.floor(index / 3);
+    const column = index % 3;
+    SYMBOL_CASES.push(
+        { page, name: `${shape}-wide`, shape, x: 0.5 + column * 3.125, y: 1, w: 2.5, h: 0.75 },
+        { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 },
+    );
+}
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 export const PARITY_REGIONS = [
     ...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES,
-    ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES,
+    ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES, ...SYMBOL_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
@@ -659,6 +678,21 @@ export function populateParityFixture(presentation: Presentation): void {
         });
         ACTION_BUTTON_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
             actionSlide.addShape(shape, {
+                x, y, w, h,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
+
+    for (const pageNumber of [32, 33, 34, 35]) {
+        const symbolSlide = presentation.addSlide();
+        symbolSlide.addText(pageNumber < 34 ? `Common symbol presets ${pageNumber - 31}` : `Common symbols: aspect ratios ${pageNumber - 33}`, {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        SYMBOL_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+            symbolSlide.addShape(shape, {
                 x, y, w, h,
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },

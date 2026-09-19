@@ -191,6 +191,22 @@ describe("shape normalization", () => {
             .toEqual([undefined, "darken", "lighten"]);
     });
 
+    test("normalizes mathematical and common symbol presets", () => {
+        const names = [
+            "plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide",
+            "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking",
+        ] as const;
+        for (const name of names) {
+            const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
+            expect(geometry.kind).toBe("path");
+            if (geometry.kind === "path") expect(geometry.data).toContain("M ");
+        }
+        const smiley = normalizeShape("smileyFace", {}, 160, 100, PAGE).geometry;
+        expect(smiley.kind === "path" && smiley.faces).toHaveLength(2);
+        expect(smiley.kind === "path" && smiley.outlineData).toContain("Q ");
+        expect((normalizeShape("mathDivide", {}, 160, 100, PAGE).geometry as { data: string }).data.match(/M /g)).toHaveLength(3);
+    });
+
     test("normalizes standard flowchart symbols and their internal marks", () => {
         const names = [
             "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
@@ -327,6 +343,19 @@ describe("SVG shape rendering", () => {
         expect(faces[0]?.getAttribute("fill")).toBe("#5B9BD5");
         expect(faces[1]?.getAttribute("fill")).toBe("#365d7f");
         expect(faces[2]?.getAttribute("fill")).toBe("#bdd7ee");
+    });
+
+    test("renders smiley details as shaded eyes and an unfilled mouth", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("smileyFace", {
+            x: 1, y: 1, w: 1.5, h: 1.5,
+            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+        });
+        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(2);
+        expect(geometry?.querySelectorAll(".shape-outline")).toHaveLength(1);
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")).toContain("Q ");
     });
 
     test("never silently substitutes an unsupported shape", () => {

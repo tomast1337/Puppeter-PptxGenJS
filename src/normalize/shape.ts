@@ -26,6 +26,10 @@ const ACTION_BUTTON_SHAPES = Object.freeze([
     "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome",
     "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound",
 ] as const);
+const SYMBOL_SHAPES = Object.freeze([
+    "plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide",
+    "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking",
+] as const);
 const FLOWCHART_SHAPES = Object.freeze([
     "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
     "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
@@ -40,7 +44,8 @@ export const CORE_SVG_SHAPES = Object.freeze([
     "rect", "roundRect", "ellipse", "line", "lineInv", "custGeom",
     "triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid",
     ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES,
-    ...BRACE_BRACKET_SHAPES, ...RIBBON_SCROLL_SHAPES, ...ACTION_BUTTON_SHAPES, ...FLOWCHART_SHAPES,
+    ...BRACE_BRACKET_SHAPES, ...RIBBON_SCROLL_SHAPES, ...ACTION_BUTTON_SHAPES, ...SYMBOL_SHAPES,
+    ...FLOWCHART_SHAPES,
 ] as const);
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
@@ -199,6 +204,11 @@ function drawingPath() {
         quadratic(controlX: number, controlY: number, x: number, y: number) {
             current = [x, y];
             commands.push(pointCommand("Q", [[controlX, controlY], current]));
+            return this;
+        },
+        cubic(controlX1: number, controlY1: number, controlX2: number, controlY2: number, x: number, y: number) {
+            current = [x, y];
+            commands.push(`C ${[controlX1, controlY1, controlX2, controlY2, x, y].map(cleanNumber).join(" ")}`);
             return this;
         },
         close() {
@@ -832,6 +842,162 @@ function actionButtonGeometry(
     return { kind: "path", data: `${base} ${icon}`, faces, outlineData: `${base} ${icon} ${details}` };
 }
 
+function ellipsePath(centerX: number, centerY: number, radiusX: number, radiusY: number, sweep = 360): string {
+    const ellipse = ellipseArcCommands(centerX, centerY, radiusX, radiusY, 180, sweep);
+    return `${ellipse.move} ${ellipse.arcs} Z`;
+}
+
+function symbolGeometry(
+    shapeName: typeof SYMBOL_SHAPES[number],
+    width: number,
+    height: number,
+): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const short = Math.min(width, height);
+    const cx = width / 2; const cy = height / 2;
+    if (shapeName === "plus") {
+        const arm = short / 4;
+        return { kind: "path", data: pixelPath([[0, arm], [arm, arm], [arm, 0], [width - arm, 0], [width - arm, arm], [width, arm], [width, height - arm], [width - arm, height - arm], [width - arm, height], [arm, height], [arm, height - arm], [0, height - arm]]) };
+    }
+    if (shapeName === "mathPlus") {
+        const extentX = width * 73490 / 200000; const extentY = height * 73490 / 200000;
+        const halfThickness = short * 23520 / 200000;
+        return { kind: "path", data: pixelPath([
+            [cx - extentX, cy - halfThickness], [cx - halfThickness, cy - halfThickness], [cx - halfThickness, cy - extentY],
+            [cx + halfThickness, cy - extentY], [cx + halfThickness, cy - halfThickness], [cx + extentX, cy - halfThickness],
+            [cx + extentX, cy + halfThickness], [cx + halfThickness, cy + halfThickness], [cx + halfThickness, cy + extentY],
+            [cx - halfThickness, cy + extentY], [cx - halfThickness, cy + halfThickness], [cx - extentX, cy + halfThickness],
+        ]) };
+    }
+    const extentX = width * 73490 / 200000;
+    const x1 = cx - extentX; const x8 = cx + extentX;
+    if (shapeName === "mathMinus") {
+        const halfThickness = height * 23520 / 200000;
+        return { kind: "path", data: pixelPath([[x1, cy - halfThickness], [x8, cy - halfThickness], [x8, cy + halfThickness], [x1, cy + halfThickness]]) };
+    }
+    if (shapeName === "mathEqual") {
+        const thickness = height * 23520 / 100000; const halfGap = height * 11760 / 200000;
+        return { kind: "path", data: `${pixelPath([[x1, cy - halfGap - thickness], [x8, cy - halfGap - thickness], [x8, cy - halfGap], [x1, cy - halfGap]])} ${pixelPath([[x1, cy + halfGap], [x8, cy + halfGap], [x8, cy + halfGap + thickness], [x1, cy + halfGap + thickness]])}` };
+    }
+    if (shapeName === "mathDivide") {
+        const halfThickness = height * 23520 / 200000;
+        // LibreOffice renders the pinned PptxGenJS preset's dot gap at half
+        // the ECMA guide value (4.23px rather than 8.47px at 144px high).
+        const gap = height * 5880 / 200000;
+        const radius = height * 11760 / 100000;
+        const bar = pixelPath([[x1, cy - halfThickness], [x8, cy - halfThickness], [x8, cy + halfThickness], [x1, cy + halfThickness]]);
+        return { kind: "path", data: `${ellipsePath(cx, cy - halfThickness - gap - radius, radius, radius)} ${ellipsePath(cx, cy + halfThickness + gap + radius, radius, radius)} ${bar}` };
+    }
+    if (shapeName === "mathMultiply") {
+        const diagonal = Math.hypot(width, height); const sin = height / diagonal; const cos = width / diagonal;
+        const thickness = short * 23520 / 100000; const middleLength = diagonal * (1 - 51965 / 100000);
+        const xM = cos * middleLength / 2; const yM = sin * middleLength / 2;
+        const dx = sin * thickness / 2; const dy = cos * thickness / 2;
+        const xA = xM - dx; const yA = yM + dy; const xB = xM + dx; const yB = yM - dy;
+        const yC = (cx - xB) * height / width + yB; const xD = width - xB; const xE = width - xA;
+        const xOffset = (cy - yA) * width / height; const xF = xE - xOffset; const xL = xA + xOffset;
+        return { kind: "path", data: pixelPath([[xA, yA], [xB, yB], [cx, yC], [xD, yB], [xE, yA], [xF, cy], [xE, height - yA], [xD, height - yB], [cx, height - yC], [xB, height - yB], [xA, height - yA], [xL, cy]]) };
+    }
+    if (shapeName === "mathNotEqual") {
+        const thickness = height * 23520 / 100000; const halfGap = height * 11760 / 200000;
+        const y2 = cy - halfGap; const y3 = cy + halfGap; const yTop = y2 - thickness; const yBottom = y3 + thickness;
+        const xAdj = height / 2 * Math.tan(20 * Math.PI / 180); const length = Math.hypot(xAdj, height / 2);
+        const slashWidth = length * thickness / (height / 2); const x7 = cx + xAdj - slashWidth / 2;
+        const atY = (y: number) => x7 - xAdj * y / (height / 2);
+        const x6 = atY(yTop); const x5 = atY(y2); const x4 = atY(y3); const x3 = atY(yBottom);
+        const rx = (x: number) => x + slashWidth;
+        const dx7 = thickness * (height / 2) / length; const topRight = x7 + dx7;
+        const bottomLeft = width - x7; const bottomRight = width - topRight;
+        return { kind: "path", data: pixelPath([
+            [x1, yTop], [x6, yTop], [x7, 0], [topRight, thickness * xAdj / length], [rx(x6), yTop], [x8, yTop],
+            [x8, y2], [rx(x5), y2], [rx(x4), y3], [x8, y3], [x8, yBottom], [rx(x3), yBottom],
+            [bottomLeft, height], [bottomRight, height - thickness * xAdj / length], [x3, yBottom], [x1, yBottom],
+            [x1, y3], [x4, y3], [x5, y2], [x1, y2],
+        ]) };
+    }
+    if (shapeName === "heart") {
+        const xLeftOuter = cx - width * 49 / 48; const xLeftInner = cx - width * 10 / 48;
+        const xRightInner = cx + width * 10 / 48; const xRightOuter = cx + width * 49 / 48;
+        return { kind: "path", data: drawingPath().move(cx, height / 4)
+            .cubic(xRightInner, -height / 3, xRightOuter, height / 4, cx, height)
+            .cubic(xLeftOuter, height / 4, xLeftInner, -height / 3, cx, height / 4).close().data() };
+    }
+    if (shapeName === "lightningBolt") {
+        const points = [[8472, 0], [12860, 6080], [11050, 6797], [16577, 12007], [14767, 12877], [21600, 21600], [10012, 14915], [12222, 13987], [5022, 9705], [7602, 8382], [0, 3890]] as const;
+        return { kind: "path", data: pixelPath(points.map(([x, y]) => [x * width / 21600, y * height / 21600])) };
+    }
+    if (shapeName === "sun") {
+        const a = 25000; const g0 = 50000 - a; const g1 = g0 * 30274 / 32768; const g2 = g0 * 12540 / 32768;
+        const g5 = 50000 - g1; const g6 = 50000 - g2; const g7 = g0 * 23170 / 32768;
+        const values = {
+            g8: 50000 + g7, g9: 50000 - g7, g10: g5 * 3 / 4, g12: g5 * 3 / 4 + 3662,
+            g13: g6 * 3 / 4 + 3662, g14: g6 * 3 / 4 + 12500,
+        };
+        const g15 = 100000 - values.g10; const g16 = 100000 - values.g12;
+        const g17 = 100000 - values.g13; const g18 = 100000 - values.g14;
+        const px = (n: number) => width * n / 100000; const py = (n: number) => height * n / 100000;
+        const ray = (points: PixelPoint[]) => pixelPath(points);
+        const rays = [
+            ray([[width, cy], [px(g15), py(g18)], [px(g15), py(values.g14)]]),
+            ray([[width * 18436 / 21600, height * 3163 / 21600], [px(g16), py(values.g13)], [px(g17), py(values.g12)]]),
+            ray([[cx, 0], [px(g18), py(values.g10)], [px(values.g14), py(values.g10)]]),
+            ray([[width * 3163 / 21600, height * 3163 / 21600], [px(values.g13), py(values.g12)], [px(values.g12), py(values.g13)]]),
+            ray([[0, cy], [px(values.g10), py(values.g14)], [px(values.g10), py(g18)]]),
+            ray([[width * 3163 / 21600, height * 18436 / 21600], [px(values.g12), py(g17)], [px(values.g13), py(g16)]]),
+            ray([[cx, height], [px(values.g14), py(g15)], [px(g18), py(g15)]]),
+            ray([[width * 18436 / 21600, height * 18436 / 21600], [px(g17), py(g16)], [px(g16), py(g17)]]),
+        ].join(" ");
+        const center = ellipsePath(cx, cy, width * g0 / 100000, height * g0 / 100000);
+        return { kind: "path", data: `${rays} ${center}` };
+    }
+    if (shapeName === "smileyFace") {
+        const face = ellipsePath(cx, cy, width / 2, height / 2);
+        const eyeX1 = width * 6215 / 21600; const eyeX2 = width * 13135 / 21600;
+        const eyeY = height * 7570 / 21600; const eyeRX = width * 1125 / 21600; const eyeRY = height * 1125 / 21600;
+        const eyes = `${ellipsePath(eyeX1, eyeY, eyeRX, eyeRY)} ${ellipsePath(eyeX2, eyeY, eyeRX, eyeRY)}`;
+        const y3 = height * 16515 / 21600; const dy2 = height * 4653 / 100000;
+        const y2 = y3 - dy2; const y5 = y3 + dy2 + height * 4653 / 50000;
+        const smile = drawingPath().move(width * 4969 / 21699, y2).quadratic(cx, y5, width * 16640 / 21600, y2).data();
+        return { kind: "path", data: `${face} ${eyes}`, faces: [{ data: face }, { data: eyes, fillModifier: "darkenLess" }], outlineData: `${face} ${eyes} ${smile}` };
+    }
+    if (shapeName === "noSmoking") {
+        const inset = short * 18750 / 100000;
+        const outer = ellipsePath(cx, cy, width / 2, height / 2);
+        const innerX = Math.max(width / 2 - inset, 0.001);
+        const innerY = Math.max(height / 2 - inset, 0.001);
+        const diagonalAngle = Math.atan2(height, width);
+        // These are the DrawingML preset's polar intersection calculations.
+        // Its two reverse inner arcs leave their closing chords as the slash,
+        // producing a single compound contour without overlapping outlines.
+        const ellipseRadius = innerX * innerY / Math.hypot(
+            innerY * Math.cos(diagonalAngle),
+            innerX * Math.sin(diagonalAngle),
+        );
+        const angleInset = Math.atan2(inset / 2, ellipseRadius);
+        const startAngle = diagonalAngle - angleInset;
+        const sweep = -Math.PI + 2 * angleInset;
+        const startRadius = innerX * innerY / Math.hypot(
+            innerY * Math.cos(startAngle),
+            innerX * Math.sin(startAngle),
+        );
+        const dx = startRadius * Math.cos(startAngle);
+        const dy = startRadius * Math.sin(startAngle);
+        const first: PixelPoint = [cx + dx, cy + dy];
+        const second: PixelPoint = [cx - dx, cy - dy];
+        const degrees = 180 / Math.PI;
+        const firstArc = arcPathCommand(first, innerX, innerY, startAngle * degrees, sweep * degrees);
+        const secondArc = arcPathCommand(second, innerX, innerY, startAngle * degrees - 180, sweep * degrees);
+        return { kind: "path", data: `${outer} ${pointCommand("M", [first])} ${firstArc.command} Z ${pointCommand("M", [second])} ${secondArc.command} Z` };
+    }
+    const innerRadiusX = width * 1.25;
+    const innerRadiusY = height * .625;
+    const innerStart = Math.atan2(-height / 2, -width * .75) * 180 / Math.PI;
+    const innerEnd = Math.atan2(height / 2, -width * .75) * 180 / Math.PI - 360;
+    return { kind: "path", data: drawingPath().move(width, height)
+        .arc(width, height / 2, 90, 180)
+        .arc(innerRadiusX, innerRadiusY, innerStart, innerEnd - innerStart)
+        .close().data() };
+}
+
 function flowchartGeometry(
     shapeName: typeof FLOWCHART_SHAPES[number],
     width: number,
@@ -1065,6 +1231,9 @@ export function normalizeShape(
     }
     else if (ACTION_BUTTON_SHAPES.includes(shapeName as typeof ACTION_BUTTON_SHAPES[number])) {
         geometry = actionButtonGeometry(shapeName as typeof ACTION_BUTTON_SHAPES[number], width, height);
+    }
+    else if (SYMBOL_SHAPES.includes(shapeName as typeof SYMBOL_SHAPES[number])) {
+        geometry = symbolGeometry(shapeName as typeof SYMBOL_SHAPES[number], width, height);
     }
     else if (FLOWCHART_SHAPES.includes(shapeName as typeof FLOWCHART_SHAPES[number])) {
         geometry = flowchartGeometry(shapeName as typeof FLOWCHART_SHAPES[number], width, height);
