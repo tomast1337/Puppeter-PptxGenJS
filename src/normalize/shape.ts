@@ -17,9 +17,11 @@ const CIRCULAR_SHAPES = Object.freeze(["arc", "pie", "pieWedge", "chord", "block
 const FLOWCHART_SHAPES = Object.freeze([
     "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
     "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
-    "flowChartInternalStorage", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
-    "flowChartOffpageConnector", "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation",
-    "flowChartProcess", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
+    "flowChartInternalStorage", "flowChartDocument", "flowChartMagneticDisk", "flowChartMagneticDrum",
+    "flowChartMagneticTape", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
+    "flowChartMultidocument", "flowChartOfflineStorage", "flowChartOffpageConnector", "flowChartOnlineStorage",
+    "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation", "flowChartProcess",
+    "flowChartPunchedCard", "flowChartPunchedTape", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
 ] as const);
 
 export const CORE_SVG_SHAPES = Object.freeze([
@@ -510,6 +512,70 @@ function flowchartGeometry(
         const rightArc = ellipseArcCommands(width - radiusX, height / 2, radiusX, height / 2, 270, 180);
         const leftArc = ellipseArcCommands(radiusX, height / 2, radiusX, height / 2, 90, 180);
         return { kind: "path", data: `M ${cleanNumber(radiusX)} 0 L ${cleanNumber(width - radiusX)} 0 ${rightArc.arcs} L ${cleanNumber(radiusX)} ${cleanNumber(height)} ${leftArc.arcs} Z` };
+    }
+    if (shapeName === "flowChartDocument") {
+        const y1 = height * 17322 / 21600;
+        return {
+            kind: "path",
+            data: `M 0 0 L ${cleanNumber(width)} 0 L ${cleanNumber(width)} ${cleanNumber(y1)} C ${cleanNumber(width / 2)} ${cleanNumber(y1)} ${cleanNumber(width / 2)} ${cleanNumber(height * 23922 / 21600)} 0 ${cleanNumber(height * 20172 / 21600)} Z`,
+        };
+    }
+    if (shapeName === "flowChartMagneticDisk") {
+        const top = ellipseArcCommands(width / 2, height / 6, width / 2, height / 6, 180, 180);
+        const bottom = ellipseArcCommands(width / 2, height * 5 / 6, width / 2, height / 6, 0, 180);
+        const face = `${top.move} ${top.arcs} L ${cleanNumber(width)} ${cleanNumber(height * 5 / 6)} ${bottom.arcs} Z`;
+        const inner = ellipseArcCommands(width / 2, height / 6, width / 2, height / 6, 0, 180);
+        return compoundShape(face, `${inner.move} ${inner.arcs}`);
+    }
+    if (shapeName === "flowChartMagneticDrum") {
+        const right = ellipseArcCommands(width * 5 / 6, height / 2, width / 6, height / 2, 270, 180);
+        const left = ellipseArcCommands(width / 6, height / 2, width / 6, height / 2, 90, 180);
+        const face = `M ${cleanNumber(width / 6)} 0 L ${cleanNumber(width * 5 / 6)} 0 ${right.arcs} L ${cleanNumber(width / 6)} ${cleanNumber(height)} ${left.arcs} Z`;
+        const inner = ellipseArcCommands(width * 5 / 6, height / 2, width / 6, height / 2, 90, 180);
+        return compoundShape(face, `${inner.move} ${inner.arcs}`);
+    }
+    if (shapeName === "flowChartOnlineStorage") {
+        const concave = ellipseArcCommands(width, height / 2, width / 6, height / 2, 270, -180);
+        const left = ellipseArcCommands(width / 6, height / 2, width / 6, height / 2, 90, 180);
+        return { kind: "path", data: `M ${cleanNumber(width / 6)} 0 L ${cleanNumber(width)} 0 ${concave.arcs} L ${cleanNumber(width / 6)} ${cleanNumber(height)} ${left.arcs} Z` };
+    }
+    if (shapeName === "flowChartOfflineStorage") {
+        const face = polygonPath([[0, 0], [1, 0], [.5, 1]], width, height);
+        return compoundShape(face, `M ${cleanNumber(width * 2 / 5)} ${cleanNumber(height * 4 / 5)} L ${cleanNumber(width * 3 / 5)} ${cleanNumber(height * 4 / 5)}`);
+    }
+    if (shapeName === "flowChartPunchedCard") {
+        return { kind: "path", data: polygonPath([[0, .2], [.2, 0], [1, 0], [1, 1], [0, 1]], width, height) };
+    }
+    if (shapeName === "flowChartPunchedTape") {
+        const topLeft = ellipseArcCommands(width / 4, height / 10, width / 4, height / 10, 180, -180);
+        const topRight = ellipseArcCommands(width * 3 / 4, height / 10, width / 4, height / 10, 180, 180);
+        const bottomRight = ellipseArcCommands(width * 3 / 4, height * 9 / 10, width / 4, height / 10, 0, -180);
+        const bottomLeft = ellipseArcCommands(width / 4, height * 9 / 10, width / 4, height / 10, 0, 180);
+        return { kind: "path", data: `${topLeft.move} ${topLeft.arcs} ${topRight.arcs} L ${cleanNumber(width)} ${cleanNumber(height * 9 / 10)} ${bottomRight.arcs} ${bottomLeft.arcs} Z` };
+    }
+    if (shapeName === "flowChartMagneticTape") {
+        const quarter1 = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 90, 90);
+        const quarter2 = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 180, 90);
+        const quarter3 = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 270, 90);
+        const tailAngle = Math.atan2(height, width) * 180 / Math.PI;
+        const tailArc = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 0, tailAngle);
+        const innerBottom = height / 2 + height / 2 * Math.SQRT1_2;
+        return { kind: "path", data: `${quarter1.move} ${quarter1.arcs} ${quarter2.arcs} ${quarter3.arcs} ${tailArc.arcs} L ${cleanNumber(width)} ${cleanNumber(innerBottom)} L ${cleanNumber(width)} ${cleanNumber(height)} Z` };
+    }
+    if (shapeName === "flowChartMultidocument") {
+        const x = (value: number) => cleanNumber(width * value / 21600);
+        const y = (value: number) => cleanNumber(height * value / 21600);
+        const face = [
+            `M 0 ${y(20782)} C ${x(9298)} ${y(23542)} ${x(9298)} ${y(18022)} ${x(18595)} ${y(18022)} L ${x(18595)} ${y(3675)} L 0 ${y(3675)} Z`,
+            `M ${x(1532)} ${y(3675)} L ${x(1532)} ${y(1815)} L ${x(20000)} ${y(1815)} L ${x(20000)} ${y(16252)} C ${x(19298)} ${y(16252)} ${x(18595)} ${y(16352)} ${x(18595)} ${y(16352)} L ${x(18595)} ${y(3675)} Z`,
+            `M ${x(2972)} ${y(1815)} L ${x(2972)} 0 L ${cleanNumber(width)} 0 L ${cleanNumber(width)} ${y(14392)} C ${x(20800)} ${y(14392)} ${x(20000)} ${y(14467)} ${x(20000)} ${y(14467)} L ${x(20000)} ${y(1815)} Z`,
+        ].join(" ");
+        const outline = [
+            `M 0 ${y(3675)} L ${x(18595)} ${y(3675)} L ${x(18595)} ${y(18022)} C ${x(9298)} ${y(18022)} ${x(9298)} ${y(23542)} 0 ${y(20782)} Z`,
+            `M ${x(1532)} ${y(3675)} L ${x(1532)} ${y(1815)} L ${x(20000)} ${y(1815)} L ${x(20000)} ${y(16252)} C ${x(19298)} ${y(16252)} ${x(18595)} ${y(16352)} ${x(18595)} ${y(16352)}`,
+            `M ${x(2972)} ${y(1815)} L ${x(2972)} 0 L ${cleanNumber(width)} 0 L ${cleanNumber(width)} ${y(14392)} C ${x(20800)} ${y(14392)} ${x(20000)} ${y(14467)} ${x(20000)} ${y(14467)}`,
+        ].join(" ");
+        return { kind: "path", data: face, faces: [{ data: face }], outlineData: outline };
     }
 
     const rectangle = `M 0 0 L ${cleanNumber(width)} 0 L ${cleanNumber(width)} ${cleanNumber(height)} L 0 ${cleanNumber(height)} Z`;

@@ -142,6 +142,9 @@ describe("shape normalization", () => {
             "flowChartInternalStorage", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
             "flowChartOffpageConnector", "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation",
             "flowChartProcess", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
+            "flowChartDocument", "flowChartMagneticDisk", "flowChartMagneticDrum", "flowChartMagneticTape",
+            "flowChartMultidocument", "flowChartOfflineStorage", "flowChartOnlineStorage",
+            "flowChartPunchedCard", "flowChartPunchedTape",
         ] as const;
         for (const name of names) expect(() => normalizeShape(name, {}, 160, 100, PAGE)).not.toThrow();
         const storage = normalizeShape("flowChartInternalStorage", {}, 160, 100, PAGE).geometry;

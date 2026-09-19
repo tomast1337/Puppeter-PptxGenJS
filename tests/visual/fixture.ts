@@ -35,6 +35,9 @@ const FLOWCHART_NAMES: PptxGenJS.SHAPE_NAME[] = [
     "flowChartInternalStorage", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
     "flowChartOffpageConnector", "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation",
     "flowChartProcess", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
+    "flowChartDocument", "flowChartMagneticDisk", "flowChartMagneticDrum", "flowChartMagneticTape",
+    "flowChartMultidocument", "flowChartOfflineStorage", "flowChartOnlineStorage",
+    "flowChartPunchedCard", "flowChartPunchedTape",
 ];
 const FLOWCHART_CASES = FLOWCHART_NAMES.map((shape, index) => ({
     page: 21 + Math.floor(index / 10), name: shape, shape,
@@ -558,7 +561,7 @@ export function populateParityFixture(presentation: Presentation): void {
         });
     }
 
-    for (const pageNumber of [21, 22]) {
+    for (const pageNumber of [21, 22, 23]) {
         const flowchartSlide = presentation.addSlide();
         flowchartSlide.addText(`Flowchart presets ${pageNumber - 20}`, {
             x: 0.5, y: 0.2, w: 9, h: 0.5,
