@@ -48,6 +48,12 @@ describe("PuppeteerGen DOM rendering", () => {
         expect(geometry?.getAttribute("stroke-width")).toBe(String(2 * 96 / 72));
     });
 
+    test("uses the deprecated shapeName alias as the object name", () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addShape("rect", { shapeName: "Legacy shape" });
+        expect(presentation.page.querySelector<HTMLElement>(".slide-shape")?.dataset.objectName).toBe("Legacy shape");
+    });
+
     test("creates styled table cells", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
@@ -58,8 +64,10 @@ describe("PuppeteerGen DOM rendering", () => {
         }]], { x: 1, y: 1, w: 4, h: 1 });
 
         const cell = presentation.page.querySelector<HTMLTableCellElement>("td");
+        const run = cell?.querySelector<HTMLElement>(".text-run");
         expect(cell?.textContent).toBe("Header");
-        expect(cell?.style.fontWeight).toBe("bold");
+        expect(run?.style.fontWeight).toBe("bold");
+        expect(run?.style.color).toBe("rgb(255, 255, 255)");
         expect(cell?.style.backgroundColor).toBe("rgb(68, 114, 196)");
     });
 

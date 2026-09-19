@@ -121,18 +121,26 @@ const GENERATED_ASPECT_CASES = GENERATED_ASPECT_NAMES.flatMap((shape, index) => 
         { page, name: `${shape}-tall`, shape, x: baseX + 0.8, y: 2.75, w: 0.9, h: 1.65 },
     ];
 });
+const TABLE_CASES = [
+    { page: 46, name: "table-sizing-spans", x: 0.5, y: 1, w: 9, h: 2.65 },
+    { page: 47, name: "table-inheritance", x: 0.5, y: 1, w: 4.25, h: 3.15 },
+    { page: 47, name: "table-cell-options", x: 5.25, y: 1, w: 4.25, h: 3.15 },
+] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 export const PARITY_REGIONS = [
     ...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES,
     ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES, ...SYMBOL_CASES,
-    ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES,
+    ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES, ...TABLE_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
     // fewer fully opaque pixels than Chromium. Geometry and divider positions
-    // match; the two compound rectangles need a narrow rasterization allowance.
-    threshold: ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
+    // match; compound shapes and dense table grids need narrow rasterization
+    // allowances. The table pages remain below 0.09 whole-slide RMSE.
+    threshold: name === "table-inheritance" ? 0.12
+        : name.startsWith("table-") ? 0.09
+            : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
     x: Math.floor(x * 96) - 3, y: Math.floor(y * 96) - 3,
     w: Math.ceil(w * 96) + 7, h: Math.ceil(h * 96) + 7,
 }));
@@ -745,4 +753,71 @@ export function populateParityFixture(presentation: Presentation): void {
             });
         });
     }
+
+    const sizingTableSlide = presentation.addSlide();
+    sizingTableSlide.addText("Static table sizing, spans, and borders", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    sizingTableSlide.addTable([
+        [
+            { text: "Region", options: { fill: { color: "4472C4" }, color: "FFFFFF", bold: true, align: "center" } },
+            { text: "Product", options: { fill: { color: "4472C4" }, color: "FFFFFF", bold: true, align: "center" } },
+            { text: "Status", options: { fill: { color: "4472C4" }, color: "FFFFFF", bold: true, align: "center" } },
+            { text: "Notes", options: { fill: { color: "4472C4" }, color: "FFFFFF", bold: true, align: "center" } },
+        ],
+        [
+            { text: "North", options: { rowspan: 2, fill: { color: "D9EAF7" }, bold: true, valign: "middle", align: "center" } },
+            { text: [
+                { text: "Merged ", options: { bold: true, color: "C00000" } },
+                { text: "rich text", options: { italic: true, underline: { style: "sng" } } },
+            ], options: { colspan: 2, fill: { color: "FFF2CC" }, valign: "middle" } },
+            { text: "First row", options: { align: "right" } },
+        ],
+        [
+            { text: "Two columns", options: { colspan: 2, fill: { color: "E2F0D9" }, align: "center" } },
+            { text: "Second row", options: { align: "right" } },
+        ],
+        [
+            { text: "South" },
+            { text: "Widget" },
+            { text: "Ready", options: { bold: true, color: "548235" } },
+            { text: "Explicit widths and heights" },
+        ],
+    ], {
+        x: 0.5, y: 1,
+        colW: [1.5, 2.5, 2, 3], rowH: [0.55, 0.75, 0.65, 0.7],
+        fontFace: "Arial", fontSize: 13, color: "363636", margin: 0.08,
+        border: { type: "solid", color: "7F8C8D", pt: 1 },
+    });
+
+    const cellOptionsSlide = presentation.addSlide();
+    cellOptionsSlide.addText("Table inheritance and cell text options", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    cellOptionsSlide.addTable([
+        [{ text: "Inherited header", options: { colspan: 2, bold: true, align: "center", fill: { color: "BDD7EE" } } }],
+        [{ text: "Bottom left", options: { valign: "bottom" } }, { text: "Centered", options: { align: "center", valign: "middle" } }],
+        [{ text: "Small inset", options: { margin: 0.03 } }, { text: "Large inset", options: { margin: 0.16 } }],
+        [{ text: "Dashed sides", options: { border: [{ type: "dash", color: "C00000", pt: 2 }, { type: "solid", color: "548235", pt: 2 }, { type: "dash", color: "C00000", pt: 2 }, { type: "solid", color: "548235", pt: 2 }] } }, { text: "Inherited fill" }],
+    ], {
+        x: 0.5, y: 1, w: 4.25, h: 3.15,
+        fontFace: "Arial", fontSize: 13, color: "1F4E78", fill: { color: "F2F2F2" }, margin: 0.08,
+        border: { type: "solid", color: "5B9BD5", pt: 1 },
+    });
+    cellOptionsSlide.addTable([
+        [{ text: "Rich text", options: { colspan: 2, fill: { color: "F4B183" }, bold: true, align: "center" } }],
+        [{ text: [
+            { text: "Bold", options: { bold: true, color: "C00000" } },
+            { text: " + italic", options: { italic: true, color: "548235", breakLine: true } },
+            { text: "underlined", options: { underline: { style: "dbl", color: "4472C4" } } },
+        ], options: { colspan: 2, valign: "middle" } }],
+        [{ text: "Bullet", options: { bullet: true } }, { text: "Transparent", options: { color: "C00000", transparency: 55 } }],
+        [{ text: "Vertical", options: { textDirection: "vert", align: "center" } }, { text: "Bottom", options: { valign: "bottom", align: "right" } }],
+    ], {
+        x: 5.25, y: 1, w: 4.25, h: 3.15,
+        fontFace: "Arial", fontSize: 13, color: "363636", margin: 0.08,
+        border: { type: "solid", color: "A6A6A6", pt: 1 },
+    });
 }

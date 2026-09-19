@@ -114,6 +114,33 @@ export interface NormalizedTextBox {
     borderRadius: number;
 }
 
+export interface NormalizedTableBorder {
+    visible: boolean;
+    color: string;
+    width: number;
+    style: "solid" | "dashed";
+}
+
+export interface NormalizedTableCell {
+    text: NormalizedTextBox;
+    colspan: number;
+    rowspan: number;
+    fill?: NormalizedFill;
+    borders: [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder];
+}
+
+export interface NormalizedTableRow {
+    height?: number;
+    cells: NormalizedTableCell[];
+}
+
+export interface NormalizedTable {
+    width: number;
+    height?: number;
+    columns: number[];
+    rows: NormalizedTableRow[];
+}
+
 export type NormalizedImageSizing =
     | { type: "stretch" }
     | { type: "contain" | "cover"; x: number; y: number; width: number; height: number }

@@ -1247,8 +1247,10 @@ export function normalizeShape(
 }
 
 export function normalizeShapeLine(options: PptxGenJS.ShapeProps, normalize: (line?: PptxGenJS.ShapeLineProps) => NormalizedLine): NormalizedLine {
-    if (!options.line) return normalize(undefined);
-    const source = typeof options.line === "string" ? { color: options.line } : options.line;
+    const hasDeprecatedLine = options.lineSize !== undefined || options.lineDash !== undefined
+        || options.lineHead !== undefined || options.lineTail !== undefined;
+    if (!options.line && !hasDeprecatedLine) return normalize(undefined);
+    const source = typeof options.line === "string" ? { color: options.line } : options.line ?? {};
     return normalize({
         ...source,
         width: options.lineSize ?? source.width,

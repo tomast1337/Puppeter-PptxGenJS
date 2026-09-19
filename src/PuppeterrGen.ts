@@ -2,10 +2,10 @@ import PptxGenJS from "pptxgenjs";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import * as jsdom from "jsdom";
 import puppeteer from "puppeteer";
-import { alignToCSS, pointsToPixels, inchesToPixels } from "./utils";
+import { inchesToPixels, pointsToPixels } from "./utils";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
-import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS, type FourSideMargin } from "./defaults";
+import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "./defaults";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeImage, resolveDocumentImages } from "./normalize/image";
@@ -15,6 +15,8 @@ import { renderText } from "./render/text";
 import { renderImage } from "./render/image";
 import { normalizeShape, normalizeShapeLine } from "./normalize/shape";
 import { renderShape } from "./render/shape";
+import { normalizeTable } from "./normalize/table";
+import { renderTable } from "./render/table";
 
 class PuppeteerSlide implements PptxSlide {
     constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document) {
@@ -121,7 +123,7 @@ class PuppeteerSlide implements PptxSlide {
             shapeOptions,
             PPTX_DEFAULTS.shape,
             this.pageSize,
-            this.nextObjectName("Shape", shapeOptions.objectName),
+            this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName),
             { fill: true, shadow: true },
         );
         style.line = normalizeShapeLine(shapeOptions, normalizeLine);
@@ -137,45 +139,21 @@ class PuppeteerSlide implements PptxSlide {
     }
     
     addTable(tableRows: PptxGenJS.TableRow[], options?: PptxGenJS.TableProps | undefined): PptxGenJS.Slide {
-        const tableContainer = this.document.createElement("div");
-        tableContainer.className = "slide-element";
-        
-        const tableElm = this.document.createElement("table");
-        tableElm.className = "slide-table";
-        
-        tableRows.forEach(row => {
-            const tr = this.document.createElement("tr");
-            row.forEach(cell => {
-                const td = this.document.createElement("td");
-                if (typeof cell === "object" && "text" in cell) {
-                    td.textContent = cell.text as string;
-                    if (cell.options) {
-                        this.applyCellStyles(td, cell.options);
-                    }
-                } else {
-                    td.textContent = String(cell);
-                }
-                tr.appendChild(td);
-            });
-            tableElm.appendChild(tr);
-        });
-        
-        tableContainer.appendChild(tableElm);
-        
         const tableOptions = options ?? {};
-        const tableStyle = normalizeObjectStyle(tableOptions, {
+        const table = normalizeTable(tableRows, tableOptions, this.pageSize);
+        const tableContainer = this.document.createElement("div");
+        tableContainer.className = "slide-element slide-table-container";
+        const tableStyle = normalizeObjectStyle({
+            ...tableOptions,
+            w: table.width / 96,
+            h: table.height === undefined ? undefined : table.height / 96,
+        }, {
             x: PPTX_DEFAULTS.table.x,
             y: PPTX_DEFAULTS.table.y,
-            w: this.pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2,
-        }, this.pageSize, this.nextObjectName("Table", options?.objectName));
+            w: table.width / 96,
+        }, this.pageSize, this.nextObjectName("Table", tableOptions.objectName));
         applyObjectStyle(tableContainer, tableStyle);
-        tableElm.style.fontSize = `${pointsToPixels(options?.fontSize ?? PPTX_DEFAULTS.table.fontSizePt)}px`;
-        tableElm.style.color = normalizeColor(options?.color ?? PPTX_DEFAULTS.table.color);
-        const tableMargin = options?.margin as number | FourSideMargin | undefined;
-        tableElm.querySelectorAll("td").forEach(cell => {
-            if (!cell.style.padding) cell.style.padding = tableMarginToCSS(tableMargin);
-        });
-        
+        tableContainer.appendChild(renderTable(this.document, table));
         this.slideElm.appendChild(tableContainer);
         return this;
     }
@@ -201,27 +179,6 @@ class PuppeteerSlide implements PptxSlide {
         return this;
     }
     
-    private applyCellStyles(cell: HTMLTableCellElement, options: any): void {
-        if (options.fill) {
-            cell.style.backgroundColor = normalizeColor(options.fill);
-        }
-        
-        if (options.color) {
-            cell.style.color = normalizeColor(options.color);
-        }
-        
-        if (options.fontSize) {
-            cell.style.fontSize = `${pointsToPixels(options.fontSize)}px`;
-        }
-        
-        if (options.bold) {
-            cell.style.fontWeight = "bold";
-        }
-        
-        if (options.align) {
-            cell.style.textAlign = alignToCSS(options.align);
-        }
-    }
 }
 
 export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout" | "AlignH" | "AlignV" | "ChartType" | "OutputType" | "SchemeColor" | "ShapeType" | "PlaceholderType" | "layout" | "rtlMode" | "author" | "company" | "revision" | "subject" | "theme" | "title"> {

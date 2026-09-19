@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeCustomPath, normalizeShape } from "../src/normalize/shape";
+import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../src/normalize/shape";
+import { normalizeLine } from "../src/normalize/style";
 import { PAGE_SIZES } from "../src/pageLayouts";
 import { PuppeteerGen } from "../src/PuppeterrGen";
 import { GENERATED_PRESET_NAMES } from "../src/normalize/generatedPreset";
@@ -7,6 +8,21 @@ import { GENERATED_PRESET_NAMES } from "../src/normalize/generatedPreset";
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
 describe("shape normalization", () => {
+    test("honors deprecated line aliases without requiring a line object", () => {
+        const line = normalizeShapeLine({
+            lineSize: 2,
+            lineDash: "dash",
+            lineHead: "triangle",
+            lineTail: "oval",
+        }, normalizeLine);
+        expect(line.visible).toBe(true);
+        expect(line.color).toBe("#333333");
+        expect(line.width).toBe(2 * 96 / 72);
+        expect(line.style).toBe("dashed");
+        expect(line.beginArrow).toBe("triangle");
+        expect(line.endArrow).toBe("oval");
+    });
+
     test("normalizes core preset geometry and rounded radius", () => {
         expect(normalizeShape("rect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 0 });
         expect(normalizeShape("roundRect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 16 });

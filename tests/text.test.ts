@@ -126,7 +126,7 @@ describe("text DOM rendering", () => {
         expect(box?.dataset.textDirection).toBe("vertical270");
         expect(box?.dataset.textFit).toBe("shrink");
         expect(box?.style.borderRadius).toBe("20%");
-        expect(content?.style.writingMode).toBe("vertical-lr");
+        expect(content?.style.writingMode).toBe("vertical-rl");
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
     });
 

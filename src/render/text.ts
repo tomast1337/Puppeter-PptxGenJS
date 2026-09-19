@@ -70,8 +70,9 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
         element.dataset.tabStops = paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",");
     }
     if (paragraph.bullet) {
-        element.style.paddingLeft = `${paragraph.bullet.indent}px`;
-        element.style.textIndent = `${-(paragraph.bullet.indent / (paragraph.bullet.level + 1))}px`;
+        const levelIndent = paragraph.bullet.indent / (paragraph.bullet.level + 1);
+        element.style.paddingLeft = `${levelIndent * paragraph.bullet.level}px`;
+        element.style.textIndent = "0px";
         element.dataset.bulletLevel = String(paragraph.bullet.level);
         element.dataset.bulletType = paragraph.bullet.kind;
     }
@@ -98,7 +99,7 @@ export function renderText(document: Document, element: HTMLElement, text: Norma
     content.className = "text-content";
     content.style.width = "100%";
     if (text.direction !== "horizontal") {
-        content.style.writingMode = text.direction === "vertical270" ? "vertical-lr" : "vertical-rl";
+        content.style.writingMode = text.direction === "vertical270" ? "vertical-rl" : "vertical-lr";
         content.style.textOrientation = text.direction === "stacked" ? "upright" : "mixed";
         content.style.height = "100%";
     }
@@ -112,7 +113,13 @@ export function renderText(document: Document, element: HTMLElement, text: Norma
             marker.className = "text-bullet";
             marker.textContent = `${paragraph.bullet.marker}\u00a0`;
             marker.style.display = "inline-block";
-            marker.style.width = "18px";
+            marker.style.width = `${paragraph.bullet.indent / (paragraph.bullet.level + 1)}px`;
+            const firstRun = paragraph.runs[0];
+            if (firstRun) {
+                marker.style.fontFamily = fontFamilyCSS(firstRun.fontFace);
+                marker.style.fontSize = `${firstRun.fontSize}px`;
+                marker.style.color = firstRun.color;
+            }
             paragraphElement.appendChild(marker);
         }
         paragraph.runs.forEach(run => {

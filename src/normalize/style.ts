@@ -52,7 +52,7 @@ export function normalizeLine(value?: PptxGenJS.ShapeLineProps): NormalizedLine 
     };
     return {
         visible: true,
-        color: normalizeColor(value, normalizeColor(PPTX_DEFAULTS.shape.line.color)),
+        color: normalizeColor({ ...value, color: value.color ?? PPTX_DEFAULTS.shape.line.color }),
         width,
         style: dash === "solid" ? "solid" : dash === "sysDot" ? "dotted" : "dashed",
         dashArray: dashPatterns[dash]?.map(part => part * width).join(" "),
