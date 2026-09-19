@@ -3,9 +3,10 @@ import { applyGeometry, applyTransform } from "./style";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten"): string {
+function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten" | "lightenLess"): string {
     const transform = (value: number) => modifier === "lighten"
         ? Math.floor(value + (255 - value) * 0.6)
+        : modifier === "lightenLess" ? Math.floor(value + (255 - value) * 0.2)
         : Math.floor(value * (modifier === "darken" ? 0.6 : 0.8));
     const hex = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
     if (hex) {
@@ -133,7 +134,7 @@ export function renderShape(document: Document, shape: NormalizedShape, style: N
     const strokeTarget = multiFace ? geometry.querySelector<SVGPathElement>(".shape-outline") ?? geometry : geometry;
     if (multiFace) {
         geometry.querySelectorAll<SVGPathElement>(".shape-face").forEach(face => {
-            const modifier = face.dataset.fillModifier as "darken" | "darkenLess" | "lighten" | undefined;
+            const modifier = face.dataset.fillModifier as "darken" | "darkenLess" | "lighten" | "lightenLess" | undefined;
             face.setAttribute("fill", modifier ? modifyColor(baseFill, modifier) : baseFill);
         });
     } else geometry.setAttribute("fill", baseFill);

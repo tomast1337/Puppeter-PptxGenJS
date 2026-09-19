@@ -74,12 +74,13 @@ describe("compatibility manifest", () => {
         expect(SHAPE_GEOMETRY_COMPATIBILITY.bentArrow).toBe("implemented");
         expect(SHAPE_GEOMETRY_COMPATIBILITY.curvedDownArrow).toBe("implemented");
         expect(SHAPE_GEOMETRY_COMPATIBILITY.swooshArrow).toBe("implemented");
-        expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("unsupported");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("implemented");
+        expect(Object.values(SHAPE_GEOMETRY_COMPATIBILITY).every(status => status === "implemented")).toBe(true);
     });
 
-    test("does not claim unsupported shape geometry is implemented", () => {
-        expect(COMPATIBILITY.shape.options.presetGeometry).toBe("partial");
+    test("reports complete preset and custom shape geometry coverage", () => {
+        expect(COMPATIBILITY.shape.options.presetGeometry).toBe("implemented");
         expect(COMPATIBILITY.shape.options.customGeometry).toBe("implemented");
-        expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("unsupported");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("implemented");
     });
 });

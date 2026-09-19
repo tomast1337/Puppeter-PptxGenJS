@@ -64,7 +64,7 @@ export const COMPATIBILITY = Object.freeze({
             lineDash: "implemented", lineBeginArrow: "implemented", lineEndArrow: "implemented",
             points: "implemented", rectRadius: "implemented", rotate: "implemented", shadow: "partial",
             rectangle: "implemented", roundedRectangle: "implemented", ellipse: "implemented", lineShape: "implemented",
-            presetGeometry: "partial", customGeometry: "implemented", arrows: "implemented",
+            presetGeometry: "implemented", customGeometry: "implemented", arrows: "implemented",
             text: "unsupported", deprecatedLineSize: "partial", deprecatedLineDash: "partial",
             deprecatedLineHead: "implemented", deprecatedLineTail: "implemented", deprecatedShapeName: "unsupported",
             lineSize: "partial", lineHead: "implemented", lineTail: "implemented", shapeName: "unsupported",

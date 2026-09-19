@@ -2,6 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import type { NormalizedLine, NormalizedShape } from "../model/types";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../utils";
+import { GENERATED_PRESET_NAMES, generatedPresetGeometry } from "./generatedPreset";
 
 const POLYGON_SIDES = Object.freeze({ pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8, decagon: 10, dodecagon: 12 } as const);
 const STAR_POINTS = Object.freeze({ star4: 4, star5: 5, star6: 6, star7: 7, star8: 8, star10: 10, star12: 12, star16: 16, star24: 24, star32: 32 } as const);
@@ -45,7 +46,7 @@ export const CORE_SVG_SHAPES = Object.freeze([
     "triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid",
     ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES,
     ...BRACE_BRACKET_SHAPES, ...RIBBON_SCROLL_SHAPES, ...ACTION_BUTTON_SHAPES, ...SYMBOL_SHAPES,
-    ...FLOWCHART_SHAPES,
+    ...FLOWCHART_SHAPES, ...GENERATED_PRESET_NAMES,
 ] as const);
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
@@ -1237,6 +1238,9 @@ export function normalizeShape(
     }
     else if (FLOWCHART_SHAPES.includes(shapeName as typeof FLOWCHART_SHAPES[number])) {
         geometry = flowchartGeometry(shapeName as typeof FLOWCHART_SHAPES[number], width, height);
+    }
+    else if (GENERATED_PRESET_NAMES.includes(shapeName as typeof GENERATED_PRESET_NAMES[number])) {
+        geometry = generatedPresetGeometry(shapeName as typeof GENERATED_PRESET_NAMES[number], width, height);
     }
     else geometry = { kind: "path", data: presetPath(shapeName, width, height)! };
     return { name: shapeName, width, height, geometry, link };

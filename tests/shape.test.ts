@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { normalizeCustomPath, normalizeShape } from "../src/normalize/shape";
 import { PAGE_SIZES } from "../src/pageLayouts";
 import { PuppeteerGen } from "../src/PuppeterrGen";
+import { GENERATED_PRESET_NAMES } from "../src/normalize/generatedPreset";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
@@ -49,9 +50,9 @@ describe("shape normalization", () => {
         expect(arcs[1]!.slice(-2)[1]).toBeCloseTo(96, 5);
     });
 
-    test("requires custom points and rejects unsupported presets", () => {
+    test("requires custom points and rejects unknown presets", () => {
         expect(() => normalizeShape("custGeom", {}, 100, 100, PAGE)).toThrow("requires at least one point");
-        expect(() => normalizeShape("cloud", {}, 100, 100, PAGE)).toThrow("Unsupported shape geometry: cloud");
+        expect(() => normalizeShape("definitelyUnknown" as never, {}, 100, 100, PAGE)).toThrow("Unsupported shape geometry: definitelyUnknown");
         expect(() => normalizeShape("rect", { hyperlink: {} }, 100, 100, PAGE)).toThrow("hyperlink requires either url or slide");
     });
 
@@ -207,6 +208,19 @@ describe("shape normalization", () => {
         expect((normalizeShape("mathDivide", {}, 160, 100, PAGE).geometry as { data: string }).data.match(/M /g)).toHaveLength(3);
     });
 
+    test("normalizes every generated ECMA preset without fallback geometry", () => {
+        expect(GENERATED_PRESET_NAMES).toHaveLength(52);
+        for (const name of GENERATED_PRESET_NAMES) {
+            const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
+            expect(geometry.kind).toBe("path");
+            if (geometry.kind !== "path") continue;
+            expect(geometry.data).toContain("M ");
+            if (name === "folderCorner") expect(geometry.faces).toHaveLength(0);
+            else expect(geometry.faces?.length).toBeGreaterThan(0);
+            expect(geometry.outlineData).toContain("M ");
+        }
+    });
+
     test("normalizes standard flowchart symbols and their internal marks", () => {
         const names = [
             "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
@@ -358,10 +372,10 @@ describe("SVG shape rendering", () => {
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")).toContain("Q ");
     });
 
-    test("never silently substitutes an unsupported shape", () => {
+    test("never silently substitutes an unknown shape", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
-        expect(() => slide.addShape("cloud", { x: 1, y: 1, w: 2, h: 1 })).toThrow("Unsupported shape geometry: cloud");
+        expect(() => slide.addShape("definitelyUnknown" as never, { x: 1, y: 1, w: 2, h: 1 })).toThrow("Unsupported shape geometry: definitelyUnknown");
         expect(presentation.page.querySelector(".slide-shape")).toBeNull();
     });
 });

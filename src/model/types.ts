@@ -149,7 +149,7 @@ export type NormalizedShapeGeometry =
         kind: "path";
         data: string;
         transform?: string;
-        faces?: ReadonlyArray<{ data: string; fillModifier?: "darken" | "darkenLess" | "lighten" }>;
+        faces?: ReadonlyArray<{ data: string; fillModifier?: "darken" | "darkenLess" | "lighten" | "lightenLess" }>;
         outlineData?: string;
     };
 

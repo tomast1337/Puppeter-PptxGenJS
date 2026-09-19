@@ -1,5 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import type { PuppeteerGen } from "../../src/PuppeterrGen";
+import { GENERATED_PRESET_NAMES } from "../../src/normalize/generatedPreset";
 import { Buffer } from "node:buffer";
 
 type Presentation = PptxGenJS | PuppeteerGen;
@@ -106,11 +107,26 @@ for (const [index, shape] of (["mathPlus", "heart", "moon", "sun", "smileyFace",
         { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 },
     );
 }
+const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.map((shape, index) => ({
+    page: 36 + Math.floor(index / 8), name: shape, shape,
+    x: 0.5 + (index % 4) * 2.375, y: index % 8 < 4 ? 1 : 3, w: 1.5, h: 1.5,
+}));
+const GENERATED_ASPECT_NAMES = [
+    "bevel", "can", "circularArrow", "cloud", "doubleWave", "gear6", "gear9", "leftRightCircularArrow", "wedgeEllipseCallout",
+] as const;
+const GENERATED_ASPECT_CASES = GENERATED_ASPECT_NAMES.flatMap((shape, index) => {
+    const page = 43 + Math.floor(index / 3); const column = index % 3; const baseX = 0.4 + column * 3.2;
+    return [
+        { page, name: `${shape}-wide`, shape, x: baseX, y: 1, w: 2.5, h: 0.75 },
+        { page, name: `${shape}-tall`, shape, x: baseX + 0.8, y: 2.75, w: 0.9, h: 1.65 },
+    ];
+});
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 export const PARITY_REGIONS = [
     ...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES,
     ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES, ...SYMBOL_CASES,
+    ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
@@ -693,6 +709,36 @@ export function populateParityFixture(presentation: Presentation): void {
         });
         SYMBOL_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
             symbolSlide.addShape(shape, {
+                x, y, w, h,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
+
+    for (let pageNumber = 36; pageNumber <= 42; pageNumber++) {
+        const presetSlide = presentation.addSlide();
+        presetSlide.addText(`Remaining shape presets ${pageNumber - 35}`, {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        GENERATED_PRESET_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+            presetSlide.addShape(shape, {
+                x, y, w, h,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
+
+    for (let pageNumber = 43; pageNumber <= 45; pageNumber++) {
+        const aspectSlide = presentation.addSlide();
+        aspectSlide.addText(`Remaining presets: aspect ratios ${pageNumber - 42}`, {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        GENERATED_ASPECT_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+            aspectSlide.addShape(shape, {
                 x, y, w, h,
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
