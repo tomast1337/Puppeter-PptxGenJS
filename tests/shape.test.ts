@@ -59,6 +59,18 @@ describe("shape normalization", () => {
         expect((normalizeShape("stripedRightArrow", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ Z/g)).toHaveLength(3);
         expect((normalizeShape("rightArrowCallout", {}, 100, 80, PAGE).geometry as { data: string }).data).toContain("L 100 40");
     });
+
+    test("normalizes bent, curved, and swoosh arrow paths", () => {
+        expect((normalizeShape("leftUpArrow", {}, 120, 90, PAGE).geometry as { data: string }).data).toContain("L 97.5 0");
+        expect((normalizeShape("bentUpArrow", {}, 120, 90, PAGE).geometry as { data: string }).data).toContain("L 97.5 0");
+        expect((normalizeShape("bentArrow", {}, 120, 90, PAGE).geometry as { data: string }).data).toContain("A ");
+        expect((normalizeShape("uturnArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/A /g)).toHaveLength(4);
+        expect((normalizeShape("curvedRightArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/A /g)).toHaveLength(4);
+        const curvedUp = normalizeShape("curvedUpArrow", {}, 120, 90, PAGE).geometry as { data: string; transform?: string };
+        expect(curvedUp.data.match(/A /g)).toHaveLength(4);
+        expect(curvedUp.transform).toBe("matrix(0 -1 1 0 0 90)");
+        expect((normalizeShape("swooshArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/Q /g)).toHaveLength(2);
+    });
 });
 
 describe("SVG shape rendering", () => {

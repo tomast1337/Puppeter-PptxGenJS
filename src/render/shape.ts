@@ -57,7 +57,10 @@ function geometryElement(document: Document, shape: NormalizedShape): SVGElement
     const element = document.createElementNS(SVG_NS, "path");
     if (geometry.kind === "line") {
         element.setAttribute("d", geometry.inverse ? `M 0 ${shape.height} L ${shape.width} 0` : `M 0 0 L ${shape.width} ${shape.height}`);
-    } else element.setAttribute("d", geometry.data);
+    } else {
+        element.setAttribute("d", geometry.data);
+        if (geometry.transform) element.setAttribute("transform", geometry.transform);
+    }
     return element;
 }
 

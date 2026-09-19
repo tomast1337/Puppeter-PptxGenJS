@@ -438,4 +438,45 @@ export function populateParityFixture(presentation: Presentation): void {
             fontFace: "Arial", fontSize: 9, color: "363636", align: "center", margin: 0,
         });
     });
+
+    const bentArrowsSlide = presentation.addSlide();
+    bentArrowsSlide.addText("Bent and routing arrows", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const bentArrows: Array<[PptxGenJS.SHAPE_NAME, number]> = [
+        ["leftUpArrow", 0.7], ["bentUpArrow", 2.95], ["bentArrow", 5.2], ["uturnArrow", 7.45],
+    ];
+    bentArrows.forEach(([shape, x], index) => {
+        bentArrowsSlide.addShape(shape, {
+            x, y: 1.25, w: 1.8, h: 2.4,
+            fill: { color: index % 2 ? "70AD47" : "4472C4", transparency: 5 },
+            line: { color: "17365D", width: 1.15 },
+        });
+        bentArrowsSlide.addText(shape, {
+            x: x - 0.15, y: 3.95, w: 2.1, h: 0.3,
+            fontFace: "Arial", fontSize: 11, color: "363636", align: "center", margin: 0,
+        });
+    });
+
+    const curvedArrowsSlide = presentation.addSlide();
+    curvedArrowsSlide.addText("Curved and swoosh arrows", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const curvedArrows: Array<[PptxGenJS.SHAPE_NAME, number, number]> = [
+        ["curvedRightArrow", 0.6, 1], ["curvedLeftArrow", 2.45, 1], ["curvedUpArrow", 4.3, 1],
+        ["curvedDownArrow", 6.15, 1], ["swooshArrow", 8, 1],
+    ];
+    curvedArrows.forEach(([shape, x, y], index) => {
+        curvedArrowsSlide.addShape(shape, {
+            x, y, w: 1.4, h: 2.1,
+            fill: { color: index % 2 ? "ED7D31" : "5B9BD5", transparency: 5 },
+            line: { color: "843C0C", width: 1.15, transparency: 100 },
+        });
+        curvedArrowsSlide.addText(shape, {
+            x: x - 0.2, y: 3.35, w: 1.8, h: 0.3,
+            fontFace: "Arial", fontSize: 9, color: "363636", align: "center", margin: 0,
+        });
+    });
 }
