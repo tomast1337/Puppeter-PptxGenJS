@@ -38,3 +38,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Visual parity artifacts
 .visual-parity/
+
+# Local planning and agent working notes
+docs/*
