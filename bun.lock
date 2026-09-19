@@ -5,7 +5,7 @@
       "name": "puppeter-pptxgenjs",
       "dependencies": {
         "jsdom": "^26.1.0",
-        "pptxgenjs": "^4.0.1",
+        "pptxgenjs": "4.0.1",
         "puppeteer": "^24.15.0",
       },
       "devDependencies": {

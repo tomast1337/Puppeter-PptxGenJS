@@ -5,6 +5,7 @@ import puppeteer from "puppeteer";
 import { convertToPixels, colorToCSS, alignToCSS, valignToCSS, pointsToPixels, inchesToPixels } from "./utils";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
+import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS, type FourSideMargin } from "./defaults";
 
 class PuppeteerSlide implements PptxSlide {
     constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document) {
@@ -64,8 +65,10 @@ class PuppeteerSlide implements PptxSlide {
         shapeElm.className = "slide-element slide-shape";
         
         if (options) {
-            this.applyPositionAndSize(shapeElm, options);
+            this.applyPositionAndSize(shapeElm, options, PPTX_DEFAULTS.shape);
             this.applyShapeStyles(shapeElm, options);
+        } else {
+            this.applyPositionAndSize(shapeElm, {}, PPTX_DEFAULTS.shape);
         }
         
         this.slideElm.appendChild(shapeElm);
@@ -98,9 +101,18 @@ class PuppeteerSlide implements PptxSlide {
         
         tableContainer.appendChild(tableElm);
         
-        if (options) {
-            this.applyPositionAndSize(tableContainer, options);
-        }
+        const tableOptions = options ?? {};
+        this.applyPositionAndSize(tableContainer, tableOptions, {
+            x: PPTX_DEFAULTS.table.x,
+            y: PPTX_DEFAULTS.table.y,
+            w: this.pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2,
+        });
+        tableElm.style.fontSize = `${pointsToPixels(options?.fontSize ?? PPTX_DEFAULTS.table.fontSizePt)}px`;
+        tableElm.style.color = colorToCSS(options?.color ?? PPTX_DEFAULTS.table.color);
+        const tableMargin = options?.margin as number | FourSideMargin | undefined;
+        tableElm.querySelectorAll("td").forEach(cell => {
+            if (!cell.style.padding) cell.style.padding = tableMarginToCSS(tableMargin);
+        });
         
         this.slideElm.appendChild(tableContainer);
         return this;
@@ -128,37 +140,46 @@ class PuppeteerSlide implements PptxSlide {
         }
         
         // Apply options if provided
-        if (options) {
-            this.applyPositionAndSize(textElm, options);
-            this.applyTextStyles(textElm, options);
-        }
+        const textOptions = options ?? {};
+        this.applyPositionAndSize(textElm, textOptions, PPTX_DEFAULTS.text);
+        this.applyTextStyles(textElm, textOptions);
         
         this.slideElm.appendChild(textElm);
         return this;
     }
     
-    private applyPositionAndSize(element: HTMLElement, options: any): void {
+    private applyPositionAndSize(element: HTMLElement, options: any, defaults: any = {}): void {
         const pageWidthPx = inchesToPixels(this.pageSize.width);
         const pageHeightPx = inchesToPixels(this.pageSize.height);
+        const x = options.x ?? defaults.x;
+        const y = options.y ?? defaults.y;
+        const w = options.w ?? defaults.w;
+        const h = options.h ?? defaults.h;
         
-        if (options.x !== undefined) {
-            element.style.left = `${convertToPixels(options.x, pageWidthPx)}px`;
+        if (x !== undefined) {
+            element.style.left = `${convertToPixels(x, pageWidthPx)}px`;
         }
         
-        if (options.y !== undefined) {
-            element.style.top = `${convertToPixels(options.y, pageHeightPx)}px`;
+        if (y !== undefined) {
+            element.style.top = `${convertToPixels(y, pageHeightPx)}px`;
         }
         
-        if (options.w !== undefined) {
-            element.style.width = `${convertToPixels(options.w, pageWidthPx)}px`;
+        if (w !== undefined) {
+            element.style.width = `${convertToPixels(w, pageWidthPx)}px`;
         }
         
-        if (options.h !== undefined) {
-            element.style.height = `${convertToPixels(options.h, pageHeightPx)}px`;
+        if (h !== undefined) {
+            element.style.height = `${convertToPixels(h, pageHeightPx)}px`;
         }
     }
     
     private applyTextStyles(element: HTMLElement, options: PptxGenJS.TextPropsOptions): void {
+        element.style.padding = textMarginToCSS(options.margin as number | FourSideMargin | undefined);
+
+        if (options.wrap === false) {
+            element.style.whiteSpace = "pre";
+        }
+
         if (options.color) {
             element.style.color = colorToCSS(options.color);
         }
@@ -179,8 +200,11 @@ class PuppeteerSlide implements PptxSlide {
             element.style.fontStyle = "italic";
         }
         
-        if (options.underline) {
-            element.style.textDecoration = "underline";
+        if (options.underline && options.underline.style !== "none") {
+            element.style.textDecorationLine = "underline";
+            if (options.underline.color) {
+                element.style.textDecorationColor = colorToCSS(options.underline.color);
+            }
         }
         
         if (options.align) {
@@ -229,19 +253,24 @@ class PuppeteerSlide implements PptxSlide {
             span.style.fontStyle = "italic";
         }
         
-        if (options.underline) {
-            span.style.textDecoration = "underline";
+        if (options.underline && options.underline.style !== "none") {
+            span.style.textDecorationLine = "underline";
+            if (options.underline.color) {
+                span.style.textDecorationColor = colorToCSS(options.underline.color);
+            }
         }
     }
     
     private applyShapeStyles(element: HTMLElement, options: PptxGenJS.ShapeProps): void {
         if (options.fill) {
-            element.style.backgroundColor = colorToCSS(options.fill as any);
+            element.style.backgroundColor = colorToCSS(options.fill);
         }
         
         if (options.line) {
-            element.style.borderColor = colorToCSS(options.line as any);
-            element.style.borderWidth = "1px";
+            element.style.borderColor = colorToCSS(options.line);
+            element.style.borderWidth = `${pointsToPixels(options.line.width ?? 1)}px`;
+            const dashType = options.line.dashType ?? options.line.lineDash;
+            element.style.borderStyle = dashType === "solid" || !dashType ? "solid" : "dashed";
         }
     }
     
@@ -320,7 +349,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
 body {
     margin: 0;
     padding: 0;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: Calibri, Arial, Helvetica, sans-serif;
 }
 
 .slide-container {
@@ -345,12 +374,18 @@ body {
 .slide-text {
     display: flex;
     align-items: center;
+    justify-content: flex-start;
+    color: #000000;
+    font-family: Calibri, Arial, Helvetica, sans-serif;
+    font-size: 24px;
+    padding: 4.8px 9.6px;
     overflow: hidden;
+    white-space: pre-wrap;
     word-wrap: break-word;
 }
 
 .slide-shape {
-    border-style: solid;
+    border-style: none;
 }
 
 .slide-image {
@@ -359,13 +394,18 @@ body {
 
 .slide-table {
     border-collapse: collapse;
+    table-layout: fixed;
     width: 100%;
+    height: 100%;
+    color: #000000;
+    font-size: 16px;
 }
 
 .slide-table td,
 .slide-table th {
-    border: 1px solid #ddd;
-    padding: 8px;
+    border: none;
+    padding: 4.8px 9.6px;
+    vertical-align: top;
 }
 
 @media print {
@@ -408,25 +448,35 @@ body {
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
-        const page = await browser.newPage();
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-        
-        // Set viewport to match page size
-        await page.setViewport({
-            width: Math.round(inchesToPixels(this.pageSize.width)),
-            height: Math.round(inchesToPixels(this.pageSize.height))
-        });
-        
-        const pdf = await page.pdf({
-            width: `${this.pageSize.width}in`,
-            height: `${this.pageSize.height}in`,
-            printBackground: true,
-            margin: { top: 0, right: 0, bottom: 0, left: 0 }
-        });
-        
-        await browser.close();
-        await Bun.write(fileName, pdf);
-        return fileName;
+        try {
+            const page = await browser.newPage();
+            await page.setViewport({
+                width: Math.round(inchesToPixels(this.pageSize.width)),
+                height: Math.round(inchesToPixels(this.pageSize.height))
+            });
+            await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+            await page.evaluate(async () => {
+                await document.fonts.ready;
+                await Promise.all(Array.from(document.images, image => image.complete
+                    ? Promise.resolve()
+                    : new Promise<void>(resolve => {
+                        image.addEventListener("load", () => resolve(), { once: true });
+                        image.addEventListener("error", () => resolve(), { once: true });
+                    })));
+            });
+
+            const pdf = await page.pdf({
+                width: `${this.pageSize.width}in`,
+                height: `${this.pageSize.height}in`,
+                printBackground: true,
+                margin: { top: 0, right: 0, bottom: 0, left: 0 }
+            });
+
+            await Bun.write(fileName, pdf);
+            return fileName;
+        } finally {
+            await browser.close();
+        }
     }
     
     addSection(props: PptxSectionProps): void {

@@ -137,7 +137,7 @@ await pres.writeFile({ fileName: "multi-slide.pdf" });
 Run the basic example:
 
 ```bash
-bun run src/index.ts
+bun run examples/test.ts
 ```
 
 Run comprehensive examples:
@@ -186,18 +186,22 @@ For detailed documentation, see [USAGE.md](./USAGE.md) which covers:
 - CSS and print layout details
 - Best practices and troubleshooting
 
+See [DEFAULTS.md](./DEFAULTS.md) for the measured PptxGenJS/PowerPoint defaults
+that PuppeteerGen reproduces and the current compatibility status.
+
 ## Project Structure
 
 ```
 ├── src/
-│   ├── index.ts           # Basic example
 │   ├── PuppeterrGen.ts    # Main implementation
 │   ├── pageLayouts.ts     # Page size definitions
 │   ├── utils.ts           # Utility functions
 │   ├── pptx.ts            # Type definitions
 │   └── exports.ts         # Public API exports
 ├── examples/
+│   ├── test.ts                   # Basic example
 │   └── comprehensive-example.ts  # Feature demonstrations
+├── tests/                       # Unit, DOM, and visual parity tests
 ├── USAGE.md               # Detailed documentation
 └── README.md              # This file
 ```

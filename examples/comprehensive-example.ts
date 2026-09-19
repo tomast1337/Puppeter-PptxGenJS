@@ -117,7 +117,7 @@ async function exampleTextStyling() {
             x: 1, 
             y: 1.9, 
             fontSize: 28,
-            underline: true
+            underline: { style: "sng" }
         });
         
         slide.addText("Colored and Background", { 
@@ -374,4 +374,3 @@ export {
     exampleMultipleSlides,
     exampleCustomLayout
 };
-
