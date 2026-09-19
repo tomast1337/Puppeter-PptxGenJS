@@ -49,6 +49,16 @@ describe("shape normalization", () => {
         expect((normalizeShape("hexagon", {}, 100, 80, PAGE).geometry as { data: string }).data).toContain("L");
         expect((normalizeShape("star5", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ L /g)).toHaveLength(9);
     });
+
+    test("normalizes directional, compound, and callout arrows", () => {
+        const right = normalizeShape("rightArrow", {}, 100, 80, PAGE).geometry as { data: string };
+        const left = normalizeShape("leftArrow", {}, 100, 80, PAGE).geometry as { data: string };
+        expect(right.data).toContain("L 100 40");
+        expect(left.data).toContain("M 100 20");
+        expect((normalizeShape("quadArrow", {}, 100, 80, PAGE).geometry as { data: string }).data).toContain("L 100 40");
+        expect((normalizeShape("stripedRightArrow", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ Z/g)).toHaveLength(3);
+        expect((normalizeShape("rightArrowCallout", {}, 100, 80, PAGE).geometry as { data: string }).data).toContain("L 100 40");
+    });
 });
 
 describe("SVG shape rendering", () => {

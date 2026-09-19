@@ -396,4 +396,46 @@ export function populateParityFixture(presentation: Presentation): void {
             fontFace: "Arial", fontSize: 11, color: "363636", align: "center", margin: 0,
         });
     });
+
+    const arrowShapesSlide = presentation.addSlide();
+    arrowShapesSlide.addText("Directional and compound arrows", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const arrowShapes: Array<[PptxGenJS.SHAPE_NAME, number, number]> = [
+        ["rightArrow", 0.55, 1], ["leftArrow", 2.35, 1], ["upArrow", 4.15, 1], ["downArrow", 5.95, 1], ["leftRightArrow", 7.75, 1],
+        ["upDownArrow", 0.55, 3.25], ["quadArrow", 2.35, 3.25], ["leftRightUpArrow", 4.15, 3.25], ["notchedRightArrow", 5.95, 3.25], ["stripedRightArrow", 7.75, 3.25],
+    ];
+    arrowShapes.forEach(([shape, x, y], index) => {
+        arrowShapesSlide.addShape(shape, {
+            x, y, w: 1.35, h: 1.2,
+            fill: { color: index % 2 ? "5B9BD5" : "4472C4", transparency: 5 },
+            line: { color: "17365D", width: 1.15 },
+        });
+        arrowShapesSlide.addText(shape, {
+            x: x - 0.18, y: y + 1.42, w: 1.71, h: 0.3,
+            fontFace: "Arial", fontSize: 9, color: "363636", align: "center", margin: 0,
+        });
+    });
+
+    const arrowCalloutsSlide = presentation.addSlide();
+    arrowCalloutsSlide.addText("Arrow callout presets", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const arrowCallouts: Array<[PptxGenJS.SHAPE_NAME, number, number]> = [
+        ["rightArrowCallout", 0.7, 1.05], ["leftArrowCallout", 3.05, 1.05], ["upArrowCallout", 5.4, 1.05], ["downArrowCallout", 7.75, 1.05],
+        ["leftRightArrowCallout", 1.9, 3.35], ["upDownArrowCallout", 4.25, 3.35], ["quadArrowCallout", 6.6, 3.35],
+    ];
+    arrowCallouts.forEach(([shape, x, y], index) => {
+        arrowCalloutsSlide.addShape(shape, {
+            x, y, w: 1.55, h: 1.35,
+            fill: { color: index % 2 ? "ED7D31" : "FFC000", transparency: 7 },
+            line: { color: "843C0C", width: 1.15 },
+        });
+        arrowCalloutsSlide.addText(shape, {
+            x: x - 0.25, y: y + 1.55, w: 2.05, h: 0.3,
+            fontFace: "Arial", fontSize: 9, color: "363636", align: "center", margin: 0,
+        });
+    });
 }

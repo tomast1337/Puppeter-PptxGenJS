@@ -70,6 +70,8 @@ describe("compatibility manifest", () => {
         expect(SHAPE_GEOMETRY_COMPATIBILITY.rect).toBe("implemented");
         expect(SHAPE_GEOMETRY_COMPATIBILITY.custGeom).toBe("implemented");
         expect(SHAPE_GEOMETRY_COMPATIBILITY.star32).toBe("implemented");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.quadArrowCallout).toBe("implemented");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.bentArrow).toBe("unsupported");
         expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("unsupported");
     });
 
