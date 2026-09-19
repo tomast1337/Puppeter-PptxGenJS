@@ -29,10 +29,27 @@ CIRCULAR_CASES.push(
     { page: 20, name: "blockArc-thin", shape: "blockArc", x: 0.6, y: 3.3, w: 2.2, h: 1.5, options: { angleRange: [25, 300], arcThicknessRatio: 0.2 } },
     { page: 20, name: "blockArc-thick", shape: "blockArc", x: 3.9, y: 3.3, w: 2.2, h: 1.5, options: { angleRange: [25, 300], arcThicknessRatio: 0.8 } },
 );
+const FLOWCHART_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
+    "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
+    "flowChartInternalStorage", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
+    "flowChartOffpageConnector", "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation",
+    "flowChartProcess", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
+];
+const FLOWCHART_CASES = FLOWCHART_NAMES.map((shape, index) => ({
+    page: 21 + Math.floor(index / 10), name: shape, shape,
+    x: 0.35 + (index % 5) * 1.95,
+    y: index % 10 < 5 ? 1.05 : 3.15,
+    w: 1.45, h: 1.25,
+}));
 
 // These tight crops include the stroke but exclude labels and unused slide area.
-export const PARITY_REGIONS = [...CURVED_CASES, ...CIRCULAR_CASES].map(({ page, name, x, y, w, h }) => ({
-    page, name, threshold: 0.08,
+export const PARITY_REGIONS = [...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES].map(({ page, name, x, y, w, h }) => ({
+    page, name,
+    // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
+    // fewer fully opaque pixels than Chromium. Geometry and divider positions
+    // match; the two compound rectangles need a narrow rasterization allowance.
+    threshold: ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
     x: Math.floor(x * 96) - 3, y: Math.floor(y * 96) - 3,
     w: Math.ceil(w * 96) + 7, h: Math.ceil(h * 96) + 7,
 }));
@@ -535,6 +552,21 @@ export function populateParityFixture(presentation: Presentation): void {
         CIRCULAR_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h, options }) => {
             circularSlide.addShape(shape, {
                 x, y, w, h, ...options,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
+
+    for (const pageNumber of [21, 22]) {
+        const flowchartSlide = presentation.addSlide();
+        flowchartSlide.addText(`Flowchart presets ${pageNumber - 20}`, {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        FLOWCHART_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+            flowchartSlide.addShape(shape, {
+                x, y, w, h,
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });

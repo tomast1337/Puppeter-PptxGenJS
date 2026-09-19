@@ -14,11 +14,18 @@ const ARROW_SHAPES = Object.freeze([
     "leftRightArrowCallout", "upDownArrowCallout", "quadArrowCallout",
 ] as const);
 const CIRCULAR_SHAPES = Object.freeze(["arc", "pie", "pieWedge", "chord", "blockArc", "donut"] as const);
+const FLOWCHART_SHAPES = Object.freeze([
+    "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
+    "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
+    "flowChartInternalStorage", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
+    "flowChartOffpageConnector", "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation",
+    "flowChartProcess", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
+] as const);
 
 export const CORE_SVG_SHAPES = Object.freeze([
     "rect", "roundRect", "ellipse", "line", "lineInv", "custGeom",
     "triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid",
-    ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES,
+    ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES, ...FLOWCHART_SHAPES,
 ] as const);
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
@@ -459,6 +466,72 @@ function circularShapeGeometry(
     };
 }
 
+function fullEllipsePath(width: number, height: number): string {
+    const ellipse = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 180, 360);
+    return `${ellipse.move} ${ellipse.arcs} Z`;
+}
+
+function compoundShape(face: string, details = ""): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    return {
+        kind: "path",
+        data: face,
+        faces: [{ data: face }],
+        outlineData: details ? `${face} ${details}` : face,
+    };
+}
+
+function flowchartGeometry(
+    shapeName: typeof FLOWCHART_SHAPES[number],
+    width: number,
+    height: number,
+): NormalizedShape["geometry"] {
+    if (shapeName === "flowChartProcess") return { kind: "rect", radius: 0 };
+    if (shapeName === "flowChartAlternateProcess") return { kind: "rect", radius: Math.min(width, height) / 6 };
+    if (shapeName === "flowChartConnector") return { kind: "ellipse" };
+    if (shapeName === "flowChartDecision") return { kind: "path", data: polygonPath([[0, .5], [.5, 0], [1, .5], [.5, 1]], width, height) };
+    if (shapeName === "flowChartCollate") return { kind: "path", data: polygonPath([[0, 0], [1, 0], [.5, .5], [1, 1], [0, 1], [.5, .5]], width, height) };
+    if (shapeName === "flowChartExtract") return { kind: "path", data: polygonPath([[0, 1], [.5, 0], [1, 1]], width, height) };
+    if (shapeName === "flowChartMerge") return { kind: "path", data: polygonPath([[0, 0], [1, 0], [.5, 1]], width, height) };
+    if (shapeName === "flowChartInputOutput") return { kind: "path", data: polygonPath([[0, 1], [.2, 0], [1, 0], [.8, 1]], width, height) };
+    if (shapeName === "flowChartManualInput") return { kind: "path", data: polygonPath([[0, .2], [1, 0], [1, 1], [0, 1]], width, height) };
+    if (shapeName === "flowChartManualOperation") return { kind: "path", data: polygonPath([[0, 0], [1, 0], [.8, 1], [.2, 1]], width, height) };
+    if (shapeName === "flowChartOffpageConnector") return { kind: "path", data: polygonPath([[0, 0], [1, 0], [1, .8], [.5, 1], [0, .8]], width, height) };
+    if (shapeName === "flowChartPreparation") return { kind: "path", data: polygonPath([[0, .5], [.2, 0], [.8, 0], [1, .5], [.8, 1], [.2, 1]], width, height) };
+    if (shapeName === "flowChartDelay") {
+        const arc = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 270, 180);
+        return { kind: "path", data: `M 0 0 L ${cleanNumber(width / 2)} 0 ${arc.arcs} L 0 ${cleanNumber(height)} Z` };
+    }
+    if (shapeName === "flowChartDisplay") {
+        const arc = ellipseArcCommands(width * 5 / 6, height / 2, width / 6, height / 2, 270, 180);
+        return { kind: "path", data: `M 0 ${cleanNumber(height / 2)} L ${cleanNumber(width / 6)} 0 L ${cleanNumber(width * 5 / 6)} 0 ${arc.arcs} L ${cleanNumber(width / 6)} ${cleanNumber(height)} Z` };
+    }
+    if (shapeName === "flowChartTerminator") {
+        const radiusX = width * 3475 / 21600;
+        const rightArc = ellipseArcCommands(width - radiusX, height / 2, radiusX, height / 2, 270, 180);
+        const leftArc = ellipseArcCommands(radiusX, height / 2, radiusX, height / 2, 90, 180);
+        return { kind: "path", data: `M ${cleanNumber(radiusX)} 0 L ${cleanNumber(width - radiusX)} 0 ${rightArc.arcs} L ${cleanNumber(radiusX)} ${cleanNumber(height)} ${leftArc.arcs} Z` };
+    }
+
+    const rectangle = `M 0 0 L ${cleanNumber(width)} 0 L ${cleanNumber(width)} ${cleanNumber(height)} L 0 ${cleanNumber(height)} Z`;
+    if (shapeName === "flowChartInternalStorage") {
+        return compoundShape(rectangle, `M ${cleanNumber(width / 8)} 0 L ${cleanNumber(width / 8)} ${cleanNumber(height)} M 0 ${cleanNumber(height / 8)} L ${cleanNumber(width)} ${cleanNumber(height / 8)}`);
+    }
+    if (shapeName === "flowChartPredefinedProcess") {
+        return compoundShape(rectangle, `M ${cleanNumber(width / 8)} 0 L ${cleanNumber(width / 8)} ${cleanNumber(height)} M ${cleanNumber(width * 7 / 8)} 0 L ${cleanNumber(width * 7 / 8)} ${cleanNumber(height)}`);
+    }
+    if (shapeName === "flowChartSort") {
+        const diamond = polygonPath([[0, .5], [.5, 0], [1, .5], [.5, 1]], width, height);
+        return compoundShape(diamond, `M 0 ${cleanNumber(height / 2)} L ${cleanNumber(width)} ${cleanNumber(height / 2)}`);
+    }
+    const ellipse = fullEllipsePath(width, height);
+    if (shapeName === "flowChartOr") {
+        return compoundShape(ellipse, `M ${cleanNumber(width / 2)} 0 L ${cleanNumber(width / 2)} ${cleanNumber(height)} M 0 ${cleanNumber(height / 2)} L ${cleanNumber(width)} ${cleanNumber(height / 2)}`);
+    }
+    const insetX = width / 2 * Math.SQRT1_2;
+    const insetY = height / 2 * Math.SQRT1_2;
+    return compoundShape(ellipse, `M ${cleanNumber(width / 2 - insetX)} ${cleanNumber(height / 2 - insetY)} L ${cleanNumber(width / 2 + insetX)} ${cleanNumber(height / 2 + insetY)} M ${cleanNumber(width / 2 + insetX)} ${cleanNumber(height / 2 - insetY)} L ${cleanNumber(width / 2 - insetX)} ${cleanNumber(height / 2 + insetY)}`);
+}
+
 function swooshArrowPath(width: number, height: number): string {
     const short = Math.min(width, height);
     const ad1 = height / 4;
@@ -567,6 +640,9 @@ export function normalizeShape(
     else if (shapeName === "curvedDownArrow") geometry = curvedArrowGeometry(width, height, "down");
     else if (CIRCULAR_SHAPES.includes(shapeName as typeof CIRCULAR_SHAPES[number])) {
         geometry = circularShapeGeometry(shapeName as typeof CIRCULAR_SHAPES[number], options, width, height);
+    }
+    else if (FLOWCHART_SHAPES.includes(shapeName as typeof FLOWCHART_SHAPES[number])) {
+        geometry = flowchartGeometry(shapeName as typeof FLOWCHART_SHAPES[number], width, height);
     }
     else geometry = { kind: "path", data: presetPath(shapeName, width, height)! };
     return { name: shapeName, width, height, geometry, link };

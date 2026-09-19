@@ -134,6 +134,22 @@ describe("shape normalization", () => {
         expect(thin.kind === "path" && thin.data).not.toBe(thick.kind === "path" && thick.data);
         expect((normalizeShape("donut", {}, 160, 100, PAGE).geometry as { data: string }).data.match(/M /g)).toHaveLength(2);
     });
+
+    test("normalizes standard flowchart symbols and their internal marks", () => {
+        const names = [
+            "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
+            "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
+            "flowChartInternalStorage", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
+            "flowChartOffpageConnector", "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation",
+            "flowChartProcess", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
+        ] as const;
+        for (const name of names) expect(() => normalizeShape(name, {}, 160, 100, PAGE)).not.toThrow();
+        const storage = normalizeShape("flowChartInternalStorage", {}, 160, 100, PAGE).geometry;
+        expect(storage.kind === "path" && storage.faces).toHaveLength(1);
+        expect(storage.kind === "path" && storage.outlineData).toContain("M 20 0 L 20 100");
+        const summing = normalizeShape("flowChartSummingJunction", {}, 160, 100, PAGE).geometry;
+        expect(summing.kind === "path" && summing.outlineData?.match(/ M /g)).toHaveLength(2);
+    });
 });
 
 describe("SVG shape rendering", () => {
@@ -200,6 +216,18 @@ describe("SVG shape rendering", () => {
         expect(geometry?.querySelector(".shape-face")?.getAttribute("fill")).toBe("#5B9BD5");
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")).not.toContain("L 96 72");
+    });
+
+    test("renders flowchart dividers as strokes over one filled face", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("flowChartInternalStorage", {
+            x: 1, y: 1, w: 2, h: 1.5,
+            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+        });
+        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")).toContain("M 24 0 L 24 144");
     });
 
     test("never silently substitutes an unsupported shape", () => {
