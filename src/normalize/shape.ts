@@ -14,6 +14,9 @@ const ARROW_SHAPES = Object.freeze([
     "leftRightArrowCallout", "upDownArrowCallout", "quadArrowCallout",
 ] as const);
 const CIRCULAR_SHAPES = Object.freeze(["arc", "pie", "pieWedge", "chord", "blockArc", "donut"] as const);
+const BRACE_BRACKET_SHAPES = Object.freeze([
+    "leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair",
+] as const);
 const FLOWCHART_SHAPES = Object.freeze([
     "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
     "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
@@ -27,7 +30,8 @@ const FLOWCHART_SHAPES = Object.freeze([
 export const CORE_SVG_SHAPES = Object.freeze([
     "rect", "roundRect", "ellipse", "line", "lineInv", "custGeom",
     "triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid",
-    ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES, ...FLOWCHART_SHAPES,
+    ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES,
+    ...BRACE_BRACKET_SHAPES, ...FLOWCHART_SHAPES,
 ] as const);
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
@@ -482,6 +486,58 @@ function compoundShape(face: string, details = ""): Extract<NormalizedShape["geo
     };
 }
 
+function braceBracketGeometry(
+    shapeName: typeof BRACE_BRACKET_SHAPES[number],
+    width: number,
+    height: number,
+): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const short = Math.min(width, height);
+    if (shapeName === "leftBrace" || shapeName === "rightBrace") {
+        const radiusY = Math.min(short * 8333 / 100000, height / 4);
+        const path = () => presetArcPath(width / 2, radiusY);
+        const outline = shapeName === "leftBrace"
+            ? path().move(width, height).arc(90, 90).line(width / 2, height / 2 + radiusY)
+                .arc(0, -90).arc(90, -90).line(width / 2, radiusY).arc(180, 90).data()
+            : path().move(0, 0).arc(270, 90).line(width / 2, height / 2 - radiusY)
+                .arc(180, -90).arc(270, -90).line(width / 2, height - radiusY).arc(0, 90).data();
+        const face = `${outline} Z`;
+        return { kind: "path", data: face, faces: [{ data: face }], outlineData: outline };
+    }
+    if (shapeName === "bracePair") {
+        const radius = short * 8333 / 100000;
+        const x2 = radius * 2;
+        const x3 = width - x2;
+        const x4 = width - radius;
+        const path = () => presetArcPath(radius, radius);
+        const left = path().move(x2, height).arc(90, 90).line(radius, height / 2 + radius)
+            .arc(0, -90).arc(90, -90).line(radius, radius).arc(180, 90).data();
+        const right = path().move(x3, 0).arc(270, 90).line(x4, height / 2 - radius)
+            .arc(180, -90).arc(270, -90).line(x4, height - radius).arc(0, 90).data();
+        const face = path().move(x2, height).arc(90, 90).line(radius, height / 2 + radius)
+            .arc(0, -90).arc(90, -90).line(radius, radius).arc(180, 90)
+            .line(x3, 0).arc(270, 90).line(x4, height / 2 - radius)
+            .arc(180, -90).arc(270, -90).line(x4, height - radius).arc(0, 90).close().data();
+        return { kind: "path", data: face, faces: [{ data: face }], outlineData: `${left} ${right}` };
+    }
+    if (shapeName === "leftBracket" || shapeName === "rightBracket") {
+        const radiusY = Math.min(short * 8333 / 100000, height / 2);
+        const path = () => presetArcPath(width, radiusY);
+        const outline = shapeName === "leftBracket"
+            ? path().move(width, height).arc(90, 90).line(0, radiusY).arc(180, 90).data()
+            : path().move(0, 0).arc(270, 90).line(width, height - radiusY).arc(0, 90).data();
+        const face = `${outline} Z`;
+        return { kind: "path", data: face, faces: [{ data: face }], outlineData: outline };
+    }
+    const radius = short * 16667 / 100000;
+    const x2 = width - radius;
+    const path = () => presetArcPath(radius, radius);
+    const face = path().move(0, radius).arc(180, 90).line(x2, 0).arc(270, 90)
+        .line(width, height - radius).arc(0, 90).line(radius, height).arc(90, 90).close().data();
+    const leftOutline = path().move(radius, height).arc(90, 90).line(0, radius).arc(180, 90).data();
+    const rightOutline = path().move(x2, 0).arc(270, 90).line(width, height - radius).arc(0, 90).data();
+    return { kind: "path", data: face, faces: [{ data: face }], outlineData: `${leftOutline} ${rightOutline}` };
+}
+
 function flowchartGeometry(
     shapeName: typeof FLOWCHART_SHAPES[number],
     width: number,
@@ -706,6 +762,9 @@ export function normalizeShape(
     else if (shapeName === "curvedDownArrow") geometry = curvedArrowGeometry(width, height, "down");
     else if (CIRCULAR_SHAPES.includes(shapeName as typeof CIRCULAR_SHAPES[number])) {
         geometry = circularShapeGeometry(shapeName as typeof CIRCULAR_SHAPES[number], options, width, height);
+    }
+    else if (BRACE_BRACKET_SHAPES.includes(shapeName as typeof BRACE_BRACKET_SHAPES[number])) {
+        geometry = braceBracketGeometry(shapeName as typeof BRACE_BRACKET_SHAPES[number], width, height);
     }
     else if (FLOWCHART_SHAPES.includes(shapeName as typeof FLOWCHART_SHAPES[number])) {
         geometry = flowchartGeometry(shapeName as typeof FLOWCHART_SHAPES[number], width, height);

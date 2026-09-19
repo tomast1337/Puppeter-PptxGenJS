@@ -45,9 +45,18 @@ const FLOWCHART_CASES = FLOWCHART_NAMES.map((shape, index) => ({
     y: index % 10 < 5 ? 1.05 : 3.15,
     w: 1.45, h: 1.25,
 }));
+const BRACE_BRACKET_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair",
+];
+const BRACE_BRACKET_CASES = BRACE_BRACKET_NAMES.flatMap((shape, index) => [
+    { page: 24, name: shape, shape, x: 0.45 + index * 1.55, y: 1.25, w: 1.05, h: 2.6 },
+    { page: 25, name: `${shape}-wide`, shape, x: 0.4 + index * 1.6, y: 1, w: 1.25, h: 0.5 },
+    { page: 25, name: `${shape}-square`, shape, x: 0.65 + index * 1.6, y: 2.15, w: 0.75, h: 0.75 },
+    { page: 25, name: `${shape}-tall`, shape, x: 0.75 + index * 1.6, y: 3.55, w: 0.55, h: 1.35 },
+]);
 
 // These tight crops include the stroke but exclude labels and unused slide area.
-export const PARITY_REGIONS = [...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES].map(({ page, name, x, y, w, h }) => ({
+export const PARITY_REGIONS = [...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
     // fewer fully opaque pixels than Chromium. Geometry and divider positions
@@ -569,6 +578,21 @@ export function populateParityFixture(presentation: Presentation): void {
         });
         FLOWCHART_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
             flowchartSlide.addShape(shape, {
+                x, y, w, h,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
+
+    for (const pageNumber of [24, 25]) {
+        const braceSlide = presentation.addSlide();
+        braceSlide.addText(pageNumber === 24 ? "Brace and bracket presets" : "Braces and brackets: aspect ratios", {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        BRACE_BRACKET_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+            braceSlide.addShape(shape, {
                 x, y, w, h,
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },

@@ -135,6 +135,23 @@ describe("shape normalization", () => {
         expect((normalizeShape("donut", {}, 160, 100, PAGE).geometry as { data: string }).data.match(/M /g)).toHaveLength(2);
     });
 
+    test("normalizes braces and brackets with open visible outlines", () => {
+        const names = ["leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair"] as const;
+        for (const name of names) {
+            const geometry = normalizeShape(name, {}, 120, 180, PAGE).geometry;
+            expect(geometry.kind).toBe("path");
+            if (geometry.kind !== "path") continue;
+            expect(geometry.faces).toHaveLength(1);
+            expect(geometry.data.endsWith(" Z")).toBe(true);
+            expect(geometry.outlineData?.endsWith(" Z")).toBe(false);
+            expect(geometry.outlineData).toContain("A ");
+        }
+        const bracePair = normalizeShape("bracePair", {}, 160, 100, PAGE).geometry;
+        const bracketPair = normalizeShape("bracketPair", {}, 160, 100, PAGE).geometry;
+        expect(bracePair.kind === "path" && bracePair.outlineData?.match(/M /g)).toHaveLength(2);
+        expect(bracketPair.kind === "path" && bracketPair.outlineData?.match(/M /g)).toHaveLength(2);
+    });
+
     test("normalizes standard flowchart symbols and their internal marks", () => {
         const names = [
             "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
@@ -231,6 +248,19 @@ describe("SVG shape rendering", () => {
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")).toContain("M 24 0 L 24 144");
+    });
+
+    test("renders brace fill without stroking its closing seam", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("leftBrace", {
+            x: 1, y: 1, w: 1.25, h: 2,
+            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+        });
+        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
+        expect(geometry?.querySelector(".shape-face")?.getAttribute("d")?.endsWith(" Z")).toBe(true);
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")?.endsWith(" Z")).toBe(false);
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
     });
 
     test("never silently substitutes an unsupported shape", () => {
