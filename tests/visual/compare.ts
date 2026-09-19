@@ -1,4 +1,4 @@
-import { mkdtemp, readdir } from "node:fs/promises";
+import { mkdtemp, readdir, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pptxgen from "pptxgenjs";
@@ -62,22 +62,34 @@ await run(["pdftoppm", "-png", "-r", "96", referencePdf, join(artifacts, "refere
 await run(["pdftoppm", "-png", "-r", "96", actualPdf, join(artifacts, "actual")]);
 
 const files = await readdir(artifacts);
-const referencePages = files.filter(file => /^reference-\d+\.png$/.test(file)).sort();
-const actualPages = files.filter(file => /^actual-\d+\.png$/.test(file)).sort();
+const pageNumber = (file: string) => Number(file.match(/-(\d+)\.png$/)?.[1]);
+const referencePages = files.filter(file => /^reference-\d+\.png$/.test(file)).sort((a, b) => pageNumber(a) - pageNumber(b));
+const actualPages = files.filter(file => /^actual-\d+\.png$/.test(file)).sort((a, b) => pageNumber(a) - pageNumber(b));
 if (referencePages.length !== actualPages.length || referencePages.length === 0) {
     throw new Error(`Page count mismatch: reference=${referencePages.length}, actual=${actualPages.length}`);
 }
+const pageDigits = Math.max(2, String(referencePages.length).length);
+const pageFiles = await Promise.all(referencePages.map(async (referencePage, index) => {
+    const page = String(index + 1).padStart(pageDigits, "0");
+    const referenceName = `${page}-reference.png`;
+    const actualName = `${page}-actual.png`;
+    await Promise.all([
+        rename(join(artifacts, referencePage), join(artifacts, referenceName)),
+        rename(join(artifacts, actualPages[index]!), join(artifacts, actualName)),
+    ]);
+    return { page, referenceName, actualName };
+}));
 
 const pageScores: number[] = [];
-for (let index = 0; index < referencePages.length; index++) {
+for (const page of pageFiles) {
     const output = await run([
         "magick",
         "compare",
         "-metric",
         "RMSE",
-        join(artifacts, referencePages[index]!),
-        join(artifacts, actualPages[index]!),
-        join(artifacts, `diff-${index + 1}.png`),
+        join(artifacts, page.referenceName),
+        join(artifacts, page.actualName),
+        join(artifacts, `${page.page}-diff.png`),
     ], [0, 1]);
     const normalizedScore = output.match(/\((\d*\.?\d+)\)/)?.[1];
     if (!normalizedScore) throw new Error(`Could not parse ImageMagick metric: ${output}`);
@@ -87,14 +99,15 @@ for (let index = 0; index < referencePages.length; index++) {
 const regionFailures: string[] = [];
 for (const region of PARITY_REGIONS) {
     const pageIndex = region.page - 1;
+    const page = pageFiles[pageIndex]!;
     const geometry = `${region.w}x${region.h}+${region.x}+${region.y}`;
-    const referenceCrop = join(artifacts, `reference-${region.name}.png`);
-    const actualCrop = join(artifacts, `actual-${region.name}.png`);
-    await run(["magick", join(artifacts, referencePages[pageIndex]!), "-crop", geometry, "+repage", referenceCrop]);
-    await run(["magick", join(artifacts, actualPages[pageIndex]!), "-crop", geometry, "+repage", actualCrop]);
+    const referenceCrop = join(artifacts, `${page.page}-${region.name}-reference.png`);
+    const actualCrop = join(artifacts, `${page.page}-${region.name}-actual.png`);
+    await run(["magick", join(artifacts, page.referenceName), "-crop", geometry, "+repage", referenceCrop]);
+    await run(["magick", join(artifacts, page.actualName), "-crop", geometry, "+repage", actualCrop]);
     const output = await run([
         "magick", "compare", "-metric", "RMSE", referenceCrop, actualCrop,
-        join(artifacts, `diff-${region.name}.png`),
+        join(artifacts, `${page.page}-${region.name}-diff.png`),
     ], [0, 1]);
     const metric = output.match(/\((\d*\.?\d+)\)/)?.[1];
     if (!metric) throw new Error(`Could not parse region metric: ${output}`);
