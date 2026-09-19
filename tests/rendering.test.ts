@@ -42,9 +42,10 @@ describe("PuppeteerGen DOM rendering", () => {
         });
 
         const element = presentation.page.querySelector<HTMLElement>(".slide-shape");
-        expect(element?.style.backgroundColor).toBe("rgba(68, 114, 196, 0.8)");
-        expect(element?.style.borderColor).toBe("rgb(17, 34, 51)");
-        expect(element?.style.borderWidth).toBe(`${2 * 96 / 72}px`);
+        const geometry = element?.querySelector<SVGGeometryElement>(".shape-geometry");
+        expect(geometry?.getAttribute("fill")).toBe("rgba(68, 114, 196, 0.8)");
+        expect(geometry?.getAttribute("stroke")).toBe("#112233");
+        expect(geometry?.getAttribute("stroke-width")).toBe(String(2 * 96 / 72));
     });
 
     test("creates styled table cells", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { COMPATIBILITY, type CompatibilityStatus } from "../src/compatibility";
+import { COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY, type CompatibilityStatus } from "../src/compatibility";
 
 const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified"]);
 const TEXT_OPTION_KEYS = [
@@ -15,6 +15,11 @@ const TEXT_OPTION_KEYS = [
 const IMAGE_OPTION_KEYS = [
     "x", "y", "w", "h", "path", "data", "objectName", "altText", "flipH", "flipV",
     "hyperlink", "placeholder", "rotate", "rounding", "shadow", "sizing", "transparency",
+] as const;
+const SHAPE_OPTION_KEYS = [
+    "x", "y", "w", "h", "objectName", "align", "angleRange", "arcThicknessRatio", "fill",
+    "flipH", "flipV", "hyperlink", "line", "points", "rectRadius", "rotate", "shadow",
+    "lineSize", "lineDash", "lineHead", "lineTail", "shapeName",
 ] as const;
 
 describe("compatibility manifest", () => {
@@ -57,8 +62,20 @@ describe("compatibility manifest", () => {
         }
     });
 
+    test("tracks every ShapeProps field and classifies every preset", () => {
+        for (const option of SHAPE_OPTION_KEYS) {
+            expect(COMPATIBILITY.shape.options[option]).toBeDefined();
+        }
+        expect(Object.keys(SHAPE_GEOMETRY_COMPATIBILITY)).toHaveLength(179);
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.rect).toBe("implemented");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.custGeom).toBe("implemented");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.star32).toBe("implemented");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("unsupported");
+    });
+
     test("does not claim unsupported shape geometry is implemented", () => {
-        expect(COMPATIBILITY.shape.options.presetGeometry).toBe("unsupported");
-        expect(COMPATIBILITY.shape.options.customGeometry).toBe("unsupported");
+        expect(COMPATIBILITY.shape.options.presetGeometry).toBe("partial");
+        expect(COMPATIBILITY.shape.options.customGeometry).toBe("implemented");
+        expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("unsupported");
     });
 });

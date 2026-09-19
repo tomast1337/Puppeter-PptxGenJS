@@ -7,12 +7,14 @@ import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS, type FourSideMargin } from "./defaults";
 import { normalizeObjectStyle } from "./normalize/object";
-import { normalizeColor } from "./normalize/style";
+import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeImage, resolveDocumentImages } from "./normalize/image";
 import { applyObjectStyle } from "./render/style";
 import { normalizeText, type TextInput } from "./normalize/text";
 import { renderText } from "./render/text";
 import { renderImage } from "./render/image";
+import { normalizeShape, normalizeShapeLine } from "./normalize/shape";
+import { renderShape } from "./render/shape";
 
 class PuppeteerSlide implements PptxSlide {
     constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document) {
@@ -113,22 +115,24 @@ class PuppeteerSlide implements PptxSlide {
         throw new Error("Method not implemented.");
     }
     
-    addShape(shapeName: PptxGenJS.SHAPE_NAME, options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
-        const shapeElm = this.document.createElement("div");
-        shapeElm.className = "slide-element slide-shape";
-        shapeElm.dataset.shape = shapeName;
-
+    addShape(shapeName: PptxGenJS.SHAPE_NAME | "custGeom", options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
         const shapeOptions = options ?? {};
         const style = normalizeObjectStyle(
             shapeOptions,
             PPTX_DEFAULTS.shape,
             this.pageSize,
             this.nextObjectName("Shape", shapeOptions.objectName),
-            { fill: true, line: true, shadow: true },
+            { fill: true, shadow: true },
         );
-        applyObjectStyle(shapeElm, style);
-        
-        this.slideElm.appendChild(shapeElm);
+        style.line = normalizeShapeLine(shapeOptions, normalizeLine);
+        const shape = normalizeShape(
+            shapeName,
+            shapeOptions,
+            style.geometry.width ?? 0,
+            style.geometry.height ?? 0,
+            this.pageSize,
+        );
+        this.slideElm.appendChild(renderShape(this.document, shape, style));
         return this;
     }
     

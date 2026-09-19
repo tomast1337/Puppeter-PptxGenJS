@@ -332,4 +332,68 @@ export function populateParityFixture(presentation: Presentation): void {
         data: SAMPLE_IMAGE_DATA, x: 4, y: 4.05, w: 4, h: 2, rotate: 8, rounding: true,
         sizing: { type: "crop", x: 0.75, y: 0.25, w: 2, h: 1.1 }, altText: "Cropped rounded rotated image",
     });
+
+    const coreShapesSlide = presentation.addSlide();
+    coreShapesSlide.addText("Core SVG shape geometry", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    coreShapesSlide.addShape("rect", {
+        x: 0.6, y: 1.05, w: 1.6, h: 1.15,
+        fill: { color: "4472C4", transparency: 12 }, line: { color: "17365D", width: 1.5 },
+    });
+    coreShapesSlide.addShape("roundRect", {
+        x: 2.55, y: 1.05, w: 1.6, h: 1.15, rectRadius: 0.18,
+        fill: { color: "ED7D31" }, line: { color: "C65911", width: 1.5 },
+    });
+    coreShapesSlide.addShape("ellipse", {
+        x: 4.5, y: 1.05, w: 1.6, h: 1.15,
+        fill: { color: "70AD47" }, line: { color: "375623", width: 1.5 },
+    });
+    coreShapesSlide.addShape("line", {
+        x: 6.55, y: 1.6, w: 2.6, h: 0,
+        line: { color: "4472C4", width: 2.25, dashType: "dash", beginArrowType: "oval", endArrowType: "triangle" },
+        hyperlink: { url: "https://example.com", tooltip: "Shape link" },
+    });
+    coreShapesSlide.addText("Rectangle", { x: 0.6, y: 2.4, w: 1.6, h: 0.35, fontFace: "Arial", fontSize: 13, align: "center", margin: 0 });
+    coreShapesSlide.addText("Rounded", { x: 2.55, y: 2.4, w: 1.6, h: 0.35, fontFace: "Arial", fontSize: 13, align: "center", margin: 0 });
+    coreShapesSlide.addText("Ellipse", { x: 4.5, y: 2.4, w: 1.6, h: 0.35, fontFace: "Arial", fontSize: 13, align: "center", margin: 0 });
+    coreShapesSlide.addText("Dashed arrow line", { x: 6.55, y: 2.4, w: 2.6, h: 0.35, fontFace: "Arial", fontSize: 13, align: "center", margin: 0 });
+    coreShapesSlide.addShape("custGeom" as never, {
+        x: 0.8, y: 3.25, w: 2.4, h: 1.55,
+        points: [{ x: 0, y: 0.75 }, { x: 1.2, y: 0 }, { x: 2.4, y: 0.75 }, { x: 1.2, y: 1.5 }, { close: true }],
+        fill: { color: "FFC000", transparency: 10 }, line: { color: "BF9000", width: 1.5 },
+    });
+    coreShapesSlide.addShape("custGeom" as never, {
+        x: 4, y: 3.25, w: 4.8, h: 1.55,
+        points: [
+            { x: 0, y: 1.2 },
+            { x: 2.4, y: 0.2, curve: { type: "cubic", x1: 0.8, y1: -0.15, x2: 1.6, y2: 1.55 } },
+            { x: 4.8, y: 1.2, curve: { type: "quadratic", x1: 3.6, y1: 0.1 } },
+        ],
+        fill: { type: "none" }, line: { color: "7030A0", width: 2.25, dashType: "dashDot" },
+    });
+
+    const polygonShapesSlide = presentation.addSlide();
+    polygonShapesSlide.addText("Polygon and star presets", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const polygonShapes: Array<[PptxGenJS.SHAPE_NAME, number, number, string]> = [
+        ["triangle", 0.55, 1, "4472C4"], ["rtTriangle", 2.35, 1, "5B9BD5"],
+        ["diamond", 4.15, 1, "ED7D31"], ["parallelogram", 5.95, 1, "FFC000"],
+        ["trapezoid", 7.75, 1, "70AD47"], ["pentagon", 0.55, 3.25, "4472C4"],
+        ["hexagon", 2.35, 3.25, "5B9BD5"], ["octagon", 4.15, 3.25, "ED7D31"],
+        ["star4", 5.95, 3.25, "FFC000"], ["star5", 7.75, 3.25, "70AD47"],
+    ];
+    polygonShapes.forEach(([shape, x, y, color]) => {
+        polygonShapesSlide.addShape(shape, {
+            x, y, w: 1.35, h: 1.35,
+            fill: { color, transparency: 8 }, line: { color: "44546A", width: 1.25 },
+        });
+        polygonShapesSlide.addText(shape, {
+            x: x - 0.15, y: y + 1.5, w: 1.65, h: 0.3,
+            fontFace: "Arial", fontSize: 11, color: "363636", align: "center", margin: 0,
+        });
+    });
 }

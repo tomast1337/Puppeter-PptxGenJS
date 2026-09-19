@@ -1,9 +1,19 @@
+import PptxGenJS from "pptxgenjs";
+import { CORE_SVG_SHAPES } from "./normalize/shape";
+
 export type CompatibilityStatus = "unsupported" | "partial" | "implemented" | "verified";
 
 export interface CompatibilityEntry {
     readonly status: CompatibilityStatus;
     readonly options: Readonly<Record<string, CompatibilityStatus>>;
 }
+
+const coreShapeSet = new Set<string>(CORE_SVG_SHAPES);
+const pptxShapeNames = Object.values(new PptxGenJS().ShapeType) as string[];
+
+export const SHAPE_GEOMETRY_COMPATIBILITY = Object.freeze(Object.fromEntries(
+    pptxShapeNames.map(name => [name, coreShapeSet.has(name) ? "implemented" : "unsupported"]),
+)) as Readonly<Record<string, "implemented" | "unsupported">>;
 
 export const COMPATIBILITY = Object.freeze({
     text: Object.freeze<CompatibilityEntry>({
@@ -50,13 +60,14 @@ export const COMPATIBILITY = Object.freeze({
             x: "verified", y: "verified", w: "verified", h: "verified", objectName: "implemented",
             align: "unsupported", angleRange: "unsupported", arcThicknessRatio: "unsupported",
             fill: "verified", fillTransparency: "implemented", flipH: "implemented", flipV: "implemented",
-            hyperlink: "unsupported", line: "implemented", lineTransparency: "implemented",
-            lineDash: "partial", lineBeginArrow: "unsupported", lineEndArrow: "unsupported",
-            points: "unsupported", rectRadius: "unsupported", rotate: "implemented", shadow: "implemented",
-            rectangle: "partial", ellipse: "unsupported", lineShape: "unsupported",
-            presetGeometry: "unsupported", customGeometry: "unsupported", arrows: "unsupported",
+            hyperlink: "implemented", line: "implemented", lineTransparency: "implemented",
+            lineDash: "implemented", lineBeginArrow: "implemented", lineEndArrow: "implemented",
+            points: "implemented", rectRadius: "implemented", rotate: "implemented", shadow: "partial",
+            rectangle: "implemented", roundedRectangle: "implemented", ellipse: "implemented", lineShape: "implemented",
+            presetGeometry: "partial", customGeometry: "implemented", arrows: "implemented",
             text: "unsupported", deprecatedLineSize: "partial", deprecatedLineDash: "partial",
-            deprecatedLineHead: "unsupported", deprecatedLineTail: "unsupported",
+            deprecatedLineHead: "implemented", deprecatedLineTail: "implemented", deprecatedShapeName: "unsupported",
+            lineSize: "partial", lineHead: "implemented", lineTail: "implemented", shapeName: "unsupported",
         }),
     }),
     table: Object.freeze<CompatibilityEntry>({

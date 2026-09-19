@@ -17,6 +17,9 @@ export interface NormalizedLine {
     color: string;
     width: number;
     style: "solid" | "dashed" | "dotted";
+    dashArray?: string;
+    beginArrow?: "none" | "arrow" | "diamond" | "oval" | "stealth" | "triangle";
+    endArrow?: "none" | "arrow" | "diamond" | "oval" | "stealth" | "triangle";
 }
 
 export interface NormalizedShadow {
@@ -130,4 +133,24 @@ export interface NormalizedImage {
     opacity: number;
     altText: string;
     link?: NormalizedImageLink;
+}
+
+export interface NormalizedShapeLink {
+    href: string;
+    tooltip?: string;
+    slide?: number;
+}
+
+export type NormalizedShapeGeometry =
+    | { kind: "rect"; radius: number }
+    | { kind: "ellipse" }
+    | { kind: "line"; inverse: boolean }
+    | { kind: "path"; data: string };
+
+export interface NormalizedShape {
+    name: string;
+    width: number;
+    height: number;
+    geometry: NormalizedShapeGeometry;
+    link?: NormalizedShapeLink;
 }
