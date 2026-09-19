@@ -110,3 +110,24 @@ export interface NormalizedTextBox {
     rtl: boolean;
     borderRadius: number;
 }
+
+export type NormalizedImageSizing =
+    | { type: "stretch" }
+    | { type: "contain" | "cover"; x: number; y: number; width: number; height: number }
+    | { type: "crop"; offsetX: number; offsetY: number; width: number; height: number };
+
+export interface NormalizedImageLink {
+    href: string;
+    tooltip?: string;
+    slide?: number;
+}
+
+export interface NormalizedImage {
+    source: string;
+    sourceKind: "data" | "path" | "remote";
+    sizing: NormalizedImageSizing;
+    rounding: boolean;
+    opacity: number;
+    altText: string;
+    link?: NormalizedImageLink;
+}

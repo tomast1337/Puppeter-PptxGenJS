@@ -79,11 +79,13 @@ describe("PuppeteerGen DOM rendering", () => {
             altText: "Hero",
         });
 
-        const image = presentation.page.querySelector<HTMLImageElement>(".slide-image");
+        const image = presentation.page.querySelector<HTMLElement>(".slide-image");
+        const content = image?.querySelector<HTMLImageElement>(".slide-image-content");
         expect(image?.style.transform).toBe("rotate(30deg) scaleX(-1)");
-        expect(image?.style.opacity).toBe("0.75");
+        expect(image?.style.opacity).toBe("");
+        expect(content?.style.opacity).toBe("0.75");
         expect(image?.dataset.objectName).toBe("Hero image");
-        expect(image?.alt).toBe("Hero");
+        expect(content?.alt).toBe("Hero");
     });
 
     test("updates slide background and inherited text color", () => {

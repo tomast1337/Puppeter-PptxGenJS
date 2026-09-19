@@ -8,10 +8,11 @@ import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS, type FourSideMargin } from "./defaults";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeColor } from "./normalize/style";
-import { resolveDocumentImages } from "./normalize/image";
+import { normalizeImage, resolveDocumentImages } from "./normalize/image";
 import { applyObjectStyle } from "./render/style";
 import { normalizeText, type TextInput } from "./normalize/text";
 import { renderText } from "./render/text";
+import { renderImage } from "./render/image";
 
 class PuppeteerSlide implements PptxSlide {
     constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document) {
@@ -88,26 +89,19 @@ class PuppeteerSlide implements PptxSlide {
     }
     
     addImage(options: PptxGenJS.ImageProps): PptxGenJS.Slide {
-        const imgElm = this.document.createElement("img");
-        imgElm.className = "slide-element slide-image";
-        
-        if (options.data) imgElm.src = options.data;
-        else if (options.path) imgElm.dataset.sourcePath = options.path;
-
+        const image = normalizeImage(options, this.pageSize);
+        const { transparency: _imageTransparency, ...opaqueOptions } = options;
+        const geometryOptions = options.sizing
+            ? { ...opaqueOptions, w: options.sizing.w, h: options.sizing.h }
+            : opaqueOptions;
         const style = normalizeObjectStyle(
-            options,
+            geometryOptions,
             PPTX_DEFAULTS.image,
             this.pageSize,
             this.nextObjectName("Image", options.objectName),
             { shadow: true },
         );
-        applyObjectStyle(imgElm, style);
-        imgElm.alt = options.altText ?? PPTX_DEFAULTS.image.altText;
-        imgElm.style.borderRadius = options.rounding ? "50%" : "0";
-        imgElm.style.objectFit = options.sizing?.type === "cover" || options.sizing?.type === "crop"
-            ? "cover"
-            : options.sizing?.type === "contain" ? "contain" : "fill";
-        this.slideElm.appendChild(imgElm);
+        this.slideElm.appendChild(renderImage(this.document, image, style));
         return this;
     }
     
@@ -319,7 +313,13 @@ body {
 }
 
 .slide-image {
-    object-fit: contain;
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.slide-image-content {
+    border: 0;
 }
 
 .slide-table {
@@ -387,7 +387,7 @@ body {
                 height: Math.round(inchesToPixels(this.pageSize.height))
             });
             await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-            await page.evaluate(async () => {
+            const failedImages = await page.evaluate(async () => {
                 await document.fonts.ready;
                 await Promise.all(Array.from(document.images, image => image.complete
                     ? Promise.resolve()
@@ -395,6 +395,46 @@ body {
                         image.addEventListener("load", () => resolve(), { once: true });
                         image.addEventListener("error", () => resolve(), { once: true });
                     })));
+
+                // LibreOffice's PDF export drops animated GIFs, so it cannot be
+                // used as the visual oracle here. Freeze through Chromium's
+                // static bitmap decoder to match PowerPoint's PDF first frame.
+                const gifs = Array.from(document.images).filter(image => image.src.startsWith("data:image/gif"));
+                if (gifs.length) {
+                    if (typeof createImageBitmap !== "function") {
+                        throw new Error("This Chromium build cannot freeze animated GIF images");
+                    }
+                    await Promise.all(gifs.map(async image => {
+                        const frame = await createImageBitmap(await (await fetch(image.src)).blob());
+                        const canvas = document.createElement("canvas");
+                        canvas.width = frame.width;
+                        canvas.height = frame.height;
+                        canvas.getContext("2d")?.drawImage(frame, 0, 0);
+                        image.src = canvas.toDataURL("image/png");
+                        frame.close();
+                    }));
+                    await Promise.all(gifs.map(image => image.complete
+                        ? Promise.resolve()
+                        : new Promise<void>(resolve => {
+                            image.addEventListener("load", () => resolve(), { once: true });
+                            image.addEventListener("error", () => resolve(), { once: true });
+                        })));
+                }
+
+                // PowerPoint scales the decoded image surface into its declared
+                // blip rectangle. Explicitly transform from natural pixels so
+                // SVG preserveAspectRatio rules cannot override that geometry.
+                document.querySelectorAll<HTMLImageElement>(".slide-image-content").forEach(image => {
+                    if (!image.naturalWidth || !image.naturalHeight) return;
+                    const computed = getComputedStyle(image);
+                    const targetWidth = parseFloat(computed.width);
+                    const targetHeight = parseFloat(computed.height);
+                    if (!targetWidth || !targetHeight) return;
+                    image.style.width = `${image.naturalWidth}px`;
+                    image.style.height = `${image.naturalHeight}px`;
+                    image.style.transformOrigin = "top left";
+                    image.style.transform = `scale(${targetWidth / image.naturalWidth}, ${targetHeight / image.naturalHeight})`;
+                });
 
                 document.querySelectorAll<HTMLElement>('.slide-text[data-text-fit="shrink"]').forEach(box => {
                     const content = box.querySelector<HTMLElement>(".text-content");
@@ -412,7 +452,11 @@ body {
                         });
                     }
                 });
+                return Array.from(document.images)
+                    .filter(image => image.naturalWidth === 0 || image.naturalHeight === 0)
+                    .map(image => image.alt || image.closest<HTMLElement>("[data-object-name]")?.dataset.objectName || "unnamed image");
             });
+            if (failedImages.length) throw new Error(`Image failed to decode: ${failedImages.join(", ")}`);
 
             const pdf = await page.pdf({
                 width: `${this.pageSize.width}in`,

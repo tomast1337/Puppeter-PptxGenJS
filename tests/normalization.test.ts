@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -51,9 +51,17 @@ describe("shared object normalization", () => {
 });
 
 describe("image source normalization", () => {
-    test("preserves data and remote URLs", async () => {
+    test("preserves data URIs and embeds remote images", async () => {
         expect(await resolveImageSource("data:image/png;base64,abc")).toBe("data:image/png;base64,abc");
-        expect(await resolveImageSource("https://example.com/image.png")).toBe("https://example.com/image.png");
+        const fetchMock = spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: { "content-type": "image/png" },
+        }));
+        try {
+            expect(await resolveImageSource("https://example.com/image.png")).toBe("data:image/png;base64,AQID");
+        } finally {
+            fetchMock.mockRestore();
+        }
     });
 
     test("embeds local files as data URLs", async () => {

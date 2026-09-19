@@ -1,7 +1,23 @@
 import type PptxGenJS from "pptxgenjs";
 import type { PuppeteerGen } from "../../src/PuppeterrGen";
+import { Buffer } from "node:buffer";
 
 type Presentation = PptxGenJS | PuppeteerGen;
+
+const SAMPLE_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(`
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200" preserveAspectRatio="none">
+  <rect width="200" height="100" fill="#4472C4"/><rect x="200" width="200" height="100" fill="#ED7D31"/>
+  <rect y="100" width="200" height="100" fill="#70AD47"/><rect x="200" y="100" width="200" height="100" fill="#FFC000"/>
+  <circle cx="200" cy="100" r="42" fill="#FFFFFF" stroke="#17365D" stroke-width="10"/>
+  <path d="M0 0L400 200M400 0L0 200" stroke="#17365D" stroke-width="6" opacity=".65"/>
+</svg>`).toString("base64")}`;
+
+const TALL_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(`
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="400" viewBox="0 0 200 400" preserveAspectRatio="none">
+  <rect width="100" height="200" fill="#5B9BD5"/><rect x="100" width="100" height="200" fill="#ED7D31"/>
+  <rect y="200" width="100" height="200" fill="#70AD47"/><rect x="100" y="200" width="100" height="200" fill="#FFC000"/>
+  <circle cx="100" cy="200" r="38" fill="#FFFFFF" stroke="#17365D" stroke-width="9"/>
+</svg>`).toString("base64")}`;
 
 /**
  * One shared fixture is rendered by both engines. Keep all options here within
@@ -252,5 +268,68 @@ export function populateParityFixture(presentation: Presentation): void {
     overflowSlide.addText("Shrink this oversized text until it fits within the fixed box", {
         x: 6.75, y: 1.1, w: 2.5, h: 1.5, fit: "shrink",
         fontFace: "Arial", fontSize: 24, color: "363636", fill: { color: "E2F0D9" }, margin: 6,
+    });
+
+    const imageSizingSlide = presentation.addSlide();
+    imageSizingSlide.addText("Image sizing and cropping", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    [[0.5, "Stretch"], [2.9, "Contain"], [5.3, "Cover"], [7.7, "Crop"]].forEach(([x, label]) => {
+        imageSizingSlide.addShape("rect", {
+            x: x as number, y: 1.05, w: 1.9, h: 2.2,
+            fill: { color: "F2F2F2" }, line: { color: "A6A6A6", width: 1 },
+        });
+        imageSizingSlide.addText(label as string, {
+            x: x as number, y: 3.4, w: 1.9, h: 0.4,
+            fontFace: "Arial", fontSize: 14, color: "363636", align: "center", margin: 0,
+        });
+    });
+    imageSizingSlide.addImage({ data: SAMPLE_IMAGE_DATA, x: 0.5, y: 1.05, w: 1.9, h: 2.2, altText: "Stretched sample" });
+    imageSizingSlide.addImage({
+        data: SAMPLE_IMAGE_DATA, x: 2.9, y: 1.05, w: 4, h: 2,
+        sizing: { type: "contain", w: 1.9, h: 2.2 }, altText: "Contained sample",
+    });
+    imageSizingSlide.addImage({
+        data: SAMPLE_IMAGE_DATA, x: 5.3, y: 1.05, w: 4, h: 2,
+        sizing: { type: "cover", w: 1.9, h: 2.2 }, altText: "Covered sample",
+    });
+    imageSizingSlide.addImage({
+        data: SAMPLE_IMAGE_DATA, x: 7.7, y: 1.05, w: 4, h: 2,
+        sizing: { type: "crop", x: 1, y: 0.25, w: 1.9, h: 2.2 }, altText: "Cropped sample",
+    });
+    imageSizingSlide.addImage({
+        data: TALL_IMAGE_DATA, x: 2.3, y: 4.05, w: 2, h: 4,
+        sizing: { type: "contain", w: 2.2, h: 1.2 }, altText: "Contained tall sample",
+    });
+    imageSizingSlide.addImage({
+        data: TALL_IMAGE_DATA, x: 5.5, y: 4.05, w: 2, h: 4,
+        sizing: { type: "cover", w: 2.2, h: 1.2 }, altText: "Covered tall sample",
+    });
+
+    const imageEffectsSlide = presentation.addSlide();
+    imageEffectsSlide.addText("Image transforms and effects", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    imageEffectsSlide.addImage({
+        data: SAMPLE_IMAGE_DATA, x: 0.75, y: 1.25, w: 1.7, h: 1.7,
+        rounding: true, altText: "Rounded image", objectName: "Rounded sample",
+    });
+    imageEffectsSlide.addImage({
+        data: SAMPLE_IMAGE_DATA, x: 3.1, y: 1.35, w: 2.5, h: 1.25,
+        rotate: -12, flipH: true, altText: "Rotated and flipped image",
+    });
+    imageEffectsSlide.addImage({
+        data: SAMPLE_IMAGE_DATA, x: 6.25, y: 1.35, w: 2.5, h: 1.25,
+        transparency: 45, shadow: { type: "outer", color: "000000", opacity: 0.35, blur: 4, offset: 4, angle: 45 },
+        hyperlink: { url: "https://example.com", tooltip: "Open image link" }, altText: "Transparent linked image",
+    });
+    imageEffectsSlide.addText("Rounded", { x: 0.75, y: 3.35, w: 1.7, h: 0.4, fontFace: "Arial", fontSize: 14, align: "center", margin: 0 });
+    imageEffectsSlide.addText("Rotate + flip", { x: 3.1, y: 3.35, w: 2.5, h: 0.4, fontFace: "Arial", fontSize: 14, align: "center", margin: 0 });
+    imageEffectsSlide.addText("Transparency + shadow + link", { x: 6.1, y: 3.35, w: 2.8, h: 0.4, fontFace: "Arial", fontSize: 14, align: "center", margin: 0 });
+    imageEffectsSlide.addImage({
+        data: SAMPLE_IMAGE_DATA, x: 4, y: 4.05, w: 4, h: 2, rotate: 8, rounding: true,
+        sizing: { type: "crop", x: 0.75, y: 0.25, w: 2, h: 1.1 }, altText: "Cropped rounded rotated image",
     });
 }

@@ -12,6 +12,10 @@ const TEXT_OPTION_KEYS = [
     "subscript", "superscript", "vert", "wrap", "autoFit", "shrinkText", "inset", "lineDash",
     "lineHead", "lineSize", "lineTail",
 ] as const;
+const IMAGE_OPTION_KEYS = [
+    "x", "y", "w", "h", "path", "data", "objectName", "altText", "flipH", "flipV",
+    "hyperlink", "placeholder", "rotate", "rounding", "shadow", "sizing", "transparency",
+] as const;
 
 describe("compatibility manifest", () => {
     test("tracks every active renderer family", () => {
@@ -45,6 +49,12 @@ describe("compatibility manifest", () => {
         expect(COMPATIBILITY.text.options.textDirection).toBe("unsupported");
         expect(COMPATIBILITY.text.options.bulletNumberType).toBe("unsupported");
         expect(COMPATIBILITY.text.options.bulletDeprecatedStyle).toBe("implemented");
+    });
+
+    test("tracks every ImageProps field", () => {
+        for (const option of IMAGE_OPTION_KEYS) {
+            expect(COMPATIBILITY.image.options[option]).toBeDefined();
+        }
     });
 
     test("does not claim unsupported shape geometry is implemented", () => {

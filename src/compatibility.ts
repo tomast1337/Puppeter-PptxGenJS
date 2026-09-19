@@ -34,12 +34,14 @@ export const COMPATIBILITY = Object.freeze({
     image: Object.freeze<CompatibilityEntry>({
         status: "partial",
         options: Object.freeze({
-            x: "implemented", y: "implemented", w: "implemented", h: "implemented",
-            path: "implemented", data: "implemented", objectName: "implemented", altText: "implemented",
-            flipH: "implemented", flipV: "implemented", hyperlink: "unsupported", placeholder: "unsupported",
-            rotate: "implemented", rounding: "implemented", shadow: "implemented", transparency: "implemented",
-            sizingContain: "partial", sizingCover: "partial", sizingCrop: "unsupported",
-            sizingOffsets: "unsupported",
+            x: "verified", y: "verified", w: "verified", h: "verified",
+            path: "implemented", data: "verified", remotePath: "implemented", fileUrl: "implemented",
+            objectName: "implemented", altText: "implemented", flipH: "verified", flipV: "verified",
+            hyperlink: "implemented", placeholder: "unsupported", rotate: "verified", rounding: "verified",
+            shadow: "verified", transparency: "verified", sizing: "verified", sizingContain: "verified",
+            sizingCover: "verified", sizingCrop: "verified", sizingOffsets: "verified",
+            png: "implemented", jpeg: "implemented", gifFirstFrame: "implemented",
+            svg: "verified", webp: "implemented", malformedSourceErrors: "implemented",
         }),
     }),
     shape: Object.freeze<CompatibilityEntry>({
