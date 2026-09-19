@@ -59,4 +59,40 @@ describe("PuppeteerGen DOM rendering", () => {
         expect(cell?.style.fontWeight).toBe("bold");
         expect(cell?.style.backgroundColor).toBe("rgb(68, 114, 196)");
     });
+
+    test("applies shared transforms and object names", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+
+        slide.addImage({
+            data: "data:image/png;base64,iVBORw0KGgo=",
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 2,
+            rotate: 30,
+            flipH: true,
+            transparency: 25,
+            objectName: "Hero image",
+            altText: "Hero",
+        });
+
+        const image = presentation.page.querySelector<HTMLImageElement>(".slide-image");
+        expect(image?.style.transform).toBe("rotate(30deg) scaleX(-1)");
+        expect(image?.style.opacity).toBe("0.75");
+        expect(image?.dataset.objectName).toBe("Hero image");
+        expect(image?.alt).toBe("Hero");
+    });
+
+    test("updates slide background and inherited text color", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.background = { color: "accent1" };
+        slide.color = "FFFFFF";
+        slide.addText("Inherited", { x: 1, y: 1, w: 2, h: 1 });
+
+        const slideElement = presentation.page.querySelector<HTMLElement>(".slide-container");
+        expect(slideElement?.style.backgroundColor).toBe("rgb(68, 114, 196)");
+        expect(slideElement?.style.getPropertyValue("--slide-text-color")).toBe("#FFFFFF");
+    });
 });

@@ -113,4 +113,28 @@ export function populateParityFixture(presentation: Presentation): void {
     ]], {
         x: 0.75, y: 3, w: 8.5, h: 1.1,
     });
+
+    const primitivesSlide = presentation.addSlide();
+    primitivesSlide.background = { color: "F2F2F2" };
+    primitivesSlide.color = "17365D";
+    primitivesSlide.addText("Shared Phase 1 primitives", {
+        x: 0.5, y: 0.25, w: 9, h: 0.6,
+        fontFace: "Arial", fontSize: 24, bold: true, margin: 0,
+    });
+    primitivesSlide.addText("Inherited slide color", {
+        x: 0.75, y: 1.1, w: 3.5, h: 0.6,
+        fontFace: "Arial", fontSize: 18, margin: 0,
+    });
+    primitivesSlide.addShape("rect", {
+        x: 0.75, y: 2, w: 3.5, h: 1.5,
+        fill: { color: "accent1", transparency: 15 },
+        line: { color: "accent2", width: 2, dashType: "dash" },
+        rotate: 5,
+    });
+    primitivesSlide.addShape("rect", {
+        x: 5.5, y: 2, w: 3.5, h: 1.5,
+        fill: { color: "E2F0D9" },
+        line: { color: "70AD47", width: 1 },
+        shadow: { type: "outer", color: "000000", opacity: 0.3, blur: 3, offset: 3, angle: 45 },
+    });
 }

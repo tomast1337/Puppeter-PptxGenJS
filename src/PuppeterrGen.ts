@@ -2,38 +2,84 @@ import PptxGenJS from "pptxgenjs";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import * as jsdom from "jsdom";
 import puppeteer from "puppeteer";
-import { convertToPixels, colorToCSS, alignToCSS, valignToCSS, pointsToPixels, inchesToPixels } from "./utils";
+import { alignToCSS, valignToCSS, pointsToPixels, inchesToPixels } from "./utils";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS, type FourSideMargin } from "./defaults";
+import { normalizeObjectStyle } from "./normalize/object";
+import { normalizeColor } from "./normalize/style";
+import { resolveDocumentImages } from "./normalize/image";
+import { applyObjectStyle } from "./render/style";
 
 class PuppeteerSlide implements PptxSlide {
     constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document) {
+        this.slideElm = slideElm;
+        this.pageSize = pageSize;
+        this.document = document;
         this.background = {
-            color: "white",
+            color: PPTX_DEFAULTS.slide.backgroundColor,
             type: "solid",
         };
-        this.color = "black";
+        this.color = PPTX_DEFAULTS.slide.color;
         this.hidden = false;
         this.slideNumber = {
             margin: 0,
         };
         this.newAutoPagedSlides = [];
-        this.bkgd = "white";
-
-        this.slideElm = slideElm;
-        this.pageSize = pageSize;
-        this.document = document;
+        this.bkgd = PPTX_DEFAULTS.slide.backgroundColor;
     }
-    bkgd: string;
     slideElm: HTMLDivElement;
     pageSize: PageSize;
     document: Document;
-    background: PptxGenJS.BackgroundProps;
-    color: string;
-    hidden: boolean;
+    private _background: PptxGenJS.BackgroundProps = { color: PPTX_DEFAULTS.slide.backgroundColor };
+    private _bkgd: string = PPTX_DEFAULTS.slide.backgroundColor;
+    private _color: string = PPTX_DEFAULTS.slide.color;
+    private _hidden: boolean = PPTX_DEFAULTS.slide.hidden;
     slideNumber: PptxGenJS.SlideNumberProps;
     newAutoPagedSlides: PptxGenJS.PresSlide[];
+    private objectCounts: Record<string, number> = {};
+
+    get background(): PptxGenJS.BackgroundProps {
+        return this._background;
+    }
+
+    set background(value: PptxGenJS.BackgroundProps) {
+        this._background = value;
+        if (value?.color) this.slideElm.style.backgroundColor = normalizeColor(value);
+    }
+
+    get bkgd(): string {
+        return this._bkgd;
+    }
+
+    set bkgd(value: string) {
+        this._bkgd = value;
+        this.slideElm.style.backgroundColor = normalizeColor(value);
+    }
+
+    get color(): string {
+        return this._color;
+    }
+
+    set color(value: string) {
+        this._color = value;
+        this.slideElm.style.setProperty("--slide-text-color", normalizeColor(value));
+    }
+
+    get hidden(): boolean {
+        return this._hidden;
+    }
+
+    set hidden(value: boolean) {
+        this._hidden = value;
+        this.slideElm.dataset.hidden = String(value);
+    }
+
+    private nextObjectName(kind: string, explicit?: string): string {
+        const index = this.objectCounts[kind] ?? 0;
+        this.objectCounts[kind] = index + 1;
+        return explicit ?? `${kind} ${index}`;
+    }
     
     addChart(type: PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[], data: any[], options?: PptxGenJS.IChartOpts | undefined): PptxGenJS.Slide {
         throw new Error("Method not implemented.");
@@ -43,11 +89,22 @@ class PuppeteerSlide implements PptxSlide {
         const imgElm = this.document.createElement("img");
         imgElm.className = "slide-element slide-image";
         
-        if (options.path || options.data) {
-            imgElm.src = options.data || options.path || "";
-        }
-        
-        this.applyPositionAndSize(imgElm, options);
+        if (options.data) imgElm.src = options.data;
+        else if (options.path) imgElm.dataset.sourcePath = options.path;
+
+        const style = normalizeObjectStyle(
+            options,
+            PPTX_DEFAULTS.image,
+            this.pageSize,
+            this.nextObjectName("Image", options.objectName),
+            { shadow: true },
+        );
+        applyObjectStyle(imgElm, style);
+        imgElm.alt = options.altText ?? PPTX_DEFAULTS.image.altText;
+        imgElm.style.borderRadius = options.rounding ? "50%" : "0";
+        imgElm.style.objectFit = options.sizing?.type === "cover" || options.sizing?.type === "crop"
+            ? "cover"
+            : options.sizing?.type === "contain" ? "contain" : "fill";
         this.slideElm.appendChild(imgElm);
         return this;
     }
@@ -63,13 +120,17 @@ class PuppeteerSlide implements PptxSlide {
     addShape(shapeName: PptxGenJS.SHAPE_NAME, options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
         const shapeElm = this.document.createElement("div");
         shapeElm.className = "slide-element slide-shape";
-        
-        if (options) {
-            this.applyPositionAndSize(shapeElm, options, PPTX_DEFAULTS.shape);
-            this.applyShapeStyles(shapeElm, options);
-        } else {
-            this.applyPositionAndSize(shapeElm, {}, PPTX_DEFAULTS.shape);
-        }
+        shapeElm.dataset.shape = shapeName;
+
+        const shapeOptions = options ?? {};
+        const style = normalizeObjectStyle(
+            shapeOptions,
+            PPTX_DEFAULTS.shape,
+            this.pageSize,
+            this.nextObjectName("Shape", shapeOptions.objectName),
+            { fill: true, line: true, shadow: true },
+        );
+        applyObjectStyle(shapeElm, style);
         
         this.slideElm.appendChild(shapeElm);
         return this;
@@ -102,13 +163,14 @@ class PuppeteerSlide implements PptxSlide {
         tableContainer.appendChild(tableElm);
         
         const tableOptions = options ?? {};
-        this.applyPositionAndSize(tableContainer, tableOptions, {
+        const tableStyle = normalizeObjectStyle(tableOptions, {
             x: PPTX_DEFAULTS.table.x,
             y: PPTX_DEFAULTS.table.y,
             w: this.pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2,
-        });
+        }, this.pageSize, this.nextObjectName("Table", options?.objectName));
+        applyObjectStyle(tableContainer, tableStyle);
         tableElm.style.fontSize = `${pointsToPixels(options?.fontSize ?? PPTX_DEFAULTS.table.fontSizePt)}px`;
-        tableElm.style.color = colorToCSS(options?.color ?? PPTX_DEFAULTS.table.color);
+        tableElm.style.color = normalizeColor(options?.color ?? PPTX_DEFAULTS.table.color);
         const tableMargin = options?.margin as number | FourSideMargin | undefined;
         tableElm.querySelectorAll("td").forEach(cell => {
             if (!cell.style.padding) cell.style.padding = tableMarginToCSS(tableMargin);
@@ -141,36 +203,18 @@ class PuppeteerSlide implements PptxSlide {
         
         // Apply options if provided
         const textOptions = options ?? {};
-        this.applyPositionAndSize(textElm, textOptions, PPTX_DEFAULTS.text);
+        const textStyle = normalizeObjectStyle(
+            textOptions,
+            PPTX_DEFAULTS.text,
+            this.pageSize,
+            this.nextObjectName("Text", textOptions.objectName),
+            { fill: true, line: true, shadow: true },
+        );
+        applyObjectStyle(textElm, textStyle);
         this.applyTextStyles(textElm, textOptions);
         
         this.slideElm.appendChild(textElm);
         return this;
-    }
-    
-    private applyPositionAndSize(element: HTMLElement, options: any, defaults: any = {}): void {
-        const pageWidthPx = inchesToPixels(this.pageSize.width);
-        const pageHeightPx = inchesToPixels(this.pageSize.height);
-        const x = options.x ?? defaults.x;
-        const y = options.y ?? defaults.y;
-        const w = options.w ?? defaults.w;
-        const h = options.h ?? defaults.h;
-        
-        if (x !== undefined) {
-            element.style.left = `${convertToPixels(x, pageWidthPx)}px`;
-        }
-        
-        if (y !== undefined) {
-            element.style.top = `${convertToPixels(y, pageHeightPx)}px`;
-        }
-        
-        if (w !== undefined) {
-            element.style.width = `${convertToPixels(w, pageWidthPx)}px`;
-        }
-        
-        if (h !== undefined) {
-            element.style.height = `${convertToPixels(h, pageHeightPx)}px`;
-        }
     }
     
     private applyTextStyles(element: HTMLElement, options: PptxGenJS.TextPropsOptions): void {
@@ -181,7 +225,7 @@ class PuppeteerSlide implements PptxSlide {
         }
 
         if (options.color) {
-            element.style.color = colorToCSS(options.color);
+            element.style.color = normalizeColor(options.color);
         }
         
         if (options.fontSize) {
@@ -203,7 +247,7 @@ class PuppeteerSlide implements PptxSlide {
         if (options.underline && options.underline.style !== "none") {
             element.style.textDecorationLine = "underline";
             if (options.underline.color) {
-                element.style.textDecorationColor = colorToCSS(options.underline.color);
+                element.style.textDecorationColor = normalizeColor(options.underline.color);
             }
         }
         
@@ -224,17 +268,11 @@ class PuppeteerSlide implements PptxSlide {
             element.style.alignItems = valignToCSS(options.valign);
         }
         
-        if (options.fill) {
-            const fillColor = typeof options.fill === "string" ? options.fill : (options.fill as any).color;
-            if (fillColor) {
-                element.style.backgroundColor = colorToCSS(fillColor);
-            }
-        }
     }
     
     private applyTextPropsToSpan(span: HTMLSpanElement, options: any): void {
         if (options.color) {
-            span.style.color = colorToCSS(options.color);
+            span.style.color = normalizeColor(options.color);
         }
         
         if (options.fontSize) {
@@ -256,31 +294,18 @@ class PuppeteerSlide implements PptxSlide {
         if (options.underline && options.underline.style !== "none") {
             span.style.textDecorationLine = "underline";
             if (options.underline.color) {
-                span.style.textDecorationColor = colorToCSS(options.underline.color);
+                span.style.textDecorationColor = normalizeColor(options.underline.color);
             }
-        }
-    }
-    
-    private applyShapeStyles(element: HTMLElement, options: PptxGenJS.ShapeProps): void {
-        if (options.fill) {
-            element.style.backgroundColor = colorToCSS(options.fill);
-        }
-        
-        if (options.line) {
-            element.style.borderColor = colorToCSS(options.line);
-            element.style.borderWidth = `${pointsToPixels(options.line.width ?? 1)}px`;
-            const dashType = options.line.dashType ?? options.line.lineDash;
-            element.style.borderStyle = dashType === "solid" || !dashType ? "solid" : "dashed";
         }
     }
     
     private applyCellStyles(cell: HTMLTableCellElement, options: any): void {
         if (options.fill) {
-            cell.style.backgroundColor = colorToCSS(options.fill);
+            cell.style.backgroundColor = normalizeColor(options.fill);
         }
         
         if (options.color) {
-            cell.style.color = colorToCSS(options.color);
+            cell.style.color = normalizeColor(options.color);
         }
         
         if (options.fontSize) {
@@ -349,7 +374,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
 body {
     margin: 0;
     padding: 0;
-    font-family: Calibri, Arial, Helvetica, sans-serif;
+    font-family: ${PPTX_DEFAULTS.text.fontFace}, Arial, Helvetica, sans-serif;
 }
 
 .slide-container {
@@ -357,7 +382,7 @@ body {
     height: ${heightPx}px;
     position: relative;
     page-break-after: always;
-    background: white;
+    background: ${normalizeColor(PPTX_DEFAULTS.slide.backgroundColor)};
     overflow: hidden;
     box-sizing: border-box;
 }
@@ -375,10 +400,10 @@ body {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    color: #000000;
-    font-family: Calibri, Arial, Helvetica, sans-serif;
-    font-size: 24px;
-    padding: 4.8px 9.6px;
+    color: var(--slide-text-color, ${normalizeColor(PPTX_DEFAULTS.text.color)});
+    font-family: ${PPTX_DEFAULTS.text.fontFace}, Arial, Helvetica, sans-serif;
+    font-size: ${pointsToPixels(PPTX_DEFAULTS.text.fontSizePt)}px;
+    padding: ${textMarginToCSS()};
     overflow: hidden;
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -397,14 +422,14 @@ body {
     table-layout: fixed;
     width: 100%;
     height: 100%;
-    color: #000000;
-    font-size: 16px;
+    color: ${normalizeColor(PPTX_DEFAULTS.table.color)};
+    font-size: ${pointsToPixels(PPTX_DEFAULTS.table.fontSizePt)}px;
 }
 
 .slide-table td,
 .slide-table th {
     border: none;
-    padding: 4.8px 9.6px;
+    padding: ${tableMarginToCSS()};
     vertical-align: top;
 }
 
@@ -439,6 +464,8 @@ body {
         if (!fileName) {
             throw new Error("fileName is required");
         }
+
+        await resolveDocumentImages(this.page);
 
         // Get the full HTML content
         const htmlContent = this.page.documentElement.outerHTML;
@@ -488,17 +515,16 @@ body {
     addSlide(masterName?: unknown): PptxSlide {
         const slideElm = this.page.createElement("div");
         slideElm.className = "slide-container";
-        
-        // Set background if provided in props
-        if (typeof masterName === "object" && masterName !== null) {
-            const props = masterName as any;
-            if (props.bkgd) {
-                slideElm.style.backgroundColor = colorToCSS(props.bkgd);
-            }
-        }
-        
         this.page.body.appendChild(slideElm);
-        return new PuppeteerSlide(slideElm, this.pageSize, this.page);
+        const slide = new PuppeteerSlide(slideElm, this.pageSize, this.page);
+
+        if (typeof masterName === "object" && masterName !== null) {
+            const props = masterName as { bkgd?: string; background?: PptxGenJS.BackgroundProps };
+            if (props.background) slide.background = props.background;
+            else if (props.bkgd) slide.bkgd = props.bkgd;
+        }
+
+        return slide;
     }
     
     defineLayout(layout: PptxGenJS.PresLayout): void {
