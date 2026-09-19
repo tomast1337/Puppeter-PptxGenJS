@@ -3,15 +3,18 @@ import { applyGeometry, applyTransform } from "./style";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-function darkenLess(color: string): string {
+function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten"): string {
+    const transform = (value: number) => modifier === "lighten"
+        ? Math.floor(value + (255 - value) * 0.6)
+        : Math.floor(value * (modifier === "darken" ? 0.6 : 0.8));
     const hex = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
     if (hex) {
-        const channel = (value: string) => Math.floor(parseInt(value, 16) * 0.8).toString(16).padStart(2, "0");
+        const channel = (value: string) => transform(parseInt(value, 16)).toString(16).padStart(2, "0");
         return `#${channel(hex[1]!)}${channel(hex[2]!)}${channel(hex[3]!)}`;
     }
     const rgb = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
     if (!rgb) return color;
-    const channels = [rgb[1], rgb[2], rgb[3]].map(value => Math.floor(Number(value) * 0.8));
+    const channels = [rgb[1], rgb[2], rgb[3]].map(value => transform(Number(value)));
     return rgb[4] === undefined
         ? `rgb(${channels.join(", ")})`
         : `rgba(${channels.join(", ")}, ${rgb[4]})`;
@@ -130,7 +133,8 @@ export function renderShape(document: Document, shape: NormalizedShape, style: N
     const strokeTarget = multiFace ? geometry.querySelector<SVGPathElement>(".shape-outline") ?? geometry : geometry;
     if (multiFace) {
         geometry.querySelectorAll<SVGPathElement>(".shape-face").forEach(face => {
-            face.setAttribute("fill", face.dataset.fillModifier === "darkenLess" ? darkenLess(baseFill) : baseFill);
+            const modifier = face.dataset.fillModifier as "darken" | "darkenLess" | "lighten" | undefined;
+            face.setAttribute("fill", modifier ? modifyColor(baseFill, modifier) : baseFill);
         });
     } else geometry.setAttribute("fill", baseFill);
     strokeTarget.setAttribute("stroke", style.line?.visible ? style.line.color : "none");

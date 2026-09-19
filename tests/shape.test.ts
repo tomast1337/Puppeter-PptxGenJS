@@ -152,6 +152,45 @@ describe("shape normalization", () => {
         expect(bracketPair.kind === "path" && bracketPair.outlineData?.match(/M /g)).toHaveLength(2);
     });
 
+    test("normalizes ribbons and scrolls with shaded fold faces", () => {
+        const names = [
+            "ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon",
+            "horizontalScroll", "verticalScroll",
+        ] as const;
+        for (const name of names) {
+            const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
+            expect(geometry.kind).toBe("path");
+            if (geometry.kind !== "path") continue;
+            expect(geometry.faces).toHaveLength(2);
+            expect(geometry.faces?.[1]?.fillModifier).toBe("darkenLess");
+            expect(geometry.outlineData).toContain("M ");
+        }
+        const down = normalizeShape("ribbon", {}, 180, 100, PAGE).geometry;
+        const up = normalizeShape("ribbon2", {}, 180, 100, PAGE).geometry;
+        expect(down.kind === "path" && down.transform).toBeUndefined();
+        expect(up.kind === "path" && up.transform).toBe("matrix(1 0 0 -1 0 100)");
+        const horizontal = normalizeShape("horizontalScroll", {}, 180, 100, PAGE).geometry;
+        expect(horizontal.kind === "path" && horizontal.transform).toBe("matrix(0 1 1 0 0 0)");
+    });
+
+    test("normalizes the complete action-button preset family", () => {
+        const names = [
+            "actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument",
+            "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome",
+            "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound",
+        ] as const;
+        for (const name of names) {
+            const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
+            expect(geometry.kind).toBe("path");
+            if (geometry.kind !== "path") continue;
+            expect(geometry.faces?.length).toBeGreaterThanOrEqual(1);
+            expect(geometry.outlineData).toContain("M 0 0 L 180 0 L 180 100 L 0 100 Z");
+        }
+        const information = normalizeShape("actionButtonInformation", {}, 160, 100, PAGE).geometry;
+        expect(information.kind === "path" && information.faces?.map(face => face.fillModifier))
+            .toEqual([undefined, "darken", "lighten"]);
+    });
+
     test("normalizes standard flowchart symbols and their internal marks", () => {
         const names = [
             "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
@@ -261,6 +300,33 @@ describe("SVG shape rendering", () => {
         expect(geometry?.querySelector(".shape-face")?.getAttribute("d")?.endsWith(" Z")).toBe(true);
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")?.endsWith(" Z")).toBe(false);
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
+    });
+
+    test("renders ribbon folds as a darker face under one outline", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("ellipseRibbon", {
+            x: 1, y: 1, w: 2.5, h: 1.4,
+            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+        });
+        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const faces = geometry?.querySelectorAll<SVGPathElement>(".shape-face");
+        expect(faces).toHaveLength(2);
+        expect(faces?.[0]?.getAttribute("fill")).toBe("#5B9BD5");
+        expect(faces?.[1]?.getAttribute("fill")).toBe("#487caa");
+        expect(geometry?.querySelectorAll(".shape-outline")).toHaveLength(1);
+    });
+
+    test("renders action-button darken and lighten icon layers", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("actionButtonInformation", {
+            x: 1, y: 1, w: 2, h: 1.25,
+            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+        });
+        const faces = presentation.page.querySelectorAll<SVGPathElement>(".shape-face");
+        expect(faces).toHaveLength(3);
+        expect(faces[0]?.getAttribute("fill")).toBe("#5B9BD5");
+        expect(faces[1]?.getAttribute("fill")).toBe("#365d7f");
+        expect(faces[2]?.getAttribute("fill")).toBe("#bdd7ee");
     });
 
     test("never silently substitutes an unsupported shape", () => {

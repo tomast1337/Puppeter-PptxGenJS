@@ -17,6 +17,15 @@ const CIRCULAR_SHAPES = Object.freeze(["arc", "pie", "pieWedge", "chord", "block
 const BRACE_BRACKET_SHAPES = Object.freeze([
     "leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair",
 ] as const);
+const RIBBON_SCROLL_SHAPES = Object.freeze([
+    "ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon",
+    "horizontalScroll", "verticalScroll",
+] as const);
+const ACTION_BUTTON_SHAPES = Object.freeze([
+    "actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument",
+    "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome",
+    "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound",
+] as const);
 const FLOWCHART_SHAPES = Object.freeze([
     "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
     "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
@@ -31,7 +40,7 @@ export const CORE_SVG_SHAPES = Object.freeze([
     "rect", "roundRect", "ellipse", "line", "lineInv", "custGeom",
     "triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid",
     ...Object.keys(POLYGON_SIDES), ...Object.keys(STAR_POINTS), ...ARROW_SHAPES, ...CIRCULAR_SHAPES,
-    ...BRACE_BRACKET_SHAPES, ...FLOWCHART_SHAPES,
+    ...BRACE_BRACKET_SHAPES, ...RIBBON_SCROLL_SHAPES, ...ACTION_BUTTON_SHAPES, ...FLOWCHART_SHAPES,
 ] as const);
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
@@ -157,6 +166,39 @@ function presetArcPath(rx: number, ry: number) {
             const result = arcPathCommand(current, rx, ry, start, sweep);
             current = result.end;
             commands.push(result.command);
+            return this;
+        },
+        close() {
+            commands.push("Z");
+            return this;
+        },
+        data() { return commands.join(" "); },
+    };
+}
+
+function drawingPath() {
+    const commands: string[] = [];
+    let current: PixelPoint = [0, 0];
+    return {
+        move(x: number, y: number) {
+            current = [x, y];
+            commands.push(pointCommand("M", [current]));
+            return this;
+        },
+        line(x: number, y: number) {
+            current = [x, y];
+            commands.push(pointCommand("L", [current]));
+            return this;
+        },
+        arc(rx: number, ry: number, start: number, sweep: number) {
+            const result = arcPathCommand(current, rx, ry, start, sweep);
+            current = result.end;
+            commands.push(result.command);
+            return this;
+        },
+        quadratic(controlX: number, controlY: number, x: number, y: number) {
+            current = [x, y];
+            commands.push(pointCommand("Q", [[controlX, controlY], current]));
             return this;
         },
         close() {
@@ -538,6 +580,258 @@ function braceBracketGeometry(
     return { kind: "path", data: face, faces: [{ data: face }], outlineData: `${leftOutline} ${rightOutline}` };
 }
 
+function ribbonGeometry(width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const rx = width / 32;
+    const ry = height * 16667 / 400000;
+    const x2 = width / 4; const x3 = x2 + rx; const x5 = x2 + width / 8; const x4 = x5 - rx;
+    const x9 = width * 3 / 4; const x8 = x9 - rx; const x6 = x9 - width / 8; const x7 = x6 + rx;
+    const y1 = height * 16667 / 200000; const y2 = height * 16667 / 100000;
+    const y4 = height - y2; const y3 = y4 / 2; const y5 = height - ry; const y6 = y2 - ry;
+    const main = drawingPath().move(0, 0).line(x4, 0).arc(rx, ry, 270, 180).line(x3, y1)
+        .arc(rx, ry, 270, -180).line(x8, y2).arc(rx, ry, 90, -180).line(x7, y1)
+        .arc(rx, ry, 90, 180).line(width, 0).line(width * 7 / 8, y3).line(width, y4)
+        .line(x9, y4).line(x9, y5).arc(rx, ry, 0, 90).line(x3, height)
+        .arc(rx, ry, 90, 90).line(x2, y4).line(0, y4).line(width / 8, y3).close().data();
+    const dark = drawingPath().move(x5, ry).arc(rx, ry, 0, 90).line(x3, y1)
+        .arc(rx, ry, 270, -180).line(x5, y2).close()
+        .move(x6, ry).arc(rx, ry, 180, -90).line(x8, y1)
+        .arc(rx, ry, 270, 180).line(x6, y2).close().data();
+    const details = drawingPath().move(x5, ry).line(x5, y2).move(x6, y2).line(x6, ry)
+        .move(x2, y4).line(x2, y6).move(x9, y6).line(x9, y4).data();
+    return {
+        kind: "path", data: `${main} ${dark}`,
+        faces: [{ data: main }, { data: dark, fillModifier: "darkenLess" }],
+        outlineData: `${main} ${details}`,
+    };
+}
+
+function ellipseRibbonGeometry(width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const x2 = width / 4; const x3 = x2 + width / 8; const x4 = width - x3; const x5 = width - x2;
+    const x6 = width * 7 / 8; const cx1 = x3 / 2; const cx2 = width - cx1;
+    const cx4 = x2 / 2; const cx5 = width - cx4;
+    const dy1 = height / 8; const f1 = 4 * dy1 / width;
+    const bandHeight = height / 4; const dy3 = bandHeight - dy1;
+    const y1 = f1 * (x3 - x3 * x3 / width);
+    const cy1 = f1 * cx1;
+    const q5 = f1 * (x2 - x2 * x2 / width);
+    const y3 = q5 + dy3;
+    const cy3 = dy1 + dy3 - y3 + dy1 + dy3;
+    const rh = height - bandHeight;
+    const y2 = (dy1 * 14 / 16 + rh) / 2;
+    const y5 = q5 + rh; const y6 = y3 + rh;
+    const cy4 = f1 * cx4 + rh; const cy6 = cy3 + rh;
+    const y7 = y1 + dy3; const cy7 = bandHeight * 2 - y7;
+    const main = drawingPath().move(0, 0).quadratic(cx1, cy1, x3, y1).line(x2, y3)
+        .quadratic(width / 2, cy3, x5, y3).line(x4, y1).quadratic(cx2, cy1, width, 0)
+        .line(x6, y2).line(width, rh).quadratic(cx5, cy4, x5, y5).line(x5, y6)
+        .quadratic(width / 2, cy6, x2, y6).line(x2, y5).quadratic(cx4, cy4, 0, rh)
+        .line(width / 8, y2).close().data();
+    const dark = drawingPath().move(x3, y7).line(x3, y1).line(x2, y3)
+        .quadratic(width / 2, cy3, x5, y3).line(x4, y1).line(x4, y7)
+        .quadratic(width / 2, cy7, x3, y7).close().data();
+    const details = drawingPath().move(x2, y5).line(x2, y3).move(x5, y3).line(x5, y5)
+        .move(x3, y1).line(x3, y7).move(x4, y7).line(x4, y1).data();
+    return {
+        kind: "path", data: `${main} ${dark}`,
+        faces: [{ data: main }, { data: dark, fillModifier: "darkenLess" }],
+        outlineData: `${main} ${details}`,
+    };
+}
+
+function leftRightRibbonGeometry(width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const short = Math.min(width, height);
+    const x1 = Math.min(short / 2, width * 15 / 32); const x4 = width - x1;
+    const x2 = width * 15 / 32; const x3 = width * 17 / 32;
+    const ly1 = height / 6; const ly2 = height * 5 / 12; const ly3 = height * 2 / 3; const ly4 = height * 5 / 6;
+    const ry1 = height / 6; const ry2 = height / 3; const ry3 = height * 7 / 12; const ry4 = height * 5 / 6;
+    const rx = width / 32; const ry = short * 16667 / 400000;
+    const main = drawingPath().move(0, ly2).line(x1, 0).line(x1, ly1).line(width / 2, ly1)
+        .arc(rx, ry, 270, 180).arc(rx, ry, 270, -180).line(x4, ry2).line(x4, ry1)
+        .line(width, ry3).line(x4, height).line(x4, ry4).line(width / 2, ry4)
+        .arc(rx, ry, 90, 90).line(x2, ly3).line(x1, ly3).line(x1, ly4).close().data();
+    const dark = drawingPath().move(x3, ly1 + ry).arc(rx, ry, 0, 90)
+        .arc(rx, ry, 270, -180).line(x3, ry2).close().data();
+    const details = drawingPath().move(x3, ly1 + ry).line(x3, ry2)
+        .move(x2, ry2 - ry).line(x2, ly3).data();
+    return {
+        kind: "path", data: `${main} ${dark}`,
+        faces: [{ data: main }, { data: dark, fillModifier: "darkenLess" }],
+        outlineData: `${main} ${details}`,
+    };
+}
+
+function verticalScrollGeometry(width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const curl = Math.min(width, height) / 8;
+    const half = curl / 2; const quarter = curl / 4;
+    const x3 = curl * 1.5; const x4 = curl * 2; const x6 = width - curl; const x7 = width - half;
+    const y3 = height - curl; const y4 = height - half;
+    const main = drawingPath().move(half, height).arc(half, half, 90, -90).line(half, y4)
+        .arc(quarter, quarter, 90, -180).line(curl, y3).line(curl, half)
+        .arc(half, half, 180, 90).line(x7, 0).arc(half, half, 270, 180)
+        .line(x6, curl).line(x6, y4).arc(half, half, 0, 90).close()
+        .move(x4, half).arc(half, half, 0, 90).arc(quarter, quarter, 90, 180).close().data();
+    const dark = drawingPath().move(x4, half).arc(half, half, 0, 90)
+        .arc(quarter, quarter, 90, 180).close().move(curl, y4)
+        .arc(half, half, 0, 270).arc(quarter, quarter, 270, 180).close().data();
+    const outline = drawingPath().move(curl, y3).line(curl, half).arc(half, half, 180, 90)
+        .line(x7, 0).arc(half, half, 270, 180).line(x6, curl).line(x6, y4)
+        .arc(half, half, 0, 90).line(half, height).arc(half, half, 90, 180).close()
+        .move(x3, 0).arc(half, half, 270, 180).arc(quarter, quarter, 90, 180).line(x4, half)
+        .move(x6, curl).line(x3, curl).move(half, y3).arc(quarter, quarter, 270, 180).line(curl, y4)
+        .move(half, height).arc(half, half, 90, -90).line(curl, y3).data();
+    return {
+        kind: "path", data: `${main} ${dark}`,
+        faces: [{ data: main }, { data: dark, fillModifier: "darkenLess" }],
+        outlineData: outline,
+    };
+}
+
+function ribbonScrollGeometry(
+    shapeName: typeof RIBBON_SCROLL_SHAPES[number],
+    width: number,
+    height: number,
+): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    if (shapeName === "ribbon" || shapeName === "ribbon2") {
+        const geometry = ribbonGeometry(width, height);
+        return shapeName === "ribbon2" ? { ...geometry, transform: `matrix(1 0 0 -1 0 ${cleanNumber(height)})` } : geometry;
+    }
+    if (shapeName === "ellipseRibbon" || shapeName === "ellipseRibbon2") {
+        const geometry = ellipseRibbonGeometry(width, height);
+        return shapeName === "ellipseRibbon2" ? { ...geometry, transform: `matrix(1 0 0 -1 0 ${cleanNumber(height)})` } : geometry;
+    }
+    if (shapeName === "leftRightRibbon") return leftRightRibbonGeometry(width, height);
+    if (shapeName === "verticalScroll") return verticalScrollGeometry(width, height);
+    return { ...verticalScrollGeometry(height, width), transform: "matrix(0 1 1 0 0 0)" };
+}
+
+function actionButtonGeometry(
+    shapeName: typeof ACTION_BUTTON_SHAPES[number],
+    width: number,
+    height: number,
+): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+    const base = pixelPath([[0, 0], [width, 0], [width, height], [0, height]]);
+    if (shapeName === "actionButtonBlank") {
+        return { kind: "path", data: base, faces: [{ data: base }], outlineData: base };
+    }
+    const short = Math.min(width, height);
+    const cx = width / 2; const cy = height / 2; const half = short * 3 / 8;
+    const left = cx - half; const right = cx + half; const top = cy - half; const bottom = cy + half;
+    let icon = "";
+    let details = "";
+    const lightFaces: string[] = [];
+    const darkFaces: string[] = [];
+    const darkLessFaces: string[] = [];
+    let iconModifier: "darken" | "darkenLess" = "darken";
+    if (shapeName === "actionButtonBackPrevious" || shapeName === "actionButtonForwardNext") {
+        icon = shapeName === "actionButtonBackPrevious"
+            ? pixelPath([[left, cy], [right, top], [right, bottom]])
+            : pixelPath([[right, cy], [left, bottom], [left, top]]);
+    } else if (shapeName === "actionButtonBeginning" || shapeName === "actionButtonEnd") {
+        const bar = short * 3 / 32;
+        if (shapeName === "actionButtonBeginning") {
+            icon = `${pixelPath([[left + short * 3 / 16, cy], [right, top], [right, bottom]])} ${pixelPath([[left, top], [left + bar, top], [left + bar, bottom], [left, bottom]])}`;
+        } else {
+            icon = `${pixelPath([[right - short * 3 / 16, cy], [left, bottom], [left, top]])} ${pixelPath([[right - bar, top], [right, top], [right, bottom], [right - bar, bottom]])}`;
+        }
+    } else if (shapeName === "actionButtonDocument") {
+        const fold = short * 3 / 16;
+        const documentLeft = cx - short * 9 / 32; const documentRight = cx + short * 9 / 32;
+        const document = pixelPath([[documentLeft, top], [documentRight - fold, top], [documentRight, top + fold], [documentRight, bottom], [documentLeft, bottom]]);
+        const corner = pixelPath([[documentRight - fold, top], [documentRight - fold, top + fold], [documentRight, top + fold]]);
+        icon = document;
+        details = corner;
+        iconModifier = "darkenLess";
+        darkFaces.push(corner);
+    } else if (shapeName === "actionButtonHome") {
+        const unit = short * 3 / 4;
+        const g24 = top + unit / 16; const g25 = top + unit * 3 / 16; const g26 = top + unit * 5 / 16;
+        const g27 = top + unit * 3 / 4; const g28 = left + unit / 8; const g29 = left + unit * 7 / 16;
+        const g30 = left + unit * 9 / 16; const g31 = left + unit * 11 / 16;
+        const g32 = left + unit * 13 / 16; const g33 = left + unit * 7 / 8;
+        const homeOutline = pixelPath([
+            [cx, top], [left, cy], [g28, cy], [g28, bottom], [g33, bottom], [g33, cy],
+            [right, cy], [g32, g26], [g32, g24], [g31, g24], [g31, g25],
+        ]);
+        const chimney = pixelPath([[g32, g26], [g32, g24], [g31, g24], [g31, g25]]);
+        const body = pixelPath([
+            [g28, cy], [g28, bottom], [g29, bottom], [g29, g27], [g30, g27],
+            [g30, bottom], [g33, bottom], [g33, cy],
+        ]);
+        const roof = pixelPath([[cx, top], [left, cy], [right, cy]]);
+        const door = pixelPath([[g29, g27], [g30, g27], [g30, bottom], [g29, bottom]]);
+        icon = "";
+        details = `${homeOutline} ${drawingPath().move(g31, g25).line(g32, g26)
+            .move(g33, cy).line(g28, cy).move(g29, bottom).line(g29, g27).line(g30, g27).line(g30, bottom).data()}`;
+        darkLessFaces.push(chimney, body);
+        darkFaces.push(roof, door);
+    } else if (shapeName === "actionButtonInformation") {
+        const circle = ellipseArcCommands(cx, cy, half, half, 270, 360);
+        icon = `${circle.move} ${circle.arcs} Z`;
+        const dotRadius = short * 9 / 128;
+        const dot = ellipseArcCommands(cx, top + short * 3 / 128 + dotRadius, dotRadius, dotRadius, 270, 360);
+        const stemLeft = left + short * 15 / 64; const stemInnerLeft = left + short * 39 / 128;
+        const stemInnerRight = left + short * 57 / 128; const stemRight = left + short * 33 / 64;
+        const y28 = top + short * 15 / 64; const y29 = top + short * 9 / 32;
+        const y30 = top + short * 39 / 64; const y31 = top + short * 21 / 32;
+        const stem = pixelPath([
+            [stemLeft, y28], [stemInnerRight, y28], [stemInnerRight, y30], [stemRight, y30],
+            [stemRight, y31], [stemLeft, y31], [stemLeft, y30], [stemInnerLeft, y30],
+            [stemInnerLeft, y29], [stemLeft, y29],
+        ]);
+        lightFaces.push(`${dot.move} ${dot.arcs} Z ${stem}`);
+        details = lightFaces[0]!;
+    } else if (shapeName === "actionButtonHelp") {
+        const g13 = short * 3 / 4; const g14 = g13 / 7; const g15 = g13 * 3 / 14;
+        const g16 = g13 * 2 / 7; const g19 = g13 * 3 / 7; const g20 = g13 * 4 / 7;
+        const g21 = g13 * 17 / 28; const g23 = g13 * 21 / 28; const g24 = g13 * 11 / 14;
+        const g27 = top + g16; const g29 = top + g21; const g30 = top + g23; const g31 = top + g24;
+        const g33 = left + g15; const g36 = left + g19; const g37 = left + g20;
+        const g41 = g13 / 14; const g42 = g13 * 3 / 28;
+        const question = drawingPath().move(g33, g27).arc(g16, g16, 180, 180)
+            .arc(g14, g15, 0, 90).arc(g41, g42, 270, -90).line(g37, g30)
+            .line(g36, g30).line(g36, g29).arc(g14, g15, 180, 90)
+            .arc(g41, g42, 90, -90).arc(g14, g14, 0, -180).close().data();
+        const dot = ellipseArcCommands(cx, g31 + g42, g42, g42, 270, 360);
+        icon = `${question} ${dot.move} ${dot.arcs} Z`;
+    } else if (shapeName === "actionButtonMovie") {
+        const g13 = short * 3 / 4;
+        const gx = (value: number) => left + g13 * value / 21600;
+        const gy = (value: number) => top + g13 * value / 21600;
+        icon = pixelPath([
+            [left, gy(5280)], [left, gy(9555)], [gx(1455), gy(9555)], [gx(1905), gy(9067)],
+            [gx(2325), gy(9067)], [gx(2325), gy(15592)], [gx(17010), gy(15592)],
+            [gx(17010), gy(13342)], [gx(19335), gy(13342)], [gx(20595), gy(14580)],
+            [right, gy(14580)], [right, gy(6630)], [gx(20595), gy(6630)], [gx(19725), gy(7492)],
+            [gx(17010), gy(7492)], [gx(17010), gy(6630)], [gx(16155), gy(5730)],
+            [gx(1905), gy(5730)], [gx(1455), gy(5280)],
+        ]);
+    } else if (shapeName === "actionButtonReturn") {
+        const g13 = short * 3 / 4; const g14 = g13 * 7 / 8; const g15 = g13 * 3 / 4;
+        const g16 = g13 * 5 / 8; const g17 = g13 * 3 / 8; const g18 = g13 / 4; const radius = g13 / 8;
+        const g19 = top + g15; const g20 = top + g16; const g21 = top + g18;
+        const g22 = left + g14; const g23 = left + g15; const g24 = left + g16;
+        const g25 = left + g17; const g26 = left + g18;
+        icon = drawingPath().move(right, g21).line(g23, top).line(cx, g21).line(g24, g21)
+            .line(g24, g20).arc(radius, radius, 0, 90).line(g25, g19).arc(radius, radius, 90, 90)
+            .line(g26, g21).line(left, g21).line(left, g20).arc(g17, g17, 180, -90)
+            .line(cx, bottom).arc(g17, g17, 90, -90).line(g22, g21).close().data();
+    } else {
+        const g13 = short * 3 / 4;
+        const g20 = top + g13 / 8; const g21 = top + g13 * 5 / 16;
+        const g22 = top + g13 * 11 / 16; const g23 = top + g13 * 7 / 8;
+        const g24 = left + g13 * 5 / 16; const g25 = left + g13 * 5 / 8; const g26 = left + g13 * 3 / 4;
+        icon = pixelPath([[left, g21], [left, g22], [g24, g22], [g25, bottom], [g25, top], [g24, g21]]);
+        details = drawingPath().move(g26, g21).line(right, g20)
+            .move(g26, cy).line(right, cy).move(g26, g22).line(right, g23).data();
+    }
+    const faces: Array<{ data: string; fillModifier?: "darken" | "darkenLess" | "lighten" }> = [{ data: base }];
+    if (icon) faces.push({ data: icon, fillModifier: iconModifier });
+    for (const darkLess of darkLessFaces) faces.push({ data: darkLess, fillModifier: "darkenLess" });
+    for (const dark of darkFaces) faces.push({ data: dark, fillModifier: "darken" });
+    for (const light of lightFaces) faces.push({ data: light, fillModifier: "lighten" });
+    return { kind: "path", data: `${base} ${icon}`, faces, outlineData: `${base} ${icon} ${details}` };
+}
+
 function flowchartGeometry(
     shapeName: typeof FLOWCHART_SHAPES[number],
     width: number,
@@ -765,6 +1059,12 @@ export function normalizeShape(
     }
     else if (BRACE_BRACKET_SHAPES.includes(shapeName as typeof BRACE_BRACKET_SHAPES[number])) {
         geometry = braceBracketGeometry(shapeName as typeof BRACE_BRACKET_SHAPES[number], width, height);
+    }
+    else if (RIBBON_SCROLL_SHAPES.includes(shapeName as typeof RIBBON_SCROLL_SHAPES[number])) {
+        geometry = ribbonScrollGeometry(shapeName as typeof RIBBON_SCROLL_SHAPES[number], width, height);
+    }
+    else if (ACTION_BUTTON_SHAPES.includes(shapeName as typeof ACTION_BUTTON_SHAPES[number])) {
+        geometry = actionButtonGeometry(shapeName as typeof ACTION_BUTTON_SHAPES[number], width, height);
     }
     else if (FLOWCHART_SHAPES.includes(shapeName as typeof FLOWCHART_SHAPES[number])) {
         geometry = flowchartGeometry(shapeName as typeof FLOWCHART_SHAPES[number], width, height);

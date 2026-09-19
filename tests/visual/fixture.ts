@@ -54,9 +54,45 @@ const BRACE_BRACKET_CASES = BRACE_BRACKET_NAMES.flatMap((shape, index) => [
     { page: 25, name: `${shape}-square`, shape, x: 0.65 + index * 1.6, y: 2.15, w: 0.75, h: 0.75 },
     { page: 25, name: `${shape}-tall`, shape, x: 0.75 + index * 1.6, y: 3.55, w: 0.55, h: 1.35 },
 ]);
+const RIBBON_SCROLL_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon",
+    "horizontalScroll", "verticalScroll",
+];
+const RIBBON_SCROLL_CASES = RIBBON_SCROLL_NAMES.flatMap((shape, index) => [
+    {
+        page: 26, name: shape, shape,
+        x: 0.4 + (index % 4) * 2.4, y: 0.95 + Math.floor(index / 4) * 2.1, w: 1.9, h: 1.25,
+    },
+    { page: 27 + Math.floor(index / 4), name: `${shape}-wide`, shape, x: 0.25 + (index % 4) * 2.375, y: 0.875, w: 2, h: 0.75 },
+    { page: 27 + Math.floor(index / 4), name: `${shape}-square`, shape, x: 0.625 + (index % 4) * 2.375, y: 2, w: 1.125, h: 1.125 },
+    { page: 27 + Math.floor(index / 4), name: `${shape}-tall`, shape, x: 0.75 + (index % 4) * 2.375, y: 3.375, w: 0.875, h: 1.5 },
+]);
+const ACTION_BUTTON_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument",
+    "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome",
+    "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound",
+];
+const ACTION_BUTTON_CASES: Array<{
+    page: number; name: string; shape: PptxGenJS.SHAPE_NAME;
+    x: number; y: number; w: number; h: number;
+}> = ACTION_BUTTON_NAMES.map((shape, index) => ({
+    page: 29 + Math.floor(index / 6), name: shape, shape,
+    x: 0.5 + (index % 3) * 3, y: index % 6 < 3 ? 1 : 3.25, w: 2.25, h: 1.5,
+}));
+for (const [index, shape] of ([
+    "actionButtonBackPrevious", "actionButtonHome", "actionButtonInformation", "actionButtonSound",
+] as PptxGenJS.SHAPE_NAME[]).entries()) {
+    ACTION_BUTTON_CASES.push(
+        { page: 31, name: `${shape}-wide`, shape, x: 0.25 + index * 2.375, y: 1, w: 2, h: 0.75 },
+        { page: 31, name: `${shape}-tall`, shape, x: 0.8125 + index * 2.375, y: 2.75, w: 0.875, h: 1.5 },
+    );
+}
 
 // These tight crops include the stroke but exclude labels and unused slide area.
-export const PARITY_REGIONS = [...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES].map(({ page, name, x, y, w, h }) => ({
+export const PARITY_REGIONS = [
+    ...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES,
+    ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES,
+].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
     // fewer fully opaque pixels than Chromium. Geometry and divider positions
@@ -593,6 +629,36 @@ export function populateParityFixture(presentation: Presentation): void {
         });
         BRACE_BRACKET_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
             braceSlide.addShape(shape, {
+                x, y, w, h,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
+
+    for (const pageNumber of [26, 27, 28]) {
+        const ribbonSlide = presentation.addSlide();
+        ribbonSlide.addText(pageNumber === 26 ? "Ribbon and scroll presets" : `Ribbons and scrolls: aspect ratios ${pageNumber - 26}`, {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        RIBBON_SCROLL_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+            ribbonSlide.addShape(shape, {
+                x, y, w, h,
+                fill: { color: "5B9BD5", transparency: 5 },
+                line: { color: "843C0C", width: 1.15 },
+            });
+        });
+    }
+
+    for (const pageNumber of [29, 30, 31]) {
+        const actionSlide = presentation.addSlide();
+        actionSlide.addText(pageNumber === 31 ? "Action buttons: aspect ratios" : `Action button presets ${pageNumber - 28}`, {
+            x: 0.5, y: 0.2, w: 9, h: 0.5,
+            fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+        });
+        ACTION_BUTTON_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+            actionSlide.addShape(shape, {
                 x, y, w, h,
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
