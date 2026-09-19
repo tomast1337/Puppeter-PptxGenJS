@@ -19,11 +19,13 @@ describe("PuppeteerGen DOM rendering", () => {
 
         const element = presentation.page.querySelector<HTMLElement>(".slide-text");
         expect(presentation.page.querySelectorAll(".slide-container")).toHaveLength(1);
-        expect(element?.textContent).toBe("Hello\nPDF");
+        expect(element?.querySelectorAll(".text-paragraph")).toHaveLength(2);
+        expect(element?.textContent).toBe("HelloPDF");
         expect(element?.style.left).toBe("96px");
         expect(element?.style.top).toBe("108px");
-        expect(element?.style.fontSize).toBe("24px");
-        expect(element?.style.textDecorationLine).toBe("underline");
+        const run = element?.querySelector<HTMLElement>(".text-run");
+        expect(run?.style.fontSize).toBe("24px");
+        expect(run?.style.textDecorationLine).toBe("underline");
     });
 
     test("renders PptxGenJS fill and line objects on shapes", () => {

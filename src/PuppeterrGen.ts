@@ -2,7 +2,7 @@ import PptxGenJS from "pptxgenjs";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import * as jsdom from "jsdom";
 import puppeteer from "puppeteer";
-import { alignToCSS, valignToCSS, pointsToPixels, inchesToPixels } from "./utils";
+import { alignToCSS, pointsToPixels, inchesToPixels } from "./utils";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS, type FourSideMargin } from "./defaults";
@@ -10,6 +10,8 @@ import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeColor } from "./normalize/style";
 import { resolveDocumentImages } from "./normalize/image";
 import { applyObjectStyle } from "./render/style";
+import { normalizeText, type TextInput } from "./normalize/text";
+import { renderText } from "./render/text";
 
 class PuppeteerSlide implements PptxSlide {
     constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document) {
@@ -180,123 +182,25 @@ class PuppeteerSlide implements PptxSlide {
         return this;
     }
     
-    addText(text: string | PptxGenJS.TextProps[], options?: PptxGenJS.TextPropsOptions | undefined): PptxGenJS.Slide {
+    addText(text: TextInput, options?: PptxGenJS.TextPropsOptions | undefined): PptxGenJS.Slide {
         const textElm = this.document.createElement("div");
         textElm.className = "slide-element slide-text";
-        
-        // Handle text content
-        if (typeof text === "string") {
-            textElm.textContent = text;
-        } else {
-            // Handle TextProps array
-            text.forEach(textProp => {
-                const span = this.document.createElement("span");
-                span.textContent = textProp.text || "";
-                
-                if (textProp.options) {
-                    this.applyTextPropsToSpan(span, textProp.options);
-                }
-                
-                textElm.appendChild(span);
-            });
-        }
-        
-        // Apply options if provided
+
         const textOptions = options ?? {};
+        // Text transparency is a run color property, not object opacity.
+        const { transparency: _textTransparency, ...boxOptions } = textOptions;
         const textStyle = normalizeObjectStyle(
-            textOptions,
+            boxOptions,
             PPTX_DEFAULTS.text,
             this.pageSize,
             this.nextObjectName("Text", textOptions.objectName),
             { fill: true, line: true, shadow: true },
         );
         applyObjectStyle(textElm, textStyle);
-        this.applyTextStyles(textElm, textOptions);
+        renderText(this.document, textElm, normalizeText(text, { color: this.color, ...textOptions }));
         
         this.slideElm.appendChild(textElm);
         return this;
-    }
-    
-    private applyTextStyles(element: HTMLElement, options: PptxGenJS.TextPropsOptions): void {
-        element.style.padding = textMarginToCSS(options.margin as number | FourSideMargin | undefined);
-
-        if (options.wrap === false) {
-            element.style.whiteSpace = "pre";
-        }
-
-        if (options.color) {
-            element.style.color = normalizeColor(options.color);
-        }
-        
-        if (options.fontSize) {
-            element.style.fontSize = `${pointsToPixels(options.fontSize)}px`;
-        }
-        
-        if (options.fontFace) {
-            element.style.fontFamily = options.fontFace;
-        }
-        
-        if (options.bold) {
-            element.style.fontWeight = "bold";
-        }
-        
-        if (options.italic) {
-            element.style.fontStyle = "italic";
-        }
-        
-        if (options.underline && options.underline.style !== "none") {
-            element.style.textDecorationLine = "underline";
-            if (options.underline.color) {
-                element.style.textDecorationColor = normalizeColor(options.underline.color);
-            }
-        }
-        
-        if (options.align) {
-            element.style.textAlign = alignToCSS(options.align);
-            // Also set justify-content for flex containers
-            const alignValue = options.align.toLowerCase();
-            if (alignValue === "center") {
-                element.style.justifyContent = "center";
-            } else if (alignValue === "right") {
-                element.style.justifyContent = "flex-end";
-            } else if (alignValue === "left") {
-                element.style.justifyContent = "flex-start";
-            }
-        }
-        
-        if (options.valign) {
-            element.style.alignItems = valignToCSS(options.valign);
-        }
-        
-    }
-    
-    private applyTextPropsToSpan(span: HTMLSpanElement, options: any): void {
-        if (options.color) {
-            span.style.color = normalizeColor(options.color);
-        }
-        
-        if (options.fontSize) {
-            span.style.fontSize = `${pointsToPixels(options.fontSize)}px`;
-        }
-        
-        if (options.fontFace) {
-            span.style.fontFamily = options.fontFace;
-        }
-        
-        if (options.bold) {
-            span.style.fontWeight = "bold";
-        }
-        
-        if (options.italic) {
-            span.style.fontStyle = "italic";
-        }
-        
-        if (options.underline && options.underline.style !== "none") {
-            span.style.textDecorationLine = "underline";
-            if (options.underline.color) {
-                span.style.textDecorationColor = normalizeColor(options.underline.color);
-            }
-        }
     }
     
     private applyCellStyles(cell: HTMLTableCellElement, options: any): void {
@@ -326,6 +230,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     private dom: jsdom.JSDOM;
     private pageSize: PageSize;
     page: Document;
+    private slideCount = 0;
     
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE) {
         this.dom = new jsdom.JSDOM("<!DOCTYPE html><html><head></head><body></body></html>");
@@ -490,6 +395,23 @@ body {
                         image.addEventListener("load", () => resolve(), { once: true });
                         image.addEventListener("error", () => resolve(), { once: true });
                     })));
+
+                document.querySelectorAll<HTMLElement>('.slide-text[data-text-fit="shrink"]').forEach(box => {
+                    const content = box.querySelector<HTMLElement>(".text-content");
+                    if (!content) return;
+                    const boxStyle = getComputedStyle(box);
+                    const availableWidth = box.clientWidth - parseFloat(boxStyle.paddingLeft) - parseFloat(boxStyle.paddingRight);
+                    const availableHeight = box.clientHeight - parseFloat(boxStyle.paddingTop) - parseFloat(boxStyle.paddingBottom);
+                    for (let iteration = 0; iteration < 20 && (content.scrollWidth > availableWidth + 0.5 || content.scrollHeight > availableHeight + 0.5); iteration++) {
+                        content.querySelectorAll<HTMLElement>(".text-run, .text-bullet").forEach(run => {
+                            run.style.fontSize = `${parseFloat(getComputedStyle(run).fontSize) * 0.95}px`;
+                        });
+                        content.querySelectorAll<HTMLElement>(".text-paragraph").forEach(paragraph => {
+                            const lineHeight = paragraph.style.lineHeight;
+                            if (lineHeight.endsWith("px")) paragraph.style.lineHeight = `${parseFloat(lineHeight) * 0.95}px`;
+                        });
+                    }
+                });
             });
 
             const pdf = await page.pdf({
@@ -515,6 +437,7 @@ body {
     addSlide(masterName?: unknown): PptxSlide {
         const slideElm = this.page.createElement("div");
         slideElm.className = "slide-container";
+        slideElm.id = `slide-${++this.slideCount}`;
         this.page.body.appendChild(slideElm);
         const slide = new PuppeteerSlide(slideElm, this.pageSize, this.page);
 

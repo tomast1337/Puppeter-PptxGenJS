@@ -2,6 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { COMPATIBILITY, type CompatibilityStatus } from "../src/compatibility";
 
 const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified"]);
+const TEXT_OPTION_KEYS = [
+    "x", "y", "w", "h", "data", "path", "objectName",
+    "align", "bold", "breakLine", "bullet", "color", "fontFace", "fontSize", "highlight",
+    "italic", "lang", "softBreakBefore", "tabStops", "textDirection", "transparency", "underline", "valign",
+    "baseline", "charSpacing", "fit", "fill", "flipH", "flipV", "glow", "hyperlink", "indentLevel",
+    "isTextBox", "line", "lineSpacing", "lineSpacingMultiple", "margin", "outline", "paraSpaceAfter",
+    "paraSpaceBefore", "placeholder", "rectRadius", "rotate", "rtlMode", "shadow", "shape", "strike",
+    "subscript", "superscript", "vert", "wrap", "autoFit", "shrinkText", "inset", "lineDash",
+    "lineHead", "lineSize", "lineTail",
+] as const;
 
 describe("compatibility manifest", () => {
     test("tracks every active renderer family", () => {
@@ -23,6 +33,18 @@ describe("compatibility manifest", () => {
         expect(Object.keys(COMPATIBILITY.image.options).length).toBeGreaterThanOrEqual(18);
         expect(Object.keys(COMPATIBILITY.shape.options).length).toBeGreaterThanOrEqual(30);
         expect(Object.keys(COMPATIBILITY.table.options).length).toBeGreaterThanOrEqual(35);
+    });
+
+    test("tracks every TextBaseProps and TextPropsOptions field", () => {
+        for (const option of TEXT_OPTION_KEYS) {
+            expect(COMPATIBILITY.text.options[option]).toBeDefined();
+        }
+    });
+
+    test("records pinned PptxGenJS text quirks explicitly", () => {
+        expect(COMPATIBILITY.text.options.textDirection).toBe("unsupported");
+        expect(COMPATIBILITY.text.options.bulletNumberType).toBe("unsupported");
+        expect(COMPATIBILITY.text.options.bulletDeprecatedStyle).toBe("implemented");
     });
 
     test("does not claim unsupported shape geometry is implemented", () => {
