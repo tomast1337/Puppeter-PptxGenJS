@@ -154,6 +154,27 @@ This generates multiple example PDFs demonstrating:
 - Multi-slide presentations
 - Custom layouts
 
+## Testing
+
+Run the type checker and fast unit/DOM rendering tests:
+
+```bash
+bun run typecheck
+bun test
+```
+
+Run the visual parity test against a real PptxGenJS rendering:
+
+```bash
+bun run test:visual
+```
+
+The visual test creates the same presentation through both APIs, converts the
+PptxGenJS `.pptx` to PDF with LibreOffice, rasterizes both PDFs with Poppler,
+and uses ImageMagick's normalized RMSE metric. The default maximum difference
+is `0.12`; override it with `VISUAL_DIFF_THRESHOLD=0.10` as fidelity improves.
+LibreOffice, `pdftoppm`, and ImageMagick must be available on `PATH`.
+
 ## Documentation
 
 For detailed documentation, see [USAGE.md](./USAGE.md) which covers:

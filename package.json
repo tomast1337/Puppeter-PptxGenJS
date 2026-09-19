@@ -1,8 +1,17 @@
 {
   "name": "puppeter-pptxgenjs",
-  "module": "index.ts",
+  "module": "./src/exports.ts",
+  "types": "./src/exports.ts",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": "./src/exports.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:visual": "bun run tests/visual/compare.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/jsdom": "^21.1.7"
