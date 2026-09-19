@@ -1,6 +1,7 @@
 import { mkdtemp, readdir, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { JSDOM } from "jsdom";
 import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../../src/PuppeterrGen";
 import { PAGE_SIZES } from "../../src/pageLayouts";
@@ -37,17 +38,44 @@ const referencePptx = join(artifacts, "reference.pptx");
 const referencePdf = join(artifacts, "reference.pdf");
 const actualPdf = join(artifacts, "actual.pdf");
 
+// PptxGenJS's tableToSlides API reads a browser-global DOM. JSDOM supplies
+// computed styles, while these two layout/text shims provide the properties
+// its synchronous extractor consumes.
+const sourceDom = new JSDOM("<!DOCTYPE html><html><body></body></html>");
+Object.defineProperty(sourceDom.window.HTMLElement.prototype, "offsetWidth", {
+    configurable: true,
+    get(this: HTMLElement) { return parseFloat(this.style.width) || Number(this.getAttribute("width")) || 0; },
+});
+Object.defineProperty(sourceDom.window.HTMLElement.prototype, "innerText", {
+    configurable: true,
+    get(this: HTMLElement) {
+        const read = (node: Node): string => node.nodeType === node.TEXT_NODE
+            ? node.nodeValue ?? ""
+            : node instanceof sourceDom.window.HTMLBRElement
+                ? "\n"
+                : Array.from(node.childNodes).map(read).join("");
+        return read(this).trim();
+    },
+});
+Object.assign(globalThis, { document: sourceDom.window.document, window: sourceDom.window });
+const progress = (stage: string) => { if (process.env.VISUAL_PROGRESS) console.log(`[visual] ${stage}`); };
+
 const reference = new pptxgen();
 reference.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
 reference.layout = "PARITY";
+progress("populate reference");
 populateParityFixture(reference);
+progress("write reference pptx");
 await reference.writeFile({ fileName: referencePptx });
 
 const actual = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+progress("populate actual");
 populateParityFixture(actual);
+progress("write actual pdf");
 await actual.writeFile({ fileName: actualPdf });
 
 const libreOfficeProfile = join(artifacts, "libreoffice-profile");
+progress("convert reference pdf");
 await run([
     "libreoffice",
     "--headless",
@@ -58,6 +86,7 @@ await run([
     artifacts,
     referencePptx,
 ]);
+progress("rasterize PDFs");
 await run(["pdftoppm", "-png", "-r", "96", referencePdf, join(artifacts, "reference")]);
 await run(["pdftoppm", "-png", "-r", "96", actualPdf, join(artifacts, "actual")]);
 

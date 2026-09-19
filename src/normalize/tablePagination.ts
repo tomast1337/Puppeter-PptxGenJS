@@ -138,14 +138,16 @@ export function paginateTableRows(
 ): PaginatedTablePage[] {
     if (!rows.length) return [];
     const normalized = normalizeTable(rows, options, pageSize);
+    const extendedOptions = options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin };
+    const pageMargins = marginInches(extendedOptions.slideMargin ?? PPTX_DEFAULTS.slide.marginIn);
     const verticalInches = (value: number | `${number}%` | undefined, fallback: number): number => {
         if (typeof value === "number") return value;
         if (typeof value === "string" && value.endsWith("%")) return parseFloat(value) / 100 * pageSize.height;
         return fallback;
     };
-    const continuationY = options.autoPageSlideStartY ?? options.newSlideStartY ?? PPTX_DEFAULTS.table.autoPageSlideStartY;
-    const firstY = verticalInches(options.y, PPTX_DEFAULTS.table.y);
-    const bottomMargin = PPTX_DEFAULTS.slide.marginIn;
+    const continuationY = options.autoPageSlideStartY ?? options.newSlideStartY ?? pageMargins[0];
+    const firstY = verticalInches(options.y, pageMargins[0]);
+    const bottomMargin = pageMargins[2];
     const heightLimit = verticalInches(options.h, pageSize.height);
     const firstAvailable = Math.max(0, heightLimit - firstY - bottomMargin);
     const continuationAvailable = Math.max(0, heightLimit - continuationY - bottomMargin);

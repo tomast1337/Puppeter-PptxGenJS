@@ -18,6 +18,7 @@ import { renderShape } from "./render/shape";
 import { normalizeTable } from "./normalize/table";
 import { renderTable } from "./render/table";
 import { paginateTableRows } from "./normalize/tablePagination";
+import { normalizeHtmlTable } from "./normalize/htmlTable";
 
 class PuppeteerSlide implements PptxSlide {
     constructor(
@@ -263,6 +264,10 @@ body {
     font-family: ${PPTX_DEFAULTS.text.fontFace}, Arial, Helvetica, sans-serif;
 }
 
+[data-puppeteer-gen-source="true"] {
+    display: none !important;
+}
+
 .slide-container {
     width: ${widthPx}px;
     height: ${heightPx}px;
@@ -504,6 +509,30 @@ body {
     }
     
     tableToSlides(eleId: string, props?: PptxTableToSlidesProps | undefined): void {
-        throw new Error("Method not implemented.");
+        const options = props ?? {};
+        const table = normalizeHtmlTable(this.page, eleId, options, this.pageSize);
+        const firstSlide = this.addSlide(options.masterSlideName ? { masterName: options.masterSlideName } : undefined);
+        firstSlide.addTable(table.rows, {
+            ...options,
+            x: table.x,
+            y: table.y,
+            colW: table.columnWidths,
+            autoPage: true,
+            autoPageRepeatHeader: options.autoPageRepeatHeader ?? options.addHeaderToEach ?? false,
+            autoPageHeaderRows: table.headerRows || 1,
+            autoPageSlideStartY: table.continuationY,
+        });
+        const generatedSlides = [firstSlide, ...firstSlide.newAutoPagedSlides] as PptxSlide[];
+        generatedSlides.forEach(slide => {
+            if (options.addImage?.image && (options.addImage.image.path || options.addImage.image.data)) {
+                slide.addImage({
+                    ...options.addImage.image,
+                    ...(options.addImage.options ?? {}),
+                } as PptxGenJS.ImageProps);
+            }
+            if (options.addShape) slide.addShape(options.addShape.shapeName, options.addShape.options ?? {});
+            if (options.addTable) slide.addTable(options.addTable.rows, options.addTable.options ?? {});
+            if (options.addText) slide.addText(options.addText.text, options.addText.options ?? {});
+        });
     }
 }

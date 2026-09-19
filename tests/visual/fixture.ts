@@ -1,9 +1,32 @@
 import type PptxGenJS from "pptxgenjs";
-import type { PuppeteerGen } from "../../src/PuppeterrGen";
+import { PuppeteerGen } from "../../src/PuppeterrGen";
 import { GENERATED_PRESET_NAMES } from "../../src/normalize/generatedPreset";
 import { Buffer } from "node:buffer";
 
 type Presentation = PptxGenJS | PuppeteerGen;
+
+function installTableToSlidesFixture(presentation: Presentation): void {
+    const document = presentation instanceof PuppeteerGen ? presentation.page : globalThis.document;
+    const host = document.createElement("div");
+    const cellStyle = "font-family:Arial;font-size:12px;color:#363636;padding:4px;border:1px solid #9EADBA";
+    host.innerHTML = `
+        <table id="visual-html-table" style="width:600px;border-collapse:collapse">
+            <thead><tr>
+                <th style="width:100px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">ID</th>
+                <th style="width:300px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">HTML description</th>
+                <th style="width:200px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">State</th>
+            </tr></thead>
+            <tbody>${Array.from({ length: 22 }, (_, index) => {
+                const fill = index % 2 ? "background:#EAF2F8;" : "background:#FFFFFF;";
+                return `<tr>
+                    <td style="width:100px;${cellStyle};${fill};text-align:center">${String(index + 1).padStart(2, "0")}</td>
+                    <td style="width:300px;${cellStyle};${fill}">Imported HTML row ${index + 1}</td>
+                    <td style="width:200px;${cellStyle};${fill};text-align:center;color:${index % 3 === 2 ? "#C65911" : "#548235"};font-weight:bold">${index % 3 === 2 ? "Review" : "Ready"}</td>
+                </tr>`;
+            }).join("")}</tbody>
+        </table>`;
+    document.body.appendChild(host);
+}
 
 const CURVED_SHAPES = ["curvedRightArrow", "curvedLeftArrow", "curvedUpArrow", "curvedDownArrow"] as const;
 const CURVED_CASES = CURVED_SHAPES.flatMap((shape, index) => [
@@ -852,5 +875,22 @@ export function populateParityFixture(presentation: Presentation): void {
         autoPageSlideStartY: 0.75,
         fontFace: "Arial", fontSize: 12, color: "363636", margin: 0.05,
         border: { type: "solid", color: "9EADBA", pt: 0.75 },
+    });
+
+    installTableToSlidesFixture(presentation);
+    presentation.tableToSlides("visual-html-table", {
+        w: 10,
+        y: 0.75,
+        slideMargin: 0.5,
+        autoPageRepeatHeader: true,
+        autoPageSlideStartY: 0.5,
+        addText: {
+            text: [{ text: "HTML table import", options: { bold: true, color: "17365D" } }],
+            options: { x: 0.5, y: 0.12, w: 4, h: 0.35, fontFace: "Arial", fontSize: 16, margin: 0 },
+        },
+        addShape: {
+            shapeName: "rect",
+            options: { x: 9.1, y: 0.14, w: 0.35, h: 0.2, fill: { color: "4472C4" }, line: { type: "none" } },
+        },
     });
 }
