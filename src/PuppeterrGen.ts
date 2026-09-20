@@ -13,8 +13,8 @@ import { applyObjectStyle } from "./render/style";
 import { normalizeText, type TextInput } from "./normalize/text";
 import { renderText } from "./render/text";
 import { renderImage } from "./render/image";
-import { normalizeShape, normalizeShapeLine } from "./normalize/shape";
-import { renderShape } from "./render/shape";
+import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox } from "./normalize/shape";
+import { renderShape, renderShapeSvg } from "./render/shape";
 import { normalizeTable } from "./normalize/table";
 import { renderTable } from "./render/table";
 import { paginateTableRows } from "./normalize/tablePagination";
@@ -198,8 +198,23 @@ class PuppeteerSlide implements PptxSlide {
             this.nextObjectName("Text", textOptions.objectName),
             { fill: true, line: true, shadow: true },
         );
-        applyObjectStyle(textElm, textStyle);
-        renderText(this.document, textElm, normalizeText(text, { color: this.color, ...textOptions }));
+        let normalizedText = normalizeText(text, { color: this.color, ...textOptions });
+        if (textOptions.shape) {
+            const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
+            textStyle.line = normalizeShapeLine(shapeOptions, normalizeLine);
+            const shape = normalizeShape(
+                textOptions.shape,
+                shapeOptions,
+                textStyle.geometry.width ?? 0,
+                textStyle.geometry.height ?? 0,
+                this.pageSize,
+            );
+            applyObjectStyle(textElm, { ...textStyle, fill: undefined, line: undefined, shadow: undefined });
+            textElm.dataset.shape = shape.name;
+            textElm.appendChild(renderShapeSvg(this.document, shape, textStyle));
+            normalizedText = normalizeShapeTextBox(normalizedText, shape);
+        } else applyObjectStyle(textElm, textStyle);
+        renderText(this.document, textElm, normalizedText);
         
         this.slideElm.appendChild(textElm);
         return this;
@@ -298,6 +313,18 @@ body {
     overflow: hidden;
     white-space: pre-wrap;
     word-wrap: break-word;
+}
+
+.slide-text > .shape-svg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.slide-text > .text-content {
+    position: relative;
+    z-index: 1;
 }
 
 .slide-shape {

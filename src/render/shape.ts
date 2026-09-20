@@ -102,20 +102,7 @@ function geometryElement(document: Document, shape: NormalizedShape): SVGElement
     return element;
 }
 
-export function renderShape(document: Document, shape: NormalizedShape, style: NormalizedObjectStyle): HTMLElement {
-    const outer = shape.link ? document.createElement("a") : document.createElement("div");
-    outer.className = "slide-element slide-shape";
-    applyGeometry(outer, style.geometry);
-    applyTransform(outer, style.transform);
-    outer.dataset.objectName = style.objectName;
-    outer.dataset.shape = shape.name;
-    if (shape.link) {
-        const anchor = outer as HTMLAnchorElement;
-        anchor.href = shape.link.href;
-        if (shape.link.tooltip) anchor.title = shape.link.tooltip;
-        if (shape.link.slide) anchor.dataset.slide = String(shape.link.slide);
-    }
-
+export function renderShapeSvg(document: Document, shape: NormalizedShape, style: NormalizedObjectStyle): SVGSVGElement {
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.classList.add("shape-svg");
     svg.setAttribute("viewBox", `0 0 ${Math.max(shape.width, 0.001)} ${Math.max(shape.height, 0.001)}`);
@@ -148,6 +135,24 @@ export function renderShape(document: Document, shape: NormalizedShape, style: N
         if (addMarker(document, defs, `${base}-end`, style.line.endArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-end", `url(#${base}-end)`);
     }
     svg.append(defs, geometry);
+    return svg;
+}
+
+export function renderShape(document: Document, shape: NormalizedShape, style: NormalizedObjectStyle): HTMLElement {
+    const outer = shape.link ? document.createElement("a") : document.createElement("div");
+    outer.className = "slide-element slide-shape";
+    applyGeometry(outer, style.geometry);
+    applyTransform(outer, style.transform);
+    outer.dataset.objectName = style.objectName;
+    outer.dataset.shape = shape.name;
+    if (shape.link) {
+        const anchor = outer as HTMLAnchorElement;
+        anchor.href = shape.link.href;
+        if (shape.link.tooltip) anchor.title = shape.link.tooltip;
+        if (shape.link.slide) anchor.dataset.slide = String(shape.link.slide);
+    }
+
+    const svg = renderShapeSvg(document, shape, style);
     outer.appendChild(svg);
     return outer;
 }

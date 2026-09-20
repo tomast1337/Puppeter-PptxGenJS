@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import type { NormalizedLine, NormalizedShape } from "../model/types";
+import type { NormalizedLine, NormalizedShape, NormalizedTextBox } from "../model/types";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../utils";
 import { GENERATED_PRESET_NAMES, generatedPresetGeometry } from "./generatedPreset";
@@ -1182,6 +1182,10 @@ function presetPath(shapeName: string, width: number, height: number): string | 
     if (shapeName === "parallelogram") return polygonPath([[0.25, 0], [1, 0], [0.75, 1], [0, 1]], width, height);
     if (shapeName === "trapezoid") return polygonPath([[0.25, 0], [0.75, 0], [1, 1], [0, 1]], width, height);
     if (shapeName === "nonIsoscelesTrapezoid") return polygonPath([[0.15, 0], [0.75, 0], [1, 1], [0, 1]], width, height);
+    if (shapeName === "hexagon") {
+        const inset = Math.min(width, height) / 4;
+        return pixelPath([[inset, 0], [width - inset, 0], [width, height / 2], [width - inset, height], [inset, height], [0, height / 2]]);
+    }
     const sides = POLYGON_SIDES[shapeName as keyof typeof POLYGON_SIDES];
     if (sides) return radialPath(sides, width, height);
     const points = STAR_POINTS[shapeName as keyof typeof STAR_POINTS];
@@ -1243,7 +1247,30 @@ export function normalizeShape(
         geometry = generatedPresetGeometry(shapeName as typeof GENERATED_PRESET_NAMES[number], width, height);
     }
     else geometry = { kind: "path", data: presetPath(shapeName, width, height)! };
-    return { name: shapeName, width, height, geometry, link };
+    const short = Math.min(width, height);
+    const textInsets: NormalizedShape["textInsets"] = shapeName === "diamond"
+        ? [height / 4, width / 4, height / 4, width / 4]
+        : shapeName === "hexagon"
+            ? [0, short / 4, 0, short / 4]
+            : shapeName === "rightArrow"
+                ? [height / 4, short / 2, height / 4, 0]
+                : undefined;
+    return { name: shapeName, width, height, geometry, textInsets, link };
+}
+
+export function normalizeShapeTextBox(text: NormalizedTextBox, shape: NormalizedShape): NormalizedTextBox {
+    if (!shape.textInsets) return text;
+    const [insetTop, insetRight, insetBottom, insetLeft] = shape.textInsets;
+    const [marginTop, marginRight, marginBottom, marginLeft] = text.margin;
+    return {
+        ...text,
+        margin: [
+            marginTop + insetTop,
+            marginRight + insetRight,
+            marginBottom + insetBottom,
+            marginLeft + insetLeft,
+        ],
+    };
 }
 
 export function normalizeShapeLine(options: PptxGenJS.ShapeProps, normalize: (line?: PptxGenJS.ShapeLineProps) => NormalizedLine): NormalizedLine {

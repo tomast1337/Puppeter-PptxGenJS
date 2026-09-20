@@ -79,7 +79,11 @@ describe("shape normalization", () => {
         expect(normalizeShape("diamond", {}, 100, 80, PAGE).geometry).toEqual({
             kind: "path", data: "M 50 0 L 100 40 L 50 80 L 0 40 Z",
         });
-        expect((normalizeShape("hexagon", {}, 100, 80, PAGE).geometry as { data: string }).data).toContain("L");
+        const hexagon = normalizeShape("hexagon", {}, 100, 80, PAGE);
+        expect(hexagon.geometry).toEqual({
+            kind: "path", data: "M 20 0 L 80 0 L 100 40 L 80 80 L 20 80 L 0 40 Z",
+        });
+        expect(hexagon.textInsets).toEqual([0, 20, 0, 20]);
         expect((normalizeShape("star5", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ L /g)).toHaveLength(9);
     });
 

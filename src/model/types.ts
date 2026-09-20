@@ -185,5 +185,6 @@ export interface NormalizedShape {
     width: number;
     height: number;
     geometry: NormalizedShapeGeometry;
+    textInsets?: [number, number, number, number];
     link?: NormalizedShapeLink;
 }

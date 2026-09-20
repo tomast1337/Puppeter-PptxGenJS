@@ -130,5 +130,6 @@ export function renderText(document: Document, element: HTMLElement, text: Norma
         });
         content.appendChild(paragraphElement);
     });
-    element.replaceChildren(content);
+    element.querySelector(":scope > .text-content")?.remove();
+    element.appendChild(content);
 }

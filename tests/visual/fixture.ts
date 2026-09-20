@@ -158,12 +158,19 @@ const HTML_TABLE_CASES = [
     { page: 51, name: "table-html-first", x: 0.5, y: 0.75, w: 9, h: 4.375 },
     { page: 52, name: "table-html-second", x: 0.5, y: 0.5, w: 9, h: 4.625 },
 ] as const;
+const SHAPED_TEXT_CASES = [
+    { page: 53, name: "text-diamond", shape: "diamond", text: "Decision", x: 0.65, y: 1.2, w: 1.8, h: 1.4 },
+    { page: 53, name: "text-hexagon", shape: "hexagon", text: "Process", x: 3.0, y: 1.2, w: 1.8, h: 1.4 },
+    { page: 53, name: "text-right-arrow", shape: "rightArrow", text: "Next", x: 5.35, y: 1.2, w: 1.8, h: 1.4 },
+    { page: 53, name: "text-cloud", shape: "cloud", text: "Idea", x: 7.7, y: 1.2, w: 1.8, h: 1.4 },
+] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 export const PARITY_REGIONS = [
     ...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES,
     ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES, ...SYMBOL_CASES,
     ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES, ...TABLE_CASES, ...PAGINATION_CASES, ...HTML_TABLE_CASES,
+    ...SHAPED_TEXT_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
@@ -896,5 +903,21 @@ export function populateParityFixture(presentation: Presentation): void {
             shapeName: "rect",
             options: { x: 9.1, y: 0.14, w: 0.35, h: 0.2, fill: { color: "4472C4" }, line: { type: "none" } },
         },
+    });
+
+    const shapedTextSlide = presentation.addSlide();
+    shapedTextSlide.addText("Text in arbitrary preset shapes", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    SHAPED_TEXT_CASES.forEach(({ shape, text, x, y, w, h }) => {
+        shapedTextSlide.addText(text, {
+            shape,
+            x, y, w, h,
+            fontFace: "Arial", fontSize: 16, bold: true, color: "FFFFFF",
+            align: "center", valign: "middle", margin: 0.08,
+            fill: { color: "5B9BD5", transparency: 5 },
+            line: { color: "843C0C", width: 1.15 },
+        });
     });
 }

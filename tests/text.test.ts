@@ -130,6 +130,39 @@ describe("text DOM rendering", () => {
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
     });
 
+    test("renders arbitrary preset geometry behind text without duplicating object transforms", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText("Decision", {
+            x: 1, y: 1, w: 2, h: 1.5,
+            shape: "diamond",
+            fill: { color: "4472C4", transparency: 10 },
+            line: { color: "17365D", width: 2 },
+            shadow: { type: "outer", color: "000000", opacity: 0.25, blur: 2, angle: 45, offset: 2 },
+            rotate: 15,
+            align: "center",
+        });
+
+        const box = presentation.page.querySelector<HTMLElement>(".slide-text");
+        const svg = box?.querySelector<SVGSVGElement>(":scope > .shape-svg");
+        const geometry = svg?.querySelector<SVGPathElement>(".shape-geometry");
+        expect(presentation.page.querySelectorAll(".slide-element")).toHaveLength(1);
+        expect(box?.dataset.shape).toBe("diamond");
+        expect(box?.style.width).toBe("192px");
+        expect(box?.style.height).toBe("144px");
+        expect(box?.style.transform).toBe("rotate(15deg)");
+        expect(box?.style.backgroundColor).toBe("");
+        expect(box?.style.boxShadow).toBe("");
+        expect(svg?.getAttribute("viewBox")).toBe("0 0 192 144");
+        expect(svg?.style.transform).toBe("");
+        expect(svg?.style.filter).toContain("drop-shadow");
+        expect(geometry?.getAttribute("d")).toBe("M 96 0 L 192 72 L 96 144 L 0 72 Z");
+        expect(geometry?.getAttribute("fill")).toBe("rgba(68, 114, 196, 0.9)");
+        expect(geometry?.getAttribute("stroke")).toBe("#17365D");
+        expect(box?.lastElementChild?.classList.contains("text-content")).toBe(true);
+        expect(box?.querySelector(".text-run")?.textContent).toBe("Decision");
+    });
+
     test("preserves the pinned textDirection and rounded-shape quirks", () => {
         expect(normalizeText("ignored", { textDirection: "vert" }).direction).toBe("horizontal");
         expect(normalizeText("plain", { rectRadius: 0.5 }).borderRadius).toBe(0);
