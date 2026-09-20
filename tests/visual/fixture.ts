@@ -107,7 +107,15 @@ const BRACE_BRACKET_CASES = BRACE_BRACKET_NAMES.flatMap((shape, index) => [
     { page: 25, name: `${shape}-square`, shape, x: 0.65 + index * 1.6, y: 2.15, w: 0.75, h: 0.75 },
     { page: 25, name: `${shape}-tall`, shape, x: 0.75 + index * 1.6, y: 3.55, w: 0.55, h: 1.35 },
 ]);
-const RIBBON_SCROLL_NAMES: PptxGenJS.SHAPE_NAME[] = ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"];
+const RIBBON_SCROLL_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "ribbon",
+    "ribbon2",
+    "ellipseRibbon",
+    "ellipseRibbon2",
+    "leftRightRibbon",
+    "horizontalScroll",
+    "verticalScroll",
+];
 const RIBBON_SCROLL_CASES = RIBBON_SCROLL_NAMES.flatMap((shape, index) => [
     {
         page: 26,
@@ -153,10 +161,29 @@ const ACTION_BUTTON_CASES: Array<{
     w: 2.25,
     h: 1.5,
 }));
-for (const [index, shape] of (["actionButtonBackPrevious", "actionButtonHome", "actionButtonInformation", "actionButtonSound"] as PptxGenJS.SHAPE_NAME[]).entries()) {
-    ACTION_BUTTON_CASES.push({ page: 31, name: `${shape}-wide`, shape, x: 0.25 + index * 2.375, y: 1, w: 2, h: 0.75 }, { page: 31, name: `${shape}-tall`, shape, x: 0.8125 + index * 2.375, y: 2.75, w: 0.875, h: 1.5 });
+for (const [index, shape] of (
+    ["actionButtonBackPrevious", "actionButtonHome", "actionButtonInformation", "actionButtonSound"] as PptxGenJS.SHAPE_NAME[]
+).entries()) {
+    ACTION_BUTTON_CASES.push(
+        { page: 31, name: `${shape}-wide`, shape, x: 0.25 + index * 2.375, y: 1, w: 2, h: 0.75 },
+        { page: 31, name: `${shape}-tall`, shape, x: 0.8125 + index * 2.375, y: 2.75, w: 0.875, h: 1.5 },
+    );
 }
-const SYMBOL_NAMES: PptxGenJS.SHAPE_NAME[] = ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"];
+const SYMBOL_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "plus",
+    "mathPlus",
+    "mathMinus",
+    "mathEqual",
+    "mathNotEqual",
+    "mathMultiply",
+    "mathDivide",
+    "heart",
+    "lightningBolt",
+    "moon",
+    "sun",
+    "smileyFace",
+    "noSmoking",
+];
 const SYMBOL_CASES: Array<{
     page: number;
     name: string;
@@ -177,7 +204,10 @@ const SYMBOL_CASES: Array<{
 for (const [index, shape] of (["mathPlus", "heart", "moon", "sun", "smileyFace", "noSmoking"] as PptxGenJS.SHAPE_NAME[]).entries()) {
     const page = 34 + Math.floor(index / 3);
     const column = index % 3;
-    SYMBOL_CASES.push({ page, name: `${shape}-wide`, shape, x: 0.5 + column * 3.125, y: 1, w: 2.5, h: 0.75 }, { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 });
+    SYMBOL_CASES.push(
+        { page, name: `${shape}-wide`, shape, x: 0.5 + column * 3.125, y: 1, w: 2.5, h: 0.75 },
+        { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 },
+    );
 }
 const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.map((shape, index) => ({
     page: 36 + Math.floor(index / 8),
@@ -188,7 +218,17 @@ const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.map((shape, index) => ({
     w: 1.5,
     h: 1.5,
 }));
-const GENERATED_ASPECT_NAMES = ["bevel", "can", "circularArrow", "cloud", "doubleWave", "gear6", "gear9", "leftRightCircularArrow", "wedgeEllipseCallout"] as const;
+const GENERATED_ASPECT_NAMES = [
+    "bevel",
+    "can",
+    "circularArrow",
+    "cloud",
+    "doubleWave",
+    "gear6",
+    "gear9",
+    "leftRightCircularArrow",
+    "wedgeEllipseCallout",
+] as const;
 const GENERATED_ASPECT_CASES = GENERATED_ASPECT_NAMES.flatMap((shape, index) => {
     const page = 43 + Math.floor(index / 3);
     const column = index % 3;
@@ -220,21 +260,40 @@ const SHAPED_TEXT_CASES = [
 ] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
-export const PARITY_REGIONS = [...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES, ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES, ...SYMBOL_CASES, ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES, ...TABLE_CASES, ...PAGINATION_CASES, ...HTML_TABLE_CASES, ...SHAPED_TEXT_CASES].map(
-    ({ page, name, x, y, w, h }) => ({
-        page,
-        name,
-        // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
-        // fewer fully opaque pixels than Chromium. Geometry and divider positions
-        // match; compound shapes and dense table grids need narrow rasterization
-        // allowances. The table pages remain below 0.09 whole-slide RMSE.
-        threshold: name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-") ? 0.12 : name.startsWith("table-") ? 0.09 : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
-        x: Math.floor(x * 96) - 3,
-        y: Math.floor(y * 96) - 3,
-        w: Math.ceil(w * 96) + 7,
-        h: Math.ceil(h * 96) + 7,
-    }),
-);
+export const PARITY_REGIONS = [
+    ...CURVED_CASES,
+    ...CIRCULAR_CASES,
+    ...FLOWCHART_CASES,
+    ...BRACE_BRACKET_CASES,
+    ...RIBBON_SCROLL_CASES,
+    ...ACTION_BUTTON_CASES,
+    ...SYMBOL_CASES,
+    ...GENERATED_PRESET_CASES,
+    ...GENERATED_ASPECT_CASES,
+    ...TABLE_CASES,
+    ...PAGINATION_CASES,
+    ...HTML_TABLE_CASES,
+    ...SHAPED_TEXT_CASES,
+].map(({ page, name, x, y, w, h }) => ({
+    page,
+    name,
+    // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
+    // fewer fully opaque pixels than Chromium. Geometry and divider positions
+    // match; compound shapes and dense table grids need narrow rasterization
+    // allowances. The table pages remain below 0.09 whole-slide RMSE.
+    threshold:
+        name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-")
+            ? 0.12
+            : name.startsWith("table-")
+              ? 0.09
+              : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name)
+                ? 0.11
+                : 0.08,
+    x: Math.floor(x * 96) - 3,
+    y: Math.floor(y * 96) - 3,
+    w: Math.ceil(w * 96) + 7,
+    h: Math.ceil(h * 96) + 7,
+}));
 
 const SAMPLE_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(`
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200" preserveAspectRatio="none">

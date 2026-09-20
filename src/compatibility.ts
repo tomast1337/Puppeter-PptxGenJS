@@ -8,7 +8,9 @@ export interface CompatibilityEntry {
     readonly options: Readonly<Record<string, CompatibilityStatus>>;
 }
 
-export const SHAPE_GEOMETRY_COMPATIBILITY = Object.freeze(Object.fromEntries(CORE_SVG_SHAPES.map(name => [name, "implemented"]))) as Readonly<Record<string, "implemented" | "unsupported">>;
+export const SHAPE_GEOMETRY_COMPATIBILITY = Object.freeze(Object.fromEntries(CORE_SVG_SHAPES.map(name => [name, "implemented"]))) as Readonly<
+    Record<string, "implemented" | "unsupported">
+>;
 
 export const CHART_OPTION_NAMES = Object.freeze([
     "align",
@@ -205,7 +207,14 @@ const PARTIAL_CHART_OPTIONS = new Set<string>([
     "valAxisMajorTickMark",
     "valAxisMinorTickMark", // `cross` remains explicit unsupported
 ]);
-const CHART_OPTION_COMPATIBILITY = Object.freeze(Object.fromEntries(CHART_OPTION_NAMES.map(name => [name, PARTIAL_CHART_OPTIONS.has(name) ? "partial" : IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported"]))) as Readonly<Record<(typeof CHART_OPTION_NAMES)[number], CompatibilityStatus>>;
+const CHART_OPTION_COMPATIBILITY = Object.freeze(
+    Object.fromEntries(
+        CHART_OPTION_NAMES.map(name => [
+            name,
+            PARTIAL_CHART_OPTIONS.has(name) ? "partial" : IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported",
+        ]),
+    ),
+) as Readonly<Record<(typeof CHART_OPTION_NAMES)[number], CompatibilityStatus>>;
 
 export const CHART_TYPE_COMPATIBILITY = Object.freeze({
     area: "implemented",

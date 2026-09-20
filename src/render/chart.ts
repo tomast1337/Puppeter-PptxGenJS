@@ -113,20 +113,33 @@ function valueAxisGutter(chart: NormalizedChart): number | string {
     return Math.ceil(Math.max(80, labelWidth + pointsToPixels(axis.titleFontSize) + 30));
 }
 
+function chartTitle(chart: NormalizedChart): Record<string, unknown> {
+    if (!chart.showTitle) return { show: false };
+    return {
+        show: true,
+        text: chart.title,
+        left: "center",
+        textStyle: {
+            color: chart.titleColor,
+            fontFamily: chart.titleFontFace,
+            fontSize: pointsToPixels(chart.titleFontSize),
+            fontWeight: chart.titleBold ? "bold" : "normal",
+        },
+    };
+}
+
+function chartGrid(chart: NormalizedChart) {
+    const bottom = chart.showLegend && chart.legendPosition === "b" ? (chart.valueAxes.length > 1 ? "21%" : "17%") : "10%";
+    return {
+        left: valueAxisGutter(chart),
+        right: chart.valueAxes.length > 1 ? "14%" : "2%",
+        top: chart.showTitle ? "14%" : "4%",
+        bottom,
+        outerBoundsMode: "none",
+    } as const;
+}
+
 function chartOption(chart: NormalizedChart): EChartsCoreOption {
-    const title = chart.showTitle
-        ? {
-              show: true,
-              text: chart.title,
-              left: "center",
-              textStyle: {
-                  color: chart.titleColor,
-                  fontFamily: chart.titleFontFace,
-                  fontSize: pointsToPixels(chart.titleFontSize),
-                  fontWeight: chart.titleBold ? "bold" : "normal",
-              },
-          }
-        : { show: false };
     const legend = {
         show: chart.showLegend,
         ...legendPlacement(chart.legendPosition),
@@ -143,7 +156,7 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
             fontFamily: chart.fontFace,
             fontSize: pointsToPixels(chart.fontSize),
         },
-        title,
+        title: chartTitle(chart),
         legend,
     };
     const axisStyle = {
@@ -160,13 +173,7 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
             lineStyle: { color: chart.gridLineColor, width: pointsToPixels(chart.gridLineWidth) },
         },
     };
-    const grid = {
-        left: valueAxisGutter(chart),
-        right: chart.valueAxes.length > 1 ? "14%" : "2%",
-        top: chart.showTitle ? "14%" : "4%",
-        bottom: chart.showLegend && chart.legendPosition === "b" ? (chart.valueAxes.length > 1 ? "21%" : "17%") : "10%",
-        outerBoundsMode: "none",
-    } as const;
+    const grid = chartGrid(chart);
 
     if (chart.type === "pie" || chart.type === "doughnut") {
         const series = chart.series[0]!;
@@ -293,7 +300,8 @@ export function renderEChartsSvg(width: number, height: number, option: EChartsC
     // configurable jsdom global during synchronous SSR so zrender uses its
     // deterministic server-side width table instead of probing canvas.
     const globalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
-    const isJsdom = globalDocument?.configurable && String((globalThis as { document?: Document }).document?.defaultView?.navigator.userAgent).includes("jsdom");
+    const isJsdom =
+        globalDocument?.configurable && String((globalThis as { document?: Document }).document?.defaultView?.navigator.userAgent).includes("jsdom");
     if (isJsdom) Reflect.deleteProperty(globalThis, "document");
     let instance: ReturnType<typeof init> | undefined;
     try {

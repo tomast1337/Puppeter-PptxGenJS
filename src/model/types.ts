@@ -141,7 +141,10 @@ export interface NormalizedTable {
     rows: NormalizedTableRow[];
 }
 
-export type NormalizedImageSizing = { type: "stretch" } | { type: "contain" | "cover"; x: number; y: number; width: number; height: number } | { type: "crop"; offsetX: number; offsetY: number; width: number; height: number };
+export type NormalizedImageSizing =
+    | { type: "stretch" }
+    | { type: "contain" | "cover"; x: number; y: number; width: number; height: number }
+    | { type: "crop"; offsetX: number; offsetY: number; width: number; height: number };
 
 export interface NormalizedImageLink {
     href: string;

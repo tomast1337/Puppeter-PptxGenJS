@@ -5,7 +5,8 @@ import { PuppeteerGen } from "../src/PuppeterrGen";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
-const rows = (count: number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: `Value ${index + 1}` }]);
+const rows = (count: number): PptxGenJS.TableRow[] =>
+    Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: `Value ${index + 1}` }]);
 
 describe("table auto-pagination", () => {
     test("allocates rows using PptxGenJS line-height and continuation heuristics", () => {

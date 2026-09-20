@@ -61,7 +61,8 @@ function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: P
 }
 
 function normalizeTableMargins(margin?: number | FourSideMargin): [number, number, number, number] {
-    const values = margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
+    const values =
+        margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
     const convert = values[0]! >= 1 ? pointsToPixels : inchesToPixels;
     return values.map(convert) as [number, number, number, number];
 }
@@ -76,7 +77,9 @@ function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder 
     };
 }
 
-function normalizeBorders(border?: PptxGenJS.BorderProps | [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps]): [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder] {
+function normalizeBorders(
+    border?: PptxGenJS.BorderProps | [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps],
+): [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder] {
     const sides = Array.isArray(border) ? border : [border, border, border, border];
     return sides.map(side => normalizeBorder(side)) as [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder];
 }
@@ -110,7 +113,12 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
     const count = columnCount(tableRows);
     const { width, columns } = tableWidthAndColumns(count, options, pageSize);
     const heights = rowHeights(tableRows.length, options, pageSize);
-    const explicitHeight = options.h === undefined ? (heights.every(height => height !== undefined) ? heights.reduce<number>((sum, height) => sum + height!, 0) : undefined) : convertToPixels(options.h, inchesToPixels(pageSize.height));
+    const explicitHeight =
+        options.h === undefined
+            ? heights.every(height => height !== undefined)
+                ? heights.reduce<number>((sum, height) => sum + height!, 0)
+                : undefined
+            : convertToPixels(options.h, inchesToPixels(pageSize.height));
 
     return {
         width,

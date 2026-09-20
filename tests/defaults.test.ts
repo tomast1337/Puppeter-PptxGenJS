@@ -8,7 +8,24 @@ describe("defaults contract", () => {
     });
 
     test("covers implemented and future renderer families", () => {
-        expect(Object.keys(PPTX_DEFAULTS)).toEqual(expect.arrayContaining(["presentation", "theme", "write", "slide", "text", "table", "shape", "image", "media", "bullet", "chart", "fill", "border", "shadow"]));
+        expect(Object.keys(PPTX_DEFAULTS)).toEqual(
+            expect.arrayContaining([
+                "presentation",
+                "theme",
+                "write",
+                "slide",
+                "text",
+                "table",
+                "shape",
+                "image",
+                "media",
+                "bullet",
+                "chart",
+                "fill",
+                "border",
+                "shadow",
+            ]),
+        );
         expect(PPTX_DEFAULTS.image).toMatchObject({ x: 0, y: 0, w: 1, h: 1, transparency: 0 });
         expect(PPTX_DEFAULTS.media).toMatchObject({ x: 0, y: 0, w: 2, h: 2, type: "audio" });
         expect(PPTX_DEFAULTS.chart).toMatchObject({ x: 1, y: 1, w: "50%", h: "50%" });

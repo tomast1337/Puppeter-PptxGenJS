@@ -101,6 +101,9 @@ const definitions = Object.fromEntries(
     }),
 );
 
-const output = `// Generated from ECMA-376 presetShapeDefinitions.xml by scripts/generate-preset-shapes.ts.\n` + `// Keep this data declarative; rendering behavior belongs in normalize/shape.ts.\n` + `export const GENERATED_PRESET_SHAPES = ${JSON.stringify(definitions)} as const;\n`;
+const output =
+    `// Generated from ECMA-376 presetShapeDefinitions.xml by scripts/generate-preset-shapes.ts.\n` +
+    `// Keep this data declarative; rendering behavior belongs in normalize/shape.ts.\n` +
+    `export const GENERATED_PRESET_SHAPES = ${JSON.stringify(definitions)} as const;\n`;
 writeFileSync(new URL("../src/generatedPresetShapes.ts", import.meta.url), output);
 console.log(`Generated ${Object.keys(definitions).length} preset definitions.`);

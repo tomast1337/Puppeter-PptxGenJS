@@ -17,7 +17,12 @@ describe("table normalization", () => {
                             colspan: 2,
                             rowspan: 2,
                             margin: [0.1, 0.2, 0.3, 0.4],
-                            border: [{ type: "solid", color: "FF0000", pt: 2 }, { type: "dash", color: "00FF00", pt: 1 }, { type: "none" }, { type: "solid", color: "0000FF", pt: 3 }],
+                            border: [
+                                { type: "solid", color: "FF0000", pt: 2 },
+                                { type: "dash", color: "00FF00", pt: 1 },
+                                { type: "none" },
+                                { type: "solid", color: "0000FF", pt: 3 },
+                            ],
                         },
                     },
                     { text: "Third" },

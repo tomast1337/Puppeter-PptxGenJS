@@ -35,7 +35,16 @@ describe("shape normalization", () => {
     });
 
     test("normalizes custom lines and bezier curves in local SVG coordinates", () => {
-        const path = normalizeCustomPath([{ x: 0, y: 0 }, { x: 1, y: 0.5 }, { x: 2, y: 1, curve: { type: "quadratic", x1: 1.5, y1: 0 } }, { x: 3, y: 1, curve: { type: "cubic", x1: 2.25, y1: 1.5, x2: 2.75, y2: 0.5 } }, { close: true }], PAGE);
+        const path = normalizeCustomPath(
+            [
+                { x: 0, y: 0 },
+                { x: 1, y: 0.5 },
+                { x: 2, y: 1, curve: { type: "quadratic", x1: 1.5, y1: 0 } },
+                { x: 3, y: 1, curve: { type: "cubic", x1: 2.25, y1: 1.5, x2: 2.75, y2: 0.5 } },
+                { close: true },
+            ],
+            PAGE,
+        );
         expect(path).toBe("M 0 0 L 96 48 Q 144 0 192 96 C 216 144 264 48 288 96 Z");
     });
 
@@ -135,7 +144,8 @@ describe("shape normalization", () => {
             if (geometry.kind !== "path") throw new Error("Expected arrow path");
             const main = geometry.faces![0]!.data;
             const dark = geometry.faces![1]!.data;
-            const endpoints = (data: string) => [...data.matchAll(/A ([\d. -]+)/g)].map(match => match[1]!.trim().split(/\s+/).map(Number).slice(-2) as [number, number]);
+            const endpoints = (data: string) =>
+                [...data.matchAll(/A ([\d. -]+)/g)].map(match => match[1]!.trim().split(/\s+/).map(Number).slice(-2) as [number, number]);
             const [shoulder, back] = endpoints(main) as [[number, number], [number, number]];
             const [fold, top] = endpoints(dark) as [[number, number], [number, number]];
             const thickness = Math.min(width!, height!) / 4;
@@ -203,7 +213,20 @@ describe("shape normalization", () => {
     });
 
     test("normalizes the complete action-button preset family", () => {
-        const names = ["actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument", "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome", "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound"] as const;
+        const names = [
+            "actionButtonBackPrevious",
+            "actionButtonBeginning",
+            "actionButtonBlank",
+            "actionButtonDocument",
+            "actionButtonEnd",
+            "actionButtonForwardNext",
+            "actionButtonHelp",
+            "actionButtonHome",
+            "actionButtonInformation",
+            "actionButtonMovie",
+            "actionButtonReturn",
+            "actionButtonSound",
+        ] as const;
         for (const name of names) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
@@ -216,7 +239,21 @@ describe("shape normalization", () => {
     });
 
     test("normalizes mathematical and common symbol presets", () => {
-        const names = ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"] as const;
+        const names = [
+            "plus",
+            "mathPlus",
+            "mathMinus",
+            "mathEqual",
+            "mathNotEqual",
+            "mathMultiply",
+            "mathDivide",
+            "heart",
+            "lightningBolt",
+            "moon",
+            "sun",
+            "smileyFace",
+            "noSmoking",
+        ] as const;
         for (const name of names) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");

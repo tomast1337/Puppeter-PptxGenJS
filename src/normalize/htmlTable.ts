@@ -82,11 +82,14 @@ function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
         options.valign = style.verticalAlign;
     }
     if (style.paddingLeft) {
-        options.margin = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(value => Math.round(parseFloat(value) || 0)) as FourSideMargin;
+        options.margin = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(value =>
+            Math.round(parseFloat(value) || 0),
+        ) as FourSideMargin;
     }
     const borderSides = ["top", "right", "bottom", "left"] as const;
     options.border = borderSides.map(side => ({
-        type: style.getPropertyValue(`border-${side}-style`) === "dashed" ? "dash" : style.getPropertyValue(`border-${side}-style`) === "none" ? "none" : "solid",
+        type:
+            style.getPropertyValue(`border-${side}-style`) === "dashed" ? "dash" : style.getPropertyValue(`border-${side}-style`) === "none" ? "none" : "solid",
         pt: Math.round(parseFloat(style.getPropertyValue(`border-${side}-width`)) || 0),
         color: colorValue(style.getPropertyValue(`border-${side}-color`)),
     })) as [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps];
@@ -125,7 +128,10 @@ export function normalizeHtmlTable(document: Document, elementId: string, option
     const totalMeasured = measured.reduce((sum, width) => sum + width, 0) || 1;
     const columnWidths = measured.map((width, index) => explicitWidths[index] ?? Number(((usableWidth * width) / totalMeasured).toFixed(2)));
 
-    const sectionRows = (selector: string): PptxGenJS.TableRow[] => Array.from(element.querySelectorAll<HTMLTableRowElement>(selector)).map(row => Array.from(row.cells).map(cell => ({ text: textContent(cell), options: cellOptions(cell) })));
+    const sectionRows = (selector: string): PptxGenJS.TableRow[] =>
+        Array.from(element.querySelectorAll<HTMLTableRowElement>(selector)).map(row =>
+            Array.from(row.cells).map(cell => ({ text: textContent(cell), options: cellOptions(cell) })),
+        );
     const head = sectionRows(":scope > thead > tr");
     const body = sectionRows(":scope > tbody > tr");
     const foot = sectionRows(":scope > tfoot > tr");

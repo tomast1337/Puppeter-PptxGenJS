@@ -146,7 +146,9 @@ function renderPath(path: PresetDefinition["paths"][number], values: Record<stri
             commands.push(`Q ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
         } else if (kind === "C") {
             current = [x(args[4]!), y(args[5]!)];
-            commands.push(`C ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(x(args[2]!) * sx)} ${clean(y(args[3]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
+            commands.push(
+                `C ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(x(args[2]!) * sx)} ${clean(y(args[3]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`,
+            );
         } else commands.push("Z");
     }
     return commands.join(" ");
@@ -167,7 +169,9 @@ export function generatedPresetGeometry(name: PresetName, width: number, height:
         .filter(({ path }) => path.fill !== "none")
         .map(({ path, data }) => ({
             data,
-            ...(["darken", "darkenLess", "lighten", "lightenLess"].includes(path.fill ?? "") ? { fillModifier: path.fill as "darken" | "darkenLess" | "lighten" | "lightenLess" } : {}),
+            ...(["darken", "darkenLess", "lighten", "lightenLess"].includes(path.fill ?? "")
+                ? { fillModifier: path.fill as "darken" | "darkenLess" | "lighten" | "lightenLess" }
+                : {}),
         }));
     const outlineData = rendered
         .filter(({ path }) => path.stroke !== "false")

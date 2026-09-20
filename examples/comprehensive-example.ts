@@ -190,9 +190,24 @@ async function exampleTables() {
                     { text: "Expenses", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any },
                     { text: "Profit", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any },
                 ],
-                [{ text: "October" }, { text: "$125,000", options: { align: "right" } as any }, { text: "$75,000", options: { align: "right" } as any }, { text: "$50,000", options: { align: "right", color: "#00AA00", bold: true } as any }],
-                [{ text: "November" }, { text: "$135,000", options: { align: "right" } as any }, { text: "$80,000", options: { align: "right" } as any }, { text: "$55,000", options: { align: "right", color: "#00AA00", bold: true } as any }],
-                [{ text: "December" }, { text: "$150,000", options: { align: "right" } as any }, { text: "$85,000", options: { align: "right" } as any }, { text: "$65,000", options: { align: "right", color: "#00AA00", bold: true } as any }],
+                [
+                    { text: "October" },
+                    { text: "$125,000", options: { align: "right" } as any },
+                    { text: "$75,000", options: { align: "right" } as any },
+                    { text: "$50,000", options: { align: "right", color: "#00AA00", bold: true } as any },
+                ],
+                [
+                    { text: "November" },
+                    { text: "$135,000", options: { align: "right" } as any },
+                    { text: "$80,000", options: { align: "right" } as any },
+                    { text: "$55,000", options: { align: "right", color: "#00AA00", bold: true } as any },
+                ],
+                [
+                    { text: "December" },
+                    { text: "$150,000", options: { align: "right" } as any },
+                    { text: "$85,000", options: { align: "right" } as any },
+                    { text: "$65,000", options: { align: "right", color: "#00AA00", bold: true } as any },
+                ],
                 [
                     { text: "Total", options: { bold: true, fill: "#D9E2F3" } as any },
                     { text: "$410,000", options: { bold: true, align: "right", fill: "#D9E2F3" } as any },

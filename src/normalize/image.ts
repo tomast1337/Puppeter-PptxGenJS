@@ -2,7 +2,7 @@ import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
-import type { NormalizedImage } from "../model/types";
+import type { NormalizedImage, NormalizedImageSizing } from "../model/types";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels } from "../utils";
 
@@ -68,6 +68,32 @@ export async function resolveDocumentImages(document: Document, cwd = process.cw
     );
 }
 
+function normalizeSizing(
+    sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | undefined,
+    sourceWidth: number,
+    sourceHeight: number,
+    boxWidth: number,
+    boxHeight: number,
+    pageWidth: number,
+    pageHeight: number,
+): NormalizedImageSizing {
+    if (!sizing) return { type: "stretch" };
+    if (sizing.type === "crop") {
+        return {
+            type: "crop",
+            offsetX: convertToPixels(sizing.x ?? 0, pageWidth),
+            offsetY: convertToPixels(sizing.y ?? 0, pageHeight),
+            width: sourceWidth,
+            height: sourceHeight,
+        };
+    }
+    const scale =
+        sizing.type === "contain" ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight) : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
+    const width = sourceWidth * scale;
+    const height = sourceHeight * scale;
+    return { type: sizing.type, x: (boxWidth - width) / 2, y: (boxHeight - height) / 2, width, height };
+}
+
 export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize): NormalizedImage {
     const source = options.data ?? options.path;
     if (!source) throw new Error("addImage() requires either 'data' or 'path'");
@@ -84,30 +110,13 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     const sourceHeight = convertToPixels(options.h || PPTX_DEFAULTS.image.h, pageHeight);
     const boxWidth = sizing ? convertToPixels(sizing.w || options.w || PPTX_DEFAULTS.image.w, pageWidth) : sourceWidth;
     const boxHeight = sizing ? convertToPixels(sizing.h || options.h || PPTX_DEFAULTS.image.h, pageHeight) : sourceHeight;
-    const normalizedSizing = !sizing
-        ? { type: "stretch" as const }
-        : sizing.type === "crop"
-          ? {
-                type: "crop" as const,
-                offsetX: convertToPixels(sizing.x ?? 0, pageWidth),
-                offsetY: convertToPixels(sizing.y ?? 0, pageHeight),
-                width: sourceWidth,
-                height: sourceHeight,
-            }
-          : (() => {
-                const scale = sizing.type === "contain" ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight) : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
-                const width = sourceWidth * scale;
-                const height = sourceHeight * scale;
-                return {
-                    type: sizing.type,
-                    x: (boxWidth - width) / 2,
-                    y: (boxHeight - height) / 2,
-                    width,
-                    height,
-                };
-            })();
+    const normalizedSizing = normalizeSizing(sizing, sourceWidth, sourceHeight, boxWidth, boxHeight, pageWidth, pageHeight);
     const transparency = Math.max(0, Math.min(100, options.transparency ?? PPTX_DEFAULTS.image.transparency));
-    const link = options.hyperlink?.url ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip } : options.hyperlink?.slide ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide } : undefined;
+    const link = options.hyperlink?.url
+        ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip }
+        : options.hyperlink?.slide
+          ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide }
+          : undefined;
     return {
         source,
         sourceKind,

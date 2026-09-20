@@ -114,6 +114,11 @@ export async function writeVisualGallery(artifacts: string, pages: GalleryPage[]
     await mkdir(assets, { recursive: true });
     const generatedName = /^\d+-(?:reference|actual|diff)\.png$/;
     await Promise.all((await readdir(assets)).filter(name => generatedName.test(name)).map(name => unlink(join(assets, name))));
-    await Promise.all(pages.flatMap(page => [copyFile(join(artifacts, page.referenceName), join(assets, page.referenceName)), copyFile(join(artifacts, page.actualName), join(assets, page.actualName))]));
+    await Promise.all(
+        pages.flatMap(page => [
+            copyFile(join(artifacts, page.referenceName), join(assets, page.referenceName)),
+            copyFile(join(artifacts, page.actualName), join(assets, page.actualName)),
+        ]),
+    );
     await writeFile(join(outputDirectory, "README.md"), galleryMarkdown(pages, scores, threshold));
 }

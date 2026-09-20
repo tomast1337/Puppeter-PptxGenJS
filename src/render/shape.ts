@@ -4,7 +4,12 @@ import { applyGeometry, applyTransform } from "./style";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten" | "lightenLess"): string {
-    const transform = (value: number) => (modifier === "lighten" ? Math.floor(value + (255 - value) * 0.6) : modifier === "lightenLess" ? Math.floor(value + (255 - value) * 0.2) : Math.floor(value * (modifier === "darken" ? 0.6 : 0.8)));
+    const transform = (value: number) =>
+        modifier === "lighten"
+            ? Math.floor(value + (255 - value) * 0.6)
+            : modifier === "lightenLess"
+              ? Math.floor(value + (255 - value) * 0.2)
+              : Math.floor(value * (modifier === "darken" ? 0.6 : 0.8));
     const hex = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
     if (hex) {
         const channel = (value: string) => transform(parseInt(value, 16)).toString(16).padStart(2, "0");
@@ -136,8 +141,10 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
     if (style.line?.dashArray) strokeTarget.setAttribute("stroke-dasharray", style.line.dashArray);
     if (style.line?.visible) {
         const base = `shape-${style.objectName.replace(/[^a-z\d]/gi, "-")}`;
-        if (addMarker(document, defs, `${base}-begin`, style.line.beginArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-start", `url(#${base}-begin)`);
-        if (addMarker(document, defs, `${base}-end`, style.line.endArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-end", `url(#${base}-end)`);
+        if (addMarker(document, defs, `${base}-begin`, style.line.beginArrow ?? "none", style.line.color))
+            strokeTarget.setAttribute("marker-start", `url(#${base}-begin)`);
+        if (addMarker(document, defs, `${base}-end`, style.line.endArrow ?? "none", style.line.color))
+            strokeTarget.setAttribute("marker-end", `url(#${base}-end)`);
     }
     svg.append(defs, geometry);
     return svg;

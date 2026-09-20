@@ -62,7 +62,8 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
             y: origin.y + x * xAxis.y + depth * depthAxis.y + normalizedValue * valueAxis.y,
         };
     };
-    const polygon = (className: string, points: Point[], fill: string): string => `<polygon class="${className}" points="${points.map(p).join(" ")}" fill="${fill}"/>`;
+    const polygon = (className: string, points: Point[], fill: string): string =>
+        `<polygon class="${className}" points="${points.map(p).join(" ")}" fill="${fill}"/>`;
     const labels = chart.series[0]?.labels ?? [];
     const categoryCount = Math.max(1, labels.length, ...chart.series.map(series => series.values.length));
     const seriesCount = Math.max(1, chart.series.length);
@@ -72,7 +73,10 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
         const left = project(0, 1, value);
         const right = project(1, 1, value);
         const label = project(0, 0, value);
-        return `<line x1="${n(left.x)}" y1="${n(left.y)}" x2="${n(right.x)}" y2="${n(right.y)}" stroke="#${chart.gridLineColor.replace(/^#/, "")}" stroke-width="${n(pointsToPixels(chart.gridLineWidth))}"/>` + `<text x="${n(label.x - 8)}" y="${n(label.y + 4)}" text-anchor="end">${escapeXml(tickLabel(value))}</text>`;
+        return (
+            `<line x1="${n(left.x)}" y1="${n(left.y)}" x2="${n(right.x)}" y2="${n(right.y)}" stroke="#${chart.gridLineColor.replace(/^#/, "")}" stroke-width="${n(pointsToPixels(chart.gridLineWidth))}"/>` +
+            `<text x="${n(label.x - 8)}" y="${n(label.y + 4)}" text-anchor="end">${escapeXml(tickLabel(value))}</text>`
+        );
     }).join("");
     const backBottomLeft = project(0, 1, minimum);
     const backBottomRight = project(1, 1, minimum);
@@ -80,7 +84,11 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
     const backTopLeft = project(0, 1, maximum);
     const frontBottomLeft = project(0, 0, minimum);
     const frontBottomRight = project(1, 0, minimum);
-    const floor = polygon("bar3d-floor", [frontBottomLeft, frontBottomRight, backBottomRight, backBottomLeft], `#${PPTX_DEFAULTS.chart.bar3DLighting.floorColor}`);
+    const floor = polygon(
+        "bar3d-floor",
+        [frontBottomLeft, frontBottomRight, backBottomRight, backBottomLeft],
+        `#${PPTX_DEFAULTS.chart.bar3DLighting.floorColor}`,
+    );
     const wall = polygon("bar3d-wall", [backBottomLeft, backBottomRight, backTopRight, backTopLeft], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`);
     const frame = `<polyline class="bar3d-frame" points="${[frontBottomLeft, frontBottomRight, backBottomRight, backTopRight, backTopLeft, backBottomLeft, frontBottomLeft].map(p).join(" ")}" fill="none" stroke="#${chart.gridLineColor.replace(/^#/, "")}" stroke-width="${n(pointsToPixels(chart.gridLineWidth))}"/>`;
     const gradients = `<defs>${chart.colors.map((color, index) => `<linearGradient id="bar3d-front-${index}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${shade(color, 0.13)}"/><stop offset="1" stop-color="${shade(color, -0.08)}"/></linearGradient>`).join("")}</defs>`;
@@ -140,7 +148,13 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
             const shapeClass = `bar3d-mark bar3d-${chart.bar3DShape}`;
             if (chart.bar3DShape === "pyramid" || chart.bar3DShape === "pyramidToMax") {
                 const apex = project(cx, (z0 + z1) / 2, high);
-                return `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` + polygon("bar3d-front", [bfl, bfr, apex], frontColor) + polygon("bar3d-side", [bfr, bbr, apex], sideColor) + polygon("bar3d-back", [bbr, bbl, apex], topColor) + `</g>`;
+                return (
+                    `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` +
+                    polygon("bar3d-front", [bfl, bfr, apex], frontColor) +
+                    polygon("bar3d-side", [bfr, bbr, apex], sideColor) +
+                    polygon("bar3d-back", [bbr, bbl, apex], topColor) +
+                    `</g>`
+                );
             }
             if (chart.bar3DShape === "cone" || chart.bar3DShape === "coneToMax") {
                 const bottom = project(cx, (z0 + z1) / 2, low);
@@ -166,7 +180,13 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
                     `</g>`
                 );
             }
-            return `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` + polygon("bar3d-front", [bfl, bfr, tfr, tfl], frontColor) + polygon("bar3d-side", [bfr, bbr, tbr, tfr], sideColor) + polygon("bar3d-top", [tfl, tfr, tbr, tbl], topColor) + `</g>`;
+            return (
+                `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` +
+                polygon("bar3d-front", [bfl, bfr, tfr, tfl], frontColor) +
+                polygon("bar3d-side", [bfr, bbr, tbr, tfr], sideColor) +
+                polygon("bar3d-top", [tfl, tfr, tbr, tbl], topColor) +
+                `</g>`
+            );
         })
         .join("");
 
@@ -189,7 +209,10 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
                   const x = width / 2 + (index - (chart.series.length - 1) / 2) * itemWidth;
                   const y = height - 12;
                   const color = chart.colors[index % chart.colors.length] ?? "#4472C4";
-                  return `<rect x="${n(x - 34)}" y="${n(y - 8)}" width="12" height="8" fill="${color}"/>` + `<text class="bar3d-legend" x="${n(x - 17)}" y="${n(y)}">${escapeXml(series.name)}</text>`;
+                  return (
+                      `<rect x="${n(x - 34)}" y="${n(y - 8)}" width="12" height="8" fill="${color}"/>` +
+                      `<text class="bar3d-legend" x="${n(x - 17)}" y="${n(y)}">${escapeXml(series.name)}</text>`
+                  );
               })
               .join("")
         : "";
