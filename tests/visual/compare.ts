@@ -1,11 +1,12 @@
 import { mkdtemp, readdir, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../../src/PuppeterrGen";
 import { PAGE_SIZES } from "../../src/pageLayouts";
 import { PARITY_REGIONS, populateParityFixture } from "./fixture";
+import { writeVisualGallery } from "./gallery";
 
 const threshold = Number(process.env.VISUAL_DIFF_THRESHOLD ?? "0.12");
 if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
@@ -169,4 +170,11 @@ if (worstScore > threshold) {
 }
 if (regionFailures.length) {
     throw new Error(`Feature crop differences exceed acceptance:\n${regionFailures.join("\n")}`);
+}
+
+if (process.env.VISUAL_GALLERY_DIR) {
+    const galleryDirectory = resolve(process.env.VISUAL_GALLERY_DIR);
+    if (galleryDirectory === resolve(".")) throw new Error("VISUAL_GALLERY_DIR must not be the repository root");
+    await writeVisualGallery(artifacts, pageFiles, pageScores, threshold, galleryDirectory);
+    console.log(`Gallery: ${galleryDirectory}`);
 }

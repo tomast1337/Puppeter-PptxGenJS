@@ -10,7 +10,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:visual": "bun run tests/visual/compare.ts"
+    "test:visual": "bun run tests/visual/compare.ts",
+    "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
