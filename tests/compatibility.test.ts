@@ -21,6 +21,10 @@ const SHAPE_OPTION_KEYS = [
     "flipH", "flipV", "hyperlink", "line", "points", "rectRadius", "rotate", "shadow",
     "lineSize", "lineDash", "lineHead", "lineTail", "shapeName",
 ] as const;
+const TABLE_TO_SLIDES_OPTION_KEYS = [
+    "tableToSlides", "addImage", "addShape", "addTable", "addText",
+    "slideMargin", "addHeaderToEach", "masterSlideName",
+] as const;
 
 describe("compatibility manifest", () => {
     test("tracks every active renderer family", () => {
@@ -82,5 +86,13 @@ describe("compatibility manifest", () => {
         expect(COMPATIBILITY.shape.options.presetGeometry).toBe("implemented");
         expect(COMPATIBILITY.shape.options.customGeometry).toBe("implemented");
         expect(SHAPE_GEOMETRY_COMPATIBILITY.cloud).toBe("implemented");
+    });
+
+    test("tracks the tableToSlides option surface and unsupported master behavior", () => {
+        for (const option of TABLE_TO_SLIDES_OPTION_KEYS) {
+            expect(COMPATIBILITY.table.options[option]).toBeDefined();
+        }
+        expect(COMPATIBILITY.table.options.tableToSlides).toBe("verified");
+        expect(COMPATIBILITY.table.options.masterSlideName).toBe("unsupported");
     });
 });

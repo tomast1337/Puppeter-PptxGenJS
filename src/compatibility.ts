@@ -84,7 +84,9 @@ export const COMPATIBILITY = Object.freeze({
             autoPage: "verified", autoPageCharWeight: "implemented", autoPageLineWeight: "implemented",
             autoPageRepeatHeader: "verified", autoPageHeaderRows: "verified",
             autoPageSlideStartY: "verified", newSlideStartY: "implemented",
-            verbose: "unsupported", tableToSlides: "unsupported",
+            verbose: "unsupported", tableToSlides: "verified",
+            addImage: "implemented", addShape: "verified", addTable: "implemented", addText: "verified",
+            slideMargin: "verified", addHeaderToEach: "implemented", masterSlideName: "unsupported",
         }),
     }),
 } as const);

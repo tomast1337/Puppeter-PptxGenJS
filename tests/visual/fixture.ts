@@ -154,19 +154,23 @@ const PAGINATION_CASES = [
     { page: 49, name: "table-pagination-second", x: 0.5, y: 0.75, w: 9, h: 4.5 },
     { page: 50, name: "table-pagination-third", x: 0.5, y: 0.75, w: 9, h: 1.5 },
 ] as const;
+const HTML_TABLE_CASES = [
+    { page: 51, name: "table-html-first", x: 0.5, y: 0.75, w: 9, h: 4.375 },
+    { page: 52, name: "table-html-second", x: 0.5, y: 0.5, w: 9, h: 4.625 },
+] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 export const PARITY_REGIONS = [
     ...CURVED_CASES, ...CIRCULAR_CASES, ...FLOWCHART_CASES, ...BRACE_BRACKET_CASES,
     ...RIBBON_SCROLL_CASES, ...ACTION_BUTTON_CASES, ...SYMBOL_CASES,
-    ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES, ...TABLE_CASES, ...PAGINATION_CASES,
+    ...GENERATED_PRESET_CASES, ...GENERATED_ASPECT_CASES, ...TABLE_CASES, ...PAGINATION_CASES, ...HTML_TABLE_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page, name,
     // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
     // fewer fully opaque pixels than Chromium. Geometry and divider positions
     // match; compound shapes and dense table grids need narrow rasterization
     // allowances. The table pages remain below 0.09 whole-slide RMSE.
-    threshold: name === "table-inheritance" || name.startsWith("table-pagination-") ? 0.12
+    threshold: name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-") ? 0.12
         : name.startsWith("table-") ? 0.09
             : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
     x: Math.floor(x * 96) - 3, y: Math.floor(y * 96) - 3,
