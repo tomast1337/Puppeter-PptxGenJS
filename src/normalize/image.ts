@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type PptxGenJS from "pptxgenjs";
@@ -23,8 +24,9 @@ function validateDataUri(source: string): string {
     return source;
 }
 
-function dataUri(bytes: ArrayBuffer, mime: string): string {
-    return `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`;
+function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): string {
+    const buffer = bytes instanceof ArrayBuffer ? Buffer.from(bytes) : Buffer.from(bytes);
+    return `data:${mime};base64,${buffer.toString("base64")}`;
 }
 
 export async function resolveImageSource(source: string, cwd = process.cwd()): Promise<string> {
@@ -43,14 +45,12 @@ export async function resolveImageSource(source: string, cwd = process.cwd()): P
     }
 
     const path = source.startsWith("file:") ? fileURLToPath(source) : resolve(cwd, source);
-    const file = Bun.file(path);
-    if (!(await file.exists())) throw new Error(`Image file not found: ${path}`);
-
-    const mime = MIME_TYPES[extname(path).toLowerCase()] ?? (file.type || "application/octet-stream");
+    const mime = MIME_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream";
     if (!mime.startsWith("image/")) throw new Error(`Unsupported image type '${mime}': ${path}`);
     try {
-        return dataUri(await file.arrayBuffer(), mime);
+        return dataUri(await readFile(path), mime);
     } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Image file not found: ${path}`, { cause: error });
         throw new Error(`Unable to read image file: ${path}`, { cause: error });
     }
 }

@@ -26,7 +26,7 @@ try {
                 name: "puppeteer-gen-package-consumer",
                 private: true,
                 type: "module",
-                dependencies: { "puppeter-pptxgenjs": `file:${tarball}` },
+                dependencies: { [packageMetadata.name]: `file:${tarball}` },
             },
             null,
             2,
@@ -47,7 +47,7 @@ import PuppeteerGen, {
     type PuppeteerSlide,
     type PptxSlide,
     type PptxTextPropsOptions,
-} from "puppeter-pptxgenjs";
+} from "${packageMetadata.name}";
 
 const options: PptxTextPropsOptions = {
     x: 1, y: 1, w: 3, h: 1,
@@ -94,6 +94,41 @@ console.log("standalone package consumer passed");
     );
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
     await run([process.execPath, "run", consumerSourcePath], consumerDirectory);
+
+    const nodeConsumerSource = `
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import PuppeteerGen, { PAGE_SIZES } from "${packageMetadata.name}";
+
+if (typeof globalThis.Bun !== "undefined") {
+    throw new Error("Node compatibility test unexpectedly ran under Bun");
+}
+const presentation = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+const slide = presentation.addSlide();
+slide.addText("Node package consumer", { x: 1, y: 1, w: 3, h: 1 });
+const imagePath = join(process.cwd(), "node-consumer.svg");
+await writeFile(imagePath, '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect width="4" height="4" fill="blue"/></svg>');
+slide.addImage({ path: imagePath, x: 5, y: 1, w: 1, h: 1 });
+slide.addChart("bar", [{ name: "Series", labels: ["A", "B"], values: [2, 4] }], {
+    x: 1, y: 2, w: 3, h: 2,
+});
+if (presentation.page.querySelectorAll(".slide-text").length !== 1) {
+    throw new Error("Packed package did not render text under Node.js");
+}
+if (presentation.page.querySelectorAll(".slide-chart svg").length !== 1) {
+    throw new Error("Packed package did not render a chart under Node.js");
+}
+const pdfPath = join(process.cwd(), "node-consumer.pdf");
+await presentation.writeFile({ fileName: pdfPath });
+const pdf = await readFile(pdfPath);
+if (pdf.subarray(0, 4).toString() !== "%PDF") {
+    throw new Error("Packed package did not generate a PDF under Node.js");
+}
+console.log("Node.js package consumer generated a PDF");
+`;
+    const nodeConsumerSourcePath = join(consumerDirectory, "consumer.mjs");
+    await Bun.write(nodeConsumerSourcePath, nodeConsumerSource);
+    await run(["node", nodeConsumerSourcePath], consumerDirectory);
 } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
 }

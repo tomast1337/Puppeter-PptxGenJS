@@ -13,7 +13,7 @@ const bundle = await Bun.build({
     outdir: outputDirectory,
     target: "node",
     format: "esm",
-    packages: "bundle",
+    packages: "external",
     sourcemap: "inline",
 
     minify: true,
@@ -69,6 +69,9 @@ const builtEntrypoint = resolve(outputDirectory, "exports.js");
 const bundledSource = await readFile(builtEntrypoint, "utf8");
 if (/from\s+["']pptxgenjs["']|require\(["']pptxgenjs["']\)/.test(bundledSource)) {
     throw new Error("The runtime bundle must not import pptxgenjs; it is a type-only development oracle");
+}
+if (/\bBun\s*\./.test(bundledSource)) {
+    throw new Error("The runtime bundle must not depend on Bun APIs; published packages support Node.js");
 }
 for (const declarationFile of await declarationFiles(outputDirectory)) {
     const source = await readFile(declarationFile, "utf8");

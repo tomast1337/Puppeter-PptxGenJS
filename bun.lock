@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "puppeter-pptxgenjs",
+      "name": "puppeteer-pptxgenjs",
       "dependencies": {
         "echarts": "6.1.0",
         "jsdom": "^26.1.0",

@@ -1,17 +1,38 @@
 {
-  "name": "puppeter-pptxgenjs",
+  "name": "puppeteer-pptxgenjs",
   "version": "0.1.0",
+  "description": "A PptxGenJS-compatible API for generating PDFs with Puppeteer",
   "main": "./dist/exports.js",
   "module": "./dist/exports.js",
   "types": "./dist/exports.d.ts",
   "type": "module",
-  "private": true,
+  "private": false,
   "files": [
     "dist"
   ],
   "sideEffects": false,
   "engines": {
+    "node": ">=22",
     "bun": ">=1.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomast1337/Puppeter-PptxGenJS.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tomast1337/Puppeter-PptxGenJS/issues"
+  },
+  "homepage": "https://github.com/tomast1337/Puppeter-PptxGenJS#readme",
+  "keywords": [
+    "pdf",
+    "pptxgenjs",
+    "powerpoint",
+    "presentation",
+    "puppeteer"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "exports": {
     ".": {
@@ -30,7 +51,7 @@
     "lint:fix": "biome lint --write .",
     "prepack": "bun run build",
     "test:package": "bun run scripts/test-package.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node --max-old-space-size=2048 --stack-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "test": "bun test",
     "test:visual": "bun run tests/visual/compare.ts",
     "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts"

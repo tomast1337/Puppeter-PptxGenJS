@@ -1,7 +1,8 @@
+import type PptxGenJS from "pptxgenjs";
 import { GENERATED_PRESET_SHAPES } from "../generatedPresetShapes";
 import type { NormalizedShape } from "../model/types";
 
-type PresetName = keyof typeof GENERATED_PRESET_SHAPES;
+type PresetName = PptxGenJS.SHAPE_NAME;
 type PresetDefinition = {
     readonly adjustments: readonly (readonly [string, string])[];
     readonly guides: readonly (readonly [string, string])[];

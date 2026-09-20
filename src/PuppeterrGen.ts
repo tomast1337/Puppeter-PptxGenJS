@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import * as jsdom from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import puppeteer from "puppeteer";
@@ -539,7 +540,7 @@ body {
                 margin: { top: 0, right: 0, bottom: 0, left: 0 },
             });
 
-            await Bun.write(fileName, pdf);
+            await writeFile(fileName, pdf);
             return fileName;
         } finally {
             await browser.close();

@@ -104,6 +104,11 @@ const definitions = Object.fromEntries(
 const output =
     `// Generated from ECMA-376 presetShapeDefinitions.xml by scripts/generate-preset-shapes.ts.\n` +
     `// Keep this data declarative; rendering behavior belongs in normalize/shape.ts.\n` +
-    `export const GENERATED_PRESET_SHAPES = ${JSON.stringify(definitions)} as const;\n`;
+    `type GeneratedPresetDefinition = {\n` +
+    `    readonly adjustments: readonly (readonly [string, string])[];\n` +
+    `    readonly guides: readonly (readonly [string, string])[];\n` +
+    `    readonly paths: readonly { readonly w?: string; readonly h?: string; readonly fill?: string; readonly stroke?: string; readonly commands: readonly (readonly string[])[] }[];\n` +
+    `};\n` +
+    `export const GENERATED_PRESET_SHAPES: Readonly<Record<string, GeneratedPresetDefinition>> = ${JSON.stringify(definitions)};\n`;
 writeFileSync(new URL("../src/generatedPresetShapes.ts", import.meta.url), output);
 console.log(`Generated ${Object.keys(definitions).length} preset definitions.`);
