@@ -1673,11 +1673,13 @@ function symbolGeometry(shapeName: (typeof SYMBOL_SHAPES)[number], width: number
     }
     if (shapeName === "smileyFace") {
         const face = ellipsePath(cx, cy, width / 2, height / 2);
-        const eyeX1 = (width * 6215) / 21600;
-        const eyeX2 = (width * 13135) / 21600;
         const eyeY = (height * 7570) / 21600;
         const eyeRX = (width * 1125) / 21600;
         const eyeRY = (height * 1125) / 21600;
+        // DrawingML's eye X coordinates are the left edges of the ellipses,
+        // not their centers. Including the radius centers the pair at 10800.
+        const eyeX1 = (width * (6215 + 1125)) / 21600;
+        const eyeX2 = (width * (13135 + 1125)) / 21600;
         const eyes = `${ellipsePath(eyeX1, eyeY, eyeRX, eyeRY)} ${ellipsePath(eyeX2, eyeY, eyeRX, eyeRY)}`;
         const y3 = (height * 16515) / 21600;
         const dy2 = (height * 4653) / 100000;

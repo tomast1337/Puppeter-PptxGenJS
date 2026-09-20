@@ -91,6 +91,10 @@ export function renderText(document: Document, element: HTMLElement, text: Norma
         element.style.height = "auto";
         element.style.minHeight = minimumHeight;
         element.style.overflow = "visible";
+    } else if (!text.wrap) {
+        // PptxGenJS emits `wrap="none"`, which allows a single line to paint
+        // outside the text-box bounds while the slide itself remains clipped.
+        element.style.overflow = "visible";
     }
 
     const content = document.createElement("div");

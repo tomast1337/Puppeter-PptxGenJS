@@ -28,6 +28,21 @@ describe("PuppeteerGen DOM rendering", () => {
         expect(run?.style.textDecorationLine).toBe("underline");
     });
 
+    test("keeps each slide object in insertion-order stacking", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText("Earlier overflowing text", { x: 1, y: 1, w: 1, h: 1, wrap: false });
+        slide.addText("Later filled text", { x: 2, y: 1, w: 1, h: 1, fill: { color: "FFFFFF" } });
+
+        const elements = presentation.page.querySelectorAll<HTMLElement>(".slide-element");
+        const earlier = elements.item(0);
+        const later = elements.item(1);
+        expect(elements).toHaveLength(2);
+        expect(presentation.page.defaultView?.getComputedStyle(earlier).zIndex).toBe("0");
+        expect(presentation.page.defaultView?.getComputedStyle(later).zIndex).toBe("0");
+        expect(earlier.nextElementSibling).toBe(later);
+    });
+
     test("renders PptxGenJS fill and line objects on shapes", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

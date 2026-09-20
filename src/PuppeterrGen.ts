@@ -293,6 +293,10 @@ body {
 .slide-element {
     position: absolute;
     box-sizing: border-box;
+    /* PowerPoint paints slide objects in insertion order. Give every object a
+       stacking context so an earlier object's internal text layer cannot paint
+       over a later object's fill. Equal z-index contexts retain DOM order. */
+    z-index: 0;
 }
 
 .slide-text {

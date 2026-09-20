@@ -139,6 +139,16 @@ describe("text DOM rendering", () => {
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
     });
 
+    test("allows unwrapped text to overflow its box like DrawingML wrap none", () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addText("This line is wider than its box", { x: 1, y: 1, w: 1, h: 1, wrap: false });
+
+        const box = presentation.page.querySelector<HTMLElement>(".slide-text");
+        expect(box?.style.whiteSpace).toBe("pre");
+        expect(box?.style.overflowWrap).toBe("normal");
+        expect(box?.style.overflow).toBe("visible");
+    });
+
     test("renders arbitrary preset geometry behind text without duplicating object transforms", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

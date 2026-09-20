@@ -29,10 +29,10 @@ crops remain transient test artifacts.
 | **06 — Bullets and numbering** (`0.0659`) | <img src="assets/06-reference.png" width="260" alt="Page 06 reference"> | <img src="assets/06-actual.png" width="260" alt="Page 06 PuppeteerGen output"> |
 | **07 — Text-box fills, borders, and effects** (`0.0767`) | <img src="assets/07-reference.png" width="260" alt="Page 07 reference"> | <img src="assets/07-actual.png" width="260" alt="Page 07 PuppeteerGen output"> |
 | **08 — Rotation, direction, and RTL** (`0.0588`) | <img src="assets/08-reference.png" width="260" alt="Page 08 reference"> | <img src="assets/08-actual.png" width="260" alt="Page 08 PuppeteerGen output"> |
-| **09 — Wrapping, clipping, and shrink-to-fit** (`0.0964`) | <img src="assets/09-reference.png" width="260" alt="Page 09 reference"> | <img src="assets/09-actual.png" width="260" alt="Page 09 PuppeteerGen output"> |
+| **09 — Wrapping, clipping, and shrink-to-fit** (`0.0963`) | <img src="assets/09-reference.png" width="260" alt="Page 09 reference"> | <img src="assets/09-actual.png" width="260" alt="Page 09 PuppeteerGen output"> |
 | **10 — Image sizing and cropping** (`0.0605`) | <img src="assets/10-reference.png" width="260" alt="Page 10 reference"> | <img src="assets/10-actual.png" width="260" alt="Page 10 PuppeteerGen output"> |
 | **11 — Image transforms and effects** (`0.0743`) | <img src="assets/11-reference.png" width="260" alt="Page 11 reference"> | <img src="assets/11-actual.png" width="260" alt="Page 11 PuppeteerGen output"> |
-| **12 — Core SVG shape geometry** (`0.0654`) | <img src="assets/12-reference.png" width="260" alt="Page 12 reference"> | <img src="assets/12-actual.png" width="260" alt="Page 12 PuppeteerGen output"> |
+| **12 — Core SVG shape geometry** (`0.0659`) | <img src="assets/12-reference.png" width="260" alt="Page 12 reference"> | <img src="assets/12-actual.png" width="260" alt="Page 12 PuppeteerGen output"> |
 | **13 — Polygon and star presets** (`0.0657`) | <img src="assets/13-reference.png" width="260" alt="Page 13 reference"> | <img src="assets/13-actual.png" width="260" alt="Page 13 PuppeteerGen output"> |
 | **14 — Directional and compound arrows** (`0.0771`) | <img src="assets/14-reference.png" width="260" alt="Page 14 reference"> | <img src="assets/14-actual.png" width="260" alt="Page 14 PuppeteerGen output"> |
 | **15 — Arrow callout presets** (`0.0530`) | <img src="assets/15-reference.png" width="260" alt="Page 15 reference"> | <img src="assets/15-actual.png" width="260" alt="Page 15 PuppeteerGen output"> |
@@ -53,9 +53,9 @@ crops remain transient test artifacts.
 | **30 — Action button presets 2** (`0.0414`) | <img src="assets/30-reference.png" width="260" alt="Page 30 reference"> | <img src="assets/30-actual.png" width="260" alt="Page 30 PuppeteerGen output"> |
 | **31 — Action button aspect ratios** (`0.0460`) | <img src="assets/31-reference.png" width="260" alt="Page 31 reference"> | <img src="assets/31-actual.png" width="260" alt="Page 31 PuppeteerGen output"> |
 | **32 — Common symbol presets 1** (`0.0431`) | <img src="assets/32-reference.png" width="260" alt="Page 32 reference"> | <img src="assets/32-actual.png" width="260" alt="Page 32 PuppeteerGen output"> |
-| **33 — Common symbol presets 2** (`0.0447`) | <img src="assets/33-reference.png" width="260" alt="Page 33 reference"> | <img src="assets/33-actual.png" width="260" alt="Page 33 PuppeteerGen output"> |
+| **33 — Common symbol presets 2** (`0.0434`) | <img src="assets/33-reference.png" width="260" alt="Page 33 reference"> | <img src="assets/33-actual.png" width="260" alt="Page 33 PuppeteerGen output"> |
 | **34 — Common symbol aspect ratios 1** (`0.0490`) | <img src="assets/34-reference.png" width="260" alt="Page 34 reference"> | <img src="assets/34-actual.png" width="260" alt="Page 34 PuppeteerGen output"> |
-| **35 — Common symbol aspect ratios 2** (`0.0516`) | <img src="assets/35-reference.png" width="260" alt="Page 35 reference"> | <img src="assets/35-actual.png" width="260" alt="Page 35 PuppeteerGen output"> |
+| **35 — Common symbol aspect ratios 2** (`0.0495`) | <img src="assets/35-reference.png" width="260" alt="Page 35 reference"> | <img src="assets/35-actual.png" width="260" alt="Page 35 PuppeteerGen output"> |
 | **36 — Remaining shape presets 1** (`0.0459`) | <img src="assets/36-reference.png" width="260" alt="Page 36 reference"> | <img src="assets/36-actual.png" width="260" alt="Page 36 PuppeteerGen output"> |
 | **37 — Remaining shape presets 2** (`0.0467`) | <img src="assets/37-reference.png" width="260" alt="Page 37 reference"> | <img src="assets/37-actual.png" width="260" alt="Page 37 PuppeteerGen output"> |
 | **38 — Remaining shape presets 3** (`0.0470`) | <img src="assets/38-reference.png" width="260" alt="Page 38 reference"> | <img src="assets/38-actual.png" width="260" alt="Page 38 PuppeteerGen output"> |

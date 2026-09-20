@@ -31,10 +31,10 @@ function addMarker(document: Document, defs: SVGDefsElement, id: string, type: N
     const marker = document.createElementNS(SVG_NS, "marker");
     marker.id = id;
     marker.setAttribute("viewBox", "0 0 10 10");
-    marker.setAttribute("refX", "5");
+    marker.setAttribute("refX", type === "triangle" ? "9" : "5");
     marker.setAttribute("refY", "5");
-    marker.setAttribute("markerWidth", "4");
-    marker.setAttribute("markerHeight", "4");
+    marker.setAttribute("markerWidth", type === "triangle" ? "3" : "4");
+    marker.setAttribute("markerHeight", type === "triangle" ? "3" : "4");
     marker.setAttribute("orient", "auto-start-reverse");
     marker.setAttribute("markerUnits", "strokeWidth");
     const element = document.createElementNS(SVG_NS, shape.tag);
@@ -107,7 +107,10 @@ function geometryElement(document: Document, shape: NormalizedShape): SVGElement
 export function renderShapeSvg(document: Document, shape: NormalizedShape, style: NormalizedObjectStyle): SVGSVGElement {
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.classList.add("shape-svg");
-    svg.setAttribute("viewBox", `0 0 ${Math.max(shape.width, 0.001)} ${Math.max(shape.height, 0.001)}`);
+    // A near-zero viewBox height gives horizontal lines an extreme vertical
+    // transform. Chromium still paints their non-scaling stroke, but drops
+    // stroke-scaled SVG markers such as oval tails and triangle heads.
+    svg.setAttribute("viewBox", shape.height === 0 ? `0 -0.5 ${Math.max(shape.width, 0.001)} 1` : `0 0 ${Math.max(shape.width, 0.001)} ${shape.height}`);
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", shape.height === 0 ? "1" : "100%");
     svg.setAttribute("preserveAspectRatio", "none");

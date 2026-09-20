@@ -225,6 +225,12 @@ describe("shape normalization", () => {
         const smiley = normalizeShape("smileyFace", {}, 160, 100, PAGE).geometry;
         expect(smiley.kind === "path" && smiley.faces).toHaveLength(2);
         expect(smiley.kind === "path" && smiley.outlineData).toContain("Q ");
+        if (smiley.kind === "path") {
+            const eyeMoves = [...(smiley.faces?.[1]?.data ?? "").matchAll(/M ([\d.]+) /g)].map(match => Number(match[1]));
+            const eyeRadius = (160 * 1125) / 21600;
+            expect(eyeMoves).toHaveLength(2);
+            expect(((eyeMoves[0] ?? 0) + eyeRadius + (eyeMoves[1] ?? 0) + eyeRadius) / 2).toBeCloseTo(80, 6);
+        }
         expect((normalizeShape("mathDivide", {}, 160, 100, PAGE).geometry as { data: string }).data.match(/M /g)).toHaveLength(3);
     });
 
@@ -309,8 +315,12 @@ describe("SVG shape rendering", () => {
         expect(shapes[0]?.querySelector(".shape-geometry")?.getAttribute("stroke-dasharray")).toBe(`${(4 * 2 * 96) / 72} ${(3 * 2 * 96) / 72}`);
         expect(shapes[1]?.querySelector("ellipse")).not.toBeNull();
         expect(shapes[2]?.querySelector("svg")?.getAttribute("height")).toBe("1");
+        expect(shapes[2]?.querySelector("svg")?.getAttribute("viewBox")).toBe(`0 -0.5 ${4 * 96} 1`);
         expect(shapes[2]?.querySelector(".shape-geometry")?.getAttribute("marker-start")).toContain("-begin");
         expect(shapes[2]?.querySelector(".shape-geometry")?.getAttribute("marker-end")).toContain("-end");
+        expect(shapes[2]?.querySelector('marker[id$="-begin"]')?.getAttribute("markerWidth")).toBe("4");
+        expect(shapes[2]?.querySelector('marker[id$="-end"]')?.getAttribute("markerWidth")).toBe("3");
+        expect(shapes[2]?.querySelector('marker[id$="-end"]')?.getAttribute("refX")).toBe("9");
     });
 
     test("renders custom paths and shape hyperlinks", () => {
