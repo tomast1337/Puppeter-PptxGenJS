@@ -16,7 +16,7 @@ rendering changes with:
 bun run test:visual:gallery
 ```
 
-The command publishes only the 53 full-page comparison pairs. Feature-level
+The command publishes only the 55 full-page comparison pairs. Feature-level
 crops remain transient test artifacts.
 
 | Page, feature, and RMSE | Reference | PuppeteerGen |
@@ -74,3 +74,5 @@ crops remain transient test artifacts.
 | **51 — HTML table import: first page** (`0.0896`) | <img src="assets/51-reference.png" width="260" alt="Page 51 reference"> | <img src="assets/51-actual.png" width="260" alt="Page 51 PuppeteerGen output"> |
 | **52 — HTML table import: continuation** (`0.0842`) | <img src="assets/52-reference.png" width="260" alt="Page 52 reference"> | <img src="assets/52-actual.png" width="260" alt="Page 52 PuppeteerGen output"> |
 | **53 — Text in arbitrary preset shapes** (`0.0543`) | <img src="assets/53-reference.png" width="260" alt="Page 53 reference"> | <img src="assets/53-actual.png" width="260" alt="Page 53 PuppeteerGen output"> |
+| **54 — Core chart rendering** (`0.1008`) | <img src="assets/54-reference.png" width="260" alt="Page 54 reference"> | <img src="assets/54-actual.png" width="260" alt="Page 54 PuppeteerGen output"> |
+| **55 — Three-dimensional bar charts** (`0.1186`) | <img src="assets/55-reference.png" width="260" alt="Page 55 reference"> | <img src="assets/55-actual.png" width="260" alt="Page 55 PuppeteerGen output"> |
