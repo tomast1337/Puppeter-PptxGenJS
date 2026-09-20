@@ -58,6 +58,10 @@ describe("compatibility manifest", () => {
         expect(COMPATIBILITY.chart.options.v3DRotX).toBe("implemented");
         expect(COMPATIBILITY.chart.options.valAxes).toBe("implemented");
         expect(COMPATIBILITY.chart.options.valAxisMinVal).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.valAxisLogScaleBase).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.valAxisLineStyle).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.valGridLine).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.valAxisLabelFormatCode).toBe("partial");
         expect(COMPATIBILITY.chart.options.showDataTable).toBe("unsupported");
         expect(CHART_TYPE_COMPATIBILITY.bar).toBe("implemented");
         expect(CHART_TYPE_COMPATIBILITY.bar3D).toBe("implemented");

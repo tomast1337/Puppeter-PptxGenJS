@@ -55,8 +55,14 @@ export const CHART_OPTION_NAMES = Object.freeze([
 ] as const);
 
 const IMPLEMENTED_CHART_OPTIONS = new Set<string>(SUPPORTED_CHART_OPTIONS);
+const PARTIAL_CHART_OPTIONS = new Set<string>([
+    "valAxisLabelFormatCode", // common single-section numeric formats
+    "valAxisMajorTickMark", "valAxisMinorTickMark", // `cross` remains explicit unsupported
+]);
 const CHART_OPTION_COMPATIBILITY = Object.freeze(Object.fromEntries(
-    CHART_OPTION_NAMES.map(name => [name, IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported"]),
+    CHART_OPTION_NAMES.map(name => [name, PARTIAL_CHART_OPTIONS.has(name)
+        ? "partial"
+        : IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported"]),
 )) as Readonly<Record<typeof CHART_OPTION_NAMES[number], CompatibilityStatus>>;
 
 export const CHART_TYPE_COMPATIBILITY = Object.freeze({

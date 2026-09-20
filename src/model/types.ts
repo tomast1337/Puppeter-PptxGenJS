@@ -218,6 +218,30 @@ export interface NormalizedChartValueAxis {
     hidden: boolean;
     showTitle: boolean;
     title: string;
+    titleColor: string;
+    titleFontFace: string;
+    titleFontSize: number;
+    titleRotate?: number;
+    labelColor: string;
+    labelFontFace: string;
+    labelFontSize: number;
+    labelBold: boolean;
+    labelItalic: boolean;
+    labelRotate: number;
+    labelPosition: "none" | "low" | "high" | "nextTo";
+    labelFormatCode: string;
+    lineColor: string;
+    lineWidth: number;
+    lineStyle: "solid" | "dash" | "dot";
+    lineVisible: boolean;
+    majorTickMark: "none" | "inside" | "outside" | "cross";
+    minorTickMark: "none" | "inside" | "outside" | "cross";
+    majorUnit?: number;
+    logScaleBase?: number;
+    gridLineColor: string;
+    gridLineWidth: number;
+    gridLineStyle: "solid" | "dash" | "dot" | "none";
+    gridLineCap: "flat" | "round" | "square";
 }
 
 export interface NormalizedChart {

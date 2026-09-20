@@ -16,7 +16,7 @@ rendering changes with:
 bun run test:visual:gallery
 ```
 
-The command publishes only the 57 full-page comparison pairs. Feature-level
+The command publishes only the 58 full-page comparison pairs. Feature-level
 crops remain transient test artifacts.
 
 | Page, feature, and RMSE | Reference | PuppeteerGen |
@@ -77,4 +77,5 @@ crops remain transient test artifacts.
 | **54 — Core chart rendering** (`0.0979`) | <img src="assets/54-reference.png" width="260" alt="Page 54 reference"> | <img src="assets/54-actual.png" width="260" alt="Page 54 PuppeteerGen output"> |
 | **55 — Three-dimensional bar charts** (`0.1186`) | <img src="assets/55-reference.png" width="260" alt="Page 55 reference"> | <img src="assets/55-actual.png" width="260" alt="Page 55 PuppeteerGen output"> |
 | **56 — Mixed bar and line chart** (`0.1064`) | <img src="assets/56-reference.png" width="260" alt="Page 56 reference"> | <img src="assets/56-actual.png" width="260" alt="Page 56 PuppeteerGen output"> |
-| **57 — Mixed chart with secondary value axis** (`0.1002`) | <img src="assets/57-reference.png" width="260" alt="Page 57 reference"> | <img src="assets/57-actual.png" width="260" alt="Page 57 PuppeteerGen output"> |
+| **57 — Mixed chart with secondary value axis** (`0.1004`) | <img src="assets/57-reference.png" width="260" alt="Page 57 reference"> | <img src="assets/57-actual.png" width="260" alt="Page 57 PuppeteerGen output"> |
+| **58 — Advanced value-axis formatting** (`0.1083`) | <img src="assets/58-reference.png" width="260" alt="Page 58 reference"> | <img src="assets/58-actual.png" width="260" alt="Page 58 PuppeteerGen output"> |

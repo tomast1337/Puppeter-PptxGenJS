@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type PptxGenJS from "pptxgenjs";
 import { UnsupportedChartError } from "../src/chart/errors";
+import { formatChartNumber } from "../src/chart/format";
 import { normalizeChart } from "../src/normalize/chart";
 import { PuppeteerGen } from "../src/PuppeterrGen";
 
@@ -157,7 +158,7 @@ describe("chart normalization and rendering", () => {
         };
         const chart = normalizeChart(mixed, [], options);
         expect(chart.series.map(series => series.valueAxisIndex)).toEqual([0, 1]);
-        expect(chart.valueAxes).toEqual([
+        expect(chart.valueAxes).toMatchObject([
             { minimum: 0, maximum: 8, hidden: false, showTitle: true, title: "Units" },
             { minimum: 0, maximum: 500, hidden: false, showTitle: true, title: "Revenue" },
         ]);
@@ -169,6 +170,69 @@ describe("chart normalization and rendering", () => {
         expect(svg?.textContent).toContain("Units");
         expect(svg?.textContent).toContain("Revenue");
         expect(svg?.textContent).toContain("500");
+    });
+
+    test("normalizes advanced value-axis formatting and renders formatted ticks", () => {
+        const options: PptxGenJS.IChartOpts = {
+            valAxisMinVal: 0,
+            valAxisMaxVal: 8,
+            valAxisMajorUnit: 2,
+            valAxisLabelColor: "C00000",
+            valAxisLabelFontBold: true,
+            valAxisLabelFontFace: "Arial",
+            valAxisLabelFontItalic: true,
+            valAxisLabelFontSize: 14,
+            valAxisLabelFormatCode: "$0.0",
+            valAxisLabelPos: "high",
+            valAxisLabelRotate: 15,
+            valAxisLineColor: "00AA00",
+            valAxisLineShow: true,
+            valAxisLineSize: 2,
+            valAxisLineStyle: "dash",
+            valAxisMajorTickMark: "inside",
+            valAxisMinorTickMark: "outside",
+            valAxisOrientation: "minMax",
+            showValAxisTitle: true,
+            valAxisTitle: "Revenue",
+            valAxisTitleColor: "0000FF",
+            valAxisTitleFontFace: "Georgia",
+            valAxisTitleFontSize: 16,
+            valAxisTitleRotate: 90,
+            valGridLine: { color: "FF00FF", size: 1.5, style: "dot", cap: "round" },
+        };
+        const axis = normalizeChart("bar", categoricalData, options).valueAxes[0]!;
+        expect(axis).toMatchObject({
+            minimum: 0, maximum: 8, majorUnit: 2,
+            labelColor: "#C00000", labelBold: true, labelItalic: true,
+            labelFontFace: "Arial", labelFontSize: 14, labelFormatCode: "$0.0",
+            labelPosition: "high", labelRotate: 15,
+            lineColor: "#00AA00", lineWidth: 2, lineStyle: "dash", lineVisible: true,
+            majorTickMark: "inside", minorTickMark: "outside",
+            title: "Revenue", titleColor: "#0000FF", titleFontFace: "Georgia",
+            titleFontSize: 16, titleRotate: 90,
+            gridLineColor: "#FF00FF", gridLineWidth: 1.5, gridLineStyle: "dot", gridLineCap: "round",
+        });
+
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addChart("bar", categoricalData, { ...options, x: 1, y: 1, w: 6, h: 3 });
+        const svg = presentation.page.querySelector(".slide-chart svg");
+        expect(svg?.textContent).toContain("Revenue");
+        expect(svg?.textContent).toContain("$8.0");
+        expect(formatChartNumber(1234.5, "$#,##0.00")).toBe("$1,234.50");
+        expect(formatChartNumber(0.25, "0%")).toBe("25%");
+    });
+
+    test("validates logarithmic axes and explicitly rejects unsupported format and cross ticks", () => {
+        const logarithmic = normalizeChart("line", [{ name: "Growth", labels: ["A", "B"], values: [1, 100] }], {
+            valAxisMinVal: 1,
+            valAxisMaxVal: 100,
+            valAxisLogScaleBase: 10,
+        });
+        expect(logarithmic.valueAxes[0]?.logScaleBase).toBe(10);
+        expect(() => normalizeChart("line", categoricalData, { valAxisLogScaleBase: 10 })).toThrow("positive minimum");
+        expect(() => normalizeChart("line", categoricalData, { valAxisLogScaleBase: 1 })).toThrow("between 2 and 99");
+        expect(() => normalizeChart("line", categoricalData, { valAxisLabelFormatCode: "0;[Red]-0" })).toThrow(UnsupportedChartError);
+        expect(() => normalizeChart("line", categoricalData, { valAxisMajorTickMark: "cross" })).toThrow(UnsupportedChartError);
     });
 
     test("rejects incompatible mixed families and unimplemented per-series axes", () => {

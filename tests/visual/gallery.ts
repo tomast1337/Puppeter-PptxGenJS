@@ -65,6 +65,7 @@ const PAGE_TITLES = [
     "Three-dimensional bar charts",
     "Mixed bar and line chart",
     "Mixed chart with secondary value axis",
+    "Advanced value-axis formatting",
 ] as const;
 
 function image(page: string, kind: "reference" | "actual", description: string): string {

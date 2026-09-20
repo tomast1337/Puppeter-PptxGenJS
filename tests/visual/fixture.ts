@@ -997,4 +997,35 @@ export function populateParityFixture(presentation: Presentation): void {
             { valAxisMinVal: 0, valAxisMaxVal: 500, showValAxisTitle: true, valAxisTitle: "Revenue" },
         ],
     });
+
+    const formattedAxisSlide = presentation.addSlide();
+    formattedAxisSlide.addText("Advanced value-axis formatting", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    formattedAxisSlide.addChart("bar", chartData, {
+        x: 0.7, y: 1.1, w: 4.2, h: 3.3,
+        fontFace: "Arial", fontSize: 10,
+        chartColors: ["4472C4", "ED7D31"],
+        showLegend: true, legendPos: "b",
+        valAxisMinVal: 0, valAxisMaxVal: 8, valAxisMajorUnit: 2,
+        valAxisLabelFormatCode: "0.0", valAxisLabelColor: "C00000",
+        valAxisLabelFontBold: true, valAxisLabelRotate: 15,
+        valAxisLineColor: "548235", valAxisLineSize: 1.5, valAxisLineStyle: "dash",
+        valAxisMajorTickMark: "inside", valAxisMinorTickMark: "outside",
+        showValAxisTitle: true, valAxisTitle: "Units",
+        valAxisTitleColor: "17365D", valAxisTitleFontFace: "Arial", valAxisTitleFontSize: 12,
+        valGridLine: { color: "A5A5A5", size: 1, style: "dot" },
+    });
+    formattedAxisSlide.addChart("line", [{
+        name: "Growth", labels: ["Q1", "Q2", "Q3", "Q4"], values: [1, 10, 100, 1000],
+    }], {
+        x: 5.1, y: 1.1, w: 4.2, h: 3.3,
+        fontFace: "Arial", fontSize: 10,
+        chartColors: ["70AD47"], showLegend: true, legendPos: "b",
+        lineDataSymbol: "circle", lineDataSymbolSize: 6,
+        valAxisMinVal: 1, valAxisMaxVal: 1000, valAxisLogScaleBase: 10,
+        valAxisLabelFormatCode: "#,##0", valAxisMajorTickMark: "outside",
+        showValAxisTitle: true, valAxisTitle: "Log scale",
+    });
 }

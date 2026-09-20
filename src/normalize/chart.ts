@@ -1,5 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { UnsupportedChartError } from "../chart/errors";
+import { isSupportedChartNumberFormat } from "../chart/format";
 import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedChart, NormalizedChartSeries, NormalizedChartType } from "../model/types";
 import { normalizeColor } from "./style";
@@ -19,6 +20,12 @@ export const SUPPORTED_CHART_OPTIONS = Object.freeze([
     "bar3DShape", "barDir", "barGrouping", "barGapDepthPct", "barGapWidthPct",
     "v3DPerspective", "v3DRAngAx", "v3DRotX", "v3DRotY",
     "showValAxisTitle", "valAxes", "valAxisHidden", "valAxisMaxVal", "valAxisMinVal", "valAxisTitle",
+    "valAxisLabelColor", "valAxisLabelFontBold", "valAxisLabelFontFace", "valAxisLabelFontItalic",
+    "valAxisLabelFontSize", "valAxisLabelFormatCode", "valAxisLabelPos", "valAxisLabelRotate",
+    "valAxisLineColor", "valAxisLineShow", "valAxisLineSize", "valAxisLineStyle",
+    "valAxisLogScaleBase", "valAxisMajorTickMark", "valAxisMajorUnit", "valAxisMinorTickMark",
+    "valAxisOrientation", "valAxisTitleColor", "valAxisTitleFontFace", "valAxisTitleFontSize",
+    "valAxisTitleRotate", "valGridLine",
     "holeSize", "firstSliceAng", "radarStyle",
     "lineSmooth", "lineDataSymbol", "lineDataSymbolSize", "lineSize",
 ] as const);
@@ -27,7 +34,14 @@ const SUPPORTED_CHART_OPTION_SET = new Set<string>(SUPPORTED_CHART_OPTIONS);
 const SUPPORTED_MIXED_SERIES_OPTIONS = new Set(["secondaryValAxis"]);
 const SUPPORTED_VALUE_AXIS_OPTIONS = new Set([
     "showValAxisTitle", "valAxisHidden", "valAxisMaxVal", "valAxisMinVal", "valAxisTitle",
+    "valAxisLabelColor", "valAxisLabelFontBold", "valAxisLabelFontFace", "valAxisLabelFontItalic",
+    "valAxisLabelFontSize", "valAxisLabelFormatCode", "valAxisLabelPos", "valAxisLabelRotate",
+    "valAxisLineColor", "valAxisLineShow", "valAxisLineSize", "valAxisLineStyle",
+    "valAxisLogScaleBase", "valAxisMajorTickMark", "valAxisMajorUnit", "valAxisMinorTickMark",
+    "valAxisOrientation", "valAxisTitleColor", "valAxisTitleFontFace", "valAxisTitleFontSize",
+    "valAxisTitleRotate", "valGridLine",
 ]);
+const SUPPORTED_GRID_LINE_OPTIONS = new Set(["cap", "color", "size", "style"]);
 
 function normalizeSeries(type: NormalizedChartType, data: readonly PptxGenJS.OptsChartData[]): NormalizedChartSeries[] {
     if (data.length === 0) throw new TypeError("Chart data must contain at least one series");
@@ -150,11 +164,17 @@ export function normalizeChart(
         .filter(key => axis[key as keyof PptxGenJS.IChartPropsAxisVal] !== undefined)
         .filter(key => !SUPPORTED_VALUE_AXIS_OPTIONS.has(key))
         .map(key => `valAxes[${index}].${key}`));
-    if (unsupportedValueAxisOptions.length) {
+    const unsupportedGridLineOptions = valueAxisOptions.flatMap((axis, index) => Object.keys(axis.valGridLine ?? {})
+        .filter(key => !SUPPORTED_GRID_LINE_OPTIONS.has(key))
+        .map(key => `valAxes[${index}].valGridLine.${key}`));
+    const unsupportedPrimaryGridLineOptions = Object.keys(options.valGridLine ?? {})
+        .filter(key => !SUPPORTED_GRID_LINE_OPTIONS.has(key))
+        .map(key => `valGridLine.${key}`);
+    if (unsupportedValueAxisOptions.length || unsupportedGridLineOptions.length || unsupportedPrimaryGridLineOptions.length) {
         throw new UnsupportedChartError({
             reason: "chart-option",
             chartTypes,
-            unsupportedOptions: unsupportedValueAxisOptions.sort(),
+            unsupportedOptions: [...unsupportedValueAxisOptions, ...unsupportedGridLineOptions, ...unsupportedPrimaryGridLineOptions].sort(),
         });
     }
 
@@ -224,23 +244,89 @@ export function normalizeChart(
     const normalizeValueAxis = (
         axisOptions: PptxGenJS.IChartPropsAxisVal | undefined,
         automatic: [number, number],
+        path: string,
     ): NormalizedChart["valueAxes"][number] => {
+        const defaults = PPTX_DEFAULTS.chart.valueAxis;
         const minimum = axisOptions?.valAxisMinVal ?? automatic[0];
         const maximum = axisOptions?.valAxisMaxVal ?? automatic[1];
         if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum >= maximum) {
             throw new TypeError("Chart value-axis minimum must be less than its maximum");
         }
+        const positive = (value: number | undefined, name: string, fallback: number): number => {
+            const normalized = value ?? fallback;
+            if (!Number.isFinite(normalized) || normalized <= 0) throw new TypeError(`${name} must be a positive finite number`);
+            return normalized;
+        };
+        const finite = (value: number | undefined, name: string, fallback: number): number => {
+            const normalized = value ?? fallback;
+            if (!Number.isFinite(normalized)) throw new TypeError(`${name} must be a finite number`);
+            return normalized;
+        };
+        const logScaleBase = axisOptions?.valAxisLogScaleBase;
+        if (logScaleBase !== undefined && (!Number.isFinite(logScaleBase) || logScaleBase < 2 || logScaleBase > 99)) {
+            throw new RangeError("valAxisLogScaleBase must be between 2 and 99");
+        }
+        if (logScaleBase !== undefined && minimum <= 0) {
+            throw new TypeError("A logarithmic value axis requires a positive minimum");
+        }
+        const majorUnit = axisOptions?.valAxisMajorUnit;
+        if (majorUnit !== undefined && (!Number.isFinite(majorUnit) || majorUnit <= 0)) {
+            throw new TypeError("valAxisMajorUnit must be a positive finite number");
+        }
+        if (axisOptions?.valAxisMajorTickMark === "cross" || axisOptions?.valAxisMinorTickMark === "cross") {
+            const option = axisOptions.valAxisMajorTickMark === "cross" ? "valAxisMajorTickMark" : "valAxisMinorTickMark";
+            throw new UnsupportedChartError({
+                reason: "chart-option",
+                chartTypes,
+                unsupportedOptions: [`${path}${option}[cross]`],
+            });
+        }
+        const labelFormatCode = axisOptions?.valAxisLabelFormatCode ?? defaults.labelFormatCode;
+        if (!isSupportedChartNumberFormat(labelFormatCode)) {
+            throw new UnsupportedChartError({
+                reason: "chart-option",
+                chartTypes,
+                unsupportedOptions: ["valAxisLabelFormatCode[format]"],
+            });
+        }
+        const gridLine = axisOptions?.valGridLine;
         return {
             minimum,
             maximum,
-            hidden: axisOptions?.valAxisHidden ?? false,
+            hidden: axisOptions?.valAxisHidden ?? defaults.hidden,
             showTitle: axisOptions?.showValAxisTitle ?? false,
-            title: axisOptions?.valAxisTitle ?? "Value Axis",
+            title: axisOptions?.valAxisTitle ?? defaults.title,
+            titleColor: normalizeColor(axisOptions?.valAxisTitleColor ?? defaults.titleColor),
+            titleFontFace: axisOptions?.valAxisTitleFontFace ?? options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
+            titleFontSize: positive(axisOptions?.valAxisTitleFontSize, "valAxisTitleFontSize", defaults.titleFontSizePt),
+            titleRotate: axisOptions?.valAxisTitleRotate === undefined
+                ? defaults.titleRotate
+                : finite(axisOptions.valAxisTitleRotate, "valAxisTitleRotate", 0),
+            labelColor: normalizeColor(axisOptions?.valAxisLabelColor ?? defaults.labelColor),
+            labelFontFace: axisOptions?.valAxisLabelFontFace ?? options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
+            labelFontSize: positive(axisOptions?.valAxisLabelFontSize, "valAxisLabelFontSize", options.fontSize ?? defaults.labelFontSizePt),
+            labelBold: axisOptions?.valAxisLabelFontBold ?? defaults.labelBold,
+            labelItalic: axisOptions?.valAxisLabelFontItalic ?? defaults.labelItalic,
+            labelRotate: finite(axisOptions?.valAxisLabelRotate, "valAxisLabelRotate", defaults.labelRotate),
+            labelPosition: axisOptions?.valAxisLabelPos ?? defaults.labelPosition,
+            labelFormatCode,
+            lineColor: normalizeColor(axisOptions?.valAxisLineColor ?? defaults.lineColor),
+            lineWidth: positive(axisOptions?.valAxisLineSize, "valAxisLineSize", defaults.lineWidthPt),
+            lineStyle: axisOptions?.valAxisLineStyle ?? defaults.lineStyle,
+            lineVisible: axisOptions?.valAxisLineShow ?? defaults.lineVisible,
+            majorTickMark: axisOptions?.valAxisMajorTickMark ?? defaults.majorTickMark,
+            minorTickMark: axisOptions?.valAxisMinorTickMark ?? defaults.minorTickMark,
+            majorUnit,
+            logScaleBase,
+            gridLineColor: normalizeColor(gridLine?.color ?? PPTX_DEFAULTS.chart.gridLine.color),
+            gridLineWidth: positive(gridLine?.size, "valGridLine.size", PPTX_DEFAULTS.chart.gridLine.widthPt),
+            gridLineStyle: gridLine?.style ?? PPTX_DEFAULTS.chart.gridLine.style,
+            gridLineCap: gridLine?.cap ?? PPTX_DEFAULTS.chart.gridLine.cap,
         };
     };
-    const primaryAxis = normalizeValueAxis(valueAxisOptions[0] ?? options, automaticPrimary);
+    const primaryAxis = normalizeValueAxis(valueAxisOptions[0] ?? options, automaticPrimary, valueAxisOptions[0] ? "valAxes[0]." : "");
     const valueAxes = [primaryAxis];
-    if (automaticSecondary) valueAxes.push(normalizeValueAxis(valueAxisOptions[1], automaticSecondary));
+    if (automaticSecondary) valueAxes.push(normalizeValueAxis(valueAxisOptions[1], automaticSecondary, "valAxes[1]."));
 
     return {
         type: normalizedType,

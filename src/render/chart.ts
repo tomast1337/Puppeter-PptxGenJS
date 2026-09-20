@@ -2,6 +2,7 @@ import { BarChart, LineChart, PieChart, RadarChart, ScatterChart } from "echarts
 import { GridComponent, LegendComponent, RadarComponent, TitleComponent } from "echarts/components";
 import { init, use, type EChartsCoreOption } from "echarts/core";
 import { SVGRenderer } from "echarts/renderers";
+import { formatChartNumber } from "../chart/format";
 import type { ChartExtensionInput } from "../chart/types";
 import type { NormalizedChart, NormalizedObjectStyle } from "../model/types";
 import { pointsToPixels } from "../utils";
@@ -35,6 +36,25 @@ function lineSymbol(symbol: NormalizedChart["lineSymbol"]): string {
     if (symbol === "none") return "none";
     if (symbol === "dot" || symbol === "dash") return "circle";
     return symbol;
+}
+
+function lineType(style: "solid" | "dash" | "dot"): "solid" | "dashed" | "dotted" {
+    if (style === "dash") return "dashed";
+    if (style === "dot") return "dotted";
+    return "solid";
+}
+
+function lineCap(cap: "flat" | "round" | "square"): "butt" | "round" | "square" {
+    return cap === "flat" ? "butt" : cap;
+}
+
+function tickOption(mark: NormalizedChart["valueAxes"][number]["majorTickMark"], color: string, width: number) {
+    return {
+        show: mark !== "none",
+        inside: mark === "inside",
+        length: mark === "cross" ? 10 : 5,
+        lineStyle: { color, width: pointsToPixels(width) },
+    };
 }
 
 function percentValues(chart: NormalizedChart, seriesIndex: number): number[] {
@@ -96,6 +116,15 @@ function scatterSeries(chart: NormalizedChart): Record<string, unknown>[] {
     }));
 }
 
+function valueAxisGutter(chart: NormalizedChart): number | string {
+    if (chart.valueAxes.length > 1) return "12%";
+    const axis = chart.valueAxes[0];
+    if (!axis?.showTitle) return "6%";
+    const labels = [axis.minimum, axis.maximum].map(value => formatChartNumber(value, axis.labelFormatCode));
+    const labelWidth = Math.max(...labels.map(label => label.length), 1) * pointsToPixels(axis.labelFontSize) * 0.6;
+    return Math.ceil(Math.max(80, labelWidth + pointsToPixels(axis.titleFontSize) + 30));
+}
+
 function chartOption(chart: NormalizedChart): EChartsCoreOption {
     const title = chart.showTitle ? {
         show: true,
@@ -142,7 +171,7 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
         },
     };
     const grid = {
-        left: chart.valueAxes.length > 1 ? "12%" : chart.valueAxes[0]?.showTitle ? "10%" : "6%",
+        left: valueAxisGutter(chart),
         right: chart.valueAxes.length > 1 ? "14%" : "2%",
         top: chart.showTitle ? "14%" : "4%",
         bottom: chart.showLegend && chart.legendPosition === "b"
@@ -201,24 +230,58 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
     const categories = chart.series[0]?.labels ?? [];
     const categoryAxis = { type: "category", data: categories, ...axisStyle } as const;
     const valueAxes = chart.valueAxes.map((axis, index) => ({
-        type: "value" as const,
+        type: axis.logScaleBase === undefined ? "value" as const : "log" as const,
+        logBase: axis.logScaleBase,
         min: chart.grouping === "percentStacked" ? 0 : axis.minimum,
         max: chart.grouping === "percentStacked" ? 100 : axis.maximum,
+        interval: axis.logScaleBase === undefined ? axis.majorUnit : undefined,
         position: index === 1 ? "right" as const : "left" as const,
         show: !axis.hidden,
         name: axis.showTitle ? axis.title : undefined,
         nameLocation: "middle" as const,
         nameGap: 40,
+        nameRotate: axis.titleRotate,
         nameTextStyle: {
-            color: "#000000",
-            fontFamily: chart.fontFace,
-            fontSize: pointsToPixels(chart.fontSize),
+            color: axis.titleColor,
+            fontFamily: axis.titleFontFace,
+            fontSize: pointsToPixels(axis.titleFontSize),
         },
         splitNumber: Math.min(10, Math.max(1, Number.isInteger(axis.maximum - axis.minimum)
             ? axis.maximum - axis.minimum
             : 5)),
-        ...axisStyle,
-        splitLine: index === 0 ? axisStyle.splitLine : { show: false },
+        axisLabel: {
+            show: axis.labelPosition !== "none",
+            inside: axis.labelPosition === "high",
+            rotate: axis.labelRotate,
+            color: axis.labelColor,
+            fontFamily: axis.labelFontFace,
+            fontSize: pointsToPixels(axis.labelFontSize),
+            fontWeight: axis.labelBold ? "bold" : "normal",
+            fontStyle: axis.labelItalic ? "italic" : "normal",
+            formatter: (value: number) => formatChartNumber(value, axis.labelFormatCode),
+        },
+        axisLine: {
+            show: axis.lineVisible,
+            lineStyle: {
+                color: axis.lineColor,
+                width: pointsToPixels(axis.lineWidth),
+                type: lineType(axis.lineStyle),
+            },
+        },
+        axisTick: tickOption(axis.majorTickMark, axis.lineColor, axis.lineWidth),
+        minorTick: {
+            ...tickOption(axis.minorTickMark, axis.lineColor, axis.lineWidth),
+            splitNumber: 5,
+        },
+        splitLine: index === 0 ? {
+            show: axis.gridLineStyle !== "none",
+            lineStyle: {
+                color: axis.gridLineColor,
+                width: pointsToPixels(axis.gridLineWidth),
+                type: axis.gridLineStyle === "none" ? "solid" : lineType(axis.gridLineStyle),
+                cap: lineCap(axis.gridLineCap),
+            },
+        } : { show: false },
     }));
     const valueAxis = valueAxes[0]!;
     return {
