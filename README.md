@@ -1,10 +1,25 @@
-# PuppeteerGen - PptxGenJS Interface for PDF Generation
+# PuppeteerGen — PptxGenJS-compatible PDF generation
 
-A TypeScript library that implements the PptxGenJS interface to generate PDFs using Puppeteer. Create presentations and documents with the familiar PptxGenJS API, but output to PDF instead of PowerPoint.
+PuppeteerGen generates HTML and PDF documents through Puppeteer while exposing
+an API compatible with PptxGenJS.
+
+## Motivation
+
+PuppeteerGen is intended for systems that already generate presentations with
+PptxGenJS but need to migrate their output to HTML and PDF. Existing layout
+code can keep familiar methods such as `addText`, `addImage`, `addShape`,
+`addTable`, and `addChart` instead of being rewritten around a new document API.
+
+Compatibility does not mean pixel identity. PowerPoint, LibreOffice, and
+Chromium use different layout and rendering pipelines. Font availability,
+font metrics, and anti-aliasing can therefore produce small visual differences.
+Charts use ECharts and custom SVG rendering rather than the Microsoft Office
+chart renderer, so their data and functionality are preserved while their
+appearance can differ more noticeably.
 
 ## Features
 
-- **PptxGenJS-compatible API** - Drop-in replacement for PDF output
+- **PptxGenJS-compatible API** - Reuse existing presentation-generation code for HTML and PDF output
 - **Multiple page sizes** - 16:9, 4:3, 16:10, Letter, A4, A3, Legal, Tabloid
 - **Landscape and Portrait** - All page sizes available in both orientations
 - **Inch-based positioning** - Precise element placement using inches
@@ -12,7 +27,7 @@ A TypeScript library that implements the PptxGenJS interface to generate PDFs us
 - **Tables** - Full table support with cell styling
 - **Multiple slides** - Create multi-page PDFs
 - **Custom layouts** - Define your own page dimensions
-- **Print-optimized CSS** - Automatic CSS generation for perfect PDF output
+- **Print-optimized CSS** - Automatic CSS generation for consistent PDF output
 
 ## Installation
 
@@ -255,24 +270,21 @@ The library automatically generates CSS that:
 
 ## Compatibility
 
-- Compatible with PptxGenJS interface
-- Works with Bun runtime
+- Targets the PptxGenJS 4.0.1 API and observed runtime behavior
+- Works with Node.js 22+ and Bun
 - Requires Puppeteer for PDF generation
 - Uses jsdom for HTML document manipulation
+- Tracks implemented, partial, unsupported, and visually verified behavior in
+  the compatibility manifest
 
 ## Limitations
 
-Currently implemented:
-- Text with full styling (WIP support)
-- Tables with cell styling (WIP support)
-- Images (basic support)
-- Shapes (basic support)
-- Multiple slides (WIP support)
-- Custom layouts (WIP support)
-
-Not yet implemented:
-- Charts
-
-Not Planned:
-- Media (audio/video)
-- Notes
+- Output is designed to be visually close to PptxGenJS and PowerPoint, not
+  pixel-identical. Browser anti-aliasing and font metrics can cause small
+  differences.
+- Charts use ECharts and custom SVG rendering, so they do not reproduce the
+  exact appearance of Microsoft Office charts.
+- Matching fonts must be installed in the rendering environment for consistent
+  text layout.
+- Some PptxGenJS options remain partial or explicitly unsupported. Media,
+  notes, and slide masters are not currently implemented.
