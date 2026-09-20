@@ -36,6 +36,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "echarts": "6.1.0",
     "jsdom": "^26.1.0",
     "puppeteer": "^24.15.0"
   }
