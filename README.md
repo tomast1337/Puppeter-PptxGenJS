@@ -28,7 +28,16 @@ bun run build
 
 The build writes the bundled ESM entrypoint, source map, and declaration files
 to `dist/`. Runtime dependencies remain external so Puppeteer can locate its
-installed browser correctly. Package tarballs run this build automatically.
+installed browser correctly. The pinned PptxGenJS package is used only while
+developing to audit its API types; the build vendors its declaration file and
+license, so consumers neither install nor execute PptxGenJS. Package tarballs
+run this build automatically.
+
+Verify the packed artifact in a clean temporary consumer project with:
+
+```bash
+bun run test:package
+```
 
 ## Quick Start
 

@@ -23,6 +23,7 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "prepack": "bun run build",
+    "test:package": "bun run scripts/test-package.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:visual": "bun run tests/visual/compare.ts",
@@ -31,11 +32,11 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/jsdom": "^21.1.7",
+    "pptxgenjs": "4.0.1",
     "typescript": "^5"
   },
   "dependencies": {
     "jsdom": "^26.1.0",
-    "pptxgenjs": "4.0.1",
     "puppeteer": "^24.15.0"
   }
 }
