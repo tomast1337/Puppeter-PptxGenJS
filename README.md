@@ -20,11 +20,20 @@ A TypeScript library that implements the PptxGenJS interface to generate PDFs us
 bun install
 ```
 
+Build the consumable package entrypoint and TypeScript declarations:
+
+```bash
+bun run build
+```
+
+The build writes the bundled ESM entrypoint, source map, and declaration files
+to `dist/`. Runtime dependencies remain external so Puppeteer can locate its
+installed browser correctly. Package tarballs run this build automatically.
+
 ## Quick Start
 
 ```typescript
-import { PuppeteerGen } from "./src/PuppeterrGen";
-import { PAGE_SIZES } from "./src/pageLayouts";
+import PuppeteerGen, { PAGE_SIZES } from "puppeter-pptxgenjs";
 
 // Create a presentation with 16:9 layout
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);

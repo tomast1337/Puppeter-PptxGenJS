@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "puppeter-pptxgenjs",
@@ -11,8 +12,6 @@
       "devDependencies": {
         "@types/bun": "latest",
         "@types/jsdom": "^21.1.7",
-      },
-      "peerDependencies": {
         "typescript": "^5",
       },
     },

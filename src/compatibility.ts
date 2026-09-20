@@ -1,4 +1,3 @@
-import PptxGenJS from "pptxgenjs";
 import { CORE_SVG_SHAPES } from "./normalize/shape";
 
 export type CompatibilityStatus = "unsupported" | "partial" | "implemented" | "verified";
@@ -8,11 +7,8 @@ export interface CompatibilityEntry {
     readonly options: Readonly<Record<string, CompatibilityStatus>>;
 }
 
-const coreShapeSet = new Set<string>(CORE_SVG_SHAPES);
-const pptxShapeNames = Object.values(new PptxGenJS().ShapeType) as string[];
-
 export const SHAPE_GEOMETRY_COMPATIBILITY = Object.freeze(Object.fromEntries(
-    pptxShapeNames.map(name => [name, coreShapeSet.has(name) ? "implemented" : "unsupported"]),
+    CORE_SVG_SHAPES.map(name => [name, "implemented"]),
 )) as Readonly<Record<string, "implemented" | "unsupported">>;
 
 export const COMPATIBILITY = Object.freeze({

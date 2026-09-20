@@ -1,4 +1,4 @@
-import PptxGenJS from "pptxgenjs";
+import type PptxGenJS from "pptxgenjs";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import * as jsdom from "jsdom";
 import puppeteer from "puppeteer";

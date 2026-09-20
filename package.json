@@ -1,13 +1,28 @@
 {
   "name": "puppeter-pptxgenjs",
-  "module": "./src/exports.ts",
-  "types": "./src/exports.ts",
+  "version": "0.1.0",
+  "main": "./dist/exports.js",
+  "module": "./dist/exports.js",
+  "types": "./dist/exports.d.ts",
   "type": "module",
   "private": true,
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "bun": ">=1.2.0"
+  },
   "exports": {
-    ".": "./src/exports.ts"
+    ".": {
+      "types": "./dist/exports.d.ts",
+      "import": "./dist/exports.js",
+      "default": "./dist/exports.js"
+    }
   },
   "scripts": {
+    "build": "bun run scripts/build.ts",
+    "prepack": "bun run build",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:visual": "bun run tests/visual/compare.ts",
@@ -15,9 +30,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/jsdom": "^21.1.7"
-  },
-  "peerDependencies": {
+    "@types/jsdom": "^21.1.7",
     "typescript": "^5"
   },
   "dependencies": {

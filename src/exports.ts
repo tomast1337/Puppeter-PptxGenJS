@@ -1,18 +1,51 @@
-// Main exports for the PuppeteerGen library
-export { PuppeteerGen } from "./PuppeterrGen";
-export { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "./pageLayouts";
-export type { PageSize, PageLayout, PageSizeName, Orientation } from "./pageLayouts";
-export { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, textMarginToCSS, tableMarginToCSS } from "./defaults";
-export type { FourSideMargin } from "./defaults";
-export { COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
-export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
-export { 
-    inchesToPixels, 
-    percentageToPixels, 
-    convertToPixels, 
+import { PuppeteerGen } from "./PuppeterrGen";
+import { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "./pageLayouts";
+import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, textMarginToCSS, tableMarginToCSS } from "./defaults";
+import { COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
+import {
+    inchesToPixels,
+    percentageToPixels,
+    convertToPixels,
     generatePageCSS,
     colorToCSS,
     alignToCSS,
     valignToCSS,
-    pointsToPixels
+    pointsToPixels,
 } from "./utils";
+
+export {
+    PuppeteerGen,
+    PAGE_SIZES,
+    DEFAULT_PAGE_SIZE,
+    PPTX_DEFAULTS,
+    PPTX_DEFAULTS_VERSION,
+    textMarginToCSS,
+    tableMarginToCSS,
+    COMPATIBILITY,
+    SHAPE_GEOMETRY_COMPATIBILITY,
+    inchesToPixels,
+    percentageToPixels,
+    convertToPixels,
+    generatePageCSS,
+    colorToCSS,
+    alignToCSS,
+    valignToCSS,
+    pointsToPixels,
+};
+export default PuppeteerGen;
+
+export type { PageSize, PageLayout, PageSizeName, Orientation } from "./pageLayouts";
+export type { FourSideMargin } from "./defaults";
+export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
+export type {
+    PptxGenJSLike,
+    PptxSlide,
+    PptxTableRow,
+    PptxTableProps,
+    PptxTextProps,
+    PptxTextPropsOptions,
+    PptxShapeProps,
+    PptxWriteProps,
+    PptxWriteFileProps,
+} from "./pptx";
+export type { ColorProps } from "./utils";
