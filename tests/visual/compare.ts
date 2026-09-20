@@ -57,6 +57,20 @@ Object.defineProperty(sourceDom.window.HTMLElement.prototype, "innerText", {
         return read(this).trim();
     },
 });
+// PptxGenJS asks for the same computed style dozens of times per table cell.
+// JSDOM computes a new declaration on every call. Under Bun 1.4.0, creating
+// all those duplicates makes a later cssstyle mutation grow native memory
+// without bound, so reuse declarations for this immutable fixture DOM.
+const computedStyles = new WeakMap<Element, CSSStyleDeclaration>();
+const getComputedStyle = sourceDom.window.getComputedStyle.bind(sourceDom.window);
+sourceDom.window.getComputedStyle = ((element: Element, pseudoElement?: string | null) => {
+    if (pseudoElement) return getComputedStyle(element, pseudoElement);
+    const cached = computedStyles.get(element);
+    if (cached) return cached;
+    const style = getComputedStyle(element);
+    computedStyles.set(element, style);
+    return style;
+}) as typeof sourceDom.window.getComputedStyle;
 Object.assign(globalThis, { document: sourceDom.window.document, window: sourceDom.window });
 const progress = (stage: string) => { if (process.env.VISUAL_PROGRESS) console.log(`[visual] ${stage}`); };
 
