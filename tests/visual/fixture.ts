@@ -920,4 +920,39 @@ export function populateParityFixture(presentation: Presentation): void {
             line: { color: "843C0C", width: 1.15 },
         });
     });
+
+    const chartsSlide = presentation.addSlide();
+    chartsSlide.addText("Core chart rendering", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const chartData: PptxGenJS.OptsChartData[] = [
+        { name: "North", labels: ["Q1", "Q2", "Q3", "Q4"], values: [3, 5, 4, 7] },
+        { name: "South", labels: ["Q1", "Q2", "Q3", "Q4"], values: [5, 2, 6, 4] },
+    ];
+    chartsSlide.addChart("bar", chartData, {
+        x: 0.4, y: 0.9, w: 4.4, h: 4.1,
+        fontFace: "Arial", fontSize: 11,
+        chartColors: ["4472C4", "ED7D31"],
+        showLegend: true, legendPos: "b",
+    });
+    chartsSlide.addChart("line", chartData, {
+        x: 5.2, y: 0.9, w: 4.4, h: 4.1,
+        fontFace: "Arial", fontSize: 11,
+        chartColors: ["4472C4", "ED7D31"],
+        showLegend: true, legendPos: "b",
+        lineDataSymbol: "circle", lineDataSymbolSize: 6, lineSize: 2,
+    });
+
+    const bar3DSlide = presentation.addSlide();
+    bar3DSlide.addText("Three-dimensional bar charts", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    bar3DSlide.addChart("bar3D", chartData, {
+        x: 2, y: 1.1, w: 6, h: 3.3,
+        fontFace: "Arial", fontSize: 11,
+        chartColors: ["4472C4", "ED7D31"],
+        bar3DShape: "box", showLegend: true, legendPos: "b",
+    });
 }

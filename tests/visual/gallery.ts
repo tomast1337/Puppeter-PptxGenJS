@@ -61,6 +61,8 @@ const PAGE_TITLES = [
     "HTML table import: first page",
     "HTML table import: continuation",
     "Text in arbitrary preset shapes",
+    "Core chart rendering",
+    "Three-dimensional bar charts",
 ] as const;
 
 function image(page: string, kind: "reference" | "actual", description: string): string {
@@ -93,7 +95,7 @@ rendering changes with:
 bun run test:visual:gallery
 \`\`\`
 
-The command publishes only the 53 full-page comparison pairs. Feature-level
+The command publishes only the ${pages.length} full-page comparison pairs. Feature-level
 crops remain transient test artifacts.
 
 | Page, feature, and RMSE | Reference | PuppeteerGen |

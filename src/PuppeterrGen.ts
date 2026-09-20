@@ -19,8 +19,11 @@ import { normalizeTable } from "./normalize/table";
 import { renderTable } from "./render/table";
 import { paginateTableRows } from "./normalize/tablePagination";
 import { normalizeHtmlTable } from "./normalize/htmlTable";
+import { normalizeChart } from "./normalize/chart";
+import { renderChart, renderChartExtension } from "./render/chart";
+import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 
-class PuppeteerSlide implements PptxSlide {
+export class PuppeteerSlide implements PptxSlide {
     constructor(
         slideElm: HTMLDivElement,
         pageSize: PageSize,
@@ -98,7 +101,33 @@ class PuppeteerSlide implements PptxSlide {
     }
     
     addChart(type: PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[], data: any[], options?: PptxGenJS.IChartOpts | undefined): PptxGenJS.Slide {
-        throw new Error("Method not implemented.");
+        const chartOptions = options ?? {};
+        const style = normalizeObjectStyle(
+            {
+                x: chartOptions.x,
+                y: chartOptions.y,
+                w: chartOptions.w,
+                h: chartOptions.h,
+                objectName: chartOptions.objectName,
+            },
+            PPTX_DEFAULTS.chart,
+            this.pageSize,
+            this.nextObjectName("Chart", chartOptions.objectName),
+        );
+        const chart = normalizeChart(type, data as PptxGenJS.OptsChartData[], chartOptions);
+        this.slideElm.appendChild(renderChart(this.document, chart, style));
+        return this;
+    }
+
+    addChartEx(input: ChartExtensionInput, options: ChartExtensionOptions): PuppeteerSlide {
+        const style = normalizeObjectStyle(
+            options,
+            PPTX_DEFAULTS.chart,
+            this.pageSize,
+            this.nextObjectName("Chart", options.objectName),
+        );
+        this.slideElm.appendChild(renderChartExtension(this.document, input, style, options.altText ?? ""));
+        return this;
     }
     
     addImage(options: PptxGenJS.ImageProps): PptxGenJS.Slide {
@@ -495,9 +524,9 @@ body {
         throw new Error("Method not implemented.");
     }
     
-    addSlide(props?: PptxAddSlideProps | undefined): PptxSlide;
-    addSlide(masterName?: string | undefined): PptxSlide;
-    addSlide(masterName?: unknown): PptxSlide {
+    addSlide(props?: PptxAddSlideProps | undefined): PuppeteerSlide;
+    addSlide(masterName?: string | undefined): PuppeteerSlide;
+    addSlide(masterName?: unknown): PuppeteerSlide {
         const slideElm = this.page.createElement("div");
         slideElm.className = "slide-container";
         slideElm.id = `slide-${++this.slideCount}`;

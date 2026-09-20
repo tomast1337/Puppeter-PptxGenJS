@@ -1,4 +1,5 @@
 import { CORE_SVG_SHAPES } from "./normalize/shape";
+import { SUPPORTED_CHART_OPTIONS } from "./normalize/chart";
 
 export type CompatibilityStatus = "unsupported" | "partial" | "implemented" | "verified";
 
@@ -11,7 +12,72 @@ export const SHAPE_GEOMETRY_COMPATIBILITY = Object.freeze(Object.fromEntries(
     CORE_SVG_SHAPES.map(name => [name, "implemented"]),
 )) as Readonly<Record<string, "implemented" | "unsupported">>;
 
+export const CHART_OPTION_NAMES = Object.freeze([
+    "align", "altText", "axisPos", "bar3DShape", "barDir", "barGapDepthPct", "barGapWidthPct",
+    "barGrouping", "barOverlapPct", "bold", "border", "breakLine", "bullet", "cap", "catAxes",
+    "catAxisBaseTimeUnit", "catAxisCrossesAt", "catAxisHidden", "catAxisLabelColor",
+    "catAxisLabelFontBold", "catAxisLabelFontFace", "catAxisLabelFontItalic", "catAxisLabelFontSize",
+    "catAxisLabelFrequency", "catAxisLabelPos", "catAxisLabelRotate", "catAxisLineColor",
+    "catAxisLineShow", "catAxisLineSize", "catAxisLineStyle", "catAxisMajorTickMark",
+    "catAxisMajorTimeUnit", "catAxisMajorUnit", "catAxisMaxVal", "catAxisMinVal",
+    "catAxisMinorTickMark", "catAxisMinorTimeUnit", "catAxisMinorUnit", "catAxisMultiLevelLabels",
+    "catAxisOrientation", "catAxisTitle", "catAxisTitleColor", "catAxisTitleFontFace",
+    "catAxisTitleFontSize", "catAxisTitleRotate", "catGridLine", "catLabelFormatCode", "chartArea",
+    "chartColors", "chartColorsOpacity", "color", "dataBorder", "dataLabelBkgrdColors",
+    "dataLabelColor", "dataLabelFontBold", "dataLabelFontFace", "dataLabelFontItalic",
+    "dataLabelFontSize", "dataLabelFormatCode", "dataLabelFormatScatter", "dataLabelPosition",
+    "dataNoEffects", "dataTableFontSize", "dataTableFormatCode", "displayBlanksAs", "fill",
+    "firstSliceAng", "fontFace", "fontSize", "h", "highlight", "holeSize", "invertedColors",
+    "italic", "lang", "layout", "legendColor", "legendFontFace", "legendFontSize", "legendPos",
+    "lineCap", "lineDash", "lineDataSymbol", "lineDataSymbolLineColor", "lineDataSymbolLineSize",
+    "lineDataSymbolSize", "lineSize", "lineSmooth", "objectName", "plotArea", "radarStyle",
+    "secondaryCatAxis", "secondaryValAxis", "serAxisBaseTimeUnit", "serAxisHidden",
+    "serAxisLabelColor", "serAxisLabelFontBold", "serAxisLabelFontFace", "serAxisLabelFontItalic",
+    "serAxisLabelFontSize", "serAxisLabelFrequency", "serAxisLabelPos", "serAxisLineColor",
+    "serAxisLineShow", "serAxisMajorTimeUnit", "serAxisMajorUnit", "serAxisMinorTimeUnit",
+    "serAxisMinorUnit", "serAxisOrientation", "serAxisTitle", "serAxisTitleColor",
+    "serAxisTitleFontFace", "serAxisTitleFontSize", "serAxisTitleRotate", "serGridLine",
+    "serLabelFormatCode", "shadow", "showCatAxisTitle", "showDataTable", "showDataTableHorzBorder",
+    "showDataTableKeys", "showDataTableOutline", "showDataTableVertBorder", "showLabel",
+    "showLeaderLines", "showLegend", "showPercent", "showSerAxisTitle", "showSerName", "showTitle",
+    "showValAxisTitle", "showValue", "size", "softBreakBefore", "style", "tabStops",
+    "textDirection", "title", "titleAlign", "titleBold", "titleColor", "titleFontFace",
+    "titleFontSize", "titlePos", "titleRotate", "transparency", "underline", "v3DPerspective",
+    "v3DRAngAx", "v3DRotX", "v3DRotY", "valAxes", "valAxisCrossesAt", "valAxisDisplayUnit",
+    "valAxisDisplayUnitLabel", "valAxisHidden", "valAxisLabelColor", "valAxisLabelFontBold",
+    "valAxisLabelFontFace", "valAxisLabelFontItalic", "valAxisLabelFontSize",
+    "valAxisLabelFormatCode", "valAxisLabelPos", "valAxisLabelRotate", "valAxisLineColor",
+    "valAxisLineShow", "valAxisLineSize", "valAxisLineStyle", "valAxisLogScaleBase",
+    "valAxisMajorTickMark", "valAxisMajorUnit", "valAxisMaxVal", "valAxisMinVal",
+    "valAxisMinorTickMark", "valAxisOrientation", "valAxisTitle", "valAxisTitleColor",
+    "valAxisTitleFontFace", "valAxisTitleFontSize", "valAxisTitleRotate", "valGridLine",
+    "valLabelFormatCode", "valign", "w", "x", "y",
+] as const);
+
+const IMPLEMENTED_CHART_OPTIONS = new Set<string>(SUPPORTED_CHART_OPTIONS);
+const CHART_OPTION_COMPATIBILITY = Object.freeze(Object.fromEntries(
+    CHART_OPTION_NAMES.map(name => [name, IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported"]),
+)) as Readonly<Record<typeof CHART_OPTION_NAMES[number], CompatibilityStatus>>;
+
+export const CHART_TYPE_COMPATIBILITY = Object.freeze({
+    area: "implemented",
+    bar: "implemented",
+    bar3D: "implemented",
+    bubble: "implemented",
+    bubble3D: "unsupported",
+    doughnut: "implemented",
+    line: "implemented",
+    pie: "implemented",
+    radar: "implemented",
+    scatter: "implemented",
+    mixed: "unsupported",
+} satisfies Readonly<Record<string, CompatibilityStatus>>);
+
 export const COMPATIBILITY = Object.freeze({
+    chart: Object.freeze<CompatibilityEntry>({
+        status: "partial",
+        options: CHART_OPTION_COMPATIBILITY,
+    }),
     text: Object.freeze<CompatibilityEntry>({
         status: "partial",
         options: Object.freeze({

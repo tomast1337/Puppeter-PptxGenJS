@@ -237,6 +237,12 @@ export const PPTX_DEFAULTS = Object.freeze({
         v3DRightAngleAxes: false,
         v3DRotationX: 30,
         v3DRotationY: 30,
+        bar3DLighting: Object.freeze({
+            topLighten: 0.18,
+            sideDarken: 0.16,
+            wallColor: "FFFFFF",
+            floorColor: "FFFFFF",
+        }),
         colors: Object.freeze({ bar: BAR_CHART_COLORS, pie: PIE_CHART_COLORS }),
     }),
     slide: Object.freeze({

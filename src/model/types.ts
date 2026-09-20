@@ -188,3 +188,64 @@ export interface NormalizedShape {
     textInsets?: [number, number, number, number];
     link?: NormalizedShapeLink;
 }
+
+export type NormalizedChartType =
+    | "area"
+    | "bar"
+    | "bar3D"
+    | "bubble"
+    | "doughnut"
+    | "line"
+    | "pie"
+    | "radar"
+    | "scatter";
+
+export interface NormalizedChartSeries {
+    type: NormalizedChartType;
+    name: string;
+    labels: string[];
+    values: number[];
+    sizes?: number[];
+}
+
+export interface NormalizedChart {
+    type: NormalizedChartType;
+    series: NormalizedChartSeries[];
+    colors: string[];
+    colorOpacity: number;
+    showLegend: boolean;
+    legendPosition: "b" | "l" | "r" | "t" | "tr";
+    showTitle: boolean;
+    title: string;
+    fontFace: string;
+    fontSize: number;
+    titleFontFace: string;
+    titleFontSize: number;
+    titleBold: boolean;
+    titleColor: string;
+    legendFontFace: string;
+    legendFontSize: number;
+    legendColor: string;
+    barDirection: "bar" | "col";
+    grouping: "clustered" | "stacked" | "percentStacked" | "standard";
+    barGapWidthPercent: number;
+    barGapDepthPercent: number;
+    bar3DShape: "box" | "cylinder" | "cone" | "coneToMax" | "pyramid" | "pyramidToMax";
+    perspective3D: number;
+    rightAngleAxes3D: boolean;
+    rotationX3D: number;
+    rotationY3D: number;
+    gridLineColor: string;
+    gridLineWidth: number;
+    axisLineVisible: boolean;
+    valueAxisMinimum: number;
+    valueAxisMaximum: number;
+    doughnutHoleSize: number;
+    firstSliceAngle: number;
+    radarStyle: "standard" | "marker" | "filled";
+    lineSmooth: boolean;
+    lineSymbol: "circle" | "dash" | "diamond" | "dot" | "none" | "square" | "triangle";
+    lineSymbolSize: number;
+    lineSize: number;
+    altText: string;
+}

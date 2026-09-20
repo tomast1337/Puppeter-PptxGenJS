@@ -40,6 +40,7 @@ try {
     const consumerSource = `
 import PuppeteerGen, {
     PAGE_SIZES,
+    type PuppeteerSlide,
     type PptxSlide,
     type PptxTextPropsOptions,
 } from "puppeter-pptxgenjs";
@@ -50,10 +51,18 @@ const options: PptxTextPropsOptions = {
     bold: true,
 };
 const presentation = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
-const slide: PptxSlide = presentation.addSlide();
+const slide: PuppeteerSlide = presentation.addSlide();
+const compatibleSlide: PptxSlide = slide;
 slide.addText("Standalone package", options);
-if (presentation.page.querySelectorAll(".slide-text").length !== 1) {
-    throw new Error("Built package did not render the consumer text box");
+slide.addChart("bar", [{ name: "Series", labels: ["A", "B"], values: [2, 4] }], {
+    x: 1, y: 2, w: 3, h: 2,
+});
+compatibleSlide.addText("Compatible slide type", { x: 4, y: 1, w: 3, h: 1 });
+if (presentation.page.querySelectorAll(".slide-text").length !== 2) {
+    throw new Error("Built package did not render consumer text boxes");
+}
+if (presentation.page.querySelectorAll(".slide-chart svg").length !== 1) {
+    throw new Error("Built package did not render the consumer chart");
 }
 console.log("standalone package consumer passed");
 `;

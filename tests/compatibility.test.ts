@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY, type CompatibilityStatus } from "../src/compatibility";
+import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY, type CompatibilityStatus } from "../src/compatibility";
 
 const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified"]);
 const TEXT_OPTION_KEYS = [
@@ -28,7 +28,7 @@ const TABLE_TO_SLIDES_OPTION_KEYS = [
 
 describe("compatibility manifest", () => {
     test("tracks every active renderer family", () => {
-        expect(Object.keys(COMPATIBILITY)).toEqual(["text", "image", "shape", "table"]);
+        expect(Object.keys(COMPATIBILITY)).toEqual(["chart", "text", "image", "shape", "table"]);
     });
 
     test("contains only explicit compatibility states", () => {
@@ -42,10 +42,24 @@ describe("compatibility manifest", () => {
     });
 
     test("enumerates the public option surface instead of broad feature labels", () => {
+        expect(Object.keys(COMPATIBILITY.chart.options)).toHaveLength(CHART_OPTION_NAMES.length);
+        expect(CHART_OPTION_NAMES.length).toBeGreaterThanOrEqual(170);
         expect(Object.keys(COMPATIBILITY.text.options).length).toBeGreaterThanOrEqual(45);
         expect(Object.keys(COMPATIBILITY.image.options).length).toBeGreaterThanOrEqual(18);
         expect(Object.keys(COMPATIBILITY.shape.options).length).toBeGreaterThanOrEqual(30);
         expect(Object.keys(COMPATIBILITY.table.options).length).toBeGreaterThanOrEqual(35);
+    });
+
+    test("tracks the complete pinned IChartOpts surface", () => {
+        expect(COMPATIBILITY.chart.options.x).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.chartColors).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.bar3DShape).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.barGapDepthPct).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.v3DRotX).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.showDataTable).toBe("unsupported");
+        expect(CHART_TYPE_COMPATIBILITY.bar).toBe("implemented");
+        expect(CHART_TYPE_COMPATIBILITY.bar3D).toBe("implemented");
+        expect(CHART_TYPE_COMPATIBILITY.mixed).toBe("unsupported");
     });
 
     test("tracks every TextBaseProps and TextPropsOptions field", () => {
