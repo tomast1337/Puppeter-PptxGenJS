@@ -9,15 +9,22 @@ export function isSupportedChartNumberFormat(formatCode: string): boolean {
 }
 
 export function formatChartNumber(value: number, formatCode: string): string {
-    if (formatCode === "General") return String(value);
+    if (formatCode === "General") {
+        return String(value);
+    }
     const match = /^(?<prefix>[^0#;,]*)(?<group>#,##)?0(?:\.(?<fraction>0+))?(?<percent>%?)(?<suffix>[^0#;,]*)$/.exec(formatCode);
-    if (!match?.groups) return String(value);
+    if (!match?.groups) {
+        return String(value);
+    }
+
     const fractionDigits = match.groups.fraction?.length ?? 0;
     const percent = match.groups.percent === "%";
+
     const formatted = (percent ? value * 100 : value).toLocaleString("en-US", {
         useGrouping: Boolean(match.groups.group),
         minimumFractionDigits: fractionDigits,
         maximumFractionDigits: fractionDigits,
     });
+
     return `${match.groups.prefix}${formatted}${match.groups.percent}${match.groups.suffix}`;
 }
