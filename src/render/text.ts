@@ -10,9 +10,7 @@ function fontFamilyCSS(fontFace: string): string {
     // Chromium does not apply LibreOffice's Microsoft-font substitutions to
     // an unknown single-family declaration. Keep the requested face first,
     // then use the same metric-compatible sans fallback used by our fixtures.
-    const fallback = fontFace.toLowerCase().startsWith("calibri")
-        ? '"Noto Sans", Arial, "Liberation Sans", sans-serif'
-        : 'Arial, "Liberation Sans", sans-serif';
+    const fallback = fontFace.toLowerCase().startsWith("calibri") ? '"Noto Sans", Arial, "Liberation Sans", sans-serif' : 'Arial, "Liberation Sans", sans-serif';
     return `"${escaped}", ${fallback}`;
 }
 

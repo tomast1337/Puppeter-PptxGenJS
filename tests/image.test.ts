@@ -1,8 +1,8 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { tmpdir } from "node:os";
 import { normalizeImage, resolveImageSource } from "../src/normalize/image";
 import { PuppeteerGen } from "../src/PuppeterrGen";
 import { PAGE_SIZES } from "../src/pageLayouts";
@@ -19,12 +19,17 @@ describe("image normalization", () => {
     });
 
     test("normalizes crop offsets, transparency, and internal links", () => {
-        expect(normalizeImage({
-            data: PNG_DATA,
-            sizing: { type: "crop", x: "10%", y: "20%", w: 2, h: 1 },
-            transparency: 25,
-            hyperlink: { slide: 3, tooltip: "Details" },
-        }, PAGE)).toMatchObject({
+        expect(
+            normalizeImage(
+                {
+                    data: PNG_DATA,
+                    sizing: { type: "crop", x: "10%", y: "20%", w: 2, h: 1 },
+                    transparency: 25,
+                    hyperlink: { slide: 3, tooltip: "Details" },
+                },
+                PAGE,
+            ),
+        ).toMatchObject({
             sourceKind: "data",
             sizing: { type: "crop", offsetX: 96, offsetY: 108, width: 96, height: 96 },
             opacity: 0.75,
@@ -33,14 +38,28 @@ describe("image normalization", () => {
     });
 
     test("matches PptxGenJS declared-size contain and cover formulas", () => {
-        expect(normalizeImage({
-            data: PNG_DATA, w: 4, h: 2,
-            sizing: { type: "contain", w: 2, h: 2 },
-        }, PAGE).sizing).toEqual({ type: "contain", x: 0, y: 48, width: 192, height: 96 });
-        expect(normalizeImage({
-            data: PNG_DATA, w: 4, h: 2,
-            sizing: { type: "cover", w: 2, h: 2 },
-        }, PAGE).sizing).toEqual({ type: "cover", x: -96, y: 0, width: 384, height: 192 });
+        expect(
+            normalizeImage(
+                {
+                    data: PNG_DATA,
+                    w: 4,
+                    h: 2,
+                    sizing: { type: "contain", w: 2, h: 2 },
+                },
+                PAGE,
+            ).sizing,
+        ).toEqual({ type: "contain", x: 0, y: 48, width: 192, height: 96 });
+        expect(
+            normalizeImage(
+                {
+                    data: PNG_DATA,
+                    w: 4,
+                    h: 2,
+                    sizing: { type: "cover", w: 2, h: 2 },
+                },
+                PAGE,
+            ).sizing,
+        ).toEqual({ type: "cover", x: -96, y: 0, width: 384, height: 192 });
     });
 
     test("supports file URLs", async () => {
@@ -58,10 +77,12 @@ describe("image normalization", () => {
         try {
             fetchMock.mockResolvedValueOnce(new Response("missing", { status: 404 }));
             expect(resolveImageSource("https://example.com/missing.png")).rejects.toThrow("(404)");
-            fetchMock.mockResolvedValueOnce(new Response("hello", {
-                status: 200,
-                headers: { "content-type": "text/plain" },
-            }));
+            fetchMock.mockResolvedValueOnce(
+                new Response("hello", {
+                    status: 200,
+                    headers: { "content-type": "text/plain" },
+                }),
+            );
             expect(resolveImageSource("https://example.com/not-image")).rejects.toThrow("not an image");
         } finally {
             fetchMock.mockRestore();
@@ -75,7 +96,10 @@ describe("image DOM rendering", () => {
         const slide = presentation.addSlide();
         slide.addImage({
             data: PNG_DATA,
-            x: 1, y: 1, w: 9, h: 5,
+            x: 1,
+            y: 1,
+            w: 9,
+            h: 5,
             sizing: { type: "crop", x: 0.5, y: 0.25, w: 2, h: 1 },
             rounding: true,
             transparency: 30,
@@ -98,7 +122,8 @@ describe("image DOM rendering", () => {
         const slide = presentation.addSlide();
         slide.addImage({
             data: PNG_DATA,
-            x: 1, y: 1,
+            x: 1,
+            y: 1,
             sizing: { type: "cover", w: 2, h: 2 },
             altText: "Quartered sample",
             hyperlink: { url: "https://example.com", tooltip: "Open sample" },

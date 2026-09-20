@@ -22,7 +22,7 @@ export function percentageToPixels(percentage: number, containerSize: number): n
  */
 export function convertToPixels(value: number | `${number}%` | undefined, containerSize: number): number {
     if (value === undefined) return 0;
-    
+
     if (typeof value === "string") {
         if (value.endsWith("%")) {
             const percentage = parseFloat(value);
@@ -30,7 +30,7 @@ export function convertToPixels(value: number | `${number}%` | undefined, contai
         }
         return parseFloat(value) * 96; // assume inches if no unit
     }
-    
+
     // Numbers are assumed to be in inches (PptxGenJS convention)
     return inchesToPixels(value);
 }
@@ -41,7 +41,7 @@ export function convertToPixels(value: number | `${number}%` | undefined, contai
 export function generatePageCSS(pageSize: PageSize): string {
     const widthPx = inchesToPixels(pageSize.width);
     const heightPx = inchesToPixels(pageSize.height);
-    
+
     return `
 @page {
     size: ${pageSize.width}in ${pageSize.height}in;
@@ -129,11 +129,7 @@ export function colorToCSS(value?: string | ColorProps): string {
     const color = typeof value === "string" ? value : value.color;
     if (!color) return "transparent";
 
-    const normalized = color.startsWith("#") || color.startsWith("rgb")
-        ? color
-        : /^[\da-f]{6}([\da-f]{2})?$/i.test(color)
-            ? `#${color}`
-            : color;
+    const normalized = color.startsWith("#") || color.startsWith("rgb") ? color : /^[\da-f]{6}([\da-f]{2})?$/i.test(color) ? `#${color}` : color;
 
     const transparency = typeof value === "object" ? value.transparency : undefined;
     if (transparency === undefined || transparency <= 0) return normalized;

@@ -1,12 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
-import { PPTX_DEFAULTS, type FourSideMargin } from "../defaults";
-import type {
-    NormalizedShadow,
-    NormalizedTextBox,
-    NormalizedTextBullet,
-    NormalizedTextParagraph,
-    NormalizedTextRun,
-} from "../model/types";
+import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
+import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "../model/types";
 import { inchesToPixels, pointsToPixels } from "../utils";
 import { normalizeColor, normalizeShadow } from "./style";
 
@@ -34,15 +28,8 @@ function normalizeMargins(margin?: number | FourSideMargin): [number, number, nu
     return [top, right, bottom, left];
 }
 
-function inheritedOptions(
-    parent: PptxGenJS.TextPropsOptions,
-    child: PptxGenJS.TextPropsOptions = {},
-): PptxGenJS.TextPropsOptions {
-    const {
-        x: _x, y: _y, w: _w, h: _h, fill: _fill, line: _line, shadow: _shadow,
-        rotate: _rotate, flipH: _flipH, flipV: _flipV, rectRadius: _rectRadius,
-        objectName: _objectName, ...parentText
-    } = parent;
+function inheritedOptions(parent: PptxGenJS.TextPropsOptions, child: PptxGenJS.TextPropsOptions = {}): PptxGenJS.TextPropsOptions {
+    const { x: _x, y: _y, w: _w, h: _h, fill: _fill, line: _line, shadow: _shadow, rotate: _rotate, flipH: _flipH, flipV: _flipV, rectRadius: _rectRadius, objectName: _objectName, ...parentText } = parent;
     const inherited = { ...parentText, ...child };
     if (child.hyperlink && child.color === undefined) delete inherited.color;
     return inherited;
@@ -80,14 +67,8 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     const underline = typeof options.underline === "object" ? options.underline : undefined;
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const baseline = options.baseline ?? 0;
-    const link = options.hyperlink?.url
-        ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip }
-        : options.hyperlink?.slide
-            ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide }
-            : undefined;
-    const defaultColor = link && options.color === undefined
-        ? PPTX_DEFAULTS.theme.colors.hyperlink
-        : PPTX_DEFAULTS.text.color;
+    const link = options.hyperlink?.url ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip } : options.hyperlink?.slide ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide } : undefined;
+    const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
 
     return {
         text,
@@ -107,10 +88,12 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         baselineOffset: pointsToPixels(baseline / 100),
         characterSpacing: pointsToPixels(options.charSpacing ?? 0),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
-        outline: options.outline ? {
-            color: normalizeColor(options.outline.color),
-            width: pointsToPixels(options.outline.size),
-        } : undefined,
+        outline: options.outline
+            ? {
+                  color: normalizeColor(options.outline.color),
+                  width: pointsToPixels(options.outline.size),
+              }
+            : undefined,
         glow: textShadow(options),
         shadow: options.shadow ? normalizeShadow(options.shadow) : undefined,
         language: options.lang ?? PPTX_DEFAULTS.theme.language,
@@ -125,16 +108,34 @@ function numberMarker(type: string, value: number): string {
         let current = Math.max(1, value);
         while (current > 0) {
             current--;
-            result = String.fromCharCode((upper ? 65 : 97) + current % 26) + result;
+            result = String.fromCharCode((upper ? 65 : 97) + (current % 26)) + result;
             current = Math.floor(current / 26);
         }
         return result;
     };
     const roman = (upper: boolean) => {
-        const values: Array<[number, string]> = [[1000,"M"],[900,"CM"],[500,"D"],[400,"CD"],[100,"C"],[90,"XC"],[50,"L"],[40,"XL"],[10,"X"],[9,"IX"],[5,"V"],[4,"IV"],[1,"I"]];
+        const values: Array<[number, string]> = [
+            [1000, "M"],
+            [900, "CM"],
+            [500, "D"],
+            [400, "CD"],
+            [100, "C"],
+            [90, "XC"],
+            [50, "L"],
+            [40, "XL"],
+            [10, "X"],
+            [9, "IX"],
+            [5, "V"],
+            [4, "IV"],
+            [1, "I"],
+        ];
         let current = Math.max(1, value);
         let result = "";
-        for (const [amount, glyph] of values) while (current >= amount) { result += glyph; current -= amount; }
+        for (const [amount, glyph] of values)
+            while (current >= amount) {
+                result += glyph;
+                current -= amount;
+            }
         return upper ? result : result.toLowerCase();
     };
     let core = String(value);
@@ -159,9 +160,7 @@ function normalizeBullet(options: PptxGenJS.TextPropsOptions, numberIndex: numbe
     // deprecated `style` field. Preserve that runtime quirk for compatibility.
     const numberType = config.style ?? PPTX_DEFAULTS.bullet.numberType;
     const code = config.characterCode ?? config.code;
-    const marker = kind === "number"
-        ? numberMarker(numberType, start + numberIndex)
-        : code && /^[0-9a-f]{4,6}$/i.test(code) ? String.fromCodePoint(parseInt(code, 16)) : PPTX_DEFAULTS.bullet.character;
+    const marker = kind === "number" ? numberMarker(numberType, start + numberIndex) : code && /^[0-9a-f]{4,6}$/i.test(code) ? String.fromCodePoint(parseInt(code, 16)) : PPTX_DEFAULTS.bullet.character;
     return { kind, marker, indent: pointsToPixels(indentPt * (level + 1)), level, start, numberType };
 }
 
@@ -171,11 +170,7 @@ function tabAlignment(value?: "l" | "r" | "ctr" | "dec"): "left" | "right" | "ce
 
 function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number): NormalizedTextParagraph {
     const first = inheritedOptions(parent, pieces[0]?.options);
-    const lineHeight = first.lineSpacing !== undefined
-        ? pointsToPixels(first.lineSpacing)
-        : first.lineSpacingMultiple !== undefined
-            ? first.lineSpacingMultiple
-            : undefined;
+    const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : first.lineSpacingMultiple !== undefined ? first.lineSpacingMultiple : undefined;
     return {
         runs: pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options))),
         align: first.align ?? PPTX_DEFAULTS.text.align,
@@ -192,9 +187,7 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
 }
 
 function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): TextPiece[] {
-    const source = Array.isArray(input)
-        ? input.map(item => ({ text: String(item.text ?? ""), options: item.options ?? {} }))
-        : [{ text: String(input), options: parent }];
+    const source = Array.isArray(input) ? input.map(item => ({ text: String(item.text ?? ""), options: item.options ?? {} })) : [{ text: String(input), options: parent }];
     const pieces: TextPiece[] = [];
     for (const item of source) {
         const lines = item.text.replace(/\r\n?/g, "\n").split("\n");

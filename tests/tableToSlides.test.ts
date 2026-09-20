@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { normalizeHtmlTable } from "../src/normalize/htmlTable";
-import { PAGE_SIZES } from "../src/pageLayouts";
 import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PAGE_SIZES } from "../src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
@@ -14,12 +14,15 @@ function installTable(presentation: PuppeteerGen, rowCount = 2): HTMLTableElemen
                 <th style="width:300px;background:#4472C4;color:white;padding:6px;border:1px solid #17365D">Description</th>
                 <th style="width:200px;background:#4472C4;color:white;padding:6px;border:1px solid #17365D">State</th>
             </tr></thead>
-            <tbody>${Array.from({ length: rowCount }, (_, index) => `
+            <tbody>${Array.from(
+                { length: rowCount },
+                (_, index) => `
                 <tr>
                     <td style="padding:4px;text-align:center;border:1px solid #A6A6A6">${index + 1}</td>
                     <td style="padding:4px;border:1px solid #A6A6A6">Row ${index + 1}<br>detail</td>
                     <td style="padding:4px;text-align:right;background:rgb(226,240,217);border:1px dashed #70AD47">Ready</td>
-                </tr>`).join("")}
+                </tr>`,
+            ).join("")}
             </tbody>
             <tfoot><tr><td colspan="3" style="padding:4px;font-weight:bold">Footer</td></tr></tfoot>
         </table>`;
@@ -31,10 +34,15 @@ describe("HTML table normalization", () => {
     test("extracts sections, proportional widths, spans, text, and computed styles", () => {
         const presentation = new PuppeteerGen(PAGE);
         const source = installTable(presentation);
-        const table = normalizeHtmlTable(presentation.page, "source", {
-            w: 10,
-            slideMargin: 0.5,
-        }, PAGE);
+        const table = normalizeHtmlTable(
+            presentation.page,
+            "source",
+            {
+                w: 10,
+                slideMargin: 0.5,
+            },
+            PAGE,
+        );
 
         expect(table.columnWidths).toEqual([1.5, 4.5, 3]);
         expect(table.headerRows).toBe(1);

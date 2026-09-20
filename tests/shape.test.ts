@@ -1,23 +1,26 @@
 import { describe, expect, test } from "bun:test";
+import { GENERATED_PRESET_NAMES } from "../src/normalize/generatedPreset";
 import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../src/normalize/shape";
 import { normalizeLine } from "../src/normalize/style";
-import { PAGE_SIZES } from "../src/pageLayouts";
 import { PuppeteerGen } from "../src/PuppeterrGen";
-import { GENERATED_PRESET_NAMES } from "../src/normalize/generatedPreset";
+import { PAGE_SIZES } from "../src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
 describe("shape normalization", () => {
     test("honors deprecated line aliases without requiring a line object", () => {
-        const line = normalizeShapeLine({
-            lineSize: 2,
-            lineDash: "dash",
-            lineHead: "triangle",
-            lineTail: "oval",
-        }, normalizeLine);
+        const line = normalizeShapeLine(
+            {
+                lineSize: 2,
+                lineDash: "dash",
+                lineHead: "triangle",
+                lineTail: "oval",
+            },
+            normalizeLine,
+        );
         expect(line.visible).toBe(true);
         expect(line.color).toBe("#333333");
-        expect(line.width).toBe(2 * 96 / 72);
+        expect(line.width).toBe((2 * 96) / 72);
         expect(line.style).toBe("dashed");
         expect(line.beginArrow).toBe("triangle");
         expect(line.endArrow).toBe("oval");
@@ -26,38 +29,39 @@ describe("shape normalization", () => {
     test("normalizes core preset geometry and rounded radius", () => {
         expect(normalizeShape("rect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 0 });
         expect(normalizeShape("roundRect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 16 });
-        expect(normalizeShape("roundRect", { rectRadius: 0.1 }, 192, 96, PAGE).geometry)
-            .toEqual({ kind: "rect", radius: 9.600000000000001 });
+        expect(normalizeShape("roundRect", { rectRadius: 0.1 }, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 9.600000000000001 });
         expect(normalizeShape("ellipse", {}, 192, 96, PAGE).geometry).toEqual({ kind: "ellipse" });
         expect(normalizeShape("lineInv", {}, 192, 96, PAGE).geometry).toEqual({ kind: "line", inverse: true });
     });
 
     test("normalizes custom lines and bezier curves in local SVG coordinates", () => {
-        const path = normalizeCustomPath([
-            { x: 0, y: 0 },
-            { x: 1, y: 0.5 },
-            { x: 2, y: 1, curve: { type: "quadratic", x1: 1.5, y1: 0 } },
-            { x: 3, y: 1, curve: { type: "cubic", x1: 2.25, y1: 1.5, x2: 2.75, y2: 0.5 } },
-            { close: true },
-        ], PAGE);
+        const path = normalizeCustomPath([{ x: 0, y: 0 }, { x: 1, y: 0.5 }, { x: 2, y: 1, curve: { type: "quadratic", x1: 1.5, y1: 0 } }, { x: 3, y: 1, curve: { type: "cubic", x1: 2.25, y1: 1.5, x2: 2.75, y2: 0.5 } }, { close: true }], PAGE);
         expect(path).toBe("M 0 0 L 96 48 Q 144 0 192 96 C 216 144 264 48 288 96 Z");
     });
 
     test("converts DrawingML arc commands to SVG endpoint arcs", () => {
-        expect(normalizeCustomPath([
-            { x: 1, y: 0.5 },
-            { x: 0, y: 0, curve: { type: "arc", wR: 1, hR: 0.5, stAng: 0, swAng: 90 } },
-        ], PAGE)).toBe("M 96 48 A 96 48 0 0 1 0 96");
+        expect(
+            normalizeCustomPath(
+                [
+                    { x: 1, y: 0.5 },
+                    { x: 0, y: 0, curve: { type: "arc", wR: 1, hR: 0.5, stAng: 0, swAng: 90 } },
+                ],
+                PAGE,
+            ),
+        ).toBe("M 96 48 A 96 48 0 0 1 0 96");
     });
 
     test("uses radial angles for noncircular DrawingML arcs", () => {
         // A 45-degree ray meets a 2:1 ellipse at x = y, not at
         // (rx * cos(45), ry * sin(45)). The second arc starts on that ray.
-        const path = normalizeCustomPath([
-            { x: 2, y: 0 },
-            { x: 0, y: 0, curve: { type: "arc", wR: 2, hR: 1, stAng: 0, swAng: 45 } },
-            { x: 0, y: 0, curve: { type: "arc", wR: 2, hR: 1, stAng: 45, swAng: 45 } },
-        ], PAGE);
+        const path = normalizeCustomPath(
+            [
+                { x: 2, y: 0 },
+                { x: 0, y: 0, curve: { type: "arc", wR: 2, hR: 1, stAng: 0, swAng: 45 } },
+                { x: 0, y: 0, curve: { type: "arc", wR: 2, hR: 1, stAng: 45, swAng: 45 } },
+            ],
+            PAGE,
+        );
         const arcs = [...path.matchAll(/A ([\d. -]+)/g)].map(match => match[1]!.trim().split(/\s+/).map(Number));
         const [x, y] = arcs[0]!.slice(-2) as [number, number];
         expect(x).toBeCloseTo(y, 5);
@@ -74,14 +78,17 @@ describe("shape normalization", () => {
 
     test("normalizes polygon and star preset families", () => {
         expect(normalizeShape("triangle", {}, 100, 80, PAGE).geometry).toEqual({
-            kind: "path", data: "M 50 0 L 100 80 L 0 80 Z",
+            kind: "path",
+            data: "M 50 0 L 100 80 L 0 80 Z",
         });
         expect(normalizeShape("diamond", {}, 100, 80, PAGE).geometry).toEqual({
-            kind: "path", data: "M 50 0 L 100 40 L 50 80 L 0 40 Z",
+            kind: "path",
+            data: "M 50 0 L 100 40 L 50 80 L 0 40 Z",
         });
         const hexagon = normalizeShape("hexagon", {}, 100, 80, PAGE);
         expect(hexagon.geometry).toEqual({
-            kind: "path", data: "M 20 0 L 80 0 L 100 40 L 80 80 L 20 80 L 0 40 Z",
+            kind: "path",
+            data: "M 20 0 L 80 0 L 100 40 L 80 80 L 20 80 L 0 40 Z",
         });
         expect(hexagon.textInsets).toEqual([0, 20, 0, 20]);
         expect((normalizeShape("star5", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ L /g)).toHaveLength(9);
@@ -118,17 +125,21 @@ describe("shape normalization", () => {
     });
 
     test("joins curved-arrow ellipses to both arrowhead shoulders and the fold", () => {
-        for (const [width, height] of [[134.4, 201.6], [240, 72], [120, 120], [72, 240]]) {
+        for (const [width, height] of [
+            [134.4, 201.6],
+            [240, 72],
+            [120, 120],
+            [72, 240],
+        ]) {
             const geometry = normalizeShape("curvedRightArrow", {}, width!, height!, PAGE).geometry;
             if (geometry.kind !== "path") throw new Error("Expected arrow path");
             const main = geometry.faces![0]!.data;
             const dark = geometry.faces![1]!.data;
-            const endpoints = (data: string) => [...data.matchAll(/A ([\d. -]+)/g)]
-                .map(match => match[1]!.trim().split(/\s+/).map(Number).slice(-2) as [number, number]);
+            const endpoints = (data: string) => [...data.matchAll(/A ([\d. -]+)/g)].map(match => match[1]!.trim().split(/\s+/).map(Number).slice(-2) as [number, number]);
             const [shoulder, back] = endpoints(main) as [[number, number], [number, number]];
             const [fold, top] = endpoints(dark) as [[number, number], [number, number]];
             const thickness = Math.min(width!, height!) / 4;
-            const radius = height! / 2 - thickness * 3 / 4;
+            const radius = height! / 2 - (thickness * 3) / 4;
             expect(shoulder[0]).toBeCloseTo(width! - thickness, 5);
             expect(back[0]).toBeCloseTo(0, 5);
             expect(back[1]).toBeCloseTo(radius + thickness, 5);
@@ -174,10 +185,7 @@ describe("shape normalization", () => {
     });
 
     test("normalizes ribbons and scrolls with shaded fold faces", () => {
-        const names = [
-            "ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon",
-            "horizontalScroll", "verticalScroll",
-        ] as const;
+        const names = ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"] as const;
         for (const name of names) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
@@ -195,11 +203,7 @@ describe("shape normalization", () => {
     });
 
     test("normalizes the complete action-button preset family", () => {
-        const names = [
-            "actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument",
-            "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome",
-            "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound",
-        ] as const;
+        const names = ["actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument", "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome", "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound"] as const;
         for (const name of names) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
@@ -208,15 +212,11 @@ describe("shape normalization", () => {
             expect(geometry.outlineData).toContain("M 0 0 L 180 0 L 180 100 L 0 100 Z");
         }
         const information = normalizeShape("actionButtonInformation", {}, 160, 100, PAGE).geometry;
-        expect(information.kind === "path" && information.faces?.map(face => face.fillModifier))
-            .toEqual([undefined, "darken", "lighten"]);
+        expect(information.kind === "path" && information.faces?.map(face => face.fillModifier)).toEqual([undefined, "darken", "lighten"]);
     });
 
     test("normalizes mathematical and common symbol presets", () => {
-        const names = [
-            "plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide",
-            "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking",
-        ] as const;
+        const names = ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"] as const;
         for (const name of names) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
@@ -243,14 +243,35 @@ describe("shape normalization", () => {
 
     test("normalizes standard flowchart symbols and their internal marks", () => {
         const names = [
-            "flowChartAlternateProcess", "flowChartCollate", "flowChartConnector", "flowChartDecision",
-            "flowChartDelay", "flowChartDisplay", "flowChartExtract", "flowChartInputOutput",
-            "flowChartInternalStorage", "flowChartManualInput", "flowChartManualOperation", "flowChartMerge",
-            "flowChartOffpageConnector", "flowChartOr", "flowChartPredefinedProcess", "flowChartPreparation",
-            "flowChartProcess", "flowChartSort", "flowChartSummingJunction", "flowChartTerminator",
-            "flowChartDocument", "flowChartMagneticDisk", "flowChartMagneticDrum", "flowChartMagneticTape",
-            "flowChartMultidocument", "flowChartOfflineStorage", "flowChartOnlineStorage",
-            "flowChartPunchedCard", "flowChartPunchedTape",
+            "flowChartAlternateProcess",
+            "flowChartCollate",
+            "flowChartConnector",
+            "flowChartDecision",
+            "flowChartDelay",
+            "flowChartDisplay",
+            "flowChartExtract",
+            "flowChartInputOutput",
+            "flowChartInternalStorage",
+            "flowChartManualInput",
+            "flowChartManualOperation",
+            "flowChartMerge",
+            "flowChartOffpageConnector",
+            "flowChartOr",
+            "flowChartPredefinedProcess",
+            "flowChartPreparation",
+            "flowChartProcess",
+            "flowChartSort",
+            "flowChartSummingJunction",
+            "flowChartTerminator",
+            "flowChartDocument",
+            "flowChartMagneticDisk",
+            "flowChartMagneticDrum",
+            "flowChartMagneticTape",
+            "flowChartMultidocument",
+            "flowChartOfflineStorage",
+            "flowChartOnlineStorage",
+            "flowChartPunchedCard",
+            "flowChartPunchedTape",
         ] as const;
         for (const name of names) expect(() => normalizeShape(name, {}, 160, 100, PAGE)).not.toThrow();
         const storage = normalizeShape("flowChartInternalStorage", {}, 160, 100, PAGE).geometry;
@@ -266,18 +287,26 @@ describe("SVG shape rendering", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
         slide.addShape("roundRect", {
-            x: 1, y: 1, w: 2, h: 1, rectRadius: 0.1,
-            fill: { color: "4472C4" }, line: { color: "17365D", width: 2, dashType: "dash" },
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 1,
+            rectRadius: 0.1,
+            fill: { color: "4472C4" },
+            line: { color: "17365D", width: 2, dashType: "dash" },
         });
         slide.addShape("ellipse", { x: 4, y: 1, w: 2, h: 1, fill: { color: "70AD47" } });
         slide.addShape("line", {
-            x: 1, y: 3, w: 4, h: 0,
+            x: 1,
+            y: 3,
+            w: 4,
+            h: 0,
             line: { color: "ED7D31", width: 2, beginArrowType: "oval", endArrowType: "triangle" },
         });
 
         const shapes = presentation.page.querySelectorAll<HTMLElement>(".slide-shape");
         expect(shapes[0]?.querySelector("rect")?.getAttribute("rx")).toBe("9.600000000000001");
-        expect(shapes[0]?.querySelector(".shape-geometry")?.getAttribute("stroke-dasharray")).toBe(`${4 * 2 * 96 / 72} ${3 * 2 * 96 / 72}`);
+        expect(shapes[0]?.querySelector(".shape-geometry")?.getAttribute("stroke-dasharray")).toBe(`${(4 * 2 * 96) / 72} ${(3 * 2 * 96) / 72}`);
         expect(shapes[1]?.querySelector("ellipse")).not.toBeNull();
         expect(shapes[2]?.querySelector("svg")?.getAttribute("height")).toBe("1");
         expect(shapes[2]?.querySelector(".shape-geometry")?.getAttribute("marker-start")).toContain("-begin");
@@ -288,9 +317,13 @@ describe("SVG shape rendering", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
         slide.addShape("custGeom" as never, {
-            x: 1, y: 1, w: 3, h: 2,
+            x: 1,
+            y: 1,
+            w: 3,
+            h: 2,
             points: [{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 1.5, y: 2 }, { close: true }],
-            fill: { color: "FFC000" }, hyperlink: { slide: 2, tooltip: "Details" },
+            fill: { color: "FFC000" },
+            hyperlink: { slide: 2, tooltip: "Details" },
         });
 
         const shape = presentation.page.querySelector<HTMLAnchorElement>("a.slide-shape");
@@ -302,8 +335,12 @@ describe("SVG shape rendering", () => {
     test("renders curved arrows as separately painted faces with one outline", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("curvedUpArrow", {
-            x: 1, y: 1, w: 2, h: 2,
-            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1.15 },
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 2,
+            fill: { color: "5B9BD5" },
+            line: { color: "843C0C", width: 1.15 },
         });
 
         const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
@@ -317,8 +354,13 @@ describe("SVG shape rendering", () => {
     test("renders arc fill separately from its curved-only outline", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("arc", {
-            x: 1, y: 1, w: 2, h: 1.5,
-            angleRange: [30, 250], fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 2 },
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 1.5,
+            angleRange: [30, 250],
+            fill: { color: "5B9BD5" },
+            line: { color: "843C0C", width: 2 },
         });
         const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
@@ -330,8 +372,12 @@ describe("SVG shape rendering", () => {
     test("renders flowchart dividers as strokes over one filled face", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("flowChartInternalStorage", {
-            x: 1, y: 1, w: 2, h: 1.5,
-            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 1.5,
+            fill: { color: "5B9BD5" },
+            line: { color: "843C0C", width: 1 },
         });
         const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
@@ -342,8 +388,12 @@ describe("SVG shape rendering", () => {
     test("renders brace fill without stroking its closing seam", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("leftBrace", {
-            x: 1, y: 1, w: 1.25, h: 2,
-            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+            x: 1,
+            y: 1,
+            w: 1.25,
+            h: 2,
+            fill: { color: "5B9BD5" },
+            line: { color: "843C0C", width: 1 },
         });
         const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
@@ -355,8 +405,12 @@ describe("SVG shape rendering", () => {
     test("renders ribbon folds as a darker face under one outline", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("ellipseRibbon", {
-            x: 1, y: 1, w: 2.5, h: 1.4,
-            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+            x: 1,
+            y: 1,
+            w: 2.5,
+            h: 1.4,
+            fill: { color: "5B9BD5" },
+            line: { color: "843C0C", width: 1 },
         });
         const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
         const faces = geometry?.querySelectorAll<SVGPathElement>(".shape-face");
@@ -369,8 +423,12 @@ describe("SVG shape rendering", () => {
     test("renders action-button darken and lighten icon layers", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("actionButtonInformation", {
-            x: 1, y: 1, w: 2, h: 1.25,
-            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 1.25,
+            fill: { color: "5B9BD5" },
+            line: { color: "843C0C", width: 1 },
         });
         const faces = presentation.page.querySelectorAll<SVGPathElement>(".shape-face");
         expect(faces).toHaveLength(3);
@@ -382,8 +440,12 @@ describe("SVG shape rendering", () => {
     test("renders smiley details as shaded eyes and an unfilled mouth", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("smileyFace", {
-            x: 1, y: 1, w: 1.5, h: 1.5,
-            fill: { color: "5B9BD5" }, line: { color: "843C0C", width: 1 },
+            x: 1,
+            y: 1,
+            w: 1.5,
+            h: 1.5,
+            fill: { color: "5B9BD5" },
+            line: { color: "843C0C", width: 1 },
         });
         const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(2);

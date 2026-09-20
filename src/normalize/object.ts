@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
-import type { PageSize } from "../pageLayouts";
 import type { NormalizedObjectStyle } from "../model/types";
+import type { PageSize } from "../pageLayouts";
 import { normalizeGeometry, normalizeTransform, type PositionOptions, type TransformOptions } from "./geometry";
 import { normalizeFill, normalizeLine, normalizeShadow } from "./style";
 
@@ -17,13 +17,7 @@ export interface NormalizeObjectFlags {
     shadow?: boolean;
 }
 
-export function normalizeObjectStyle(
-    options: ObjectStyleOptions,
-    defaults: PositionOptions,
-    pageSize: PageSize,
-    objectName: string,
-    flags: NormalizeObjectFlags = {},
-): NormalizedObjectStyle {
+export function normalizeObjectStyle(options: ObjectStyleOptions, defaults: PositionOptions, pageSize: PageSize, objectName: string, flags: NormalizeObjectFlags = {}): NormalizedObjectStyle {
     return {
         geometry: normalizeGeometry(options, defaults, pageSize),
         transform: normalizeTransform(options),

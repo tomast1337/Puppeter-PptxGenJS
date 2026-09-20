@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -19,22 +19,18 @@ const bundle = await Bun.build({
 });
 
 if (!bundle.success) {
-    bundle.logs.forEach(log => console.error(log));
+    bundle.logs.forEach(log => {
+        console.error(log);
+    });
     throw new Error("JavaScript bundle failed");
 }
 
-const declarations = Bun.spawn([
-    process.execPath,
-    "x",
-    "tsc",
-    "-p",
-    resolve(projectRoot, "tsconfig.build.json"),
-], {
+const declarations = Bun.spawn([process.execPath, "x", "tsc", "-p", resolve(projectRoot, "tsconfig.build.json")], {
     cwd: projectRoot,
     stdout: "inherit",
     stderr: "inherit",
 });
-if (await declarations.exited !== 0) throw new Error("Type declaration build failed");
+if ((await declarations.exited) !== 0) throw new Error("Type declaration build failed");
 
 const pptxTypeSource = resolve(projectRoot, "node_modules/pptxgenjs/types/index.d.ts");
 const pptxTypeTarget = resolve(outputDirectory, "pptxgenjs.d.ts");
@@ -44,17 +40,16 @@ if (!pptxTypes.includes("Type definitions for pptxgenjs 4.0.1")) {
 }
 await copyFile(pptxTypeSource, pptxTypeTarget);
 await mkdir(resolve(outputDirectory, "THIRD_PARTY_LICENSES"), { recursive: true });
-await copyFile(
-    resolve(projectRoot, "node_modules/pptxgenjs/LICENSE"),
-    resolve(outputDirectory, "THIRD_PARTY_LICENSES/PptxGenJS.txt"),
-);
+await copyFile(resolve(projectRoot, "node_modules/pptxgenjs/LICENSE"), resolve(outputDirectory, "THIRD_PARTY_LICENSES/PptxGenJS.txt"));
 
 async function declarationFiles(directory: string): Promise<string[]> {
     const entries = await readdir(directory, { withFileTypes: true });
-    const files = await Promise.all(entries.map(entry => {
-        const path = resolve(directory, entry.name);
-        return entry.isDirectory() ? declarationFiles(path) : path.endsWith(".d.ts") ? [path] : [];
-    }));
+    const files = await Promise.all(
+        entries.map(entry => {
+            const path = resolve(directory, entry.name);
+            return entry.isDirectory() ? declarationFiles(path) : path.endsWith(".d.ts") ? [path] : [];
+        }),
+    );
     return files.flat();
 }
 

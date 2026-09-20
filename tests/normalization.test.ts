@@ -1,32 +1,23 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { normalizeGeometry, normalizeTransform } from "../src/normalize/geometry";
 import { resolveImageSource } from "../src/normalize/image";
-import { normalizeFill, normalizeLine, normalizeShadow, normalizeColor } from "../src/normalize/style";
+import { normalizeColor, normalizeFill, normalizeLine, normalizeShadow } from "../src/normalize/style";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 describe("shared object normalization", () => {
     test("normalizes inches and percentages against page dimensions", () => {
-        expect(normalizeGeometry(
-            { x: "10%", y: "20%", w: 2, h: 1 },
-            {},
-            PAGE_SIZES.SCREEN_16X9.landscape,
-        )).toEqual({ x: 96, y: 108, width: 192, height: 96 });
+        expect(normalizeGeometry({ x: "10%", y: "20%", w: 2, h: 1 }, {}, PAGE_SIZES.SCREEN_16X9.landscape)).toEqual({ x: 96, y: 108, width: 192, height: 96 });
     });
 
     test("uses family defaults only when values are absent", () => {
-        expect(normalizeGeometry(
-            { x: 0, y: 0 },
-            { x: 1, y: 1, w: 1, h: 1 },
-            PAGE_SIZES.SCREEN_16X9.landscape,
-        )).toEqual({ x: 0, y: 0, width: 96, height: 96 });
+        expect(normalizeGeometry({ x: 0, y: 0 }, { x: 1, y: 1, w: 1, h: 1 }, PAGE_SIZES.SCREEN_16X9.landscape)).toEqual({ x: 0, y: 0, width: 96, height: 96 });
     });
 
     test("normalizes rotation, flips, and clamped transparency", () => {
-        expect(normalizeTransform({ rotate: 30, flipH: true, transparency: 25 }))
-            .toEqual({ rotation: 30, flipH: true, flipV: false, opacity: 0.75 });
+        expect(normalizeTransform({ rotate: 30, flipH: true, transparency: 25 })).toEqual({ rotation: 30, flipH: true, flipV: false, opacity: 0.75 });
         expect(normalizeTransform({ transparency: 200 }).opacity).toBe(0);
     });
 
@@ -53,10 +44,12 @@ describe("shared object normalization", () => {
 describe("image source normalization", () => {
     test("preserves data URIs and embeds remote images", async () => {
         expect(await resolveImageSource("data:image/png;base64,abc")).toBe("data:image/png;base64,abc");
-        const fetchMock = spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), {
-            status: 200,
-            headers: { "content-type": "image/png" },
-        }));
+        const fetchMock = spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(new Uint8Array([1, 2, 3]), {
+                status: 200,
+                headers: { "content-type": "image/png" },
+            }),
+        );
         try {
             expect(await resolveImageSource("https://example.com/image.png")).toBe("data:image/png;base64,AQID");
         } finally {

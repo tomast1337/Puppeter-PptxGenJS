@@ -23,7 +23,7 @@ export function normalizeColor(value?: ColorValue, fallback = "transparent"): st
     if (typeof value === "string") {
         return colorToCSS(SCHEME_COLORS[value] ?? value);
     }
-    const resolved = value.color ? SCHEME_COLORS[value.color] ?? value.color : undefined;
+    const resolved = value.color ? (SCHEME_COLORS[value.color] ?? value.color) : undefined;
     return colorToCSS({ color: resolved, transparency: value.transparency ?? value.alpha });
 }
 
@@ -66,7 +66,7 @@ export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow
         return { visible: false, color: "transparent", blur: 0, offsetX: 0, offsetY: 0, inset: false };
     }
     const defaults = PPTX_DEFAULTS.shadow.shapeWhenEnabled;
-    const angle = (value.angle ?? defaults.angle) * Math.PI / 180;
+    const angle = ((value.angle ?? defaults.angle) * Math.PI) / 180;
     const offset = pointsToPixels(value.offset ?? defaults.offsetPt);
     const opacity = value.opacity ?? defaults.opacity;
     const color = normalizeColor({ color: value.color ?? defaults.color, transparency: (1 - opacity) * 100 });

@@ -4,15 +4,9 @@ export type FourSideMargin = [number, number, number, number];
 
 export const PPTX_DEFAULTS_VERSION = "pptxgenjs@4.0.1";
 
-const BAR_CHART_COLORS = Object.freeze([
-    "C0504D", "4F81BD", "9BBB59", "8064A2", "4BACC6", "F79646", "628FC6", "C86360",
-    "C0504D", "4F81BD", "9BBB59", "8064A2", "4BACC6", "F79646", "628FC6", "C86360",
-] as const);
+const BAR_CHART_COLORS = Object.freeze(["C0504D", "4F81BD", "9BBB59", "8064A2", "4BACC6", "F79646", "628FC6", "C86360", "C0504D", "4F81BD", "9BBB59", "8064A2", "4BACC6", "F79646", "628FC6", "C86360"] as const);
 
-const PIE_CHART_COLORS = Object.freeze([
-    "5DA5DA", "FAA43A", "60BD68", "F17CB0", "B2912F", "B276B2", "DECF3F", "F15854", "A7A7A7",
-    "5DA5DA", "FAA43A", "60BD68", "F17CB0", "B2912F", "B276B2", "DECF3F", "F15854", "A7A7A7",
-] as const);
+const PIE_CHART_COLORS = Object.freeze(["5DA5DA", "FAA43A", "60BD68", "F17CB0", "B2912F", "B276B2", "DECF3F", "F15854", "A7A7A7", "5DA5DA", "FAA43A", "60BD68", "F17CB0", "B2912F", "B276B2", "DECF3F", "F15854", "A7A7A7"] as const);
 
 /**
  * Defaults observed in PptxGenJS 4.0.1 and the OOXML it emits.
@@ -286,7 +280,7 @@ function padding(top: number, right: number, bottom: number, left: number): stri
 export function textMarginToCSS(margin?: number | FourSideMargin): string {
     if (margin === undefined) {
         const [top, right, bottom, left] = PPTX_DEFAULTS.text.marginIn;
-        return padding(...[top, right, bottom, left].map(inchesToPixels) as FourSideMargin);
+        return padding(...([top, right, bottom, left].map(inchesToPixels) as FourSideMargin));
     }
     if (typeof margin === "number") {
         const value = pointsToPixels(margin);
@@ -299,11 +293,7 @@ export function textMarginToCSS(margin?: number | FourSideMargin): string {
 
 /** Table margins use TRBL order; values below 1 are inches, otherwise points. */
 export function tableMarginToCSS(margin?: number | FourSideMargin): string {
-    const values = margin === undefined
-        ? [...PPTX_DEFAULTS.table.marginIn] as FourSideMargin
-        : typeof margin === "number"
-            ? [margin, margin, margin, margin] as FourSideMargin
-            : margin;
+    const values = margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? ([margin, margin, margin, margin] as FourSideMargin) : margin;
     const convert = values[0] >= 1 ? pointsToPixels : inchesToPixels;
     const [top, right, bottom, left] = values.map(convert) as FourSideMargin;
     return padding(top, right, bottom, left);

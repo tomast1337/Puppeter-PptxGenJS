@@ -45,7 +45,7 @@ describe("PuppeteerGen DOM rendering", () => {
         const geometry = element?.querySelector<SVGGeometryElement>(".shape-geometry");
         expect(geometry?.getAttribute("fill")).toBe("rgba(68, 114, 196, 0.8)");
         expect(geometry?.getAttribute("stroke")).toBe("#112233");
-        expect(geometry?.getAttribute("stroke-width")).toBe(String(2 * 96 / 72));
+        expect(geometry?.getAttribute("stroke-width")).toBe(String((2 * 96) / 72));
     });
 
     test("uses the deprecated shapeName alias as the object name", () => {
@@ -58,10 +58,17 @@ describe("PuppeteerGen DOM rendering", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
 
-        slide.addTable([[{
-            text: "Header",
-            options: { bold: true, color: "FFFFFF", fill: { color: "4472C4" } },
-        }]], { x: 1, y: 1, w: 4, h: 1 });
+        slide.addTable(
+            [
+                [
+                    {
+                        text: "Header",
+                        options: { bold: true, color: "FFFFFF", fill: { color: "4472C4" } },
+                    },
+                ],
+            ],
+            { x: 1, y: 1, w: 4, h: 1 },
+        );
 
         const cell = presentation.page.querySelector<HTMLTableCellElement>("td");
         const run = cell?.querySelector<HTMLElement>(".text-run");

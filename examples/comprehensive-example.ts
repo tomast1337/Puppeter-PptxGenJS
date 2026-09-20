@@ -5,341 +5,329 @@ import { PAGE_SIZES } from "../src/pageLayouts";
 // Example 1: Using different page sizes
 async function examplePageSizes() {
     console.log("Example 1: Creating presentations with different page sizes...");
-    
+
     // Helper function
     const createPageSizeExample = (pres: pptxgen | PuppeteerGen, text: string, color: string) => {
         const slide = pres.addSlide();
-        slide.addText(text, { 
-            x: 1, 
-            y: 2, 
-            fontSize: 44, 
+        slide.addText(text, {
+            x: 1,
+            y: 2,
+            fontSize: 44,
             bold: true,
-            color: color
+            color: color,
         });
     };
-    
+
     // 16:9 Landscape
     const pres1Pdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
     createPageSizeExample(pres1Pdf, "16:9 Landscape Presentation", "#0066CC");
     await pres1Pdf.writeFile({ fileName: "example-16x9-landscape.pdf" });
-    
+
     const pres1Pptx = new pptxgen();
     createPageSizeExample(pres1Pptx, "16:9 Landscape Presentation", "#0066CC");
     await pres1Pptx.writeFile({ fileName: "example-16x9-landscape.pptx" });
-    
+
     // A4 Portrait
     const pres2Pdf = new PuppeteerGen(PAGE_SIZES.A4.portrait);
     createPageSizeExample(pres2Pdf, "A4 Portrait Document", "#CC0000");
     await pres2Pdf.writeFile({ fileName: "example-a4-portrait.pdf" });
-    
+
     const pres2Pptx = new pptxgen();
     pres2Pptx.defineLayout({ name: "A4", width: 8.27, height: 11.69 });
     createPageSizeExample(pres2Pptx, "A4 Portrait Document", "#CC0000");
     await pres2Pptx.writeFile({ fileName: "example-a4-portrait.pptx" });
-    
+
     // Letter Landscape
     const pres3Pdf = new PuppeteerGen(PAGE_SIZES.LETTER.landscape);
     createPageSizeExample(pres3Pdf, "Letter Landscape Document", "#009900");
     await pres3Pdf.writeFile({ fileName: "example-letter-landscape.pdf" });
-    
+
     const pres3Pptx = new pptxgen();
     pres3Pptx.defineLayout({ name: "LETTER", width: 11, height: 8.5 });
     createPageSizeExample(pres3Pptx, "Letter Landscape Document", "#009900");
     await pres3Pptx.writeFile({ fileName: "example-letter-landscape.pptx" });
-    
+
     console.log("✓ Generated 3 PDFs and 3 PPTX with different page sizes");
 }
 
 // Example 2: Using inches and percentages for positioning
 async function examplePositioning() {
     console.log("\nExample 2: Demonstrating positioning with inches...");
-    
+
     const createPositioningSlide = (pres: pptxgen | PuppeteerGen) => {
         const slide = pres.addSlide();
-        
+
         // Position using inches (standard in PptxGenJS)
-        slide.addText("Top Left (0.5in, 0.5in)", { 
-            x: 0.5, 
-            y: 0.5, 
+        slide.addText("Top Left (0.5in, 0.5in)", {
+            x: 0.5,
+            y: 0.5,
             fontSize: 18,
-            color: "#FF0000"
+            color: "#FF0000",
         });
-        
-        slide.addText("Centered (3in, 2.5in)", { 
-            x: 3, 
-            y: 2.5, 
+
+        slide.addText("Centered (3in, 2.5in)", {
+            x: 3,
+            y: 2.5,
             fontSize: 24,
             bold: true,
-            color: "#0000FF"
+            color: "#0000FF",
         });
-        
-        slide.addText("Bottom Right (7in, 4.5in)", { 
-            x: 7, 
-            y: 4.5, 
+
+        slide.addText("Bottom Right (7in, 4.5in)", {
+            x: 7,
+            y: 4.5,
             fontSize: 18,
-            color: "#00AA00"
+            color: "#00AA00",
         });
     };
-    
+
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
     createPositioningSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-positioning.pdf" });
-    
+
     const presPptx = new pptxgen();
     createPositioningSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-positioning.pptx" });
-    
+
     console.log("✓ Generated example-positioning (PDF + PPTX)");
 }
 
 // Example 3: Text styling
 async function exampleTextStyling() {
     console.log("\nExample 3: Demonstrating text styling...");
-    
+
     const createTextStylingSlide = (pres: pptxgen | PuppeteerGen) => {
         const slide = pres.addSlide();
-        
-        slide.addText("Bold Text", { 
-            x: 1, 
-            y: 0.5, 
+
+        slide.addText("Bold Text", {
+            x: 1,
+            y: 0.5,
             fontSize: 28,
-            bold: true
+            bold: true,
         });
-        
-        slide.addText("Italic Text", { 
-            x: 1, 
-            y: 1.2, 
+
+        slide.addText("Italic Text", {
+            x: 1,
+            y: 1.2,
             fontSize: 28,
-            italic: true
+            italic: true,
         });
-        
-        slide.addText("Underlined Text", { 
-            x: 1, 
-            y: 1.9, 
+
+        slide.addText("Underlined Text", {
+            x: 1,
+            y: 1.9,
             fontSize: 28,
-            underline: { style: "sng" }
+            underline: { style: "sng" },
         });
-        
-        slide.addText("Colored and Background", { 
-            x: 1, 
+
+        slide.addText("Colored and Background", {
+            x: 1,
             y: 2.6,
             w: 5,
             h: 0.6,
             fontSize: 28,
             color: "#FFFFFF",
             fill: { color: "#336699" },
-            bold: true
+            bold: true,
         });
-        
-        slide.addText("Left Aligned", { 
-            x: 1, 
+
+        slide.addText("Left Aligned", {
+            x: 1,
             y: 3.5,
             w: 8,
             fontSize: 20,
-            align: "left"
+            align: "left",
         });
-        
-        slide.addText("Center Aligned", { 
-            x: 1, 
+
+        slide.addText("Center Aligned", {
+            x: 1,
             y: 4,
             w: 8,
             fontSize: 20,
-            align: "center"
+            align: "center",
         });
-        
-        slide.addText("Right Aligned", { 
-            x: 1, 
+
+        slide.addText("Right Aligned", {
+            x: 1,
             y: 4.5,
             w: 8,
             fontSize: 20,
-            align: "right"
+            align: "right",
         });
     };
-    
+
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
     createTextStylingSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-text-styling.pdf" });
-    
+
     const presPptx = new pptxgen();
     createTextStylingSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-text-styling.pptx" });
-    
+
     console.log("✓ Generated example-text-styling (PDF + PPTX)");
 }
 
 // Example 4: Tables
 async function exampleTables() {
     console.log("\nExample 4: Creating tables...");
-    
+
     const createTableSlide = (pres: pptxgen | PuppeteerGen) => {
         const slide = pres.addSlide();
-        
-        slide.addText("Sales Report Q4 2025", { 
-            x: 1, 
-            y: 0.5, 
+
+        slide.addText("Sales Report Q4 2025", {
+            x: 1,
+            y: 0.5,
             fontSize: 32,
             bold: true,
-            color: "#003366"
+            color: "#003366",
         });
-        
-        slide.addTable([
+
+        slide.addTable(
             [
-                { text: "Month", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any},
-                { text: "Revenue", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any},
-                { text: "Expenses", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any},
-                { text: "Profit", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any}
-            ],
-            [
-                { text: "October" },
-                { text: "$125,000", options: { align: "right" } as any},
-                { text: "$75,000", options: { align: "right" } as any},
-                { text: "$50,000", options: { align: "right", color: "#00AA00", bold: true } as any}
-            ],
-            [
-                { text: "November" },
-                { text: "$135,000", options: { align: "right" } as any},
-                { text: "$80,000", options: { align: "right" } as any},
-                { text: "$55,000", options: { align: "right", color: "#00AA00", bold: true } as any}
-            ],
-            [
-                { text: "December" },
-                { text: "$150,000", options: { align: "right" } as any},
-                { text: "$85,000", options: { align: "right" } as any},
-                { text: "$65,000", options: { align: "right", color: "#00AA00", bold: true } as any}
-            ],
-            [
-                { text: "Total", options: { bold: true, fill: "#D9E2F3" } as any},
-                { text: "$410,000", options: { bold: true, align: "right", fill: "#D9E2F3" } as any},
-                { text: "$240,000", options: { bold: true, align: "right", fill: "#D9E2F3" } as any},
-                { text: "$170,000", options: { bold: true, align: "right", fill: "#D9E2F3", color: "#00AA00" } as any}
-            ]
-        ] as any, {
-            x: 1,
-            y: 1.5,
-            w: 8,
-            h: 3
-        });
+                [
+                    { text: "Month", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any },
+                    { text: "Revenue", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any },
+                    { text: "Expenses", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any },
+                    { text: "Profit", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } as any },
+                ],
+                [{ text: "October" }, { text: "$125,000", options: { align: "right" } as any }, { text: "$75,000", options: { align: "right" } as any }, { text: "$50,000", options: { align: "right", color: "#00AA00", bold: true } as any }],
+                [{ text: "November" }, { text: "$135,000", options: { align: "right" } as any }, { text: "$80,000", options: { align: "right" } as any }, { text: "$55,000", options: { align: "right", color: "#00AA00", bold: true } as any }],
+                [{ text: "December" }, { text: "$150,000", options: { align: "right" } as any }, { text: "$85,000", options: { align: "right" } as any }, { text: "$65,000", options: { align: "right", color: "#00AA00", bold: true } as any }],
+                [
+                    { text: "Total", options: { bold: true, fill: "#D9E2F3" } as any },
+                    { text: "$410,000", options: { bold: true, align: "right", fill: "#D9E2F3" } as any },
+                    { text: "$240,000", options: { bold: true, align: "right", fill: "#D9E2F3" } as any },
+                    { text: "$170,000", options: { bold: true, align: "right", fill: "#D9E2F3", color: "#00AA00" } as any },
+                ],
+            ] as any,
+            {
+                x: 1,
+                y: 1.5,
+                w: 8,
+                h: 3,
+            },
+        );
     };
-    
+
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
     createTableSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-tables.pdf" });
-    
+
     const presPptx = new pptxgen();
     createTableSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-tables.pptx" });
-    
+
     console.log("✓ Generated example-tables (PDF + PPTX)");
 }
 
 // Example 5: Multiple slides
 async function exampleMultipleSlides() {
     console.log("\nExample 5: Creating multi-slide presentation...");
-    
+
     const createMultiSlidePresentation = (pres: pptxgen | PuppeteerGen) => {
         // Slide 1: Title
         const slide1 = pres.addSlide();
-        slide1.addText("My Presentation", { 
-            x: 1, 
-            y: 2, 
+        slide1.addText("My Presentation", {
+            x: 1,
+            y: 2,
             w: 8,
             fontSize: 48,
             bold: true,
             align: "center",
-            color: "#003366"
+            color: "#003366",
         });
-        slide1.addText("By PptxGenJS/PuppeteerGen", { 
-            x: 1, 
-            y: 3, 
+        slide1.addText("By PptxGenJS/PuppeteerGen", {
+            x: 1,
+            y: 3,
             w: 8,
             fontSize: 24,
             align: "center",
-            color: "#666666"
+            color: "#666666",
         });
-        
+
         // Slide 2: Agenda
         const slide2 = pres.addSlide();
-        slide2.addText("Agenda", { 
-            x: 1, 
-            y: 0.5, 
+        slide2.addText("Agenda", {
+            x: 1,
+            y: 0.5,
             fontSize: 36,
             bold: true,
-            color: "#003366"
+            color: "#003366",
         });
-        slide2.addText("• Introduction\n• Key Features\n• Use Cases\n• Conclusion", { 
-            x: 1.5, 
+        slide2.addText("• Introduction\n• Key Features\n• Use Cases\n• Conclusion", {
+            x: 1.5,
             y: 1.5,
             w: 7,
             h: 3,
-            fontSize: 24
+            fontSize: 24,
         });
-        
+
         // Slide 3: Key Features
         const slide3 = pres.addSlide();
-        slide3.addText("Key Features", { 
-            x: 1, 
-            y: 0.5, 
+        slide3.addText("Key Features", {
+            x: 1,
+            y: 0.5,
             fontSize: 36,
             bold: true,
-            color: "#003366"
+            color: "#003366",
         });
-        slide3.addText("✓ Multiple page sizes\n✓ Inch-based positioning\n✓ Rich text formatting\n✓ Tables and shapes\n✓ PDF output", { 
-            x: 1.5, 
+        slide3.addText("✓ Multiple page sizes\n✓ Inch-based positioning\n✓ Rich text formatting\n✓ Tables and shapes\n✓ PDF output", {
+            x: 1.5,
             y: 1.5,
             w: 7,
             h: 3,
-            fontSize: 22
+            fontSize: 22,
         });
-        
+
         // Slide 4: Thank You
         const slide4 = pres.addSlide();
-        slide4.addText("Thank You!", { 
-            x: 1, 
-            y: 2.5, 
+        slide4.addText("Thank You!", {
+            x: 1,
+            y: 2.5,
             w: 8,
             fontSize: 48,
             bold: true,
             align: "center",
-            color: "#003366"
+            color: "#003366",
         });
     };
-    
+
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
     createMultiSlidePresentation(presPdf);
     await presPdf.writeFile({ fileName: "example-multiple-slides.pdf" });
-    
+
     const presPptx = new pptxgen();
     createMultiSlidePresentation(presPptx);
     await presPptx.writeFile({ fileName: "example-multiple-slides.pptx" });
-    
+
     console.log("✓ Generated example-multiple-slides (PDF + PPTX) with 4 slides each");
 }
 
 // Example 6: Custom layout
 async function exampleCustomLayout() {
     console.log("\nExample 6: Using custom layout...");
-    
+
     const createCustomLayoutSlide = (pres: pptxgen | PuppeteerGen) => {
         pres.defineLayout({ name: "Custom Wide", width: 12, height: 6 });
-        
+
         const slide = pres.addSlide();
-        slide.addText("Custom Wide Layout (12\" × 6\")", { 
-            x: 2, 
-            y: 2, 
+        slide.addText('Custom Wide Layout (12" × 6")', {
+            x: 2,
+            y: 2,
             fontSize: 36,
             bold: true,
-            color: "#660066"
+            color: "#660066",
         });
     };
-    
+
     const presPdf = new PuppeteerGen();
     createCustomLayoutSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-custom-layout.pdf" });
-    
+
     const presPptx = new pptxgen();
     createCustomLayoutSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-custom-layout.pptx" });
-    
+
     console.log("✓ Generated example-custom-layout (PDF + PPTX)");
 }
 
@@ -348,14 +336,14 @@ async function runAllExamples() {
     console.log("=".repeat(60));
     console.log("PuppeteerGen Comprehensive Examples");
     console.log("=".repeat(60));
-    
+
     await examplePageSizes();
     await examplePositioning();
     await exampleTextStyling();
     await exampleTables();
     await exampleMultipleSlides();
     await exampleCustomLayout();
-    
+
     console.log("\n" + "=".repeat(60));
     console.log("All examples completed successfully!");
     console.log("=".repeat(60));
@@ -366,11 +354,4 @@ if (import.meta.main) {
     runAllExamples().catch(console.error);
 }
 
-export {
-    examplePageSizes,
-    examplePositioning,
-    exampleTextStyling,
-    exampleTables,
-    exampleMultipleSlides,
-    exampleCustomLayout
-};
+export { exampleCustomLayout, exampleMultipleSlides, examplePageSizes, examplePositioning, exampleTables, exampleTextStyling };

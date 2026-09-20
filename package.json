@@ -22,6 +22,12 @@
   },
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
     "prepack": "bun run build",
     "test:package": "bun run scripts/test-package.ts",
     "typecheck": "tsc --noEmit",
@@ -30,6 +36,7 @@
     "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@types/bun": "latest",
     "@types/jsdom": "^21.1.7",
     "pptxgenjs": "4.0.1",

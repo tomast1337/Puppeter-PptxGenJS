@@ -22,11 +22,7 @@ for (const tool of requiredTools) {
 
 async function run(command: string[], acceptedExitCodes = [0]): Promise<string> {
     const process = Bun.spawn(command, { stdout: "pipe", stderr: "pipe" });
-    const [exitCode, stdout, stderr] = await Promise.all([
-        process.exited,
-        new Response(process.stdout).text(),
-        new Response(process.stderr).text(),
-    ]);
+    const [exitCode, stdout, stderr] = await Promise.all([process.exited, new Response(process.stdout).text(), new Response(process.stderr).text()]);
 
     if (!acceptedExitCodes.includes(exitCode)) {
         throw new Error(`${command.join(" ")} failed (${exitCode})\n${stderr || stdout}`);
@@ -45,16 +41,14 @@ const actualPdf = join(artifacts, "actual.pdf");
 const sourceDom = new JSDOM("<!DOCTYPE html><html><body></body></html>");
 Object.defineProperty(sourceDom.window.HTMLElement.prototype, "offsetWidth", {
     configurable: true,
-    get(this: HTMLElement) { return parseFloat(this.style.width) || Number(this.getAttribute("width")) || 0; },
+    get(this: HTMLElement) {
+        return parseFloat(this.style.width) || Number(this.getAttribute("width")) || 0;
+    },
 });
 Object.defineProperty(sourceDom.window.HTMLElement.prototype, "innerText", {
     configurable: true,
     get(this: HTMLElement) {
-        const read = (node: Node): string => node.nodeType === node.TEXT_NODE
-            ? node.nodeValue ?? ""
-            : node instanceof sourceDom.window.HTMLBRElement
-                ? "\n"
-                : Array.from(node.childNodes).map(read).join("");
+        const read = (node: Node): string => (node.nodeType === node.TEXT_NODE ? (node.nodeValue ?? "") : node instanceof sourceDom.window.HTMLBRElement ? "\n" : Array.from(node.childNodes).map(read).join(""));
         return read(this).trim();
     },
 });
@@ -73,7 +67,9 @@ sourceDom.window.getComputedStyle = ((element: Element, pseudoElement?: string |
     return style;
 }) as typeof sourceDom.window.getComputedStyle;
 Object.assign(globalThis, { document: sourceDom.window.document, window: sourceDom.window });
-const progress = (stage: string) => { if (process.env.VISUAL_PROGRESS) console.log(`[visual] ${stage}`); };
+const progress = (stage: string) => {
+    if (process.env.VISUAL_PROGRESS) console.log(`[visual] ${stage}`);
+};
 
 const reference = new pptxgen();
 reference.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
@@ -91,16 +87,7 @@ await actual.writeFile({ fileName: actualPdf });
 
 const libreOfficeProfile = join(artifacts, "libreoffice-profile");
 progress("convert reference pdf");
-await run([
-    "libreoffice",
-    "--headless",
-    `-env:UserInstallation=file://${libreOfficeProfile}`,
-    "--convert-to",
-    "pdf",
-    "--outdir",
-    artifacts,
-    referencePptx,
-]);
+await run(["libreoffice", "--headless", `-env:UserInstallation=file://${libreOfficeProfile}`, "--convert-to", "pdf", "--outdir", artifacts, referencePptx]);
 progress("rasterize PDFs");
 await run(["pdftoppm", "-png", "-r", "96", referencePdf, join(artifacts, "reference")]);
 await run(["pdftoppm", "-png", "-r", "96", actualPdf, join(artifacts, "actual")]);
@@ -113,28 +100,19 @@ if (referencePages.length !== actualPages.length || referencePages.length === 0)
     throw new Error(`Page count mismatch: reference=${referencePages.length}, actual=${actualPages.length}`);
 }
 const pageDigits = Math.max(2, String(referencePages.length).length);
-const pageFiles = await Promise.all(referencePages.map(async (referencePage, index) => {
-    const page = String(index + 1).padStart(pageDigits, "0");
-    const referenceName = `${page}-reference.png`;
-    const actualName = `${page}-actual.png`;
-    await Promise.all([
-        rename(join(artifacts, referencePage), join(artifacts, referenceName)),
-        rename(join(artifacts, actualPages[index]!), join(artifacts, actualName)),
-    ]);
-    return { page, referenceName, actualName };
-}));
+const pageFiles = await Promise.all(
+    referencePages.map(async (referencePage, index) => {
+        const page = String(index + 1).padStart(pageDigits, "0");
+        const referenceName = `${page}-reference.png`;
+        const actualName = `${page}-actual.png`;
+        await Promise.all([rename(join(artifacts, referencePage), join(artifacts, referenceName)), rename(join(artifacts, actualPages[index]!), join(artifacts, actualName))]);
+        return { page, referenceName, actualName };
+    }),
+);
 
 const pageScores: number[] = [];
 for (const page of pageFiles) {
-    const output = await run([
-        "magick",
-        "compare",
-        "-metric",
-        "RMSE",
-        join(artifacts, page.referenceName),
-        join(artifacts, page.actualName),
-        join(artifacts, `${page.page}-diff.png`),
-    ], [0, 1]);
+    const output = await run(["magick", "compare", "-metric", "RMSE", join(artifacts, page.referenceName), join(artifacts, page.actualName), join(artifacts, `${page.page}-diff.png`)], [0, 1]);
     const normalizedScore = output.match(/\((\d*\.?\d+)\)/)?.[1];
     if (!normalizedScore) throw new Error(`Could not parse ImageMagick metric: ${output}`);
     pageScores.push(Number(normalizedScore));
@@ -149,10 +127,7 @@ for (const region of PARITY_REGIONS) {
     const actualCrop = join(artifacts, `${page.page}-${region.name}-actual.png`);
     await run(["magick", join(artifacts, page.referenceName), "-crop", geometry, "+repage", referenceCrop]);
     await run(["magick", join(artifacts, page.actualName), "-crop", geometry, "+repage", actualCrop]);
-    const output = await run([
-        "magick", "compare", "-metric", "RMSE", referenceCrop, actualCrop,
-        join(artifacts, `${page.page}-${region.name}-diff.png`),
-    ], [0, 1]);
+    const output = await run(["magick", "compare", "-metric", "RMSE", referenceCrop, actualCrop, join(artifacts, `${page.page}-${region.name}-diff.png`)], [0, 1]);
     const metric = output.match(/\((\d*\.?\d+)\)/)?.[1];
     if (!metric) throw new Error(`Could not parse region metric: ${output}`);
     const score = Number(metric);

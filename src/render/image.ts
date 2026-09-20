@@ -1,11 +1,7 @@
 import type { NormalizedImage, NormalizedObjectStyle } from "../model/types";
 import { applyObjectStyle } from "./style";
 
-export function renderImage(
-    document: Document,
-    image: NormalizedImage,
-    style: NormalizedObjectStyle,
-): HTMLElement {
+export function renderImage(document: Document, image: NormalizedImage, style: NormalizedObjectStyle): HTMLElement {
     const outer = image.link ? document.createElement("a") : document.createElement("div");
     outer.className = "slide-element slide-image";
     applyObjectStyle(outer, style);

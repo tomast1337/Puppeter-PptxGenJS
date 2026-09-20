@@ -8,10 +8,7 @@ describe("defaults contract", () => {
     });
 
     test("covers implemented and future renderer families", () => {
-        expect(Object.keys(PPTX_DEFAULTS)).toEqual(expect.arrayContaining([
-            "presentation", "theme", "write", "slide", "text", "table",
-            "shape", "image", "media", "bullet", "chart", "fill", "border", "shadow",
-        ]));
+        expect(Object.keys(PPTX_DEFAULTS)).toEqual(expect.arrayContaining(["presentation", "theme", "write", "slide", "text", "table", "shape", "image", "media", "bullet", "chart", "fill", "border", "shadow"]));
         expect(PPTX_DEFAULTS.image).toMatchObject({ x: 0, y: 0, w: 1, h: 1, transparency: 0 });
         expect(PPTX_DEFAULTS.media).toMatchObject({ x: 0, y: 0, w: 2, h: 2, type: "audio" });
         expect(PPTX_DEFAULTS.chart).toMatchObject({ x: 1, y: 1, w: "50%", h: "50%" });
@@ -32,13 +29,11 @@ describe("PptxGenJS defaults", () => {
     });
 
     test("mirrors PptxGenJS 4.0.1 text margin array ordering", () => {
-        expect(textMarginToCSS([1, 2, 3, 4]))
-            .toBe("5.333333px 2.666667px 4px 1.333333px");
+        expect(textMarginToCSS([1, 2, 3, 4])).toBe("5.333333px 2.666667px 4px 1.333333px");
     });
 
     test("uses TRBL ordering and dual units for table margins", () => {
-        expect(tableMarginToCSS([0.05, 0.1, 0.05, 0.1]))
-            .toBe("4.8px 9.6px 4.8px 9.6px");
+        expect(tableMarginToCSS([0.05, 0.1, 0.05, 0.1])).toBe("4.8px 9.6px 4.8px 9.6px");
         expect(tableMarginToCSS(6)).toBe("8px 8px 8px 8px");
     });
 });

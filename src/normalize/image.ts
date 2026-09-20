@@ -17,7 +17,7 @@ const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
 
 function validateDataUri(source: string): string {
     const match = source.match(/^data:(image\/[\w.+-]+);base64,([a-z\d+/=\s]+)$/i);
-    if (!match || !match[2]?.replace(/\s/g, "")) {
+    if (!match?.[2]?.replace(/\s/g, "")) {
         throw new Error("Image data must be a base64-encoded image data URI");
     }
     return source;
@@ -44,7 +44,7 @@ export async function resolveImageSource(source: string, cwd = process.cwd()): P
 
     const path = source.startsWith("file:") ? fileURLToPath(source) : resolve(cwd, source);
     const file = Bun.file(path);
-    if (!await file.exists()) throw new Error(`Image file not found: ${path}`);
+    if (!(await file.exists())) throw new Error(`Image file not found: ${path}`);
 
     const mime = MIME_TYPES[extname(path).toLowerCase()] ?? (file.type || "application/octet-stream");
     if (!mime.startsWith("image/")) throw new Error(`Unsupported image type '${mime}': ${path}`);
@@ -57,13 +57,15 @@ export async function resolveImageSource(source: string, cwd = process.cwd()): P
 
 export async function resolveDocumentImages(document: Document, cwd = process.cwd()): Promise<void> {
     const images = Array.from(document.querySelectorAll<HTMLImageElement>("img[data-source-path], img[data-source-url]"));
-    await Promise.all(images.map(async image => {
-        const source = image.dataset.sourcePath ?? image.dataset.sourceUrl;
-        if (!source) return;
-        image.src = await resolveImageSource(source, cwd);
-        delete image.dataset.sourcePath;
-        delete image.dataset.sourceUrl;
-    }));
+    await Promise.all(
+        images.map(async image => {
+            const source = image.dataset.sourcePath ?? image.dataset.sourceUrl;
+            if (!source) return;
+            image.src = await resolveImageSource(source, cwd);
+            delete image.dataset.sourcePath;
+            delete image.dataset.sourceUrl;
+        }),
+    );
 }
 
 export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize): NormalizedImage {
@@ -85,17 +87,15 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     const normalizedSizing = !sizing
         ? { type: "stretch" as const }
         : sizing.type === "crop"
-            ? {
+          ? {
                 type: "crop" as const,
                 offsetX: convertToPixels(sizing.x ?? 0, pageWidth),
                 offsetY: convertToPixels(sizing.y ?? 0, pageHeight),
                 width: sourceWidth,
                 height: sourceHeight,
             }
-            : (() => {
-                const scale = sizing.type === "contain"
-                    ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight)
-                    : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
+          : (() => {
+                const scale = sizing.type === "contain" ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight) : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
                 const width = sourceWidth * scale;
                 const height = sourceHeight * scale;
                 return {
@@ -107,11 +107,7 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
                 };
             })();
     const transparency = Math.max(0, Math.min(100, options.transparency ?? PPTX_DEFAULTS.image.transparency));
-    const link = options.hyperlink?.url
-        ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip }
-        : options.hyperlink?.slide
-            ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide }
-            : undefined;
+    const link = options.hyperlink?.url ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip } : options.hyperlink?.slide ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide } : undefined;
     return {
         source,
         sourceKind,

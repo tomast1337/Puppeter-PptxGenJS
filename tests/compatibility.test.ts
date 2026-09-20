@@ -1,30 +1,70 @@
 import { describe, expect, test } from "bun:test";
-import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY, type CompatibilityStatus } from "../src/compatibility";
+import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY } from "../src/compatibility";
 
 const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified"]);
 const TEXT_OPTION_KEYS = [
-    "x", "y", "w", "h", "data", "path", "objectName",
-    "align", "bold", "breakLine", "bullet", "color", "fontFace", "fontSize", "highlight",
-    "italic", "lang", "softBreakBefore", "tabStops", "textDirection", "transparency", "underline", "valign",
-    "baseline", "charSpacing", "fit", "fill", "flipH", "flipV", "glow", "hyperlink", "indentLevel",
-    "isTextBox", "line", "lineSpacing", "lineSpacingMultiple", "margin", "outline", "paraSpaceAfter",
-    "paraSpaceBefore", "placeholder", "rectRadius", "rotate", "rtlMode", "shadow", "shape", "strike",
-    "subscript", "superscript", "vert", "wrap", "autoFit", "shrinkText", "inset", "lineDash",
-    "lineHead", "lineSize", "lineTail",
+    "x",
+    "y",
+    "w",
+    "h",
+    "data",
+    "path",
+    "objectName",
+    "align",
+    "bold",
+    "breakLine",
+    "bullet",
+    "color",
+    "fontFace",
+    "fontSize",
+    "highlight",
+    "italic",
+    "lang",
+    "softBreakBefore",
+    "tabStops",
+    "textDirection",
+    "transparency",
+    "underline",
+    "valign",
+    "baseline",
+    "charSpacing",
+    "fit",
+    "fill",
+    "flipH",
+    "flipV",
+    "glow",
+    "hyperlink",
+    "indentLevel",
+    "isTextBox",
+    "line",
+    "lineSpacing",
+    "lineSpacingMultiple",
+    "margin",
+    "outline",
+    "paraSpaceAfter",
+    "paraSpaceBefore",
+    "placeholder",
+    "rectRadius",
+    "rotate",
+    "rtlMode",
+    "shadow",
+    "shape",
+    "strike",
+    "subscript",
+    "superscript",
+    "vert",
+    "wrap",
+    "autoFit",
+    "shrinkText",
+    "inset",
+    "lineDash",
+    "lineHead",
+    "lineSize",
+    "lineTail",
 ] as const;
-const IMAGE_OPTION_KEYS = [
-    "x", "y", "w", "h", "path", "data", "objectName", "altText", "flipH", "flipV",
-    "hyperlink", "placeholder", "rotate", "rounding", "shadow", "sizing", "transparency",
-] as const;
-const SHAPE_OPTION_KEYS = [
-    "x", "y", "w", "h", "objectName", "align", "angleRange", "arcThicknessRatio", "fill",
-    "flipH", "flipV", "hyperlink", "line", "points", "rectRadius", "rotate", "shadow",
-    "lineSize", "lineDash", "lineHead", "lineTail", "shapeName",
-] as const;
-const TABLE_TO_SLIDES_OPTION_KEYS = [
-    "tableToSlides", "addImage", "addShape", "addTable", "addText",
-    "slideMargin", "addHeaderToEach", "masterSlideName",
-] as const;
+const IMAGE_OPTION_KEYS = ["x", "y", "w", "h", "path", "data", "objectName", "altText", "flipH", "flipV", "hyperlink", "placeholder", "rotate", "rounding", "shadow", "sizing", "transparency"] as const;
+const SHAPE_OPTION_KEYS = ["x", "y", "w", "h", "objectName", "align", "angleRange", "arcThicknessRatio", "fill", "flipH", "flipV", "hyperlink", "line", "points", "rectRadius", "rotate", "shadow", "lineSize", "lineDash", "lineHead", "lineTail", "shapeName"] as const;
+const TABLE_TO_SLIDES_OPTION_KEYS = ["tableToSlides", "addImage", "addShape", "addTable", "addText", "slideMargin", "addHeaderToEach", "masterSlideName"] as const;
 
 describe("compatibility manifest", () => {
     test("tracks every active renderer family", () => {

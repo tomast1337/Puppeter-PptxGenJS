@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 const projectRoot = resolve(import.meta.dir, "..");
 const temporaryRoot = await mkdtemp(join(tmpdir(), "puppeteer-gen-consumer-"));
 const consumerDirectory = join(temporaryRoot, "consumer");
-const packageMetadata = await Bun.file(resolve(projectRoot, "package.json")).json() as { name: string; version: string };
+const packageMetadata = (await Bun.file(resolve(projectRoot, "package.json")).json()) as { name: string; version: string };
 const tarballName = `${packageMetadata.name.replace(/^@/, "").replace("/", "-")}-${packageMetadata.version}.tgz`;
 const tarball = join(temporaryRoot, tarballName);
 
@@ -16,18 +16,22 @@ async function run(command: string[], cwd: string): Promise<void> {
 }
 
 try {
-    await run([
-        process.execPath, "pm", "pack",
-        "--destination", temporaryRoot,
-    ], projectRoot);
+    await run([process.execPath, "pm", "pack", "--destination", temporaryRoot], projectRoot);
 
     await mkdir(consumerDirectory);
-    await Bun.write(join(consumerDirectory, "package.json"), JSON.stringify({
-        name: "puppeteer-gen-package-consumer",
-        private: true,
-        type: "module",
-        dependencies: { "puppeter-pptxgenjs": `file:${tarball}` },
-    }, null, 2));
+    await Bun.write(
+        join(consumerDirectory, "package.json"),
+        JSON.stringify(
+            {
+                name: "puppeteer-gen-package-consumer",
+                private: true,
+                type: "module",
+                dependencies: { "puppeter-pptxgenjs": `file:${tarball}` },
+            },
+            null,
+            2,
+        ),
+    );
     await run([process.execPath, "install", "--ignore-scripts"], consumerDirectory);
 
     try {
@@ -68,19 +72,26 @@ console.log("standalone package consumer passed");
 `;
     const consumerSourcePath = join(consumerDirectory, "consumer.ts");
     await Bun.write(consumerSourcePath, consumerSource);
-    await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify({
-        compilerOptions: {
-            lib: ["ESNext", "DOM"],
-            target: "ESNext",
-            module: "Preserve",
-            moduleResolution: "bundler",
-            strict: true,
-            skipLibCheck: false,
-            types: [],
-            noEmit: true,
-        },
-        files: ["consumer.ts"],
-    }, null, 2));
+    await Bun.write(
+        join(consumerDirectory, "tsconfig.json"),
+        JSON.stringify(
+            {
+                compilerOptions: {
+                    lib: ["ESNext", "DOM"],
+                    target: "ESNext",
+                    module: "Preserve",
+                    moduleResolution: "bundler",
+                    strict: true,
+                    skipLibCheck: false,
+                    types: [],
+                    noEmit: true,
+                },
+                files: ["consumer.ts"],
+            },
+            null,
+            2,
+        ),
+    );
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
     await run([process.execPath, "run", consumerSourcePath], consumerDirectory);
 } finally {

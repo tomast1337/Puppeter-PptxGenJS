@@ -1,57 +1,48 @@
-import { PuppeteerGen } from "./PuppeterrGen";
-import { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "./pageLayouts";
-import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, textMarginToCSS, tableMarginToCSS } from "./defaults";
-import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
 import { UnsupportedChartError } from "./chart/errors";
-import {
-    inchesToPixels,
-    percentageToPixels,
-    convertToPixels,
-    generatePageCSS,
-    colorToCSS,
-    alignToCSS,
-    valignToCSS,
-    pointsToPixels,
-} from "./utils";
+import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
+import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
+import { PuppeteerGen } from "./PuppeterrGen";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
+import { alignToCSS, colorToCSS, convertToPixels, generatePageCSS, inchesToPixels, percentageToPixels, pointsToPixels, valignToCSS } from "./utils";
 
 export {
-    PuppeteerGen,
-    PAGE_SIZES,
+    alignToCSS,
+    CHART_TYPE_COMPATIBILITY,
+    COMPATIBILITY,
+    colorToCSS,
+    convertToPixels,
     DEFAULT_PAGE_SIZE,
+    generatePageCSS,
+    inchesToPixels,
+    PAGE_SIZES,
     PPTX_DEFAULTS,
     PPTX_DEFAULTS_VERSION,
-    textMarginToCSS,
-    tableMarginToCSS,
-    COMPATIBILITY,
-    SHAPE_GEOMETRY_COMPATIBILITY,
-    CHART_TYPE_COMPATIBILITY,
-    UnsupportedChartError,
-    inchesToPixels,
+    PuppeteerGen,
     percentageToPixels,
-    convertToPixels,
-    generatePageCSS,
-    colorToCSS,
-    alignToCSS,
-    valignToCSS,
     pointsToPixels,
+    SHAPE_GEOMETRY_COMPATIBILITY,
+    tableMarginToCSS,
+    textMarginToCSS,
+    UnsupportedChartError,
+    valignToCSS,
 };
 export default PuppeteerGen;
 
-export type { PageSize, PageLayout, PageSizeName, Orientation } from "./pageLayouts";
-export type { FourSideMargin } from "./defaults";
-export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
-export type { PuppeteerSlide } from "./PuppeterrGen";
-export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 export type { UnsupportedChartDetails, UnsupportedChartReason } from "./chart/errors";
+export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
+export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
+export type { FourSideMargin } from "./defaults";
+export type { PuppeteerSlide } from "./PuppeterrGen";
+export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
 export type {
     PptxGenJSLike,
+    PptxShapeProps,
     PptxSlide,
-    PptxTableRow,
     PptxTableProps,
+    PptxTableRow,
     PptxTextProps,
     PptxTextPropsOptions,
-    PptxShapeProps,
-    PptxWriteProps,
     PptxWriteFileProps,
+    PptxWriteProps,
 } from "./pptx";
 export type { ColorProps } from "./utils";

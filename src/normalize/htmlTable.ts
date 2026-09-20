@@ -17,9 +17,9 @@ function cssPixels(value: string | null | undefined, relativeTo: number): number
     if (!source || source === "auto") return 0;
     const amount = parseFloat(source);
     if (!Number.isFinite(amount)) return 0;
-    if (source.endsWith("%")) return relativeTo * amount / 100;
+    if (source.endsWith("%")) return (relativeTo * amount) / 100;
     if (source.endsWith("in")) return amount * 96;
-    if (source.endsWith("pt")) return amount * 96 / 72;
+    if (source.endsWith("pt")) return (amount * 96) / 72;
     return amount;
 }
 
@@ -42,7 +42,11 @@ function colorValue(value: string): string {
     if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") return "FFFFFF";
     const channels = value.match(/rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)/i);
     if (!channels) return value.replace(/^#/, "") || "000000";
-    return channels.slice(1, 4).map(channel => Number(channel).toString(16).padStart(2, "0")).join("").toUpperCase();
+    return channels
+        .slice(1, 4)
+        .map(channel => Number(channel).toString(16).padStart(2, "0"))
+        .join("")
+        .toUpperCase();
 }
 
 function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
@@ -61,9 +65,7 @@ function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
     const fontWeight = inherited("font-weight");
     const fontFamily = inherited("font-family");
     const fontSize = inherited("font-size");
-    const background = style.backgroundColor === "transparent" || style.backgroundColor === "rgba(0, 0, 0, 0)"
-        ? "FFFFFF"
-        : colorValue(style.backgroundColor);
+    const background = style.backgroundColor === "transparent" || style.backgroundColor === "rgba(0, 0, 0, 0)" ? "FFFFFF" : colorValue(style.backgroundColor);
     const options: PptxGenJS.TableCellProps = {
         bold: fontWeight === "bold" || Number(fontWeight) >= 500,
         color: colorValue(inherited("color")),
@@ -80,8 +82,7 @@ function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
         options.valign = style.verticalAlign;
     }
     if (style.paddingLeft) {
-        options.margin = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
-            .map(value => Math.round(parseFloat(value) || 0)) as FourSideMargin;
+        options.margin = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(value => Math.round(parseFloat(value) || 0)) as FourSideMargin;
     }
     const borderSides = ["top", "right", "bottom", "left"] as const;
     options.border = borderSides.map(side => ({
@@ -92,12 +93,7 @@ function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
     return options;
 }
 
-export function normalizeHtmlTable(
-    document: Document,
-    elementId: string,
-    options: PptxGenJS.TableToSlidesProps,
-    pageSize: PageSize,
-): NormalizedHtmlTable {
+export function normalizeHtmlTable(document: Document, elementId: string, options: PptxGenJS.TableToSlidesProps, pageSize: PageSize): NormalizedHtmlTable {
     const element = document.getElementById(elementId);
     if (!(element instanceof document.defaultView!.HTMLTableElement)) {
         throw new Error(`tableToSlides: Table ID "${elementId}" does not exist!`);
@@ -112,9 +108,14 @@ export function normalizeHtmlTable(
     const explicitWidths: Array<number | undefined> = [];
     firstCells.forEach(cell => {
         const colspan = Math.max(1, cell.colSpan);
-        const width = cssPixels(cell.style.width || cell.getAttribute("width"), tableWidthPx)
-            || cssPixels(element.querySelector(`col:nth-child(${measured.length + 1})`)?.getAttribute("width"), tableWidthPx)
-            || tableWidthPx / Math.max(1, firstCells.reduce((sum, item) => sum + item.colSpan, 0));
+        const width =
+            cssPixels(cell.style.width || cell.getAttribute("width"), tableWidthPx) ||
+            cssPixels(element.querySelector(`col:nth-child(${measured.length + 1})`)?.getAttribute("width"), tableWidthPx) ||
+            tableWidthPx /
+                Math.max(
+                    1,
+                    firstCells.reduce((sum, item) => sum + item.colSpan, 0),
+                );
         const declared = Number(cell.getAttribute("data-pptx-width"));
         for (let index = 0; index < colspan; index++) {
             measured.push(width / colspan);
@@ -122,11 +123,9 @@ export function normalizeHtmlTable(
         }
     });
     const totalMeasured = measured.reduce((sum, width) => sum + width, 0) || 1;
-    const columnWidths = measured.map((width, index) => explicitWidths[index] ?? Number((usableWidth * width / totalMeasured).toFixed(2)));
+    const columnWidths = measured.map((width, index) => explicitWidths[index] ?? Number(((usableWidth * width) / totalMeasured).toFixed(2)));
 
-    const sectionRows = (selector: string): PptxGenJS.TableRow[] => Array.from(element.querySelectorAll<HTMLTableRowElement>(selector)).map(row =>
-        Array.from(row.cells).map(cell => ({ text: textContent(cell), options: cellOptions(cell) })),
-    );
+    const sectionRows = (selector: string): PptxGenJS.TableRow[] => Array.from(element.querySelectorAll<HTMLTableRowElement>(selector)).map(row => Array.from(row.cells).map(cell => ({ text: textContent(cell), options: cellOptions(cell) })));
     const head = sectionRows(":scope > thead > tr");
     const body = sectionRows(":scope > tbody > tr");
     const foot = sectionRows(":scope > tfoot > tr");

@@ -1,13 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-    alignToCSS,
-    colorToCSS,
-    convertToPixels,
-    inchesToPixels,
-    percentageToPixels,
-    pointsToPixels,
-    valignToCSS,
-} from "../src/utils";
+import { alignToCSS, colorToCSS, convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels, valignToCSS } from "../src/utils";
 
 describe("measurement conversion", () => {
     test("converts inches and points at 96 DPI", () => {
@@ -28,8 +20,7 @@ describe("style conversion", () => {
         expect(colorToCSS("FFFFFF")).toBe("#FFFFFF");
         expect(colorToCSS("red")).toBe("red");
         expect(colorToCSS({ color: "4472C4" })).toBe("#4472C4");
-        expect(colorToCSS({ color: "FF0000", transparency: 25 }))
-            .toBe("rgba(255, 0, 0, 0.75)");
+        expect(colorToCSS({ color: "FF0000", transparency: 25 })).toBe("rgba(255, 0, 0, 0.75)");
     });
 
     test("maps text alignment", () => {

@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { PPTX_DEFAULTS, type FourSideMargin } from "../defaults";
+import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
 import type { PageSize } from "../pageLayouts";
 import { normalizeTable } from "./table";
 
@@ -37,7 +37,7 @@ function inputPieces(cell: PptxGenJS.TableCell): TextPiece[] {
 function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number, table: PptxGenJS.TableProps): TextPiece[][] {
     const fontSize = cell.options?.fontSize ?? table.fontSize ?? PPTX_DEFAULTS.table.fontSizePt;
     const characterWeight = table.autoPageCharWeight ?? PPTX_DEFAULTS.table.autoPageCharWeight;
-    const charactersPerLine = Math.max(1, Math.floor(columnWidth * 72 / (fontSize / (2.3 + characterWeight))));
+    const charactersPerLine = Math.max(1, Math.floor((columnWidth * 72) / (fontSize / (2.3 + characterWeight))));
     const explicitLines: TextPiece[][] = [];
     let current: TextPiece[] = [];
 
@@ -81,12 +81,8 @@ function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number, table: Ppt
 }
 
 function marginInches(margin?: number | FourSideMargin): FourSideMargin {
-    const values = margin === undefined
-        ? [...PPTX_DEFAULTS.table.marginIn] as FourSideMargin
-        : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
-    return values[0]! >= 1
-        ? values.map(value => value / 72) as FourSideMargin
-        : [...values] as FourSideMargin;
+    const values = margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
+    return values[0]! >= 1 ? (values.map(value => value / 72) as FourSideMargin) : ([...values] as FourSideMargin);
 }
 
 function rowMargin(row: PptxGenJS.TableRow, table: PptxGenJS.TableProps): number {
@@ -108,22 +104,24 @@ function lineHeight(row: PptxGenJS.TableRow, table: PptxGenJS.TableProps): numbe
     return row.reduce((height, cell) => {
         if (cell.options?.rowspan) return height;
         const fontSize = cell.options?.fontSize ?? table.fontSize ?? PPTX_DEFAULTS.table.fontSizePt;
-        return Math.max(height, fontSize * (LINE_HEIGHT_MODIFIER + weight) / 100);
+        return Math.max(height, (fontSize * (LINE_HEIGHT_MODIFIER + weight)) / 100);
     }, 0);
 }
 
 function cellFromLines(cell: PptxGenJS.TableCell, lines: TextPiece[][]): PptxGenJS.TableCell {
     const pieces: PptxGenJS.TableCell[] = [];
-    lines.forEach((line, lineIndex) => line.forEach((piece, pieceIndex) => {
-        const isLastPiece = pieceIndex === line.length - 1;
-        pieces.push({
-            text: piece.text,
-            options: {
-                ...piece.options,
-                breakLine: lineIndex + 1 < lines.length && isLastPiece ? true : piece.options?.breakLine,
-            },
+    lines.forEach((line, lineIndex) => {
+        line.forEach((piece, pieceIndex) => {
+            const isLastPiece = pieceIndex === line.length - 1;
+            pieces.push({
+                text: piece.text,
+                options: {
+                    ...piece.options,
+                    breakLine: lineIndex + 1 < lines.length && isLastPiece ? true : piece.options?.breakLine,
+                },
+            });
         });
-    }));
+    });
     return { text: pieces, options: cell.options };
 }
 
@@ -131,18 +129,14 @@ function cloneRows(rows: PptxGenJS.TableRow[]): PptxGenJS.TableRow[] {
     return rows.map(row => row.map(cell => ({ ...cell, options: cell.options ? { ...cell.options } : undefined })));
 }
 
-export function paginateTableRows(
-    rows: PptxGenJS.TableRow[],
-    options: PptxGenJS.TableProps,
-    pageSize: PageSize,
-): PaginatedTablePage[] {
+export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
     if (!rows.length) return [];
     const normalized = normalizeTable(rows, options, pageSize);
     const extendedOptions = options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin };
     const pageMargins = marginInches(extendedOptions.slideMargin ?? PPTX_DEFAULTS.slide.marginIn);
     const verticalInches = (value: number | `${number}%` | undefined, fallback: number): number => {
         if (typeof value === "number") return value;
-        if (typeof value === "string" && value.endsWith("%")) return parseFloat(value) / 100 * pageSize.height;
+        if (typeof value === "string" && value.endsWith("%")) return (parseFloat(value) / 100) * pageSize.height;
         return fallback;
     };
     const continuationY = options.autoPageSlideStartY ?? options.newSlideStartY ?? pageMargins[0];
@@ -151,9 +145,7 @@ export function paginateTableRows(
     const heightLimit = verticalInches(options.h, pageSize.height);
     const firstAvailable = Math.max(0, heightLimit - firstY - bottomMargin);
     const continuationAvailable = Math.max(0, heightLimit - continuationY - bottomMargin);
-    const headerCount = options.autoPageRepeatHeader
-        ? Math.max(1, Math.floor(options.autoPageHeaderRows ?? PPTX_DEFAULTS.table.autoPageHeaderRows))
-        : 0;
+    const headerCount = options.autoPageRepeatHeader ? Math.max(1, Math.floor(options.autoPageHeaderRows ?? PPTX_DEFAULTS.table.autoPageHeaderRows)) : 0;
     const headers = cloneRows(rows.slice(0, headerCount));
     const rowMetrics = (row: PptxGenJS.TableRow): { lines: TextPiece[][][]; cycles: number; lineHeight: number; margin: number } => {
         const widths: number[] = [];
@@ -187,7 +179,7 @@ export function paginateTableRows(
 
     rows.forEach(row => {
         const { lines, cycles, lineHeight: perLine, margin: margins } = rowMetrics(row);
-        const available = () => pages.length === 1 ? firstAvailable : continuationAvailable;
+        const available = () => (pages.length === 1 ? firstAvailable : continuationAvailable);
 
         // Preserve the caller's exact cell data when the row fits as-is.
         if (used + margins + cycles * perLine <= available()) {
@@ -202,9 +194,7 @@ export function paginateTableRows(
             if (used + margins + perLine > available() && pages.at(-1)!.rows.length > (pages.length === 1 ? 0 : headers.length)) {
                 startContinuation();
             }
-            const capacity = perLine > 0
-                ? Math.max(1, Math.floor((available() - used - margins) / perLine))
-                : cycles - firstLine;
+            const capacity = perLine > 0 ? Math.max(1, Math.floor((available() - used - margins) / perLine)) : cycles - firstLine;
             const count = Math.min(capacity, cycles - firstLine);
             const fragment = row.map((cell, index) => cellFromLines(cell, lines[index]!.slice(firstLine, firstLine + count)));
             pages.at(-1)!.rows.push(fragment);

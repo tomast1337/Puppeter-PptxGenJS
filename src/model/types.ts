@@ -141,10 +141,7 @@ export interface NormalizedTable {
     rows: NormalizedTableRow[];
 }
 
-export type NormalizedImageSizing =
-    | { type: "stretch" }
-    | { type: "contain" | "cover"; x: number; y: number; width: number; height: number }
-    | { type: "crop"; offsetX: number; offsetY: number; width: number; height: number };
+export type NormalizedImageSizing = { type: "stretch" } | { type: "contain" | "cover"; x: number; y: number; width: number; height: number } | { type: "crop"; offsetX: number; offsetY: number; width: number; height: number };
 
 export interface NormalizedImageLink {
     href: string;
@@ -173,12 +170,12 @@ export type NormalizedShapeGeometry =
     | { kind: "ellipse" }
     | { kind: "line"; inverse: boolean }
     | {
-        kind: "path";
-        data: string;
-        transform?: string;
-        faces?: ReadonlyArray<{ data: string; fillModifier?: "darken" | "darkenLess" | "lighten" | "lightenLess" }>;
-        outlineData?: string;
-    };
+          kind: "path";
+          data: string;
+          transform?: string;
+          faces?: ReadonlyArray<{ data: string; fillModifier?: "darken" | "darkenLess" | "lighten" | "lightenLess" }>;
+          outlineData?: string;
+      };
 
 export interface NormalizedShape {
     name: string;
@@ -189,17 +186,7 @@ export interface NormalizedShape {
     link?: NormalizedShapeLink;
 }
 
-export type NormalizedChartType =
-    | "area"
-    | "bar"
-    | "bar3D"
-    | "bubble"
-    | "doughnut"
-    | "line"
-    | "mixed"
-    | "pie"
-    | "radar"
-    | "scatter";
+export type NormalizedChartType = "area" | "bar" | "bar3D" | "bubble" | "doughnut" | "line" | "mixed" | "pie" | "radar" | "scatter";
 
 export interface NormalizedChartSeries {
     type: NormalizedChartType;

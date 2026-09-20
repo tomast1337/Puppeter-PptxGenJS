@@ -1,35 +1,30 @@
-import type PptxGenJS from "pptxgenjs";
-import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import * as jsdom from "jsdom";
+import type PptxGenJS from "pptxgenjs";
 import puppeteer from "puppeteer";
-import { inchesToPixels, pointsToPixels } from "./utils";
+import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
+import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "./defaults";
+import { normalizeChart } from "./normalize/chart";
+import { normalizeHtmlTable } from "./normalize/htmlTable";
+import { normalizeImage, resolveDocumentImages } from "./normalize/image";
+import { normalizeObjectStyle } from "./normalize/object";
+import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox } from "./normalize/shape";
+import { normalizeColor, normalizeLine } from "./normalize/style";
+import { normalizeTable } from "./normalize/table";
+import { paginateTableRows } from "./normalize/tablePagination";
+import { normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
-import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "./defaults";
-import { normalizeObjectStyle } from "./normalize/object";
-import { normalizeColor, normalizeLine } from "./normalize/style";
-import { normalizeImage, resolveDocumentImages } from "./normalize/image";
-import { applyObjectStyle } from "./render/style";
-import { normalizeText, type TextInput } from "./normalize/text";
-import { renderText } from "./render/text";
-import { renderImage } from "./render/image";
-import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox } from "./normalize/shape";
-import { renderShape, renderShapeSvg } from "./render/shape";
-import { normalizeTable } from "./normalize/table";
-import { renderTable } from "./render/table";
-import { paginateTableRows } from "./normalize/tablePagination";
-import { normalizeHtmlTable } from "./normalize/htmlTable";
-import { normalizeChart } from "./normalize/chart";
+import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { renderChart, renderChartExtension } from "./render/chart";
-import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
+import { renderImage } from "./render/image";
+import { renderShape, renderShapeSvg } from "./render/shape";
+import { applyObjectStyle } from "./render/style";
+import { renderTable } from "./render/table";
+import { renderText } from "./render/text";
+import { inchesToPixels, pointsToPixels } from "./utils";
 
 export class PuppeteerSlide implements PptxSlide {
-    constructor(
-        slideElm: HTMLDivElement,
-        pageSize: PageSize,
-        document: Document,
-        getContinuationSlide: (offset: number) => PuppeteerSlide,
-    ) {
+    constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document, getContinuationSlide: (offset: number) => PuppeteerSlide) {
         this.slideElm = slideElm;
         this.pageSize = pageSize;
         this.document = document;
@@ -99,13 +94,11 @@ export class PuppeteerSlide implements PptxSlide {
         this.objectCounts[kind] = index + 1;
         return explicit ?? `${kind} ${index}`;
     }
-    
+
     addChart(type: PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[], data: any[], options?: PptxGenJS.IChartOpts | undefined): PptxGenJS.Slide {
         // PptxGenJS treats the second argument as the shared options object for
         // IChartMulti[] calls; each mixed entry already carries its own data.
-        const chartOptions = Array.isArray(type) && !Array.isArray(data)
-            ? data as unknown as PptxGenJS.IChartOpts
-            : options ?? {};
+        const chartOptions = Array.isArray(type) && !Array.isArray(data) ? (data as unknown as PptxGenJS.IChartOpts) : (options ?? {});
         const style = normalizeObjectStyle(
             {
                 x: chartOptions.x,
@@ -118,68 +111,43 @@ export class PuppeteerSlide implements PptxSlide {
             this.pageSize,
             this.nextObjectName("Chart", chartOptions.objectName),
         );
-        const chart = normalizeChart(type, Array.isArray(data) ? data as PptxGenJS.OptsChartData[] : [], chartOptions);
+        const chart = normalizeChart(type, Array.isArray(data) ? (data as PptxGenJS.OptsChartData[]) : [], chartOptions);
         this.slideElm.appendChild(renderChart(this.document, chart, style));
         return this;
     }
 
     addChartEx(input: ChartExtensionInput, options: ChartExtensionOptions): PuppeteerSlide {
-        const style = normalizeObjectStyle(
-            options,
-            PPTX_DEFAULTS.chart,
-            this.pageSize,
-            this.nextObjectName("Chart", options.objectName),
-        );
+        const style = normalizeObjectStyle(options, PPTX_DEFAULTS.chart, this.pageSize, this.nextObjectName("Chart", options.objectName));
         this.slideElm.appendChild(renderChartExtension(this.document, input, style, options.altText ?? ""));
         return this;
     }
-    
+
     addImage(options: PptxGenJS.ImageProps): PptxGenJS.Slide {
         const image = normalizeImage(options, this.pageSize);
         const { transparency: _imageTransparency, ...opaqueOptions } = options;
-        const geometryOptions = options.sizing
-            ? { ...opaqueOptions, w: options.sizing.w, h: options.sizing.h }
-            : opaqueOptions;
-        const style = normalizeObjectStyle(
-            geometryOptions,
-            PPTX_DEFAULTS.image,
-            this.pageSize,
-            this.nextObjectName("Image", options.objectName),
-            { shadow: true },
-        );
+        const geometryOptions = options.sizing ? { ...opaqueOptions, w: options.sizing.w, h: options.sizing.h } : opaqueOptions;
+        const style = normalizeObjectStyle(geometryOptions, PPTX_DEFAULTS.image, this.pageSize, this.nextObjectName("Image", options.objectName), { shadow: true });
         this.slideElm.appendChild(renderImage(this.document, image, style));
         return this;
     }
-    
-    addMedia(options: PptxGenJS.MediaProps): PptxGenJS.Slide {
+
+    addMedia(_options: PptxGenJS.MediaProps): PptxGenJS.Slide {
         throw new Error("Method not implemented.");
     }
-    
-    addNotes(notes: string): PptxGenJS.Slide {
+
+    addNotes(_notes: string): PptxGenJS.Slide {
         throw new Error("Method not implemented.");
     }
-    
+
     addShape(shapeName: PptxGenJS.SHAPE_NAME | "custGeom", options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
         const shapeOptions = options ?? {};
-        const style = normalizeObjectStyle(
-            shapeOptions,
-            PPTX_DEFAULTS.shape,
-            this.pageSize,
-            this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName),
-            { fill: true, shadow: true },
-        );
+        const style = normalizeObjectStyle(shapeOptions, PPTX_DEFAULTS.shape, this.pageSize, this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName), { fill: true, shadow: true });
         style.line = normalizeShapeLine(shapeOptions, normalizeLine);
-        const shape = normalizeShape(
-            shapeName,
-            shapeOptions,
-            style.geometry.width ?? 0,
-            style.geometry.height ?? 0,
-            this.pageSize,
-        );
+        const shape = normalizeShape(shapeName, shapeOptions, style.geometry.width ?? 0, style.geometry.height ?? 0, this.pageSize);
         this.slideElm.appendChild(renderShape(this.document, shape, style));
         return this;
     }
-    
+
     addTable(tableRows: PptxGenJS.TableRow[], options?: PptxGenJS.TableProps | undefined): PptxGenJS.Slide {
         const tableOptions = options ?? {};
         this.newAutoPagedSlides = [];
@@ -202,21 +170,26 @@ export class PuppeteerSlide implements PptxSlide {
         const table = normalizeTable(tableRows, tableOptions, this.pageSize);
         const tableContainer = this.document.createElement("div");
         tableContainer.className = "slide-element slide-table-container";
-        const tableStyle = normalizeObjectStyle({
-            ...tableOptions,
-            w: table.width / 96,
-            h: table.height === undefined ? undefined : table.height / 96,
-        }, {
-            x: PPTX_DEFAULTS.table.x,
-            y: PPTX_DEFAULTS.table.y,
-            w: table.width / 96,
-        }, this.pageSize, this.nextObjectName("Table", tableOptions.objectName));
+        const tableStyle = normalizeObjectStyle(
+            {
+                ...tableOptions,
+                w: table.width / 96,
+                h: table.height === undefined ? undefined : table.height / 96,
+            },
+            {
+                x: PPTX_DEFAULTS.table.x,
+                y: PPTX_DEFAULTS.table.y,
+                w: table.width / 96,
+            },
+            this.pageSize,
+            this.nextObjectName("Table", tableOptions.objectName),
+        );
         applyObjectStyle(tableContainer, tableStyle);
         tableContainer.appendChild(renderTable(this.document, table));
         this.slideElm.appendChild(tableContainer);
         return this;
     }
-    
+
     addText(text: TextInput, options?: PptxGenJS.TextPropsOptions | undefined): PptxGenJS.Slide {
         const textElm = this.document.createElement("div");
         textElm.className = "slide-element slide-text";
@@ -224,35 +197,22 @@ export class PuppeteerSlide implements PptxSlide {
         const textOptions = options ?? {};
         // Text transparency is a run color property, not object opacity.
         const { transparency: _textTransparency, ...boxOptions } = textOptions;
-        const textStyle = normalizeObjectStyle(
-            boxOptions,
-            PPTX_DEFAULTS.text,
-            this.pageSize,
-            this.nextObjectName("Text", textOptions.objectName),
-            { fill: true, line: true, shadow: true },
-        );
+        const textStyle = normalizeObjectStyle(boxOptions, PPTX_DEFAULTS.text, this.pageSize, this.nextObjectName("Text", textOptions.objectName), { fill: true, line: true, shadow: true });
         let normalizedText = normalizeText(text, { color: this.color, ...textOptions });
         if (textOptions.shape) {
             const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
             textStyle.line = normalizeShapeLine(shapeOptions, normalizeLine);
-            const shape = normalizeShape(
-                textOptions.shape,
-                shapeOptions,
-                textStyle.geometry.width ?? 0,
-                textStyle.geometry.height ?? 0,
-                this.pageSize,
-            );
+            const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0, this.pageSize);
             applyObjectStyle(textElm, { ...textStyle, fill: undefined, line: undefined, shadow: undefined });
             textElm.dataset.shape = shape.name;
             textElm.appendChild(renderShapeSvg(this.document, shape, textStyle));
             normalizedText = normalizeShapeTextBox(normalizedText, shape);
         } else applyObjectStyle(textElm, textStyle);
         renderText(this.document, textElm, normalizedText);
-        
+
         this.slideElm.appendChild(textElm);
         return this;
     }
-    
 }
 
 export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout" | "AlignH" | "AlignV" | "ChartType" | "OutputType" | "SchemeColor" | "ShapeType" | "PlaceholderType" | "layout" | "rtlMode" | "author" | "company" | "revision" | "subject" | "theme" | "title"> {
@@ -261,14 +221,14 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     page: Document;
     private slideCount = 0;
     private slides: PuppeteerSlide[] = [];
-    
+
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE) {
         this.dom = new jsdom.JSDOM("<!DOCTYPE html><html><head></head><body></body></html>");
         this.page = this.dom.window.document;
         this.pageSize = pageSize;
         this.injectCSS();
     }
-    
+
     /**
      * Set a custom page size
      */
@@ -276,7 +236,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
         this.pageSize = pageSize;
         this.injectCSS();
     }
-    
+
     /**
      * Inject CSS into the document
      */
@@ -286,20 +246,20 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
         if (existingStyle) {
             existingStyle.remove();
         }
-        
+
         const style = this.page.createElement("style");
         style.id = "puppeteer-gen-styles";
         style.textContent = this.generateCSS();
         this.page.head.appendChild(style);
     }
-    
+
     /**
      * Generate CSS for the current page size
      */
     private generateCSS(): string {
         const widthPx = inchesToPixels(this.pageSize.width);
         const heightPx = inchesToPixels(this.pageSize.height);
-        
+
         return `
 @page {
     size: ${this.pageSize.width}in ${this.pageSize.height}in;
@@ -408,15 +368,15 @@ body {
 }
         `.trim();
     }
-    
-    stream(props?: PptxWriteBaseProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
+
+    stream(_props?: PptxWriteBaseProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
         throw new Error("Method not implemented.");
     }
-    
-    write(props?: PptxWriteProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
+
+    write(_props?: PptxWriteProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
         throw new Error("Method not implemented.");
     }
-    
+
     async writeFile({ fileName }: PptxWriteFileProps): Promise<string> {
         if (!fileName) {
             throw new Error("fileName is required");
@@ -430,23 +390,27 @@ body {
         // Launch puppeteer and generate PDF
         const browser = await puppeteer.launch({
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: ["--no-sandbox", "--disable-setuid-sandbox"],
         });
         try {
             const page = await browser.newPage();
             await page.setViewport({
                 width: Math.round(inchesToPixels(this.pageSize.width)),
-                height: Math.round(inchesToPixels(this.pageSize.height))
+                height: Math.round(inchesToPixels(this.pageSize.height)),
             });
-            await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+            await page.setContent(htmlContent, { waitUntil: "networkidle0" });
             const failedImages = await page.evaluate(async () => {
                 await document.fonts.ready;
-                await Promise.all(Array.from(document.images, image => image.complete
-                    ? Promise.resolve()
-                    : new Promise<void>(resolve => {
-                        image.addEventListener("load", () => resolve(), { once: true });
-                        image.addEventListener("error", () => resolve(), { once: true });
-                    })));
+                await Promise.all(
+                    Array.from(document.images, image =>
+                        image.complete
+                            ? Promise.resolve()
+                            : new Promise<void>(resolve => {
+                                  image.addEventListener("load", () => resolve(), { once: true });
+                                  image.addEventListener("error", () => resolve(), { once: true });
+                              }),
+                    ),
+                );
 
                 // LibreOffice's PDF export drops animated GIFs, so it cannot be
                 // used as the visual oracle here. Freeze through Chromium's
@@ -456,21 +420,27 @@ body {
                     if (typeof createImageBitmap !== "function") {
                         throw new Error("This Chromium build cannot freeze animated GIF images");
                     }
-                    await Promise.all(gifs.map(async image => {
-                        const frame = await createImageBitmap(await (await fetch(image.src)).blob());
-                        const canvas = document.createElement("canvas");
-                        canvas.width = frame.width;
-                        canvas.height = frame.height;
-                        canvas.getContext("2d")?.drawImage(frame, 0, 0);
-                        image.src = canvas.toDataURL("image/png");
-                        frame.close();
-                    }));
-                    await Promise.all(gifs.map(image => image.complete
-                        ? Promise.resolve()
-                        : new Promise<void>(resolve => {
-                            image.addEventListener("load", () => resolve(), { once: true });
-                            image.addEventListener("error", () => resolve(), { once: true });
-                        })));
+                    await Promise.all(
+                        gifs.map(async image => {
+                            const frame = await createImageBitmap(await (await fetch(image.src)).blob());
+                            const canvas = document.createElement("canvas");
+                            canvas.width = frame.width;
+                            canvas.height = frame.height;
+                            canvas.getContext("2d")?.drawImage(frame, 0, 0);
+                            image.src = canvas.toDataURL("image/png");
+                            frame.close();
+                        }),
+                    );
+                    await Promise.all(
+                        gifs.map(image =>
+                            image.complete
+                                ? Promise.resolve()
+                                : new Promise<void>(resolve => {
+                                      image.addEventListener("load", () => resolve(), { once: true });
+                                      image.addEventListener("error", () => resolve(), { once: true });
+                                  }),
+                        ),
+                    );
                 }
 
                 // PowerPoint scales the decoded image surface into its declared
@@ -514,7 +484,7 @@ body {
                 width: `${this.pageSize.width}in`,
                 height: `${this.pageSize.height}in`,
                 printBackground: true,
-                margin: { top: 0, right: 0, bottom: 0, left: 0 }
+                margin: { top: 0, right: 0, bottom: 0, left: 0 },
             });
 
             await Bun.write(fileName, pdf);
@@ -523,11 +493,11 @@ body {
             await browser.close();
         }
     }
-    
-    addSection(props: PptxSectionProps): void {
+
+    addSection(_props: PptxSectionProps): void {
         throw new Error("Method not implemented.");
     }
-    
+
     addSlide(props?: PptxAddSlideProps | undefined): PuppeteerSlide;
     addSlide(masterName?: string | undefined): PuppeteerSlide;
     addSlide(masterName?: unknown): PuppeteerSlide {
@@ -551,23 +521,23 @@ body {
 
         return slide;
     }
-    
+
     defineLayout(layout: PptxGenJS.PresLayout): void {
         // Update page size based on layout
         if (layout.width && layout.height) {
             this.pageSize = {
                 width: layout.width,
                 height: layout.height,
-                name: layout.name || "Custom"
+                name: layout.name || "Custom",
             };
             this.injectCSS();
         }
     }
-    
-    defineSlideMaster(props: PptxSlideMasterProps): void {
+
+    defineSlideMaster(_props: PptxSlideMasterProps): void {
         throw new Error("Method not implemented.");
     }
-    
+
     tableToSlides(eleId: string, props?: PptxTableToSlidesProps | undefined): void {
         const options = props ?? {};
         const table = normalizeHtmlTable(this.page, eleId, options, this.pageSize);

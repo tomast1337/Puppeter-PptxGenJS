@@ -1,5 +1,5 @@
-import type { PageSize } from "../pageLayouts";
 import type { Coord, NormalizedGeometry, NormalizedTransform } from "../model/types";
+import type { PageSize } from "../pageLayouts";
 import { convertToPixels } from "../utils";
 
 export interface PositionOptions {
@@ -16,11 +16,7 @@ export interface TransformOptions {
     transparency?: number;
 }
 
-export function normalizeGeometry(
-    options: PositionOptions,
-    defaults: PositionOptions,
-    pageSize: PageSize,
-): NormalizedGeometry {
+export function normalizeGeometry(options: PositionOptions, defaults: PositionOptions, pageSize: PageSize): NormalizedGeometry {
     const width = pageSize.width * 96;
     const height = pageSize.height * 96;
     const x = options.x ?? defaults.x ?? 0;

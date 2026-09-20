@@ -4,10 +4,7 @@ import { applyGeometry, applyTransform } from "./style";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten" | "lightenLess"): string {
-    const transform = (value: number) => modifier === "lighten"
-        ? Math.floor(value + (255 - value) * 0.6)
-        : modifier === "lightenLess" ? Math.floor(value + (255 - value) * 0.2)
-        : Math.floor(value * (modifier === "darken" ? 0.6 : 0.8));
+    const transform = (value: number) => (modifier === "lighten" ? Math.floor(value + (255 - value) * 0.6) : modifier === "lightenLess" ? Math.floor(value + (255 - value) * 0.2) : Math.floor(value * (modifier === "darken" ? 0.6 : 0.8)));
     const hex = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
     if (hex) {
         const channel = (value: string) => transform(parseInt(value, 16)).toString(16).padStart(2, "0");
@@ -16,9 +13,7 @@ function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten
     const rgb = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
     if (!rgb) return color;
     const channels = [rgb[1], rgb[2], rgb[3]].map(value => transform(Number(value)));
-    return rgb[4] === undefined
-        ? `rgb(${channels.join(", ")})`
-        : `rgba(${channels.join(", ")}, ${rgb[4]})`;
+    return rgb[4] === undefined ? `rgb(${channels.join(", ")})` : `rgba(${channels.join(", ")}, ${rgb[4]})`;
 }
 
 function markerPath(type: NonNullable<NormalizedLine["beginArrow"]>): { tag: "path" | "ellipse" | "polygon"; value: string } | undefined {
@@ -45,8 +40,10 @@ function addMarker(document: Document, defs: SVGDefsElement, id: string, type: N
     const element = document.createElementNS(SVG_NS, shape.tag);
     if (shape.tag === "ellipse") {
         const [cx, cy, rx, ry] = shape.value.split(",");
-        element.setAttribute("cx", cx!); element.setAttribute("cy", cy!);
-        element.setAttribute("rx", rx!); element.setAttribute("ry", ry!);
+        element.setAttribute("cx", cx!);
+        element.setAttribute("cy", cy!);
+        element.setAttribute("rx", rx!);
+        element.setAttribute("ry", ry!);
     } else if (shape.tag === "polygon") element.setAttribute("points", shape.value);
     else element.setAttribute("d", shape.value);
     element.setAttribute("fill", type === "arrow" ? "none" : color);
@@ -61,15 +58,20 @@ function geometryElement(document: Document, shape: NormalizedShape): SVGElement
     const geometry = shape.geometry;
     if (geometry.kind === "rect") {
         const element = document.createElementNS(SVG_NS, "rect");
-        element.setAttribute("x", "0"); element.setAttribute("y", "0");
-        element.setAttribute("width", String(shape.width)); element.setAttribute("height", String(shape.height));
-        element.setAttribute("rx", String(geometry.radius)); element.setAttribute("ry", String(geometry.radius));
+        element.setAttribute("x", "0");
+        element.setAttribute("y", "0");
+        element.setAttribute("width", String(shape.width));
+        element.setAttribute("height", String(shape.height));
+        element.setAttribute("rx", String(geometry.radius));
+        element.setAttribute("ry", String(geometry.radius));
         return element;
     }
     if (geometry.kind === "ellipse") {
         const element = document.createElementNS(SVG_NS, "ellipse");
-        element.setAttribute("cx", String(shape.width / 2)); element.setAttribute("cy", String(shape.height / 2));
-        element.setAttribute("rx", String(shape.width / 2)); element.setAttribute("ry", String(shape.height / 2));
+        element.setAttribute("cx", String(shape.width / 2));
+        element.setAttribute("cy", String(shape.height / 2));
+        element.setAttribute("rx", String(shape.width / 2));
+        element.setAttribute("ry", String(shape.height / 2));
         return element;
     }
     if (geometry.kind === "path" && geometry.faces?.length) {
@@ -118,7 +120,7 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
     geometry.classList.add("shape-geometry");
     const multiFace = shape.geometry.kind === "path" && Boolean(shape.geometry.faces?.length);
     const baseFill = shape.geometry.kind === "line" || !style.fill?.visible ? "none" : style.fill.color;
-    const strokeTarget = multiFace ? geometry.querySelector<SVGPathElement>(".shape-outline") ?? geometry : geometry;
+    const strokeTarget = multiFace ? (geometry.querySelector<SVGPathElement>(".shape-outline") ?? geometry) : geometry;
     if (multiFace) {
         geometry.querySelectorAll<SVGPathElement>(".shape-face").forEach(face => {
             const modifier = face.dataset.fillModifier as "darken" | "darkenLess" | "lighten" | "lightenLess" | undefined;

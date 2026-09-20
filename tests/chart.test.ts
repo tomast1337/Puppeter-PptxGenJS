@@ -110,7 +110,12 @@ describe("chart normalization and rendering", () => {
         for (const shape of shapes) {
             const presentation = new PuppeteerGen();
             presentation.addSlide().addChart("bar3D", categoricalData, {
-                x: 0, y: 0, w: 5, h: 3, bar3DShape: shape, showLegend: true,
+                x: 0,
+                y: 0,
+                w: 5,
+                h: 3,
+                bar3DShape: shape,
+                showLegend: true,
             });
             const svg = presentation.page.querySelector(`svg[data-bar3d-shape="${shape}"]`);
             expect(svg).not.toBeNull();
@@ -131,10 +136,16 @@ describe("chart normalization and rendering", () => {
 
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
-        expect((slide.addChart as Function)(mixed, {
-            x: 1, y: 1, w: 6, h: 3, showLegend: true,
-            chartColors: ["4472C4", "ED7D31", "70AD47"],
-        })).toBe(slide);
+        expect(
+            (slide.addChart as Function)(mixed, {
+                x: 1,
+                y: 1,
+                w: 6,
+                h: 3,
+                showLegend: true,
+                chartColors: ["4472C4", "ED7D31", "70AD47"],
+            }),
+        ).toBe(slide);
         const svg = presentation.page.querySelector(".slide-chart svg");
         expect(svg?.textContent).toContain("First");
         expect(svg?.textContent).toContain("Second");
@@ -202,15 +213,32 @@ describe("chart normalization and rendering", () => {
         };
         const axis = normalizeChart("bar", categoricalData, options).valueAxes[0]!;
         expect(axis).toMatchObject({
-            minimum: 0, maximum: 8, majorUnit: 2,
-            labelColor: "#C00000", labelBold: true, labelItalic: true,
-            labelFontFace: "Arial", labelFontSize: 14, labelFormatCode: "$0.0",
-            labelPosition: "high", labelRotate: 15,
-            lineColor: "#00AA00", lineWidth: 2, lineStyle: "dash", lineVisible: true,
-            majorTickMark: "inside", minorTickMark: "outside",
-            title: "Revenue", titleColor: "#0000FF", titleFontFace: "Georgia",
-            titleFontSize: 16, titleRotate: 90,
-            gridLineColor: "#FF00FF", gridLineWidth: 1.5, gridLineStyle: "dot", gridLineCap: "round",
+            minimum: 0,
+            maximum: 8,
+            majorUnit: 2,
+            labelColor: "#C00000",
+            labelBold: true,
+            labelItalic: true,
+            labelFontFace: "Arial",
+            labelFontSize: 14,
+            labelFormatCode: "$0.0",
+            labelPosition: "high",
+            labelRotate: 15,
+            lineColor: "#00AA00",
+            lineWidth: 2,
+            lineStyle: "dash",
+            lineVisible: true,
+            majorTickMark: "inside",
+            minorTickMark: "outside",
+            title: "Revenue",
+            titleColor: "#0000FF",
+            titleFontFace: "Georgia",
+            titleFontSize: 16,
+            titleRotate: 90,
+            gridLineColor: "#FF00FF",
+            gridLineWidth: 1.5,
+            gridLineStyle: "dot",
+            gridLineCap: "round",
         });
 
         const presentation = new PuppeteerGen();
@@ -236,38 +264,59 @@ describe("chart normalization and rendering", () => {
     });
 
     test("rejects incompatible mixed families and unimplemented per-series axes", () => {
-        expect(() => normalizeChart([
-            { type: "bar", data: [categoricalData[0]!], options: {} },
-            { type: "pie", data: [categoricalData[1]!], options: {} },
-        ], [])).toThrow(UnsupportedChartError);
+        expect(() =>
+            normalizeChart(
+                [
+                    { type: "bar", data: [categoricalData[0]!], options: {} },
+                    { type: "pie", data: [categoricalData[1]!], options: {} },
+                ],
+                [],
+            ),
+        ).toThrow(UnsupportedChartError);
         try {
-            normalizeChart([
-                { type: "bar", data: [categoricalData[0]!], options: {} },
-                { type: "line", data: [categoricalData[1]!], options: { secondaryCatAxis: true } },
-            ], []);
+            normalizeChart(
+                [
+                    { type: "bar", data: [categoricalData[0]!], options: {} },
+                    { type: "line", data: [categoricalData[1]!], options: { secondaryCatAxis: true } },
+                ],
+                [],
+            );
             throw new Error("Expected normalization to fail");
         } catch (error) {
             expect(error).toBeInstanceOf(UnsupportedChartError);
             expect((error as UnsupportedChartError).reason).toBe("chart-option");
             expect((error as UnsupportedChartError).unsupportedOptions).toEqual(["series[1].options.secondaryCatAxis"]);
         }
-        expect(() => normalizeChart([
-            { type: "bar", data: [categoricalData[0]!], options: {} },
-            { type: "line", data: [categoricalData[1]!], options: { secondaryValAxis: true } },
-        ], [])).toThrow("valAxes[primary,secondary]");
+        expect(() =>
+            normalizeChart(
+                [
+                    { type: "bar", data: [categoricalData[0]!], options: {} },
+                    { type: "line", data: [categoricalData[1]!], options: { secondaryValAxis: true } },
+                ],
+                [],
+            ),
+        ).toThrow("valAxes[primary,secondary]");
     });
 
     test("supports native ECharts and trusted SVG extension inputs", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
-        expect(slide.addChartEx({
-            renderer: "echarts",
-            option: { xAxis: { data: ["A"] }, yAxis: {}, series: [{ type: "bar", data: [4] }] },
-        }, { x: 0, y: 0, w: 3, h: 2, objectName: "Native" })).toBe(slide);
-        slide.addChartEx({
-            renderer: "svg",
-            svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect id="face" width="10" height="10"/></svg>',
-        }, { x: 3, y: 0, w: 1, h: 1, objectName: "Raw SVG" });
+        expect(
+            slide.addChartEx(
+                {
+                    renderer: "echarts",
+                    option: { xAxis: { data: ["A"] }, yAxis: {}, series: [{ type: "bar", data: [4] }] },
+                },
+                { x: 0, y: 0, w: 3, h: 2, objectName: "Native" },
+            ),
+        ).toBe(slide);
+        slide.addChartEx(
+            {
+                renderer: "svg",
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect id="face" width="10" height="10"/></svg>',
+            },
+            { x: 3, y: 0, w: 1, h: 1, objectName: "Raw SVG" },
+        );
 
         expect(presentation.page.querySelectorAll(".slide-chart svg")).toHaveLength(2);
         expect(presentation.page.querySelector("#Raw-SVG-face")).not.toBeNull();
@@ -276,9 +325,14 @@ describe("chart normalization and rendering", () => {
     test("rejects external resources in extension SVG", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
-        expect(() => slide.addChartEx({
-            renderer: "svg",
-            svg: '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/a.png"/></svg>',
-        }, { x: 0, y: 0, w: 1, h: 1 })).toThrow("must not reference external resources");
+        expect(() =>
+            slide.addChartEx(
+                {
+                    renderer: "svg",
+                    svg: '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/a.png"/></svg>',
+                },
+                { x: 0, y: 0, w: 1, h: 1 },
+            ),
+        ).toThrow("must not reference external resources");
     });
 });

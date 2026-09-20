@@ -12,11 +12,14 @@ describe("text normalization", () => {
     });
 
     test("groups rich runs using PptxGenJS break and alignment behavior", () => {
-        const text = normalizeText([
-            { text: "one", options: { bold: true } },
-            { text: "two", options: { breakLine: true } },
-            { text: "three", options: { align: "right", softBreakBefore: true } },
-        ], { fontFace: "Arial", color: "112233" });
+        const text = normalizeText(
+            [
+                { text: "one", options: { bold: true } },
+                { text: "two", options: { breakLine: true } },
+                { text: "three", options: { align: "right", softBreakBefore: true } },
+            ],
+            { fontFace: "Arial", color: "112233" },
+        );
 
         expect(text.paragraphs).toHaveLength(2);
         expect(text.paragraphs[0]?.runs).toHaveLength(2);
@@ -46,7 +49,7 @@ describe("text normalization", () => {
             rtlMode: true,
         });
 
-        expect(text.margin).toEqual([4 * 96 / 72, 2 * 96 / 72, 3 * 96 / 72, 1 * 96 / 72]);
+        expect(text.margin).toEqual([(4 * 96) / 72, (2 * 96) / 72, (3 * 96) / 72, (1 * 96) / 72]);
         expect(text.direction).toBe("stacked");
         expect(text.rtl).toBe(true);
         expect(text.paragraphs[0]?.lineHeight).toBe(32);
@@ -87,10 +90,13 @@ describe("text DOM rendering", () => {
     test("renders semantic rich runs, bullets, soft breaks, and links", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
-        slide.addText([
-            { text: "Lead", options: { bold: true, highlight: "FFFF00" } },
-            { text: "link", options: { softBreakBefore: true, hyperlink: { url: "https://example.com", tooltip: "Example" } } },
-        ], { x: 1, y: 1, w: 4, h: 1, bullet: { characterCode: "25CF" } });
+        slide.addText(
+            [
+                { text: "Lead", options: { bold: true, highlight: "FFFF00" } },
+                { text: "link", options: { softBreakBefore: true, hyperlink: { url: "https://example.com", tooltip: "Example" } } },
+            ],
+            { x: 1, y: 1, w: 4, h: 1, bullet: { characterCode: "25CF" } },
+        );
 
         const box = presentation.page.querySelector<HTMLElement>(".slide-text");
         const paragraph = box?.querySelector<HTMLElement>(".text-paragraph");
@@ -111,7 +117,10 @@ describe("text DOM rendering", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
         slide.addText("Vertical", {
-            x: 1, y: 1, w: 2, h: 2,
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 2,
             transparency: 40,
             vert: "vert270",
             fit: "shrink",
@@ -134,7 +143,10 @@ describe("text DOM rendering", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
         slide.addText("Decision", {
-            x: 1, y: 1, w: 2, h: 1.5,
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 1.5,
             shape: "diamond",
             fill: { color: "4472C4", transparency: 10 },
             line: { color: "17365D", width: 2 },
