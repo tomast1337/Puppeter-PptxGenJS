@@ -118,6 +118,81 @@ describe("chart normalization and rendering", () => {
         }
     });
 
+    test("normalizes and renders primary-axis bar, line, and area combinations", () => {
+        const mixed: PptxGenJS.IChartMulti[] = [
+            { type: "bar", data: [categoricalData[0]!], options: {} },
+            { type: "line", data: [categoricalData[1]!], options: {} },
+            { type: "area", data: [{ name: "Third", labels: ["A", "B", "C"], values: [1, 3, 2] }], options: {} },
+        ];
+        const chart = normalizeChart(mixed, [], { chartColors: ["4472C4", "ED7D31", "70AD47"] });
+        expect(chart.type).toBe("mixed");
+        expect(chart.series.map(series => series.type)).toEqual(["bar", "line", "area"]);
+
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        expect((slide.addChart as Function)(mixed, {
+            x: 1, y: 1, w: 6, h: 3, showLegend: true,
+            chartColors: ["4472C4", "ED7D31", "70AD47"],
+        })).toBe(slide);
+        const svg = presentation.page.querySelector(".slide-chart svg");
+        expect(svg?.textContent).toContain("First");
+        expect(svg?.textContent).toContain("Second");
+        expect(svg?.textContent).toContain("Third");
+    });
+
+    test("normalizes and renders a secondary value axis for mixed charts", () => {
+        const mixed: PptxGenJS.IChartMulti[] = [
+            { type: "bar", data: [categoricalData[0]!], options: {} },
+            {
+                type: "line",
+                data: [{ name: "Revenue", labels: ["A", "B", "C"], values: [100, 400, 250] }],
+                options: { secondaryValAxis: true },
+            },
+        ];
+        const options: PptxGenJS.IChartOpts = {
+            valAxes: [
+                { valAxisMinVal: 0, valAxisMaxVal: 8, showValAxisTitle: true, valAxisTitle: "Units" },
+                { valAxisMinVal: 0, valAxisMaxVal: 500, showValAxisTitle: true, valAxisTitle: "Revenue" },
+            ],
+        };
+        const chart = normalizeChart(mixed, [], options);
+        expect(chart.series.map(series => series.valueAxisIndex)).toEqual([0, 1]);
+        expect(chart.valueAxes).toEqual([
+            { minimum: 0, maximum: 8, hidden: false, showTitle: true, title: "Units" },
+            { minimum: 0, maximum: 500, hidden: false, showTitle: true, title: "Revenue" },
+        ]);
+
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        (slide.addChart as Function)(mixed, { ...options, x: 1, y: 1, w: 6, h: 3 });
+        const svg = presentation.page.querySelector(".slide-chart svg");
+        expect(svg?.textContent).toContain("Units");
+        expect(svg?.textContent).toContain("Revenue");
+        expect(svg?.textContent).toContain("500");
+    });
+
+    test("rejects incompatible mixed families and unimplemented per-series axes", () => {
+        expect(() => normalizeChart([
+            { type: "bar", data: [categoricalData[0]!], options: {} },
+            { type: "pie", data: [categoricalData[1]!], options: {} },
+        ], [])).toThrow(UnsupportedChartError);
+        try {
+            normalizeChart([
+                { type: "bar", data: [categoricalData[0]!], options: {} },
+                { type: "line", data: [categoricalData[1]!], options: { secondaryCatAxis: true } },
+            ], []);
+            throw new Error("Expected normalization to fail");
+        } catch (error) {
+            expect(error).toBeInstanceOf(UnsupportedChartError);
+            expect((error as UnsupportedChartError).reason).toBe("chart-option");
+            expect((error as UnsupportedChartError).unsupportedOptions).toEqual(["series[1].options.secondaryCatAxis"]);
+        }
+        expect(() => normalizeChart([
+            { type: "bar", data: [categoricalData[0]!], options: {} },
+            { type: "line", data: [categoricalData[1]!], options: { secondaryValAxis: true } },
+        ], [])).toThrow("valAxes[primary,secondary]");
+    });
+
     test("supports native ECharts and trusted SVG extension inputs", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

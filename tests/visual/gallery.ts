@@ -63,6 +63,8 @@ const PAGE_TITLES = [
     "Text in arbitrary preset shapes",
     "Core chart rendering",
     "Three-dimensional bar charts",
+    "Mixed bar and line chart",
+    "Mixed chart with secondary value axis",
 ] as const;
 
 function image(page: string, kind: "reference" | "actual", description: string): string {

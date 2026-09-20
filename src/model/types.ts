@@ -196,6 +196,7 @@ export type NormalizedChartType =
     | "bubble"
     | "doughnut"
     | "line"
+    | "mixed"
     | "pie"
     | "radar"
     | "scatter";
@@ -206,6 +207,17 @@ export interface NormalizedChartSeries {
     labels: string[];
     values: number[];
     sizes?: number[];
+    colorIndex: number;
+    varyColors: boolean;
+    valueAxisIndex: 0 | 1;
+}
+
+export interface NormalizedChartValueAxis {
+    minimum: number;
+    maximum: number;
+    hidden: boolean;
+    showTitle: boolean;
+    title: string;
 }
 
 export interface NormalizedChart {
@@ -240,6 +252,7 @@ export interface NormalizedChart {
     axisLineVisible: boolean;
     valueAxisMinimum: number;
     valueAxisMaximum: number;
+    valueAxes: NormalizedChartValueAxis[];
     doughnutHoleSize: number;
     firstSliceAngle: number;
     radarStyle: "standard" | "marker" | "filled";

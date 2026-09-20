@@ -47,24 +47,36 @@ function percentValues(chart: NormalizedChart, seriesIndex: number): number[] {
 
 function cartesianSeries(chart: NormalizedChart): Record<string, unknown>[] {
     const stacked = chart.grouping === "stacked" || chart.grouping === "percentStacked";
-    const visibleSeries = stacked ? 1 : chart.series.length;
+    const visibleSeries = stacked ? 1 : Math.max(1, chart.series.filter(series => series.type === "bar").length);
     const barWidth = `${100 / (visibleSeries + chart.barGapWidthPercent / 100)}%`;
-    return chart.series.map((series, index) => ({
+    return chart.series.map((series, index) => {
+        const seriesType = series.type === "bar" ? "bar" : "line";
+        const lineLike = series.type === "line" || series.type === "area";
+        const color = chart.colors[series.colorIndex % chart.colors.length];
+        const values = chart.grouping === "percentStacked" ? percentValues(chart, index) : series.values;
+        return {
         name: series.name,
-        type: chart.type === "bar" ? "bar" : "line",
-        data: chart.grouping === "percentStacked" ? percentValues(chart, index) : series.values,
+        type: seriesType,
+        data: series.varyColors
+            ? values.map((value, valueIndex) => ({
+                value,
+                itemStyle: { color: chart.colors[valueIndex % chart.colors.length] },
+            }))
+            : values,
         stack: stacked ? "pptx-stack" : undefined,
-        barWidth: chart.type === "bar" ? barWidth : undefined,
-        barGap: chart.type === "bar" ? "0%" : undefined,
-        smooth: chart.type === "line" || chart.type === "area" ? chart.lineSmooth : undefined,
-        symbol: chart.type === "line" || chart.type === "area" ? lineSymbol(chart.lineSymbol) : undefined,
-        symbolSize: chart.type === "line" || chart.type === "area" ? chart.lineSymbolSize : undefined,
-        lineStyle: chart.type === "line" || chart.type === "area"
-            ? { width: pointsToPixels(chart.lineSize) }
+        barWidth: seriesType === "bar" ? barWidth : undefined,
+        barGap: seriesType === "bar" ? "0%" : undefined,
+        smooth: lineLike ? chart.lineSmooth : undefined,
+        symbol: lineLike ? lineSymbol(chart.lineSymbol) : undefined,
+        symbolSize: lineLike ? chart.lineSymbolSize : undefined,
+        lineStyle: lineLike
+            ? { width: pointsToPixels(chart.lineSize), color }
             : undefined,
-        areaStyle: chart.type === "area" ? {} : undefined,
-        itemStyle: { opacity: chart.colorOpacity },
-    }));
+        areaStyle: series.type === "area" ? {} : undefined,
+        itemStyle: { opacity: chart.colorOpacity, color },
+        yAxisIndex: series.valueAxisIndex,
+        };
+    });
 }
 
 function scatterSeries(chart: NormalizedChart): Record<string, unknown>[] {
@@ -130,10 +142,12 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
         },
     };
     const grid = {
-        left: "6%",
-        right: "2%",
+        left: chart.valueAxes.length > 1 ? "12%" : chart.valueAxes[0]?.showTitle ? "10%" : "6%",
+        right: chart.valueAxes.length > 1 ? "14%" : "2%",
         top: chart.showTitle ? "14%" : "4%",
-        bottom: chart.showLegend && chart.legendPosition === "b" ? "17%" : "10%",
+        bottom: chart.showLegend && chart.legendPosition === "b"
+            ? chart.valueAxes.length > 1 ? "21%" : "17%"
+            : "10%",
         outerBoundsMode: "none",
     } as const;
 
@@ -186,17 +200,34 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
 
     const categories = chart.series[0]?.labels ?? [];
     const categoryAxis = { type: "category", data: categories, ...axisStyle } as const;
-    const valueAxis = {
-        type: "value",
-        min: chart.grouping === "percentStacked" ? 0 : chart.valueAxisMinimum,
-        max: chart.grouping === "percentStacked" ? 100 : chart.valueAxisMaximum,
+    const valueAxes = chart.valueAxes.map((axis, index) => ({
+        type: "value" as const,
+        min: chart.grouping === "percentStacked" ? 0 : axis.minimum,
+        max: chart.grouping === "percentStacked" ? 100 : axis.maximum,
+        position: index === 1 ? "right" as const : "left" as const,
+        show: !axis.hidden,
+        name: axis.showTitle ? axis.title : undefined,
+        nameLocation: "middle" as const,
+        nameGap: 40,
+        nameTextStyle: {
+            color: "#000000",
+            fontFamily: chart.fontFace,
+            fontSize: pointsToPixels(chart.fontSize),
+        },
+        splitNumber: Math.min(10, Math.max(1, Number.isInteger(axis.maximum - axis.minimum)
+            ? axis.maximum - axis.minimum
+            : 5)),
         ...axisStyle,
-    } as const;
+        splitLine: index === 0 ? axisStyle.splitLine : { show: false },
+    }));
+    const valueAxis = valueAxes[0]!;
     return {
         ...common,
         grid,
         xAxis: chart.type === "bar" && chart.barDirection === "bar" ? valueAxis : categoryAxis,
-        yAxis: chart.type === "bar" && chart.barDirection === "bar" ? categoryAxis : valueAxis,
+        yAxis: chart.type === "bar" && chart.barDirection === "bar"
+            ? categoryAxis
+            : valueAxes.length === 1 ? valueAxis : valueAxes,
         series: cartesianSeries(chart),
     };
 }

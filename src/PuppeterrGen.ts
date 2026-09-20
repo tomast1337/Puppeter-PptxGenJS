@@ -101,7 +101,11 @@ export class PuppeteerSlide implements PptxSlide {
     }
     
     addChart(type: PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[], data: any[], options?: PptxGenJS.IChartOpts | undefined): PptxGenJS.Slide {
-        const chartOptions = options ?? {};
+        // PptxGenJS treats the second argument as the shared options object for
+        // IChartMulti[] calls; each mixed entry already carries its own data.
+        const chartOptions = Array.isArray(type) && !Array.isArray(data)
+            ? data as unknown as PptxGenJS.IChartOpts
+            : options ?? {};
         const style = normalizeObjectStyle(
             {
                 x: chartOptions.x,
@@ -114,7 +118,7 @@ export class PuppeteerSlide implements PptxSlide {
             this.pageSize,
             this.nextObjectName("Chart", chartOptions.objectName),
         );
-        const chart = normalizeChart(type, data as PptxGenJS.OptsChartData[], chartOptions);
+        const chart = normalizeChart(type, Array.isArray(data) ? data as PptxGenJS.OptsChartData[] : [], chartOptions);
         this.slideElm.appendChild(renderChart(this.document, chart, style));
         return this;
     }

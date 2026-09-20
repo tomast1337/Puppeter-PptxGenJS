@@ -70,7 +70,7 @@ export const CHART_TYPE_COMPATIBILITY = Object.freeze({
     pie: "implemented",
     radar: "implemented",
     scatter: "implemented",
-    mixed: "unsupported",
+    mixed: "partial",
 } satisfies Readonly<Record<string, CompatibilityStatus>>);
 
 export const COMPATIBILITY = Object.freeze({

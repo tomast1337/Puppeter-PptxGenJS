@@ -5,8 +5,10 @@ import type { NormalizedChart, NormalizedChartSeries, NormalizedChartType } from
 import { normalizeColor } from "./style";
 
 const SUPPORTED_TYPES = new Set<NormalizedChartType>([
-    "area", "bar", "bar3D", "bubble", "doughnut", "line", "pie", "radar", "scatter",
+    "area", "bar", "bar3D", "bubble", "doughnut", "line", "mixed", "pie", "radar", "scatter",
 ]);
+
+const MIXED_CHART_TYPES = new Set<PptxGenJS.CHART_NAME>(["area", "bar", "line"]);
 
 /** Options rendered by the initial SVG backend. Everything else is rejected explicitly. */
 export const SUPPORTED_CHART_OPTIONS = Object.freeze([
@@ -16,11 +18,16 @@ export const SUPPORTED_CHART_OPTIONS = Object.freeze([
     "showTitle", "title", "titleBold", "titleColor", "titleFontFace", "titleFontSize",
     "bar3DShape", "barDir", "barGrouping", "barGapDepthPct", "barGapWidthPct",
     "v3DPerspective", "v3DRAngAx", "v3DRotX", "v3DRotY",
+    "showValAxisTitle", "valAxes", "valAxisHidden", "valAxisMaxVal", "valAxisMinVal", "valAxisTitle",
     "holeSize", "firstSliceAng", "radarStyle",
     "lineSmooth", "lineDataSymbol", "lineDataSymbolSize", "lineSize",
 ] as const);
 
 const SUPPORTED_CHART_OPTION_SET = new Set<string>(SUPPORTED_CHART_OPTIONS);
+const SUPPORTED_MIXED_SERIES_OPTIONS = new Set(["secondaryValAxis"]);
+const SUPPORTED_VALUE_AXIS_OPTIONS = new Set([
+    "showValAxisTitle", "valAxisHidden", "valAxisMaxVal", "valAxisMinVal", "valAxisTitle",
+]);
 
 function normalizeSeries(type: NormalizedChartType, data: readonly PptxGenJS.OptsChartData[]): NormalizedChartSeries[] {
     if (data.length === 0) throw new TypeError("Chart data must contain at least one series");
@@ -52,6 +59,9 @@ function normalizeSeries(type: NormalizedChartType, data: readonly PptxGenJS.Opt
             labels,
             values,
             sizes,
+            colorIndex: index,
+            varyColors: false,
+            valueAxisIndex: 0,
         };
     });
 }
@@ -113,52 +123,124 @@ export function normalizeChart(
     data: readonly PptxGenJS.OptsChartData[],
     options: PptxGenJS.IChartOpts = {},
 ): NormalizedChart {
-    if (Array.isArray(type)) {
-        throw new UnsupportedChartError({
-            reason: "chart-combination",
-            chartTypes: type.map(chart => chart.type),
-        });
+    const mixed = Array.isArray(type);
+    const chartTypes = mixed ? type.map(chart => chart.type) : [type];
+    if (mixed && (type.length === 0 || type.some(chart => !MIXED_CHART_TYPES.has(chart.type)))) {
+        throw new UnsupportedChartError({ reason: "chart-combination", chartTypes });
     }
-    if (!SUPPORTED_TYPES.has(type as NormalizedChartType)) {
+    if (!mixed && !SUPPORTED_TYPES.has(type as NormalizedChartType)) {
         throw new UnsupportedChartError({ reason: "chart-type", chartTypes: [String(type)] });
     }
+    if (mixed) {
+        const unsupportedSeriesOptions = type.flatMap((chart, index) => Object.keys(chart.options ?? {})
+            .filter(key => chart.options[key as keyof PptxGenJS.IChartOpts] !== undefined)
+            .filter(key => !SUPPORTED_MIXED_SERIES_OPTIONS.has(key))
+            .map(key => `series[${index}].options.${key}`));
+        if (unsupportedSeriesOptions.length) {
+            throw new UnsupportedChartError({
+                reason: "chart-option",
+                chartTypes,
+                unsupportedOptions: unsupportedSeriesOptions.sort(),
+            });
+        }
+    }
 
-    rejectUnsupportedOptions(type, options);
-    const normalizedType = type as NormalizedChartType;
+    const valueAxisOptions = options.valAxes ?? [];
+    const unsupportedValueAxisOptions = valueAxisOptions.flatMap((axis, index) => Object.keys(axis)
+        .filter(key => axis[key as keyof PptxGenJS.IChartPropsAxisVal] !== undefined)
+        .filter(key => !SUPPORTED_VALUE_AXIS_OPTIONS.has(key))
+        .map(key => `valAxes[${index}].${key}`));
+    if (unsupportedValueAxisOptions.length) {
+        throw new UnsupportedChartError({
+            reason: "chart-option",
+            chartTypes,
+            unsupportedOptions: unsupportedValueAxisOptions.sort(),
+        });
+    }
+
+    rejectUnsupportedOptions(mixed ? "mixed" : type, options);
+    const normalizedType: NormalizedChartType = mixed ? "mixed" : type as NormalizedChartType;
     const palette = options.chartColors?.length
         ? options.chartColors
-        : type === "pie" || type === "doughnut" ? PPTX_DEFAULTS.chart.colors.pie : PPTX_DEFAULTS.chart.colors.bar;
+        : normalizedType === "pie" || normalizedType === "doughnut" ? PPTX_DEFAULTS.chart.colors.pie : PPTX_DEFAULTS.chart.colors.bar;
     const grouping = options.barGrouping;
     const bar3DShapes = new Set(["box", "cylinder", "cone", "coneToMax", "pyramid", "pyramidToMax"]);
 
-    const series = normalizeSeries(normalizedType, data);
-    if ((type === "pie" || type === "doughnut") && series.length !== 1) {
+    const series = mixed
+        ? type.flatMap(chart => normalizeSeries(chart.type as NormalizedChartType, chart.data).map(series => ({
+            ...series,
+            // PptxGenJS restarts chart colors within each mixed chart-type
+            // group. LibreOffice varies points for a lone mixed bar series.
+            varyColors: chart.type === "bar" && chart.data.length === 1,
+            valueAxisIndex: chart.options?.secondaryValAxis ? 1 as const : 0 as const,
+        })))
+        : normalizeSeries(normalizedType, data);
+    if ((normalizedType === "pie" || normalizedType === "doughnut") && series.length !== 1) {
         throw new UnsupportedChartError({
             reason: "chart-option",
-            chartTypes: [type],
+            chartTypes,
             unsupportedOptions: ["data[multiple-series]"],
         });
     }
-    if ((type === "scatter" || type === "bubble") && series.length < 2) {
-        throw new TypeError(`${type} charts require an X-value series followed by at least one Y-value series`);
+    if ((normalizedType === "scatter" || normalizedType === "bubble") && series.length < 2) {
+        throw new TypeError(`${normalizedType} charts require an X-value series followed by at least one Y-value series`);
     }
-    if (type === "bubble" && series.slice(1).some(item => !item.sizes)) {
+    if (normalizedType === "bubble" && series.slice(1).some(item => !item.sizes)) {
         throw new TypeError("Bubble Y-value series must include sizes");
     }
-    if (!["scatter", "bubble", "pie", "doughnut"].includes(type)) {
+    if (!["scatter", "bubble", "pie", "doughnut"].includes(normalizedType)) {
         const labels = JSON.stringify(series[0]?.labels ?? []);
         if (series.some(item => JSON.stringify(item.labels) !== labels)) {
             throw new UnsupportedChartError({
                 reason: "chart-option",
-                chartTypes: [type],
+                chartTypes,
                 unsupportedOptions: ["data.labels[per-series]"],
             });
         }
     }
     const normalizedGrouping = grouping === "stacked" || grouping === "percentStacked" || grouping === "standard" || grouping === "clustered"
         ? grouping
-        : type === "bar3D" ? PPTX_DEFAULTS.chart.grouping.bar3D : PPTX_DEFAULTS.chart.grouping.bar;
-    const [valueAxisMinimum, valueAxisMaximum] = automaticValueBounds(normalizedType, series, normalizedGrouping);
+        : normalizedType === "bar3D" ? PPTX_DEFAULTS.chart.grouping.bar3D : PPTX_DEFAULTS.chart.grouping.bar;
+    const hasSecondaryValueAxis = series.some(item => item.valueAxisIndex === 1);
+    if (hasSecondaryValueAxis && valueAxisOptions.length !== 2) {
+        throw new UnsupportedChartError({
+            reason: "chart-option",
+            chartTypes,
+            unsupportedOptions: ["valAxes[primary,secondary]"],
+        });
+    }
+    if (!hasSecondaryValueAxis && valueAxisOptions.length > 1) {
+        throw new UnsupportedChartError({
+            reason: "chart-combination",
+            chartTypes,
+            unsupportedOptions: ["valAxes[secondary-without-series]"],
+        });
+    }
+    const axisSeries = (axisIndex: 0 | 1) => series.filter(item => item.valueAxisIndex === axisIndex);
+    const automaticPrimary = automaticValueBounds(normalizedType, axisSeries(0), normalizedGrouping);
+    const automaticSecondary = hasSecondaryValueAxis
+        ? automaticValueBounds(normalizedType, axisSeries(1), normalizedGrouping)
+        : undefined;
+    const normalizeValueAxis = (
+        axisOptions: PptxGenJS.IChartPropsAxisVal | undefined,
+        automatic: [number, number],
+    ): NormalizedChart["valueAxes"][number] => {
+        const minimum = axisOptions?.valAxisMinVal ?? automatic[0];
+        const maximum = axisOptions?.valAxisMaxVal ?? automatic[1];
+        if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum >= maximum) {
+            throw new TypeError("Chart value-axis minimum must be less than its maximum");
+        }
+        return {
+            minimum,
+            maximum,
+            hidden: axisOptions?.valAxisHidden ?? false,
+            showTitle: axisOptions?.showValAxisTitle ?? false,
+            title: axisOptions?.valAxisTitle ?? "Value Axis",
+        };
+    };
+    const primaryAxis = normalizeValueAxis(valueAxisOptions[0] ?? options, automaticPrimary);
+    const valueAxes = [primaryAxis];
+    if (automaticSecondary) valueAxes.push(normalizeValueAxis(valueAxisOptions[1], automaticSecondary));
 
     return {
         type: normalizedType,
@@ -192,8 +274,9 @@ export function normalizeChart(
         gridLineColor: normalizeColor(PPTX_DEFAULTS.chart.gridLine.color),
         gridLineWidth: PPTX_DEFAULTS.chart.gridLine.widthPt,
         axisLineVisible: PPTX_DEFAULTS.chart.categoryAxisLineVisible,
-        valueAxisMinimum,
-        valueAxisMaximum,
+        valueAxisMinimum: primaryAxis.minimum,
+        valueAxisMaximum: primaryAxis.maximum,
+        valueAxes,
         doughnutHoleSize: Math.max(0, Math.min(90, options.holeSize ?? PPTX_DEFAULTS.chart.doughnutHoleSizePct)),
         firstSliceAngle: ((options.firstSliceAng ?? PPTX_DEFAULTS.chart.firstSliceAngle) % 360 + 360) % 360,
         radarStyle: options.radarStyle ?? PPTX_DEFAULTS.chart.radarStyle,

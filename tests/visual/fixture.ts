@@ -955,4 +955,46 @@ export function populateParityFixture(presentation: Presentation): void {
         chartColors: ["4472C4", "ED7D31"],
         bar3DShape: "box", showLegend: true, legendPos: "b",
     });
+
+    const mixedChartSlide = presentation.addSlide();
+    mixedChartSlide.addText("Mixed bar and line chart", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const mixedChart: PptxGenJS.IChartMulti[] = [
+        { type: "bar", data: [chartData[0]!], options: {} },
+        { type: "line", data: [chartData[1]!], options: {} },
+    ];
+    (mixedChartSlide.addChart as Function)(mixedChart, {
+        x: 2, y: 1.1, w: 6, h: 3.3,
+        fontFace: "Arial", fontSize: 11,
+        chartColors: ["4472C4", "ED7D31"],
+        showLegend: true, legendPos: "b",
+        lineDataSymbol: "circle", lineDataSymbolSize: 6, lineSize: 2,
+    });
+
+    const secondaryAxisSlide = presentation.addSlide();
+    secondaryAxisSlide.addText("Mixed chart with secondary value axis", {
+        x: 0.5, y: 0.2, w: 9, h: 0.5,
+        fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0,
+    });
+    const secondaryChart: PptxGenJS.IChartMulti[] = [
+        { type: "bar", data: [chartData[0]!], options: {} },
+        {
+            type: "line",
+            data: [{ name: "Revenue", labels: ["Q1", "Q2", "Q3", "Q4"], values: [100, 250, 400, 300] }],
+            options: { secondaryValAxis: true },
+        },
+    ];
+    (secondaryAxisSlide.addChart as Function)(secondaryChart, {
+        x: 2, y: 1.1, w: 6, h: 3.3,
+        fontFace: "Arial", fontSize: 11,
+        chartColors: ["4472C4", "ED7D31"],
+        showLegend: true, legendPos: "b",
+        lineDataSymbol: "circle", lineDataSymbolSize: 6, lineSize: 2,
+        valAxes: [
+            { valAxisMinVal: 0, valAxisMaxVal: 8, showValAxisTitle: true, valAxisTitle: "Units" },
+            { valAxisMinVal: 0, valAxisMaxVal: 500, showValAxisTitle: true, valAxisTitle: "Revenue" },
+        ],
+    });
 }

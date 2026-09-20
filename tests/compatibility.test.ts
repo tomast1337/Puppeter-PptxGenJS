@@ -56,10 +56,12 @@ describe("compatibility manifest", () => {
         expect(COMPATIBILITY.chart.options.bar3DShape).toBe("implemented");
         expect(COMPATIBILITY.chart.options.barGapDepthPct).toBe("implemented");
         expect(COMPATIBILITY.chart.options.v3DRotX).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.valAxes).toBe("implemented");
+        expect(COMPATIBILITY.chart.options.valAxisMinVal).toBe("implemented");
         expect(COMPATIBILITY.chart.options.showDataTable).toBe("unsupported");
         expect(CHART_TYPE_COMPATIBILITY.bar).toBe("implemented");
         expect(CHART_TYPE_COMPATIBILITY.bar3D).toBe("implemented");
-        expect(CHART_TYPE_COMPATIBILITY.mixed).toBe("unsupported");
+        expect(CHART_TYPE_COMPATIBILITY.mixed).toBe("partial");
     });
 
     test("tracks every TextBaseProps and TextPropsOptions field", () => {
