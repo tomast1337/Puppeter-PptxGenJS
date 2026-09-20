@@ -11,11 +11,12 @@ await rm(outputDirectory, { recursive: true, force: true });
 const bundle = await Bun.build({
     entrypoints: [resolve(projectRoot, "src/exports.ts")],
     outdir: outputDirectory,
-    target: "bun",
+    target: "node",
     format: "esm",
-    packages: "external",
-    sourcemap: "external",
-    minify: false,
+    packages: "bundle",
+    sourcemap: "inline",
+
+    minify: true,
 });
 
 if (!bundle.success) {
