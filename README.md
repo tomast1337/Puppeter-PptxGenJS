@@ -17,8 +17,11 @@ A TypeScript library that implements the PptxGenJS interface to generate PDFs us
 ## Installation
 
 ```bash
-bun install
+npm install puppeteer-pptxgenjs
 ```
+
+The published package supports Node.js 22 and newer. Bun remains supported as
+both a runtime and the development toolchain used by this repository.
 
 Build the consumable package entrypoint and TypeScript declarations:
 
@@ -42,7 +45,7 @@ bun run test:package
 ## Quick Start
 
 ```typescript
-import PuppeteerGen, { PAGE_SIZES } from "puppeter-pptxgenjs";
+import PuppeteerGen, { PAGE_SIZES } from "puppeteer-pptxgenjs";
 
 // Create a presentation with 16:9 layout
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);

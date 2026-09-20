@@ -2,6 +2,7 @@
   "name": "puppeteer-pptxgenjs",
   "version": "0.1.0",
   "description": "A PptxGenJS-compatible API for generating PDFs with Puppeteer",
+  "license": "MIT",
   "main": "./dist/exports.js",
   "module": "./dist/exports.js",
   "types": "./dist/exports.d.ts",

@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Build GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Set up Node.js and npm registry
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: bun ci
+
+      - name: Require a matching version tag
+        if: github.event_name == 'push'
+        run: |
+          PACKAGE_VERSION=$(bun -e 'console.log((await Bun.file("package.json").json()).version)')
+          test "v${PACKAGE_VERSION}" = "${GITHUB_REF_NAME}"
+
+      - name: Validate and build
+        run: |
+          bun run check
+          bun run typecheck
+          bun test
+          bun run build
+          bun run test:package
+
+      - name: Install visual comparison tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes imagemagick libreoffice poppler-utils
+
+      - name: Run visual comparison
+        run: bun run test:visual
+
+      - name: Pack release artifact
+        run: |
+          mkdir -p release
+          bun pm pack --destination release
+          cd release
+          sha256sum *.tgz > SHA256SUMS
+
+      - name: Attest release provenance
+        if: github.event.repository.private == false
+        uses: actions/attest@v4
+        with:
+          subject-path: release/*.tgz
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.ref_name }}
+          path: |
+            release/*.tgz
+            release/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Publish package to npm
+        if: github.event_name == 'push' && vars.NPM_PUBLISH == 'true'
+        run: npm publish release/*.tgz --access public
+
+      - name: Create GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" release/*.tgz release/SHA256SUMS --verify-tag --generate-notes --title "${GITHUB_REF_NAME}"
