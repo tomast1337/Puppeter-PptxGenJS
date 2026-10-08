@@ -274,6 +274,7 @@ export const PARITY_REGIONS = [
     ...PAGINATION_CASES,
     ...HTML_TABLE_CASES,
     ...SHAPED_TEXT_CASES,
+    { page: 59, name: "html-component-bars", x: 1, y: 1, w: 6, h: 2 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1848,4 +1849,27 @@ export function populateParityFixture(presentation: Presentation): void {
             valAxisTitle: "Log scale",
         },
     );
+    populateComponentFixture(presentation);
+}
+
+function populateComponentFixture(presentation: Presentation): void {
+    // HTML extension reference: equivalent PptxGenJS rectangles verify geometry and clipping.
+    const componentBoxes = [
+        { x: 1, y: 1, w: 4, h: 0.5 },
+        { x: 1, y: 2, w: 6, h: 1 },
+    ];
+    if (presentation instanceof PuppeteerGen) {
+        presentation.registerComponent("fixture/progress", 1, {
+            render: props =>
+                `<div style="width:100%;height:100%;background:#E0E0E0"><div style="width:${Number(props.percent)}%;height:200%;background:#4472C4"></div></div>`,
+        });
+        const componentSlide = presentation.addSlide();
+        for (const box of componentBoxes) componentSlide.addComponent({ type: "fixture/progress", version: 1, props: { percent: 75 } }, box);
+    } else {
+        const componentSlide = presentation.addSlide();
+        for (const box of componentBoxes) {
+            componentSlide.addShape("rect", { ...box, fill: { color: "E0E0E0" }, line: { transparency: 100 } });
+            componentSlide.addShape("rect", { ...box, w: box.w * 0.75, fill: { color: "4472C4" }, line: { transparency: 100 } });
+        }
+    }
 }

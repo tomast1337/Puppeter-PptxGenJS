@@ -31,6 +31,7 @@ export default PuppeteerGen;
 export type { UnsupportedChartDetails, UnsupportedChartReason } from "./chart/errors";
 export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
+export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
 export type { FourSideMargin } from "./defaults";
 export type { PuppeteerSlide } from "./PuppeterrGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";

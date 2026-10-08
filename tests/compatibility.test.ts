@@ -118,7 +118,7 @@ const TABLE_TO_SLIDES_OPTION_KEYS = [
 
 describe("compatibility manifest", () => {
     test("tracks every active renderer family", () => {
-        expect(Object.keys(COMPATIBILITY)).toEqual(["chart", "text", "image", "shape", "table"]);
+        expect(Object.keys(COMPATIBILITY)).toEqual(["component", "chart", "text", "image", "shape", "table"]);
     });
 
     test("contains only explicit compatibility states", () => {

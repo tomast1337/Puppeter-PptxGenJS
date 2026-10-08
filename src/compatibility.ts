@@ -231,6 +231,19 @@ export const CHART_TYPE_COMPATIBILITY = Object.freeze({
 } satisfies Readonly<Record<string, CompatibilityStatus>>);
 
 export const COMPATIBILITY = Object.freeze({
+    component: Object.freeze<CompatibilityEntry>({
+        status: "implemented",
+        options: Object.freeze({
+            type: "implemented",
+            version: "implemented",
+            props: "implemented",
+            x: "implemented",
+            y: "implemented",
+            w: "implemented",
+            h: "implemented",
+            objectName: "implemented",
+        }),
+    }),
     chart: Object.freeze<CompatibilityEntry>({
         status: "partial",
         options: CHART_OPTION_COMPATIBILITY,

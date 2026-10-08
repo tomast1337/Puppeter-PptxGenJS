@@ -288,3 +288,69 @@ The library automatically generates CSS that:
   text layout.
 - Some PptxGenJS options remain partial or explicitly unsupported. Media,
   notes, and slide masters are not currently implemented.
+
+## Custom HTML components
+
+Register versioned application components on each presentation, then place them
+with the same inch-based coordinates used by the standard drawing methods:
+
+```typescript
+const pres = new PuppeteerGen();
+pres.registerComponent("acme/metric", 1, {
+    validate(props) {
+        if (typeof props.label !== "string" || typeof props.value !== "number") {
+            throw new Error("Metric requires a label and numeric value");
+        }
+    },
+    render(props, { document, width, height }) {
+        const card = document.createElement("div");
+        card.style.cssText = "height:100%;padding:12px;box-sizing:border-box;background:#eef2ff";
+        // textContent safely represents data as text. Context dimensions are pixels.
+        card.textContent = `${props.label}: ${props.value}`;
+        return card;
+    },
+});
+pres.addSlide().addComponent(
+    { type: "acme/metric", version: 1, props: { label: "Revenue", value: 42 } },
+    { x: 1, y: 1, w: 3, h: 1, objectName: "revenue-card" },
+);
+await pres.writeFile({ fileName: "metrics.pdf" });
+```
+
+`addComponent` is a PuppeteerGen extension. It returns the slide for chaining.
+`x`, `y`, `w`, and `h` are required finite numbers in inches; dimensions must be
+positive. Components follow insertion order and clip content to their box.
+`objectName` is optional. Other drawing options (rotation, percentage geometry,
+fill, etc.) are currently unsupported: style the inner HTML in the renderer.
+Component default overflow is tracked in `src/defaults.ts`.
+
+A component's type and positive integer version select an exact registration.
+Different versions can coexist; duplicate registration and unknown versions
+throw. Registries belong to a presentation and are also shared with its existing
+and automatically created slides. Register definitions before calling
+`addComponent` or replaying a recording. Components render synchronously when
+added; registration changes do not retroactively redraw existing elements.
+
+Props must be a plain JSON object (no functions, undefined, dates, cycles or DOM
+nodes). They are copied before validation/rendering. The optional validator throws
+on invalid application data. The renderer returns an HTML string or an HTMLElement
+created with the supplied document; elements are cloned, so event listeners and
+other runtime state are not part of the output. React/Vue hydration and async
+renderers are not supported. Fetch data before generation.
+
+HTML renderers are trusted application code, not a sandbox. Prefer DOM creation
+and `textContent` for user data; sanitize any untrusted HTML before returning it.
+Use inline styles or explicitly scoped CSS: components share the slide document,
+so global selectors can affect other elements. `<img src>` paths and URLs enter
+the normal image-resolution pipeline before PDF generation. Use embedded images
+for portability. `srcset` is rejected; CSS background URLs, external stylesheets,
+SVG external references and web fonts are not bundled by this API and should be
+embedded or supplied by the application.
+
+The `pptx-serializer` workspace package in `icap-dev-tools` records the same
+`addComponent(input, options)` contract. Its document contains only type,
+version, props and geometry—not renderer functions. Register definitions inside
+the replay factory. Unknown types remain editable in saved data but fail clearly
+when rendered without a matching registration. For changed props schemas, add a
+new version and migrate documents explicitly. Standard PptxGenJS has no
+`addComponent` method; replaying a component document into it requires an adapter.

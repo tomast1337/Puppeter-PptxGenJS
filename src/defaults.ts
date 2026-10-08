@@ -339,3 +339,6 @@ export function tableMarginToCSS(margin?: number | FourSideMargin): string {
     const [top, right, bottom, left] = values.map(convert) as FourSideMargin;
     return padding(top, right, bottom, left);
 }
+
+/** HTML component extension defaults (not part of the PptxGenJS compatibility surface). */
+export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });

@@ -3,6 +3,9 @@ import * as jsdom from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import puppeteer from "puppeteer";
 import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
+import { normalizeComponent } from "./components/normalize";
+import { ComponentRegistry } from "./components/registry";
+import type { ComponentDefinition, ComponentInput, ComponentOptions } from "./components/types";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "./defaults";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/htmlTable";
@@ -27,6 +30,7 @@ import type {
     PptxWriteProps,
 } from "./pptx";
 import { renderChart, renderChartExtension } from "./render/chart";
+import { renderComponent } from "./render/component";
 import { renderImage } from "./render/image";
 import { renderShape, renderShapeSvg } from "./render/shape";
 import { applyObjectStyle } from "./render/style";
@@ -35,7 +39,13 @@ import { renderText } from "./render/text";
 import { inchesToPixels, pointsToPixels } from "./utils";
 
 export class PuppeteerSlide implements PptxSlide {
-    constructor(slideElm: HTMLDivElement, pageSize: PageSize, document: Document, getContinuationSlide: (offset: number) => PuppeteerSlide) {
+    constructor(
+        slideElm: HTMLDivElement,
+        pageSize: PageSize,
+        document: Document,
+        getContinuationSlide: (offset: number) => PuppeteerSlide,
+        private readonly components = new ComponentRegistry(),
+    ) {
         this.slideElm = slideElm;
         this.pageSize = pageSize;
         this.document = document;
@@ -104,6 +114,15 @@ export class PuppeteerSlide implements PptxSlide {
         const index = this.objectCounts[kind] ?? 0;
         this.objectCounts[kind] = index + 1;
         return explicit ?? `${kind} ${index}`;
+    }
+
+    addComponent(input: ComponentInput, options: ComponentOptions): this {
+        const normalized = normalizeComponent(input, options, this.pageSize, options?.objectName ?? "Component");
+        const definition = this.components.get(normalized.input.type, normalized.input.version);
+        const element = renderComponent(this.document, normalized, definition);
+        element.dataset.objectName = this.nextObjectName("Component", options.objectName);
+        this.slideElm.appendChild(element);
+        return this;
     }
 
     addChart(type: PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[], data: any[], options?: PptxGenJS.IChartOpts | undefined): PptxGenJS.Slide {
@@ -265,6 +284,7 @@ export class PuppeteerGen
     private pageSize: PageSize;
     page: Document;
     private slideCount = 0;
+    private readonly components = new ComponentRegistry();
     private slides: PuppeteerSlide[] = [];
 
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE) {
@@ -272,6 +292,11 @@ export class PuppeteerGen
         this.page = this.dom.window.document;
         this.pageSize = pageSize;
         this.injectCSS();
+    }
+
+    registerComponent(type: string, version: number, definition: ComponentDefinition): this {
+        this.components.register(type, version, definition);
+        return this;
     }
 
     /**
@@ -559,11 +584,17 @@ body {
         slideElm.id = `slide-${++this.slideCount}`;
         this.page.body.appendChild(slideElm);
         const slideIndex = this.slides.length;
-        const slide = new PuppeteerSlide(slideElm, this.pageSize, this.page, offset => {
-            const targetIndex = slideIndex + offset;
-            while (this.slides.length <= targetIndex) this.addSlide();
-            return this.slides[targetIndex]!;
-        });
+        const slide = new PuppeteerSlide(
+            slideElm,
+            this.pageSize,
+            this.page,
+            offset => {
+                const targetIndex = slideIndex + offset;
+                while (this.slides.length <= targetIndex) this.addSlide();
+                return this.slides[targetIndex]!;
+            },
+            this.components,
+        );
         this.slides.push(slide);
 
         if (typeof masterName === "object" && masterName !== null) {
