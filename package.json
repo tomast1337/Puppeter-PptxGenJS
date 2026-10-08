@@ -40,6 +40,11 @@
       "types": "./dist/exports.d.ts",
       "import": "./dist/exports.js",
       "default": "./dist/exports.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "default": "./dist/react.js"
     }
   },
   "scripts": {
@@ -61,12 +66,28 @@
     "@biomejs/biome": "2.5.14",
     "@types/bun": "latest",
     "@types/jsdom": "^21.1.7",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19",
     "pptxgenjs": "4.0.1",
+    "react": "^19",
+    "react-dom": "^19",
     "typescript": "^5"
   },
   "dependencies": {
     "echarts": "6.1.0",
     "jsdom": "^26.1.0",
     "puppeteer": "^24.15.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   }
 }

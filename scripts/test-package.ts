@@ -5,7 +5,11 @@ import { join, resolve } from "node:path";
 const projectRoot = resolve(import.meta.dir, "..");
 const temporaryRoot = await mkdtemp(join(tmpdir(), "puppeteer-gen-consumer-"));
 const consumerDirectory = join(temporaryRoot, "consumer");
-const packageMetadata = (await Bun.file(resolve(projectRoot, "package.json")).json()) as { name: string; version: string };
+const packageMetadata = (await Bun.file(resolve(projectRoot, "package.json")).json()) as {
+    name: string;
+    version: string;
+    devDependencies: Record<string, string>;
+};
 const tarballName = `${packageMetadata.name.replace(/^@/, "").replace("/", "-")}-${packageMetadata.version}.tgz`;
 const tarball = join(temporaryRoot, tarballName);
 
@@ -39,6 +43,12 @@ try {
         throw new Error("The packed replacement unexpectedly installed pptxgenjs");
     } catch (error) {
         if (error instanceof Error && error.message.includes("unexpectedly installed")) throw error;
+    }
+
+    for (const optional of ["react", "react-dom"]) {
+        if (await Bun.file(join(consumerDirectory, "node_modules", optional, "package.json")).exists()) {
+            throw new Error(`Core-only installation unexpectedly installed ${optional}`);
+        }
     }
 
     const consumerSource = `
@@ -129,6 +139,48 @@ console.log("Node.js package consumer generated a PDF");
     const nodeConsumerSourcePath = join(consumerDirectory, "consumer.mjs");
     await Bun.write(nodeConsumerSourcePath, nodeConsumerSource);
     await run(["node", nodeConsumerSourcePath], consumerDirectory);
+    // Install React only after the core consumer has been typechecked and run without it.
+    await run(
+        [
+            process.execPath,
+            "add",
+            "--dev",
+            "--ignore-scripts",
+            ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${packageMetadata.devDependencies[name]}`),
+        ],
+        consumerDirectory,
+    );
+    const reactConsumerSource = `
+import { createElement, useId } from "react";
+import PuppeteerGen from "${packageMetadata.name}";
+import { registerReactComponent } from "${packageMetadata.name}/react";
+
+function Card({ label }: { label: string }) {
+    const id = useId();
+    return createElement("section", { id }, label);
+}
+const p = new PuppeteerGen();
+registerReactComponent(p, "card", 1, Card, {
+    parseProps(props) {
+        if (typeof props.label !== "string") throw new Error("Invalid label");
+        return { label: props.label };
+    },
+});
+const slide = p.addSlide();
+slide.addComponent({ type: "card", version: 1, props: { label: "React consumer" } }, { x: 1, y: 1, w: 3, h: 1 });
+slide.addComponent({ type: "card", version: 1, props: { label: "Second" } }, { x: 1, y: 2, w: 3, h: 1 });
+const cards = p.page.querySelectorAll("section");
+if (cards[0]?.textContent !== "React consumer" || cards[0].id === cards[1]?.id) throw new Error("React adapter consumer failed");
+console.log("React adapter package consumer passed");
+`;
+    const reactConsumerPath = join(consumerDirectory, "react-consumer.ts");
+    await Bun.write(reactConsumerPath, reactConsumerSource);
+    const config = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
+    config.files.push("react-consumer.ts");
+    await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(config, null, 2));
+    await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
+    await run([process.execPath, "run", reactConsumerPath], consumerDirectory);
+    await run(["node", "--experimental-strip-types", reactConsumerPath], consumerDirectory);
 } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
 }

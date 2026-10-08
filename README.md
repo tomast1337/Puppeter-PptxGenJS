@@ -354,3 +354,71 @@ the replay factory. Unknown types remain editable in saved data but fail clearly
 when rendered without a matching registration. For changed props schemas, add a
 new version and migrate documents explicitly. Standard PptxGenJS has no
 `addComponent` method; replaying a component document into it requires an adapter.
+
+## React components (optional)
+
+Install matching React 19 packages in the consuming application:
+
+```sh
+npm install react@19 react-dom@19
+# TypeScript applications also need their React types:
+npm install --save-dev @types/react@19 @types/react-dom@19
+```
+
+The adapter is a separate package entrypoint. Importing `puppeteer-pptxgenjs`
+without `/react` does not load or require React.
+
+```tsx
+import PuppeteerGen from "puppeteer-pptxgenjs";
+import { registerReactComponent } from "puppeteer-pptxgenjs/react";
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+    return (
+        <div style={{ height: "100%", background: "#eef2ff", padding: 16, boxSizing: "border-box" }}>
+            <strong>{label}</strong>
+            <div>{value}</div>
+        </div>
+    );
+}
+
+const presentation = new PuppeteerGen();
+registerReactComponent(presentation, "acme/metric", 1, MetricCard, {
+    parseProps(props) {
+        if (typeof props.label !== "string" || typeof props.value !== "number") {
+            throw new Error("Invalid metric props");
+        }
+        return { label: props.label, value: props.value };
+    },
+});
+presentation.addSlide().addComponent(
+    { type: "acme/metric", version: 1, props: { label: "Revenue", value: 42 } },
+    { x: 1, y: 1, w: 3, h: 1 },
+);
+await presentation.writeFile({ fileName: "react-metrics.pdf" });
+```
+
+`registerReactComponent` returns the presentation and uses the existing versioned
+component registry. `parseProps` is optional, with its return type inferred from
+the React component's props; use it to validate saved/user-edited JSON or apply
+application defaults. Without a parser, the component receives the saved JSON
+props directly—TypeScript types do not validate stored data at runtime.
+
+The adapter renders function or class components with React's synchronous
+`renderToStaticMarkup`. It automatically gives each render a distinct `useId`
+prefix within the presentation. React components can be composed normally; wrap
+them in another component to supply providers or application themes. Use inline
+styles or supply the corresponding scoped CSS; importing a CSS module does not
+bundle its stylesheet into the PDF.
+
+Output is static HTML: event handlers, client effects, hydration and browser-only
+APIs are not available. Load data before rendering. Suspense emits its fallback
+rather than waiting for asynchronous content, so async components that need to
+resolve before export are not supported by this adapter. React elements, callbacks
+and component functions are not serializable props; keep those in registered code.
+
+The serializer's `addComponent` data is unchanged. Register the React adapter in
+the replay factory, then replay the document normally. The same React component
+can later be mounted interactively by an editor, with the editor updating the
+saved props; this adapter only handles static export.
+
+Run the repository example with `bun run examples/react-component.ts`.

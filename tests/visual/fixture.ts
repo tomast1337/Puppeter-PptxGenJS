@@ -1,7 +1,9 @@
 import { Buffer } from "node:buffer";
 import type PptxGenJS from "pptxgenjs";
+import { createElement } from "react";
 import { GENERATED_PRESET_NAMES } from "../../src/normalize/generatedPreset";
 import { PuppeteerGen } from "../../src/PuppeterrGen";
+import { registerReactComponent } from "../../src/react";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -274,7 +276,7 @@ export const PARITY_REGIONS = [
     ...PAGINATION_CASES,
     ...HTML_TABLE_CASES,
     ...SHAPED_TEXT_CASES,
-    { page: 59, name: "html-component-bars", x: 1, y: 1, w: 6, h: 2 },
+    { page: 59, name: "html-react-component-bars", x: 1, y: 1, w: 6, h: 2 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1863,8 +1865,17 @@ function populateComponentFixture(presentation: Presentation): void {
             render: props =>
                 `<div style="width:100%;height:100%;background:#E0E0E0"><div style="width:${Number(props.percent)}%;height:200%;background:#4472C4"></div></div>`,
         });
+        registerReactComponent(presentation, "fixture/react-progress", 1, ({ percent }: { percent: number }) =>
+            createElement(
+                "div",
+                { style: { width: "100%", height: "100%", background: "#E0E0E0" } },
+                createElement("div", { style: { width: `${percent}%`, height: "200%", background: "#4472C4" } }),
+            ),
+        );
         const componentSlide = presentation.addSlide();
-        for (const box of componentBoxes) componentSlide.addComponent({ type: "fixture/progress", version: 1, props: { percent: 75 } }, box);
+        componentBoxes.forEach((box, index) => {
+            componentSlide.addComponent({ type: index === 0 ? "fixture/progress" : "fixture/react-progress", version: 1, props: { percent: 75 } }, box);
+        });
     } else {
         const componentSlide = presentation.addSlide();
         for (const box of componentBoxes) {

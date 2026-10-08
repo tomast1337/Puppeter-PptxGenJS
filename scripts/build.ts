@@ -9,7 +9,7 @@ if (outputDirectory === projectRoot) throw new Error("Refusing to clean the proj
 await rm(outputDirectory, { recursive: true, force: true });
 
 const bundle = await Bun.build({
-    entrypoints: [resolve(projectRoot, "src/exports.ts")],
+    entrypoints: [resolve(projectRoot, "src/exports.ts"), resolve(projectRoot, "src/react.ts")],
     outdir: outputDirectory,
     target: "node",
     format: "esm",
@@ -69,6 +69,9 @@ const builtEntrypoint = resolve(outputDirectory, "exports.js");
 const bundledSource = await readFile(builtEntrypoint, "utf8");
 if (/from\s+["']pptxgenjs["']|require\(["']pptxgenjs["']\)/.test(bundledSource)) {
     throw new Error("The runtime bundle must not import pptxgenjs; it is a type-only development oracle");
+}
+if (/from\s+["']react(?:-dom)?(?:\/[^"']*)?["']|import\(["']react(?:-dom)?/.test(bundledSource)) {
+    throw new Error("The core bundle must not import the optional React adapter");
 }
 if (/\bBun\s*\./.test(bundledSource)) {
     throw new Error("The runtime bundle must not depend on Bun APIs; published packages support Node.js");
