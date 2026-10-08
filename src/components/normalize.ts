@@ -1,6 +1,6 @@
 import { normalizeObjectStyle } from "../normalize/object";
 import type { PageSize } from "../pageLayouts";
-import type { ComponentInput, ComponentOptions, ComponentValue } from "./types";
+import type { ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./types";
 
 function cloneValue(value: unknown, parents = new Set<object>()): ComponentValue {
     if (value === null || typeof value === "string" || typeof value === "boolean") return value;
@@ -38,11 +38,15 @@ export function validateComponentIdentity(type: string, version: number): void {
     }
 }
 
+export function cloneComponentProps(props: unknown): ComponentProps {
+    if (!props || Array.isArray(props) || typeof props !== "object") throw new Error("Component props must be an object");
+    return cloneValue(props) as ComponentProps;
+}
+
 export function normalizeComponent(input: ComponentInput, options: ComponentOptions, pageSize: PageSize, objectName: string) {
     if (!input || !options) throw new Error("Component input and geometry are required");
     validateComponentIdentity(input.type, input.version);
     if (Object.keys(input).length !== 3) throw new Error("Component input requires type, version and props");
-    if (!input.props || Array.isArray(input.props) || typeof input.props !== "object") throw new Error("Component props must be an object");
     for (const key of ["x", "y", "w", "h"] as const) {
         if (typeof options[key] !== "number" || !Number.isFinite(options[key])) throw new Error(`Component ${key} must be finite inches`);
     }
@@ -52,7 +56,7 @@ export function normalizeComponent(input: ComponentInput, options: ComponentOpti
         if (!["x", "y", "w", "h", "objectName"].includes(key)) throw new Error(`Unsupported component option: ${key}`);
     }
     return {
-        input: { type: input.type, version: input.version, props: cloneValue(input.props) as ComponentInput["props"] },
+        input: { type: input.type, version: input.version, props: cloneComponentProps(input.props) },
         style: normalizeObjectStyle(options, {}, pageSize, objectName),
     };
 }

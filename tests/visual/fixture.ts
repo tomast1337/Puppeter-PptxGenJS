@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import type PptxGenJS from "pptxgenjs";
 import { createElement } from "react";
+import { z } from "zod";
 import { GENERATED_PRESET_NAMES } from "../../src/normalize/generatedPreset";
 import { PuppeteerGen } from "../../src/PuppeterrGen";
 import { registerReactComponent } from "../../src/react";
@@ -1861,20 +1862,28 @@ function populateComponentFixture(presentation: Presentation): void {
         { x: 1, y: 2, w: 6, h: 1 },
     ];
     if (presentation instanceof PuppeteerGen) {
+        const schema = z.object({ percent: z.number().min(0).max(100).default(75) });
         presentation.registerComponent("fixture/progress", 1, {
+            schema,
             render: props =>
                 `<div style="width:100%;height:100%;background:#E0E0E0"><div style="width:${Number(props.percent)}%;height:200%;background:#4472C4"></div></div>`,
         });
-        registerReactComponent(presentation, "fixture/react-progress", 1, ({ percent }: { percent: number }) =>
-            createElement(
-                "div",
-                { style: { width: "100%", height: "100%", background: "#E0E0E0" } },
-                createElement("div", { style: { width: `${percent}%`, height: "200%", background: "#4472C4" } }),
-            ),
+        registerReactComponent(
+            presentation,
+            "fixture/react-progress",
+            1,
+            ({ percent }: z.output<typeof schema>) =>
+                createElement(
+                    "div",
+                    { style: { width: "100%", height: "100%", background: "#E0E0E0" } },
+                    createElement("div", { style: { width: `${percent}%`, height: "200%", background: "#4472C4" } }),
+                ),
+            { schema },
         );
         const componentSlide = presentation.addSlide();
         componentBoxes.forEach((box, index) => {
-            componentSlide.addComponent({ type: index === 0 ? "fixture/progress" : "fixture/react-progress", version: 1, props: { percent: 75 } }, box);
+            // Both renderers use the same schema default; the reference stays at 75%.
+            componentSlide.addComponent({ type: index === 0 ? "fixture/progress" : "fixture/react-progress", version: 1, props: {} }, box);
         });
     } else {
         const componentSlide = presentation.addSlide();

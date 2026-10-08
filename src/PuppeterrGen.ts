@@ -5,7 +5,7 @@ import puppeteer from "puppeteer";
 import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 import { normalizeComponent } from "./components/normalize";
 import { ComponentRegistry } from "./components/registry";
-import type { ComponentDefinition, ComponentInput, ComponentOptions } from "./components/types";
+import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps } from "./components/types";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "./defaults";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/htmlTable";
@@ -294,7 +294,7 @@ export class PuppeteerGen
         this.injectCSS();
     }
 
-    registerComponent(type: string, version: number, definition: ComponentDefinition): this {
+    registerComponent<Props extends object = ComponentProps>(type: string, version: number, definition: ComponentDefinition<Props>): this {
         this.components.register(type, version, definition);
         return this;
     }

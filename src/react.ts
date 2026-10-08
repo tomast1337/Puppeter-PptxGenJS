@@ -1,5 +1,7 @@
 import { type ComponentType, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { z } from "zod";
+import { parseComponentProps } from "./components/schema";
 import type { ComponentDefinition, ComponentProps } from "./components/types";
 
 /** Structural interface keeps the optional adapter independent of the renderer runtime. */
@@ -7,10 +9,9 @@ export interface ReactComponentRegistrar {
     registerComponent(type: string, version: number, definition: ComponentDefinition): unknown;
 }
 
-export interface ReactComponentOptions<Props extends object> {
-    /** Validate/convert saved JSON props. Throw to reject invalid application data. */
-    parseProps?: (props: ComponentProps) => Props;
-}
+export type ReactComponentOptions<Props extends object> =
+    | { schema: z.ZodType<Props>; parseProps?: never }
+    | { schema?: never; parseProps?: (props: ComponentProps) => Props };
 
 const renderCounts = new WeakMap<object, number>();
 
@@ -22,10 +23,11 @@ export function registerReactComponent<Props extends object, Presentation extend
     component: ComponentType<Props>,
     options: ReactComponentOptions<NoInfer<Props>> = {},
 ): Presentation {
-    const parseProps = options.parseProps;
+    const { schema, parseProps } = options;
+    if (schema && parseProps) throw new Error("Choose a component schema or parseProps, not both");
     presentation.registerComponent(type, version, {
         render: savedProps => {
-            const props = parseProps ? parseProps(savedProps) : (savedProps as unknown as Props);
+            const props = schema ? parseComponentProps(schema, savedProps) : parseProps ? parseProps(savedProps) : (savedProps as unknown as Props);
             const index = renderCounts.get(presentation) ?? 0;
             renderCounts.set(presentation, index + 1);
             // Each static React tree gets a distinct useId namespace within the presentation.

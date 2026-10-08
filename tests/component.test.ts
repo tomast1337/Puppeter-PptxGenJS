@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { z } from "zod";
 import { normalizeComponent } from "../src/components/normalize";
 import { COMPONENT_DEFAULTS } from "../src/defaults";
 import { PuppeteerGen } from "../src/PuppeterrGen";
@@ -6,6 +7,41 @@ import { PAGE_SIZES } from "../src/pageLayouts";
 
 const input = { type: "example/metric", version: 1, props: { label: "Revenue", value: 42 } };
 const options = { x: 1, y: 2, w: 3, h: 1 };
+
+test("Zod infers HTML props, applies defaults and validates before changing the slide", () => {
+    const p = new PuppeteerGen();
+    p.registerComponent("schema/card", 1, {
+        schema: z.object({ label: z.string().default("Total"), value: z.number() }),
+        render: props => {
+            const value: number = props.value;
+            return `<strong>${props.label}:${value.toFixed(1)}</strong>`;
+        },
+    });
+    const slide = p.addSlide();
+    expect(() => slide.addComponent({ type: "schema/card", version: 1, props: { value: "invalid" } }, options)).toThrow();
+    expect(slide.slideElm.children.length).toBe(0);
+    const props = { value: 4 };
+    slide.addComponent({ type: "schema/card", version: 1, props }, options);
+    expect(slide.slideElm.textContent).toBe("Total:4.0");
+    expect(props).toEqual({ value: 4 });
+});
+
+test("Zod transforms run once for each render and must produce JSON-compatible props", () => {
+    const p = new PuppeteerGen();
+    p.registerComponent("schema/transform", 1, {
+        schema: z.object({ value: z.string().transform(value => Number(value) + 1) }),
+        render: props => String(props.value),
+    });
+    const slide = p.addSlide();
+    slide.addComponent({ type: "schema/transform", version: 1, props: { value: "4" } }, options);
+    expect(slide.slideElm.textContent).toBe("5");
+    p.registerComponent("schema/date", 1, {
+        schema: z.object({ value: z.string().transform(() => new Date()) }),
+        render: () => "never",
+    });
+    expect(() => slide.addComponent({ type: "schema/date", version: 1, props: { value: "today" } }, options)).toThrow("plain objects");
+    expect(slide.slideElm.children.length).toBe(1);
+});
 
 test("normalizes inches and snapshots props without materializing renderer code", () => {
     const normalized = normalizeComponent(input, options, PAGE_SIZES.SCREEN_16X9.landscape, "Metric");

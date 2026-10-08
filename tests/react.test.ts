@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { Component, createElement, useEffect, useId } from "react";
+import { z } from "zod";
 import { PuppeteerGen } from "../src/PuppeterrGen";
 import { registerReactComponent } from "../src/react";
 
@@ -16,6 +17,19 @@ function Metric({ label, value }: MetricProps) {
     );
 }
 const geometry = { x: 1, y: 2, w: 3, h: 1 };
+
+test("React uses the shared Zod props schema for defaults and validation", () => {
+    const schema = z.object({ label: z.string().default("Revenue"), value: z.number() });
+    const p = new PuppeteerGen();
+    registerReactComponent(p, "schema/metric", 1, Metric, { schema });
+    const slide = p.addSlide();
+    expect(() => slide.addComponent({ type: "schema/metric", version: 1, props: { value: "bad" } }, geometry)).toThrow();
+    expect(slide.slideElm.children.length).toBe(0);
+    slide.addComponent({ type: "schema/metric", version: 1, props: { value: 42 } }, geometry);
+    expect(slide.slideElm.querySelector("strong")?.textContent).toBe("Revenue");
+    // @ts-expect-error Schema output must match the React component's props.
+    registerReactComponent(p, "invalid", 1, Metric, { schema: z.object({ label: z.string(), value: z.string() }) });
+});
 
 test("React adapter renders typed function components through the HTML registry", () => {
     const presentation = new PuppeteerGen();

@@ -295,13 +295,12 @@ Register versioned application components on each presentation, then place them
 with the same inch-based coordinates used by the standard drawing methods:
 
 ```typescript
+import { z } from "zod";
+
+const metricSchema = z.object({ label: z.string().default("Revenue"), value: z.number() });
 const pres = new PuppeteerGen();
 pres.registerComponent("acme/metric", 1, {
-    validate(props) {
-        if (typeof props.label !== "string" || typeof props.value !== "number") {
-            throw new Error("Metric requires a label and numeric value");
-        }
-    },
+    schema: metricSchema,
     render(props, { document, width, height }) {
         const card = document.createElement("div");
         card.style.cssText = "height:100%;padding:12px;box-sizing:border-box;background:#eef2ff";
@@ -372,7 +371,12 @@ without `/react` does not load or require React.
 import PuppeteerGen from "puppeteer-pptxgenjs";
 import { registerReactComponent } from "puppeteer-pptxgenjs/react";
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+import { z } from "zod";
+
+const metricSchema = z.object({ label: z.string().default("Revenue"), value: z.number() });
+type MetricProps = z.output<typeof metricSchema>;
+
+function MetricCard({ label, value }: MetricProps) {
     return (
         <div style={{ height: "100%", background: "#eef2ff", padding: 16, boxSizing: "border-box" }}>
             <strong>{label}</strong>
@@ -383,12 +387,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 
 const presentation = new PuppeteerGen();
 registerReactComponent(presentation, "acme/metric", 1, MetricCard, {
-    parseProps(props) {
-        if (typeof props.label !== "string" || typeof props.value !== "number") {
-            throw new Error("Invalid metric props");
-        }
-        return { label: props.label, value: props.value };
-    },
+    schema: metricSchema,
 });
 presentation.addSlide().addComponent(
     { type: "acme/metric", version: 1, props: { label: "Revenue", value: 42 } },
@@ -398,10 +397,18 @@ await presentation.writeFile({ fileName: "react-metrics.pdf" });
 ```
 
 `registerReactComponent` returns the presentation and uses the existing versioned
-component registry. `parseProps` is optional, with its return type inferred from
-the React component's props; use it to validate saved/user-edited JSON or apply
-application defaults. Without a parser, the component receives the saved JSON
-props directly—TypeScript types do not validate stored data at runtime.
+component registry. Prefer `schema` with a shared Zod definition: its output type
+must match the React props, and its defaults/refinements run before rendering.
+The legacy `parseProps` callback remains supported; provide either `schema` or
+`parseProps`. Without either, props are passed through without schema validation.
+
+HTML `registerComponent` also accepts `schema`, inferring `render` and `validate`
+props from its output. A legacy `validate` callback can add checks after parsing.
+Input and parsed props must remain plain JSON objects. Schemas are synchronous;
+async refinements/transforms are unsupported. Saved props are schema inputs and
+are never overwritten with parsed outputs, so transforms run once per render.
+Keep the same versioned schema in a shared package used by the editor, HTML and
+React code; schemas and component functions never enter the serialized document.
 
 The adapter renders function or class components with React's synchronous
 `renderToStaticMarkup`. It automatically gives each render a distinct `useId`

@@ -1,3 +1,5 @@
+import type { z } from "zod";
+
 export type ComponentValue = null | boolean | number | string | ComponentValue[] | { [key: string]: ComponentValue };
 export type ComponentProps = { [key: string]: ComponentValue };
 
@@ -21,9 +23,11 @@ export interface ComponentContext {
     width: number;
     height: number;
 }
-export interface ComponentDefinition {
+export interface ComponentDefinition<Props extends object = ComponentProps> {
+    /** Zod supplies runtime validation/defaults and infers render props. Saved input remains unchanged. */
+    schema?: z.ZodType<Props>;
     /** Throw for invalid application-specific props. Called before rendering. */
-    validate?: (props: ComponentProps) => void;
+    validate?: (props: NoInfer<Props>) => void;
     /** Synchronous trusted application code; return HTML markup or a detached HTML element. */
-    render: (props: ComponentProps, context: ComponentContext) => string | HTMLElement;
+    render: (props: NoInfer<Props>, context: ComponentContext) => string | HTMLElement;
 }
