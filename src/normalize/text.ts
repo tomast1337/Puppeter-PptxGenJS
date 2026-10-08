@@ -30,21 +30,7 @@ function normalizeMargins(margin?: number | FourSideMargin): [number, number, nu
 }
 
 function inheritedOptions(parent: PptxGenJS.TextPropsOptions, child: PptxGenJS.TextPropsOptions = {}): PptxGenJS.TextPropsOptions {
-    const {
-        x: _x,
-        y: _y,
-        w: _w,
-        h: _h,
-        fill: _fill,
-        line: _line,
-        shadow: _shadow,
-        rotate: _rotate,
-        flipH: _flipH,
-        flipV: _flipV,
-        rectRadius: _rectRadius,
-        objectName: _objectName,
-        ...parentText
-    } = parent;
+    const { x: _x, y: _y, w: _w, h: _h, fill: _fill, line: _line, shadow: _shadow, rotate: _rotate, flipH: _flipH, flipV: _flipV, rectRadius: _rectRadius, objectName: _objectName, ...parentText } = parent;
     const inherited = { ...parentText, ...child };
     if (child.hyperlink && child.color === undefined) delete inherited.color;
     return inherited;
@@ -233,9 +219,7 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
 }
 
 function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): TextPiece[] {
-    const source = Array.isArray(input)
-        ? input.map(item => ({ text: String(item.text ?? ""), options: item.options ?? {} }))
-        : [{ text: String(input), options: parent }];
+    const source = Array.isArray(input) ? input.map(item => ({ text: String(item.text ?? ""), options: item.options ?? {} })) : [{ text: String(input), options: parent }];
     const pieces: TextPiece[] = [];
 
     for (const item of source) {

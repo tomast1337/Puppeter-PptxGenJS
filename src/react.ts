@@ -9,20 +9,12 @@ export interface ReactComponentRegistrar {
     registerComponent(type: string, version: number, definition: ComponentDefinition): unknown;
 }
 
-export type ReactComponentOptions<Props extends object> =
-    | { schema: z.ZodType<Props>; parseProps?: never }
-    | { schema?: never; parseProps?: (props: ComponentProps) => Props };
+export type ReactComponentOptions<Props extends object> = { schema: z.ZodType<Props>; parseProps?: never } | { schema?: never; parseProps?: (props: ComponentProps) => Props };
 
 const renderCounts = new WeakMap<object, number>();
 
 /** Register a synchronous React-to-HTML renderer. React code never enters the saved document. */
-export function registerReactComponent<Props extends object, Presentation extends ReactComponentRegistrar>(
-    presentation: Presentation,
-    type: string,
-    version: number,
-    component: ComponentType<Props>,
-    options: ReactComponentOptions<NoInfer<Props>> = {},
-): Presentation {
+export function registerReactComponent<Props extends object, Presentation extends ReactComponentRegistrar>(presentation: Presentation, type: string, version: number, component: ComponentType<Props>, options: ReactComponentOptions<NoInfer<Props>> = {}): Presentation {
     const { schema, parseProps } = options;
     if (schema && parseProps) throw new Error("Choose a component schema or parseProps, not both");
     presentation.registerComponent(type, version, {

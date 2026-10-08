@@ -110,15 +110,7 @@ const BRACE_BRACKET_CASES = BRACE_BRACKET_NAMES.flatMap((shape, index) => [
     { page: 25, name: `${shape}-square`, shape, x: 0.65 + index * 1.6, y: 2.15, w: 0.75, h: 0.75 },
     { page: 25, name: `${shape}-tall`, shape, x: 0.75 + index * 1.6, y: 3.55, w: 0.55, h: 1.35 },
 ]);
-const RIBBON_SCROLL_NAMES: PptxGenJS.SHAPE_NAME[] = [
-    "ribbon",
-    "ribbon2",
-    "ellipseRibbon",
-    "ellipseRibbon2",
-    "leftRightRibbon",
-    "horizontalScroll",
-    "verticalScroll",
-];
+const RIBBON_SCROLL_NAMES: PptxGenJS.SHAPE_NAME[] = ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"];
 const RIBBON_SCROLL_CASES = RIBBON_SCROLL_NAMES.flatMap((shape, index) => [
     {
         page: 26,
@@ -164,29 +156,10 @@ const ACTION_BUTTON_CASES: Array<{
     w: 2.25,
     h: 1.5,
 }));
-for (const [index, shape] of (
-    ["actionButtonBackPrevious", "actionButtonHome", "actionButtonInformation", "actionButtonSound"] as PptxGenJS.SHAPE_NAME[]
-).entries()) {
-    ACTION_BUTTON_CASES.push(
-        { page: 31, name: `${shape}-wide`, shape, x: 0.25 + index * 2.375, y: 1, w: 2, h: 0.75 },
-        { page: 31, name: `${shape}-tall`, shape, x: 0.8125 + index * 2.375, y: 2.75, w: 0.875, h: 1.5 },
-    );
+for (const [index, shape] of (["actionButtonBackPrevious", "actionButtonHome", "actionButtonInformation", "actionButtonSound"] as PptxGenJS.SHAPE_NAME[]).entries()) {
+    ACTION_BUTTON_CASES.push({ page: 31, name: `${shape}-wide`, shape, x: 0.25 + index * 2.375, y: 1, w: 2, h: 0.75 }, { page: 31, name: `${shape}-tall`, shape, x: 0.8125 + index * 2.375, y: 2.75, w: 0.875, h: 1.5 });
 }
-const SYMBOL_NAMES: PptxGenJS.SHAPE_NAME[] = [
-    "plus",
-    "mathPlus",
-    "mathMinus",
-    "mathEqual",
-    "mathNotEqual",
-    "mathMultiply",
-    "mathDivide",
-    "heart",
-    "lightningBolt",
-    "moon",
-    "sun",
-    "smileyFace",
-    "noSmoking",
-];
+const SYMBOL_NAMES: PptxGenJS.SHAPE_NAME[] = ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"];
 const SYMBOL_CASES: Array<{
     page: number;
     name: string;
@@ -207,10 +180,7 @@ const SYMBOL_CASES: Array<{
 for (const [index, shape] of (["mathPlus", "heart", "moon", "sun", "smileyFace", "noSmoking"] as PptxGenJS.SHAPE_NAME[]).entries()) {
     const page = 34 + Math.floor(index / 3);
     const column = index % 3;
-    SYMBOL_CASES.push(
-        { page, name: `${shape}-wide`, shape, x: 0.5 + column * 3.125, y: 1, w: 2.5, h: 0.75 },
-        { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 },
-    );
+    SYMBOL_CASES.push({ page, name: `${shape}-wide`, shape, x: 0.5 + column * 3.125, y: 1, w: 2.5, h: 0.75 }, { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 });
 }
 const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.map((shape, index) => ({
     page: 36 + Math.floor(index / 8),
@@ -221,17 +191,7 @@ const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.map((shape, index) => ({
     w: 1.5,
     h: 1.5,
 }));
-const GENERATED_ASPECT_NAMES = [
-    "bevel",
-    "can",
-    "circularArrow",
-    "cloud",
-    "doubleWave",
-    "gear6",
-    "gear9",
-    "leftRightCircularArrow",
-    "wedgeEllipseCallout",
-] as const;
+const GENERATED_ASPECT_NAMES = ["bevel", "can", "circularArrow", "cloud", "doubleWave", "gear6", "gear9", "leftRightCircularArrow", "wedgeEllipseCallout"] as const;
 const GENERATED_ASPECT_CASES = GENERATED_ASPECT_NAMES.flatMap((shape, index) => {
     const page = 43 + Math.floor(index / 3);
     const column = index % 3;
@@ -285,14 +245,7 @@ export const PARITY_REGIONS = [
     // fewer fully opaque pixels than Chromium. Geometry and divider positions
     // match; compound shapes and dense table grids need narrow rasterization
     // allowances. The table pages remain below 0.09 whole-slide RMSE.
-    threshold:
-        name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-")
-            ? 0.12
-            : name.startsWith("table-")
-              ? 0.09
-              : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name)
-                ? 0.11
-                : 0.08,
+    threshold: name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-") ? 0.12 : name.startsWith("table-") ? 0.09 : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
     x: Math.floor(x * 96) - 3,
     y: Math.floor(y * 96) - 3,
     w: Math.ceil(w * 96) + 7,
@@ -1865,21 +1818,9 @@ function populateComponentFixture(presentation: Presentation): void {
         const schema = z.object({ percent: z.number().min(0).max(100).default(75) });
         presentation.registerComponent("fixture/progress", 1, {
             schema,
-            render: props =>
-                `<div style="width:100%;height:100%;background:#E0E0E0"><div style="width:${Number(props.percent)}%;height:200%;background:#4472C4"></div></div>`,
+            render: props => `<div style="width:100%;height:100%;background:#E0E0E0"><div style="width:${Number(props.percent)}%;height:200%;background:#4472C4"></div></div>`,
         });
-        registerReactComponent(
-            presentation,
-            "fixture/react-progress",
-            1,
-            ({ percent }: z.output<typeof schema>) =>
-                createElement(
-                    "div",
-                    { style: { width: "100%", height: "100%", background: "#E0E0E0" } },
-                    createElement("div", { style: { width: `${percent}%`, height: "200%", background: "#4472C4" } }),
-                ),
-            { schema },
-        );
+        registerReactComponent(presentation, "fixture/react-progress", 1, ({ percent }: z.output<typeof schema>) => createElement("div", { style: { width: "100%", height: "100%", background: "#E0E0E0" } }, createElement("div", { style: { width: `${percent}%`, height: "200%", background: "#4472C4" } })), { schema });
         const componentSlide = presentation.addSlide();
         componentBoxes.forEach((box, index) => {
             // Both renderers use the same schema default; the reference stays at 75%.

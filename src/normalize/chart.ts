@@ -210,12 +210,7 @@ interface ValidatedAxisValues {
     labelFormatCode: string;
 }
 
-function validateValueAxis(
-    axisOptions: PptxGenJS.IChartPropsAxisVal | undefined,
-    automatic: [number, number],
-    path: string,
-    chartTypes: PptxGenJS.CHART_NAME[],
-): ValidatedAxisValues {
+function validateValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefined, automatic: [number, number], path: string, chartTypes: PptxGenJS.CHART_NAME[]): ValidatedAxisValues {
     const minimum = axisOptions?.valAxisMinVal ?? automatic[0];
     const maximum = axisOptions?.valAxisMaxVal ?? automatic[1];
     if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum >= maximum) {
@@ -242,13 +237,7 @@ function validateValueAxis(
     return { minimum, maximum, majorUnit, logScaleBase, labelFormatCode };
 }
 
-function normalizeValueAxis(
-    axisOptions: PptxGenJS.IChartPropsAxisVal | undefined,
-    automatic: [number, number],
-    path: string,
-    options: PptxGenJS.IChartOpts,
-    chartTypes: PptxGenJS.CHART_NAME[],
-): NormalizedChart["valueAxes"][number] {
+function normalizeValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefined, automatic: [number, number], path: string, options: PptxGenJS.IChartOpts, chartTypes: PptxGenJS.CHART_NAME[]): NormalizedChart["valueAxes"][number] {
     const defaults = PPTX_DEFAULTS.chart.valueAxis;
     const values = validateValueAxis(axisOptions, automatic, path, chartTypes);
     const gridLine = axisOptions?.valGridLine;
@@ -260,8 +249,7 @@ function normalizeValueAxis(
         titleColor: normalizeColor(axisOptions?.valAxisTitleColor ?? defaults.titleColor),
         titleFontFace: axisOptions?.valAxisTitleFontFace ?? options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
         titleFontSize: positiveNumber(axisOptions?.valAxisTitleFontSize, "valAxisTitleFontSize", defaults.titleFontSizePt),
-        titleRotate:
-            axisOptions?.valAxisTitleRotate === undefined ? defaults.titleRotate : finiteNumber(axisOptions.valAxisTitleRotate, "valAxisTitleRotate", 0),
+        titleRotate: axisOptions?.valAxisTitleRotate === undefined ? defaults.titleRotate : finiteNumber(axisOptions.valAxisTitleRotate, "valAxisTitleRotate", 0),
         labelColor: normalizeColor(axisOptions?.valAxisLabelColor ?? defaults.labelColor),
         labelFontFace: axisOptions?.valAxisLabelFontFace ?? options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
         labelFontSize: positiveNumber(axisOptions?.valAxisLabelFontSize, "valAxisLabelFontSize", options.fontSize ?? defaults.labelFontSizePt),
@@ -419,11 +407,7 @@ export function normalizeChart(type: ChartInputType, data: readonly PptxGenJS.Op
     validateChartRequest(type, options, chartTypes);
     const valueAxisOptions = options.valAxes ?? [];
     const normalizedType: NormalizedChartType = mixed ? "mixed" : (type as NormalizedChartType);
-    const palette = options.chartColors?.length
-        ? options.chartColors
-        : normalizedType === "pie" || normalizedType === "doughnut"
-          ? PPTX_DEFAULTS.chart.colors.pie
-          : PPTX_DEFAULTS.chart.colors.bar;
+    const palette = options.chartColors?.length ? options.chartColors : normalizedType === "pie" || normalizedType === "doughnut" ? PPTX_DEFAULTS.chart.colors.pie : PPTX_DEFAULTS.chart.colors.bar;
     const series = normalizeInputSeries(type, data, normalizedType);
     validateChartSeries(normalizedType, series, chartTypes);
     const normalizedGrouping = normalizeGrouping(normalizedType, options.barGrouping);

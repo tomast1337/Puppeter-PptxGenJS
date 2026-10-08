@@ -29,8 +29,7 @@ function verticalInches(value: number | `${number}%` | undefined, fallback: numb
 }
 
 function marginInches(margin?: number | FourSideMargin): FourSideMargin {
-    const values =
-        margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
+    const values = margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
     return values[0]! >= 1 ? (values.map(value => value / 72) as FourSideMargin) : ([...values] as FourSideMargin);
 }
 

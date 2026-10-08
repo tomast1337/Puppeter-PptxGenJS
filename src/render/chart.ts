@@ -300,8 +300,7 @@ export function renderEChartsSvg(width: number, height: number, option: EChartsC
     // configurable jsdom global during synchronous SSR so zrender uses its
     // deterministic server-side width table instead of probing canvas.
     const globalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
-    const isJsdom =
-        globalDocument?.configurable && String((globalThis as { document?: Document }).document?.defaultView?.navigator.userAgent).includes("jsdom");
+    const isJsdom = globalDocument?.configurable && String((globalThis as { document?: Document }).document?.defaultView?.navigator.userAgent).includes("jsdom");
     if (isJsdom) Reflect.deleteProperty(globalThis, "document");
     let instance: ReturnType<typeof init> | undefined;
     try {

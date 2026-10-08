@@ -68,15 +68,7 @@ export async function resolveDocumentImages(document: Document, cwd = process.cw
     );
 }
 
-function normalizeSizing(
-    sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | undefined,
-    sourceWidth: number,
-    sourceHeight: number,
-    boxWidth: number,
-    boxHeight: number,
-    pageWidth: number,
-    pageHeight: number,
-): NormalizedImageSizing {
+function normalizeSizing(sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | undefined, sourceWidth: number, sourceHeight: number, boxWidth: number, boxHeight: number, pageWidth: number, pageHeight: number): NormalizedImageSizing {
     if (!sizing) return { type: "stretch" };
     if (sizing.type === "crop") {
         return {
@@ -87,8 +79,7 @@ function normalizeSizing(
             height: sourceHeight,
         };
     }
-    const scale =
-        sizing.type === "contain" ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight) : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
+    const scale = sizing.type === "contain" ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight) : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
     const width = sourceWidth * scale;
     const height = sourceHeight * scale;
     return { type: sizing.type, x: (boxWidth - width) / 2, y: (boxHeight - height) / 2, width, height };
@@ -112,11 +103,7 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     const boxHeight = sizing ? convertToPixels(sizing.h || options.h || PPTX_DEFAULTS.image.h, pageHeight) : sourceHeight;
     const normalizedSizing = normalizeSizing(sizing, sourceWidth, sourceHeight, boxWidth, boxHeight, pageWidth, pageHeight);
     const transparency = Math.max(0, Math.min(100, options.transparency ?? PPTX_DEFAULTS.image.transparency));
-    const link = options.hyperlink?.url
-        ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip }
-        : options.hyperlink?.slide
-          ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide }
-          : undefined;
+    const link = options.hyperlink?.url ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip } : options.hyperlink?.slide ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide } : undefined;
     return {
         source,
         sourceKind,

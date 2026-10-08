@@ -43,7 +43,6 @@ jobs:
 
       - name: Validate and build
         run: |
-          bun run check
           bun run typecheck
           bun test
           bun run build

@@ -9,12 +9,7 @@ interface MetricProps {
     value: number;
 }
 function Metric({ label, value }: MetricProps) {
-    return createElement(
-        "section",
-        { style: { padding: 16, background: "#eef2ff" } },
-        createElement("strong", null, label),
-        createElement("span", null, value),
-    );
+    return createElement("section", { style: { padding: 16, background: "#eef2ff" } }, createElement("strong", null, label), createElement("span", null, value));
 }
 const geometry = { x: 1, y: 2, w: 3, h: 1 };
 

@@ -35,9 +35,6 @@ jobs:
       - name: Install locked dependencies
         run: bun ci
 
-      - name: Check formatting, lint, and complexity
-        run: bun run check
-
       - name: Type-check
         run: bun run typecheck
 

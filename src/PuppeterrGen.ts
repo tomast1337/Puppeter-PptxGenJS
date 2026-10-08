@@ -18,17 +18,7 @@ import { paginateTableRows } from "./normalize/tablePagination";
 import { normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
-import type {
-    PptxAddSlideProps,
-    PptxGenJSLike,
-    PptxSectionProps,
-    PptxSlide,
-    PptxSlideMasterProps,
-    PptxTableToSlidesProps,
-    PptxWriteBaseProps,
-    PptxWriteFileProps,
-    PptxWriteProps,
-} from "./pptx";
+import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { renderChart, renderChartExtension } from "./render/chart";
 import { renderComponent } from "./render/component";
 import { renderImage } from "./render/image";
@@ -173,13 +163,7 @@ export class PuppeteerSlide implements PptxSlide {
 
     addShape(shapeName: PptxGenJS.SHAPE_NAME | "custGeom", options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
         const shapeOptions = options ?? {};
-        const style = normalizeObjectStyle(
-            shapeOptions,
-            PPTX_DEFAULTS.shape,
-            this.pageSize,
-            this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName),
-            { fill: true, shadow: true },
-        );
+        const style = normalizeObjectStyle(shapeOptions, PPTX_DEFAULTS.shape, this.pageSize, this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName), { fill: true, shadow: true });
         style.line = normalizeShapeLine(shapeOptions, normalizeLine);
         const shape = normalizeShape(shapeName, shapeOptions, style.geometry.width ?? 0, style.geometry.height ?? 0, this.pageSize);
         this.slideElm.appendChild(renderShape(this.document, shape, style));
@@ -257,29 +241,7 @@ export class PuppeteerSlide implements PptxSlide {
     }
 }
 
-export class PuppeteerGen
-    implements
-        Omit<
-            PptxGenJSLike,
-            | "version"
-            | "presLayout"
-            | "AlignH"
-            | "AlignV"
-            | "ChartType"
-            | "OutputType"
-            | "SchemeColor"
-            | "ShapeType"
-            | "PlaceholderType"
-            | "layout"
-            | "rtlMode"
-            | "author"
-            | "company"
-            | "revision"
-            | "subject"
-            | "theme"
-            | "title"
-        >
-{
+export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout" | "AlignH" | "AlignV" | "ChartType" | "OutputType" | "SchemeColor" | "ShapeType" | "PlaceholderType" | "layout" | "rtlMode" | "author" | "company" | "revision" | "subject" | "theme" | "title"> {
     private dom: jsdom.JSDOM;
     private pageSize: PageSize;
     page: Document;
@@ -538,11 +500,7 @@ body {
                     const boxStyle = getComputedStyle(box);
                     const availableWidth = box.clientWidth - parseFloat(boxStyle.paddingLeft) - parseFloat(boxStyle.paddingRight);
                     const availableHeight = box.clientHeight - parseFloat(boxStyle.paddingTop) - parseFloat(boxStyle.paddingBottom);
-                    for (
-                        let iteration = 0;
-                        iteration < 20 && (content.scrollWidth > availableWidth + 0.5 || content.scrollHeight > availableHeight + 0.5);
-                        iteration++
-                    ) {
+                    for (let iteration = 0; iteration < 20 && (content.scrollWidth > availableWidth + 0.5 || content.scrollHeight > availableHeight + 0.5); iteration++) {
                         content.querySelectorAll<HTMLElement>(".text-run, .text-bullet").forEach(run => {
                             run.style.fontSize = `${parseFloat(getComputedStyle(run).fontSize) * 0.95}px`;
                         });

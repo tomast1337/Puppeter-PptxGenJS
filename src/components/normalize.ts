@@ -8,8 +8,7 @@ function cloneValue(value: unknown, parents = new Set<object>()): ComponentValue
     if (!value || typeof value !== "object") throw new Error("Component props must contain only JSON values");
     if (parents.has(value)) throw new Error("Circular component props");
     const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null && prototype !== Array.prototype)
-        throw new Error("Component props must be plain objects or arrays");
+    if (prototype !== Object.prototype && prototype !== null && prototype !== Array.prototype) throw new Error("Component props must be plain objects or arrays");
     if (Object.getOwnPropertySymbols(value).length) throw new Error("Component props cannot contain symbol keys");
     parents.add(value);
     try {

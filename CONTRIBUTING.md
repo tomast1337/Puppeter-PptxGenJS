@@ -33,13 +33,10 @@ change.
 
 ## Code style
 
-Biome is the formatter and linter for this project. Format and check your work
-before opening a pull request:
-
-```bash
-bun run check:fix
-bun run check
-```
+Use WebStorm to format source files. The repository's `.editorconfig` specifies
+four-space indentation, LF endings, two spaces in JSON/YAML, and a preferred
+line width of 512. Keep double quotes in JavaScript/TypeScript. Avoid reformatting
+generated shape data, visual assets, build output, and local planning notes.
 
 Avoid unrelated formatting changes in the same pull request.
 

@@ -36,15 +36,7 @@ const ARROW_SHAPES = Object.freeze([
 ] as const);
 const CIRCULAR_SHAPES = Object.freeze(["arc", "pie", "pieWedge", "chord", "blockArc", "donut"] as const);
 const BRACE_BRACKET_SHAPES = Object.freeze(["leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair"] as const);
-const RIBBON_SCROLL_SHAPES = Object.freeze([
-    "ribbon",
-    "ribbon2",
-    "ellipseRibbon",
-    "ellipseRibbon2",
-    "leftRightRibbon",
-    "horizontalScroll",
-    "verticalScroll",
-] as const);
+const RIBBON_SCROLL_SHAPES = Object.freeze(["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"] as const);
 const ACTION_BUTTON_SHAPES = Object.freeze([
     "actionButtonBackPrevious",
     "actionButtonBeginning",
@@ -59,21 +51,7 @@ const ACTION_BUTTON_SHAPES = Object.freeze([
     "actionButtonReturn",
     "actionButtonSound",
 ] as const);
-const SYMBOL_SHAPES = Object.freeze([
-    "plus",
-    "mathPlus",
-    "mathMinus",
-    "mathEqual",
-    "mathNotEqual",
-    "mathMultiply",
-    "mathDivide",
-    "heart",
-    "lightningBolt",
-    "moon",
-    "sun",
-    "smileyFace",
-    "noSmoking",
-] as const);
+const SYMBOL_SHAPES = Object.freeze(["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"] as const);
 const FLOWCHART_SHAPES = Object.freeze([
     "flowChartAlternateProcess",
     "flowChartCollate",
@@ -152,11 +130,7 @@ function ellipseRayPoint(cx: number, cy: number, rx: number, ry: number, degrees
     return [cx + rx * Math.cos(parameter), cy + ry * Math.sin(parameter)];
 }
 
-function arcCommand(
-    current: { x: number; y: number },
-    curve: Extract<ShapePoint, { curve: unknown }>["curve"] & { type: "arc" },
-    pageSize: PageSize,
-): { command: string; end: { x: number; y: number } } {
+function arcCommand(current: { x: number; y: number }, curve: Extract<ShapePoint, { curve: unknown }>["curve"] & { type: "arc" }, pageSize: PageSize): { command: string; end: { x: number; y: number } } {
     const rx = coordinate(curve.wR, "x", pageSize);
     const ry = coordinate(curve.hR, "y", pageSize);
     const arc = arcPathCommand([current.x, current.y], rx, ry, curve.stAng, curve.swAng);
@@ -179,9 +153,7 @@ export function normalizeCustomPath(points: PptxGenJS.ShapeProps["points"], page
             const x = coordinate(point.x, "x", pageSize);
             const y = coordinate(point.y, "y", pageSize);
             if (point.curve.type === "cubic") {
-                commands.push(
-                    `C ${coordinate(point.curve.x1, "x", pageSize)} ${coordinate(point.curve.y1, "y", pageSize)} ${coordinate(point.curve.x2, "x", pageSize)} ${coordinate(point.curve.y2, "y", pageSize)} ${x} ${y}`,
-                );
+                commands.push(`C ${coordinate(point.curve.x1, "x", pageSize)} ${coordinate(point.curve.y1, "y", pageSize)} ${coordinate(point.curve.x2, "x", pageSize)} ${coordinate(point.curve.y2, "y", pageSize)} ${x} ${y}`);
                 current = { x, y };
             } else if (point.curve.type === "quadratic") {
                 commands.push(`Q ${coordinate(point.curve.x1, "x", pageSize)} ${coordinate(point.curve.y1, "y", pageSize)} ${x} ${y}`);
@@ -582,15 +554,7 @@ function bentArrowPath(width: number, height: number): string {
     const y5 = delta + bend;
     const commands = [pointCommand("M", [[0, height]]), pointCommand("L", [[0, y5]])];
     let arc = arcPathCommand([0, y5], bend, bend, 180, 90);
-    commands.push(
-        arc.command,
-        pointCommand("L", [[x4, delta]]),
-        pointCommand("L", [[x4, 0]]),
-        pointCommand("L", [[width, arrowHalf]]),
-        pointCommand("L", [[x4, y4]]),
-        pointCommand("L", [[x4, y3]]),
-        pointCommand("L", [[x3, y3]]),
-    );
+    commands.push(arc.command, pointCommand("L", [[x4, delta]]), pointCommand("L", [[x4, 0]]), pointCommand("L", [[width, arrowHalf]]), pointCommand("L", [[x4, y4]]), pointCommand("L", [[x4, y3]]), pointCommand("L", [[x3, y3]]));
     arc = arcPathCommand([x3, y3], innerBend, innerBend, 270, -90);
     commands.push(arc.command, pointCommand("L", [[thickness, height]]), "Z");
     return commands.join(" ");
@@ -617,15 +581,7 @@ function uturnArrowPath(width: number, height: number): string {
     let arc = arcPathCommand([0, bend], bend, bend, 180, 90);
     commands.push(arc.command, pointCommand("L", [[x4, 0]]));
     arc = arcPathCommand([x4, 0], bend, bend, 270, 90);
-    commands.push(
-        arc.command,
-        pointCommand("L", [[x9, y4]]),
-        pointCommand("L", [[width, y4]]),
-        pointCommand("L", [[x8, y5]]),
-        pointCommand("L", [[x6, y4]]),
-        pointCommand("L", [[x7, y4]]),
-        pointCommand("L", [[x7, x3]]),
-    );
+    commands.push(arc.command, pointCommand("L", [[x9, y4]]), pointCommand("L", [[width, y4]]), pointCommand("L", [[x8, y5]]), pointCommand("L", [[x6, y4]]), pointCommand("L", [[x7, y4]]), pointCommand("L", [[x7, x3]]));
     arc = arcPathCommand([x7, x3], innerBend, innerBend, 0, -90);
     commands.push(arc.command, pointCommand("L", [[x3, thickness]]));
     arc = arcPathCommand([x3, thickness], innerBend, innerBend, 270, -90);
@@ -633,11 +589,7 @@ function uturnArrowPath(width: number, height: number): string {
     return commands.join(" ");
 }
 
-function curvedArrowGeometry(
-    width: number,
-    height: number,
-    direction: "right" | "left" | "up" | "down",
-): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+function curvedArrowGeometry(width: number, height: number, direction: "right" | "left" | "up" | "down"): Extract<NormalizedShape["geometry"], { kind: "path" }> {
     // Default DrawingML curved-arrow guides. Transposing the horizontal
     // definitions gives the vertical presets, including their face boundaries.
     const vertical = direction === "up" || direction === "down";
@@ -761,12 +713,7 @@ function ellipseArcCommands(
     return { move: pointCommand("M", [first]), arcs: commands.join(" "), start: first, end: current };
 }
 
-function circularShapeGeometry(
-    shapeName: (typeof CIRCULAR_SHAPES)[number],
-    options: PptxGenJS.ShapeProps,
-    width: number,
-    height: number,
-): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+function circularShapeGeometry(shapeName: (typeof CIRCULAR_SHAPES)[number], options: PptxGenJS.ShapeProps, width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
     const defaults: Record<"arc" | "pie" | "chord" | "blockArc", readonly [number, number]> = {
         arc: [270, 0],
         pie: [0, 270],
@@ -830,11 +777,7 @@ function compoundShape(face: string, details = ""): Extract<NormalizedShape["geo
     };
 }
 
-function braceBracketGeometry(
-    shapeName: (typeof BRACE_BRACKET_SHAPES)[number],
-    width: number,
-    height: number,
-): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+function braceBracketGeometry(shapeName: (typeof BRACE_BRACKET_SHAPES)[number], width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
     const short = Math.min(width, height);
     if (shapeName === "leftBrace" || shapeName === "rightBrace") {
         const radiusY = Math.min((short * 8333) / 100000, height / 4);
@@ -984,20 +927,7 @@ function ribbonGeometry(width: number, height: number): Extract<NormalizedShape[
         .line(width / 8, y3)
         .close()
         .data();
-    const dark = drawingPath()
-        .move(x5, ry)
-        .arc(rx, ry, 0, 90)
-        .line(x3, y1)
-        .arc(rx, ry, 270, -180)
-        .line(x5, y2)
-        .close()
-        .move(x6, ry)
-        .arc(rx, ry, 180, -90)
-        .line(x8, y1)
-        .arc(rx, ry, 270, 180)
-        .line(x6, y2)
-        .close()
-        .data();
+    const dark = drawingPath().move(x5, ry).arc(rx, ry, 0, 90).line(x3, y1).arc(rx, ry, 270, -180).line(x5, y2).close().move(x6, ry).arc(rx, ry, 180, -90).line(x8, y1).arc(rx, ry, 270, 180).line(x6, y2).close().data();
     const details = drawingPath().move(x5, ry).line(x5, y2).move(x6, y2).line(x6, ry).move(x2, y4).line(x2, y6).move(x9, y6).line(x9, y4).data();
     return {
         kind: "path",
@@ -1155,16 +1085,7 @@ function verticalScrollGeometry(width: number, height: number): Extract<Normaliz
         .arc(quarter, quarter, 90, 180)
         .close()
         .data();
-    const dark = drawingPath()
-        .move(x4, half)
-        .arc(half, half, 0, 90)
-        .arc(quarter, quarter, 90, 180)
-        .close()
-        .move(curl, y4)
-        .arc(half, half, 0, 270)
-        .arc(quarter, quarter, 270, 180)
-        .close()
-        .data();
+    const dark = drawingPath().move(x4, half).arc(half, half, 0, 90).arc(quarter, quarter, 90, 180).close().move(curl, y4).arc(half, half, 0, 270).arc(quarter, quarter, 270, 180).close().data();
     const outline = drawingPath()
         .move(curl, y3)
         .line(curl, half)
@@ -1198,11 +1119,7 @@ function verticalScrollGeometry(width: number, height: number): Extract<Normaliz
     };
 }
 
-function ribbonScrollGeometry(
-    shapeName: (typeof RIBBON_SCROLL_SHAPES)[number],
-    width: number,
-    height: number,
-): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+function ribbonScrollGeometry(shapeName: (typeof RIBBON_SCROLL_SHAPES)[number], width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
     if (shapeName === "ribbon" || shapeName === "ribbon2") {
         const geometry = ribbonGeometry(width, height);
         return shapeName === "ribbon2" ? { ...geometry, transform: `matrix(1 0 0 -1 0 ${cleanNumber(height)})` } : geometry;
@@ -1216,11 +1133,7 @@ function ribbonScrollGeometry(
     return { ...verticalScrollGeometry(height, width), transform: "matrix(0 1 1 0 0 0)" };
 }
 
-function actionButtonGeometry(
-    shapeName: (typeof ACTION_BUTTON_SHAPES)[number],
-    width: number,
-    height: number,
-): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+function actionButtonGeometry(shapeName: (typeof ACTION_BUTTON_SHAPES)[number], width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
     const base = pixelPath([
         [0, 0],
         [width, 0],
@@ -1404,19 +1317,7 @@ function actionButtonGeometry(
         const g37 = left + g20;
         const g41 = g13 / 14;
         const g42 = (g13 * 3) / 28;
-        const question = drawingPath()
-            .move(g33, g27)
-            .arc(g16, g16, 180, 180)
-            .arc(g14, g15, 0, 90)
-            .arc(g41, g42, 270, -90)
-            .line(g37, g30)
-            .line(g36, g30)
-            .line(g36, g29)
-            .arc(g14, g15, 180, 90)
-            .arc(g41, g42, 90, -90)
-            .arc(g14, g14, 0, -180)
-            .close()
-            .data();
+        const question = drawingPath().move(g33, g27).arc(g16, g16, 180, 180).arc(g14, g15, 0, 90).arc(g41, g42, 270, -90).line(g37, g30).line(g36, g30).line(g36, g29).arc(g14, g15, 180, 90).arc(g41, g42, 90, -90).arc(g14, g14, 0, -180).close().data();
         const dot = ellipseArcCommands(cx, g31 + g42, g42, g42, 270, 360);
         icon = `${question} ${dot.move} ${dot.arcs} Z`;
     } else if (shapeName === "actionButtonMovie") {
@@ -1460,24 +1361,7 @@ function actionButtonGeometry(
         const g24 = left + g16;
         const g25 = left + g17;
         const g26 = left + g18;
-        icon = drawingPath()
-            .move(right, g21)
-            .line(g23, top)
-            .line(cx, g21)
-            .line(g24, g21)
-            .line(g24, g20)
-            .arc(radius, radius, 0, 90)
-            .line(g25, g19)
-            .arc(radius, radius, 90, 90)
-            .line(g26, g21)
-            .line(left, g21)
-            .line(left, g20)
-            .arc(g17, g17, 180, -90)
-            .line(cx, bottom)
-            .arc(g17, g17, 90, -90)
-            .line(g22, g21)
-            .close()
-            .data();
+        icon = drawingPath().move(right, g21).line(g23, top).line(cx, g21).line(g24, g21).line(g24, g20).arc(radius, radius, 0, 90).line(g25, g19).arc(radius, radius, 90, 90).line(g26, g21).line(left, g21).line(left, g20).arc(g17, g17, 180, -90).line(cx, bottom).arc(g17, g17, 90, -90).line(g22, g21).close().data();
     } else {
         const g13 = (short * 3) / 4;
         const g20 = top + g13 / 8;
@@ -2051,10 +1935,7 @@ function flowchartGeometry(shapeName: (typeof FLOWCHART_SHAPES)[number], width: 
             width,
             height,
         );
-        return compoundShape(
-            face,
-            `M ${cleanNumber((width * 2) / 5)} ${cleanNumber((height * 4) / 5)} L ${cleanNumber((width * 3) / 5)} ${cleanNumber((height * 4) / 5)}`,
-        );
+        return compoundShape(face, `M ${cleanNumber((width * 2) / 5)} ${cleanNumber((height * 4) / 5)} L ${cleanNumber((width * 3) / 5)} ${cleanNumber((height * 4) / 5)}`);
     }
     if (shapeName === "flowChartPunchedCard") {
         return {
@@ -2112,16 +1993,10 @@ function flowchartGeometry(shapeName: (typeof FLOWCHART_SHAPES)[number], width: 
 
     const rectangle = `M 0 0 L ${cleanNumber(width)} 0 L ${cleanNumber(width)} ${cleanNumber(height)} L 0 ${cleanNumber(height)} Z`;
     if (shapeName === "flowChartInternalStorage") {
-        return compoundShape(
-            rectangle,
-            `M ${cleanNumber(width / 8)} 0 L ${cleanNumber(width / 8)} ${cleanNumber(height)} M 0 ${cleanNumber(height / 8)} L ${cleanNumber(width)} ${cleanNumber(height / 8)}`,
-        );
+        return compoundShape(rectangle, `M ${cleanNumber(width / 8)} 0 L ${cleanNumber(width / 8)} ${cleanNumber(height)} M 0 ${cleanNumber(height / 8)} L ${cleanNumber(width)} ${cleanNumber(height / 8)}`);
     }
     if (shapeName === "flowChartPredefinedProcess") {
-        return compoundShape(
-            rectangle,
-            `M ${cleanNumber(width / 8)} 0 L ${cleanNumber(width / 8)} ${cleanNumber(height)} M ${cleanNumber((width * 7) / 8)} 0 L ${cleanNumber((width * 7) / 8)} ${cleanNumber(height)}`,
-        );
+        return compoundShape(rectangle, `M ${cleanNumber(width / 8)} 0 L ${cleanNumber(width / 8)} ${cleanNumber(height)} M ${cleanNumber((width * 7) / 8)} 0 L ${cleanNumber((width * 7) / 8)} ${cleanNumber(height)}`);
     }
     if (shapeName === "flowChartSort") {
         const diamond = polygonPath(
@@ -2138,10 +2013,7 @@ function flowchartGeometry(shapeName: (typeof FLOWCHART_SHAPES)[number], width: 
     }
     const ellipse = fullEllipsePath(width, height);
     if (shapeName === "flowChartOr") {
-        return compoundShape(
-            ellipse,
-            `M ${cleanNumber(width / 2)} 0 L ${cleanNumber(width / 2)} ${cleanNumber(height)} M 0 ${cleanNumber(height / 2)} L ${cleanNumber(width)} ${cleanNumber(height / 2)}`,
-        );
+        return compoundShape(ellipse, `M ${cleanNumber(width / 2)} 0 L ${cleanNumber(width / 2)} ${cleanNumber(height)} M 0 ${cleanNumber(height / 2)} L ${cleanNumber(width)} ${cleanNumber(height / 2)}`);
     }
     const insetX = (width / 2) * Math.SQRT1_2;
     const insetY = (height / 2) * Math.SQRT1_2;
@@ -2362,10 +2234,7 @@ export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.Sh
     let geometry: NormalizedShape["geometry"];
     if (shapeName === "rect") geometry = { kind: "rect", radius: 0 };
     else if (shapeName === "roundRect") {
-        const radius =
-            options.rectRadius === undefined
-                ? Math.min(width, height) / 6
-                : Math.min(Math.min(width, height) / 2, inchesToPixels(Math.max(0, options.rectRadius)));
+        const radius = options.rectRadius === undefined ? Math.min(width, height) / 6 : Math.min(Math.min(width, height) / 2, inchesToPixels(Math.max(0, options.rectRadius)));
         geometry = { kind: "rect", radius };
     } else if (shapeName === "ellipse") geometry = { kind: "ellipse" };
     else if (shapeName === "line" || shapeName === "lineInv") geometry = { kind: "line", inverse: shapeName === "lineInv" };
@@ -2403,8 +2272,7 @@ export function normalizeShapeTextBox(text: NormalizedTextBox, shape: Normalized
 }
 
 export function normalizeShapeLine(options: PptxGenJS.ShapeProps, normalize: (line?: PptxGenJS.ShapeLineProps) => NormalizedLine): NormalizedLine {
-    const hasDeprecatedLine =
-        options.lineSize !== undefined || options.lineDash !== undefined || options.lineHead !== undefined || options.lineTail !== undefined;
+    const hasDeprecatedLine = options.lineSize !== undefined || options.lineDash !== undefined || options.lineHead !== undefined || options.lineTail !== undefined;
     if (!options.line && !hasDeprecatedLine) return normalize(undefined);
     const source = typeof options.line === "string" ? { color: options.line } : (options.line ?? {});
     return normalize({

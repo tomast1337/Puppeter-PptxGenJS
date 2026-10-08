@@ -140,16 +140,7 @@ console.log("Node.js package consumer generated a PDF");
     await Bun.write(nodeConsumerSourcePath, nodeConsumerSource);
     await run(["node", nodeConsumerSourcePath], consumerDirectory);
     // Install React only after the core consumer has been typechecked and run without it.
-    await run(
-        [
-            process.execPath,
-            "add",
-            "--dev",
-            "--ignore-scripts",
-            ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${packageMetadata.devDependencies[name]}`),
-        ],
-        consumerDirectory,
-    );
+    await run([process.execPath, "add", "--dev", "--ignore-scripts", ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${packageMetadata.devDependencies[name]}`)], consumerDirectory);
     const reactConsumerSource = `
 import { createElement, useId } from "react";
 import PuppeteerGen from "${packageMetadata.name}";
