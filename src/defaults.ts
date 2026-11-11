@@ -197,6 +197,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         barOverlapPct: 0,
         bar3DShape: "box" as const,
         legendPosition: "r" as const,
+        // PptxGenJS omits legend <c:txPr> unless a legend font option is set; Office then
+        // uses the 10pt chart text default in the theme minor (body) font.
+        legendFontSizePt: 10,
         displayBlanksAs: "span" as const,
         radarStyle: "standard" as const,
         chartAreaRoundedCorners: true,

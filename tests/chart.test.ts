@@ -28,6 +28,17 @@ describe("chart normalization and rendering", () => {
         expect(chart.valueAxisMaximum).toBe(10);
     });
 
+    test("legend ignores chart fontFace/fontSize like PptxGenJS and defaults to 10pt body font", () => {
+        // PptxGenJS writes legend <c:txPr> only for legendFontFace/legendFontSize/legendColor.
+        const inherited = normalizeChart("bar", categoricalData, { showLegend: true, fontFace: "Arial", fontSize: 20 });
+        expect(inherited.legendFontFace).toBe("Calibri");
+        expect(inherited.legendFontSize).toBe(10);
+
+        const explicit = normalizeChart("bar", categoricalData, { showLegend: true, legendFontFace: "Georgia", legendFontSize: 14 });
+        expect(explicit.legendFontFace).toBe("Georgia");
+        expect(explicit.legendFontSize).toBe(14);
+    });
+
     test("renders supported charts as inline SVG and remains chainable", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

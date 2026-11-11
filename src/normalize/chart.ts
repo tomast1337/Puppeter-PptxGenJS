@@ -369,8 +369,9 @@ function chartTextOptions(options: PptxGenJS.IChartOpts) {
         titleFontSize: options.titleFontSize ?? PPTX_DEFAULTS.chart.titleFontSizePt,
         titleBold: options.titleBold ?? false,
         titleColor: normalizeColor(options.titleColor ?? PPTX_DEFAULTS.text.color),
-        legendFontFace: options.legendFontFace ?? options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
-        legendFontSize: options.legendFontSize ?? options.fontSize ?? PPTX_DEFAULTS.chart.fontSizePt,
+        // PptxGenJS never applies fontFace/fontSize to the legend.
+        legendFontFace: options.legendFontFace ?? PPTX_DEFAULTS.theme.bodyFontFace,
+        legendFontSize: options.legendFontSize ?? PPTX_DEFAULTS.chart.legendFontSizePt,
         legendColor: normalizeColor(options.legendColor ?? PPTX_DEFAULTS.text.color),
     };
 }

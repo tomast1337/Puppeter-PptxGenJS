@@ -54,6 +54,7 @@
     "typecheck": "node --max-old-space-size=2048 --stack-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "test": "bun test",
     "test:visual": "bun run tests/visual/compare.ts",
+    "test:visual:docker": "sh scripts/test-visual-docker.sh",
     "bench": "bun run scripts/bench.ts",
     "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts"
   },

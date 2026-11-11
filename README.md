@@ -211,6 +211,15 @@ and uses ImageMagick's normalized RMSE metric. The default maximum difference
 is `0.12`; override it with `VISUAL_DIFF_THRESHOLD=0.10` as fidelity improves.
 LibreOffice, `pdftoppm`, and ImageMagick must be available on `PATH`.
 
+LibreOffice's reference output depends on installed fonts, so scores vary
+between machines. CI runs the test in a pinned image (`tests/visual/Dockerfile`:
+fixed Ubuntu digest, apt snapshot, fonts and Bun). Run the same environment
+locally with Docker; artifacts are written to `.visual-parity/`:
+
+```bash
+bun run test:visual:docker
+```
+
 ## Documentation
 
 For detailed documentation, see [USAGE.md](./USAGE.md) which covers:
