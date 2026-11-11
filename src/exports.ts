@@ -1,3 +1,4 @@
+import { closeBrowser } from "./browser";
 import { UnsupportedChartError } from "./chart/errors";
 import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
 import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
@@ -9,6 +10,7 @@ export {
     alignToCSS,
     CHART_TYPE_COMPATIBILITY,
     COMPATIBILITY,
+    closeBrowser,
     colorToCSS,
     convertToPixels,
     DEFAULT_PAGE_SIZE,
