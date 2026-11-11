@@ -37,6 +37,9 @@ try {
         ),
     );
     await run([process.execPath, "install", "--ignore-scripts"], consumerDirectory);
+    // --ignore-scripts skips Puppeteer's browser download, and the consumer resolves the newest
+    // puppeteer@^24 (not our lockfile's), so fetch the browser that version renders with.
+    await run([process.execPath, "x", "puppeteer", "browsers", "install", "chrome-headless-shell"], consumerDirectory);
 
     try {
         await access(join(consumerDirectory, "node_modules/pptxgenjs"));
