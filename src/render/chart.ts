@@ -376,10 +376,14 @@ export function renderChart(document: Document, chart: NormalizedChart, style: N
     return chartContainer(document, source, style, chart.altText);
 }
 
-export function renderChartExtension(document: Document, input: ChartExtensionInput, style: NormalizedObjectStyle, altText: string): HTMLDivElement {
+/** Resolves caller renderer input to SVG source so the slide model stores only data. */
+export function renderChartExtensionSvg(input: ChartExtensionInput, style: NormalizedObjectStyle): string {
     const width = style.geometry.width ?? 0;
     const height = style.geometry.height ?? 0;
     if (width <= 0 || height <= 0) throw new RangeError("Chart width and height must be greater than zero");
-    const source = input.renderer === "svg" ? input.svg : renderEChartsSvg(width, height, input.option as EChartsCoreOption);
-    return chartContainer(document, source, style, altText);
+    return input.renderer === "svg" ? input.svg : renderEChartsSvg(width, height, input.option as EChartsCoreOption);
+}
+
+export function renderChartExtension(document: Document, svg: string, style: NormalizedObjectStyle, altText: string): HTMLDivElement {
+    return chartContainer(document, svg, style, altText);
 }

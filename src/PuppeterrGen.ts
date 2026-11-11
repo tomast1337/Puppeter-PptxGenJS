@@ -1,11 +1,11 @@
 import { writeFile } from "node:fs/promises";
-import * as jsdom from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 import { normalizeComponent } from "./components/normalize";
 import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps } from "./components/types";
-import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "./defaults";
+import { PPTX_DEFAULTS } from "./defaults";
+import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "./model/types";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/htmlTable";
 import { normalizeImage, resolveDocumentImages } from "./normalize/image";
@@ -18,16 +18,11 @@ import { normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
-import { renderChart, renderChartExtension } from "./render/chart";
+import { renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
 import { serializeHtmlPresentation } from "./render/document";
-import { renderImage } from "./render/image";
 import { PuppeteerPdfRenderer } from "./render/puppeteerPdf";
-import { renderShape, renderShapeSvg } from "./render/shape";
-import { applyObjectStyle } from "./render/style";
-import { renderTable } from "./render/table";
-import { renderText } from "./render/text";
-import { inchesToPixels, pointsToPixels } from "./utils";
+import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, renderSlideObject } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
     constructor(
@@ -64,6 +59,13 @@ export class PuppeteerSlide implements PptxSlide {
     slideNumber: PptxGenJS.SlideNumberProps;
     newAutoPagedSlides: PptxGenJS.PresSlide[];
     private objectCounts: Record<string, number> = {};
+    /** Normalized, JSON-serializable record of this slide; the DOM above is rendered from it. */
+    readonly model: NormalizedSlide = {
+        background: normalizeColor(PPTX_DEFAULTS.slide.backgroundColor),
+        color: normalizeColor(PPTX_DEFAULTS.slide.color),
+        hidden: PPTX_DEFAULTS.slide.hidden,
+        objects: [],
+    };
 
     get background(): PptxGenJS.BackgroundProps {
         return this._background;
@@ -71,7 +73,9 @@ export class PuppeteerSlide implements PptxSlide {
 
     set background(value: PptxGenJS.BackgroundProps) {
         this._background = value;
-        if (value?.color) this.slideElm.style.backgroundColor = normalizeColor(value);
+        if (!value?.color) return;
+        this.model.background = normalizeColor(value);
+        applySlideBackground(this.slideElm, this.model);
     }
 
     get bkgd(): string {
@@ -80,7 +84,8 @@ export class PuppeteerSlide implements PptxSlide {
 
     set bkgd(value: string) {
         this._bkgd = value;
-        this.slideElm.style.backgroundColor = normalizeColor(value);
+        this.model.background = normalizeColor(value);
+        applySlideBackground(this.slideElm, this.model);
     }
 
     get color(): string {
@@ -89,7 +94,8 @@ export class PuppeteerSlide implements PptxSlide {
 
     set color(value: string) {
         this._color = value;
-        this.slideElm.style.setProperty("--slide-text-color", normalizeColor(value));
+        this.model.color = normalizeColor(value);
+        applySlideColor(this.slideElm, this.model);
     }
 
     get hidden(): boolean {
@@ -98,7 +104,8 @@ export class PuppeteerSlide implements PptxSlide {
 
     set hidden(value: boolean) {
         this._hidden = value;
-        this.slideElm.dataset.hidden = String(value);
+        this.model.hidden = value;
+        applySlideHidden(this.slideElm, this.model);
     }
 
     private nextObjectName(kind: string, explicit?: string): string {
@@ -107,12 +114,22 @@ export class PuppeteerSlide implements PptxSlide {
         return explicit ?? `${kind} ${index}`;
     }
 
+    /** Renders before recording, so render-time errors still throw from addX and leave the slide unchanged. */
+    private addObject(object: NormalizedSlideObject): this {
+        this.slideElm.appendChild(renderSlideObject(this.document, object, this.components));
+        this.model.objects.push(object);
+        return this;
+    }
+
     addComponent(input: ComponentInput, options: ComponentOptions): this {
         const normalized = normalizeComponent(input, options, this.pageSize, options?.objectName ?? "Component");
         const definition = this.components.get(normalized.input.type, normalized.input.version);
         const element = renderComponent(this.document, normalized, definition);
-        element.dataset.objectName = this.nextObjectName("Component", options.objectName);
+        // The default name is only consumed after a successful render.
+        const objectName = this.nextObjectName("Component", options.objectName);
+        element.dataset.objectName = objectName;
         this.slideElm.appendChild(element);
+        this.model.objects.push({ kind: "component", style: { ...normalized.style, objectName }, component: normalized.input });
         return this;
     }
 
@@ -133,14 +150,12 @@ export class PuppeteerSlide implements PptxSlide {
             this.nextObjectName("Chart", chartOptions.objectName),
         );
         const chart = normalizeChart(type, Array.isArray(data) ? (data as PptxGenJS.OptsChartData[]) : [], chartOptions);
-        this.slideElm.appendChild(renderChart(this.document, chart, style));
-        return this;
+        return this.addObject({ kind: "chart", style, chart });
     }
 
     addChartEx(input: ChartExtensionInput, options: ChartExtensionOptions): PuppeteerSlide {
         const style = normalizeObjectStyle(options, PPTX_DEFAULTS.chart, this.pageSize, this.nextObjectName("Chart", options.objectName));
-        this.slideElm.appendChild(renderChartExtension(this.document, input, style, options.altText ?? ""));
-        return this;
+        return this.addObject({ kind: "chartExtension", style, svg: renderChartExtensionSvg(input, style), altText: options.altText ?? "" });
     }
 
     addImage(options: PptxGenJS.ImageProps): PptxGenJS.Slide {
@@ -150,8 +165,7 @@ export class PuppeteerSlide implements PptxSlide {
         const style = normalizeObjectStyle(geometryOptions, PPTX_DEFAULTS.image, this.pageSize, this.nextObjectName("Image", options.objectName), {
             shadow: true,
         });
-        this.slideElm.appendChild(renderImage(this.document, image, style));
-        return this;
+        return this.addObject({ kind: "image", style, image });
     }
 
     addMedia(_options: PptxGenJS.MediaProps): PptxGenJS.Slide {
@@ -167,8 +181,7 @@ export class PuppeteerSlide implements PptxSlide {
         const style = normalizeObjectStyle(shapeOptions, PPTX_DEFAULTS.shape, this.pageSize, this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName), { fill: true, shadow: true });
         style.line = normalizeShapeLine(shapeOptions, normalizeLine);
         const shape = normalizeShape(shapeName, shapeOptions, style.geometry.width ?? 0, style.geometry.height ?? 0, this.pageSize);
-        this.slideElm.appendChild(renderShape(this.document, shape, style));
-        return this;
+        return this.addObject({ kind: "shape", style, shape });
     }
 
     addTable(tableRows: PptxGenJS.TableRow[], options?: PptxGenJS.TableProps | undefined): PptxGenJS.Slide {
@@ -191,8 +204,6 @@ export class PuppeteerSlide implements PptxSlide {
             return this;
         }
         const table = normalizeTable(tableRows, tableOptions, this.pageSize);
-        const tableContainer = this.document.createElement("div");
-        tableContainer.className = "slide-element slide-table-container";
         const tableStyle = normalizeObjectStyle(
             {
                 ...tableOptions,
@@ -207,16 +218,10 @@ export class PuppeteerSlide implements PptxSlide {
             this.pageSize,
             this.nextObjectName("Table", tableOptions.objectName),
         );
-        applyObjectStyle(tableContainer, tableStyle);
-        tableContainer.appendChild(renderTable(this.document, table));
-        this.slideElm.appendChild(tableContainer);
-        return this;
+        return this.addObject({ kind: "table", style: tableStyle, table });
     }
 
     addText(text: TextInput, options?: PptxGenJS.TextPropsOptions | undefined): PptxGenJS.Slide {
-        const textElm = this.document.createElement("div");
-        textElm.className = "slide-element slide-text";
-
         const textOptions = options ?? {};
         // Text transparency is a run color property, not object opacity.
         const { transparency: _textTransparency, ...boxOptions } = textOptions;
@@ -225,25 +230,16 @@ export class PuppeteerSlide implements PptxSlide {
             line: true,
             shadow: true,
         });
-        let normalizedText = normalizeText(text, { color: this.color, ...textOptions });
-        if (textOptions.shape) {
-            const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
-            textStyle.line = normalizeShapeLine(shapeOptions, normalizeLine);
-            const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0, this.pageSize);
-            applyObjectStyle(textElm, { ...textStyle, fill: undefined, line: undefined, shadow: undefined });
-            textElm.dataset.shape = shape.name;
-            textElm.appendChild(renderShapeSvg(this.document, shape, textStyle));
-            normalizedText = normalizeShapeTextBox(normalizedText, shape);
-        } else applyObjectStyle(textElm, textStyle);
-        renderText(this.document, textElm, normalizedText);
-
-        this.slideElm.appendChild(textElm);
-        return this;
+        const normalizedText = normalizeText(text, { color: this.color, ...textOptions });
+        if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: normalizedText });
+        const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
+        textStyle.line = normalizeShapeLine(shapeOptions, normalizeLine);
+        const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0, this.pageSize);
+        return this.addObject({ kind: "text", style: textStyle, text: normalizeShapeTextBox(normalizedText, shape), shape });
     }
 }
 
 export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout" | "AlignH" | "AlignV" | "ChartType" | "OutputType" | "SchemeColor" | "ShapeType" | "PlaceholderType" | "layout" | "rtlMode" | "author" | "company" | "revision" | "subject" | "theme" | "title"> {
-    private dom: jsdom.JSDOM;
     private pageSize: PageSize;
     page: Document;
     private slideCount = 0;
@@ -251,10 +247,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     private slides: PuppeteerSlide[] = [];
 
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE) {
-        this.dom = new jsdom.JSDOM("<!DOCTYPE html><html><head></head><body></body></html>");
-        this.page = this.dom.window.document;
         this.pageSize = pageSize;
-        this.injectCSS();
+        this.page = createPresentationDocument(pageSize);
     }
 
     registerComponent<Props extends object = ComponentProps>(type: string, version: number, definition: ComponentDefinition<Props>): this {
@@ -270,140 +264,16 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
         this.injectCSS();
     }
 
-    /**
-     * Inject CSS into the document
-     */
     private injectCSS(): void {
-        // Remove existing style tag if present
-        const existingStyle = this.page.querySelector("style#puppeteer-gen-styles");
-        if (existingStyle) {
-            existingStyle.remove();
-        }
-
-        const style = this.page.createElement("style");
-        style.id = "puppeteer-gen-styles";
-        style.textContent = this.generateCSS();
-        this.page.head.appendChild(style);
+        applyPresentationStyles(this.page, this.pageSize);
     }
 
     /**
-     * Generate CSS for the current page size
+     * The normalized slide-object model behind `page`, as a detached JSON-serializable copy.
+     * `component` objects keep only type, version and props; rendering them needs the registered definitions.
      */
-    private generateCSS(): string {
-        const widthPx = inchesToPixels(this.pageSize.width);
-        const heightPx = inchesToPixels(this.pageSize.height);
-
-        return `
-@page {
-    size: ${this.pageSize.width}in ${this.pageSize.height}in;
-    margin: 0;
-}
-
-body {
-    margin: 0;
-    padding: 0;
-    font-family: ${PPTX_DEFAULTS.text.fontFace}, Arial, Helvetica, sans-serif;
-}
-
-[data-puppeteer-gen-source="true"] {
-    display: none !important;
-}
-
-.slide-container {
-    width: ${widthPx}px;
-    height: ${heightPx}px;
-    position: relative;
-    page-break-after: always;
-    background: ${normalizeColor(PPTX_DEFAULTS.slide.backgroundColor)};
-    overflow: hidden;
-    box-sizing: border-box;
-}
-
-.slide-container:last-child {
-    page-break-after: auto;
-}
-
-.slide-element {
-    position: absolute;
-    box-sizing: border-box;
-    /* PowerPoint paints slide objects in insertion order. Give every object a
-       stacking context so an earlier object's internal text layer cannot paint
-       over a later object's fill. Equal z-index contexts retain DOM order. */
-    z-index: 0;
-}
-
-.slide-text {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    color: var(--slide-text-color, ${normalizeColor(PPTX_DEFAULTS.text.color)});
-    font-family: ${PPTX_DEFAULTS.text.fontFace}, Arial, Helvetica, sans-serif;
-    font-size: ${pointsToPixels(PPTX_DEFAULTS.text.fontSizePt)}px;
-    padding: ${textMarginToCSS()};
-    overflow: hidden;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-.slide-text > .shape-svg {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-}
-
-.slide-text > .text-content {
-    position: relative;
-    z-index: 1;
-}
-
-.slide-shape {
-    border-style: none;
-}
-
-.slide-image {
-    display: block;
-    color: inherit;
-    text-decoration: none;
-}
-
-.slide-image-content {
-    border: 0;
-}
-
-.slide-table {
-    border-collapse: collapse;
-    table-layout: fixed;
-    width: 100%;
-    height: 100%;
-    color: ${normalizeColor(PPTX_DEFAULTS.table.color)};
-    font-size: ${pointsToPixels(PPTX_DEFAULTS.table.fontSizePt)}px;
-}
-
-.slide-table td,
-.slide-table th {
-    border: none;
-    padding: ${tableMarginToCSS()};
-    vertical-align: top;
-}
-
-@media print {
-    body {
-        margin: 0;
-        padding: 0;
-    }
-    
-    .slide-container {
-        page-break-after: always;
-        break-after: page;
-    }
-    
-    .slide-container:last-child {
-        page-break-after: auto;
-        break-after: auto;
-    }
-}
-        `.trim();
+    getModel(): NormalizedPresentation {
+        return structuredClone({ pageSize: this.pageSize, slides: this.slides.map(slide => slide.model) });
     }
 
     stream(_props?: PptxWriteBaseProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {

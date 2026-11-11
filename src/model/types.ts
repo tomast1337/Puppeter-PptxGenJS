@@ -1,3 +1,6 @@
+import type { ComponentInput } from "../components/types";
+import type { PageSize } from "../pageLayouts";
+
 export type Coord = number | `${number}%`;
 
 export interface NormalizedGeometry {
@@ -272,4 +275,33 @@ export interface NormalizedChart {
     lineSymbolSize: number;
     lineSize: number;
     altText: string;
+}
+
+/**
+ * One slide object as recorded by the PptxGenJS-compatible API, after option
+ * normalization. Every variant is plain JSON data. `component` keeps only the
+ * registry key, version and JSON props; rendering it needs the application's
+ * registered definition. `chartExtension` keeps the SVG produced from the
+ * caller's renderer input, because ECharts options may contain functions.
+ */
+export type NormalizedSlideObject =
+    | { kind: "text"; style: NormalizedObjectStyle; text: NormalizedTextBox; shape?: NormalizedShape }
+    | { kind: "shape"; style: NormalizedObjectStyle; shape: NormalizedShape }
+    | { kind: "image"; style: NormalizedObjectStyle; image: NormalizedImage }
+    | { kind: "table"; style: NormalizedObjectStyle; table: NormalizedTable }
+    | { kind: "chart"; style: NormalizedObjectStyle; chart: NormalizedChart }
+    | { kind: "chartExtension"; style: NormalizedObjectStyle; svg: string; altText: string }
+    | { kind: "component"; style: NormalizedObjectStyle; component: ComponentInput };
+
+export interface NormalizedSlide {
+    /** CSS colors, as applied to the slide container. */
+    background: string;
+    color: string;
+    hidden: boolean;
+    objects: NormalizedSlideObject[];
+}
+
+export interface NormalizedPresentation {
+    pageSize: PageSize;
+    slides: NormalizedSlide[];
 }
