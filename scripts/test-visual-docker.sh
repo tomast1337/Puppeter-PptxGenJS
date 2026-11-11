@@ -4,7 +4,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 image=puppeteer-gen-visual
-docker build --quiet --tag "$image" --file tests/visual/Dockerfile . >/dev/null
+docker build --tag "$image" --file tests/visual/Dockerfile .
 mkdir -p .visual-parity
 docker run --rm --user "$(id -u):$(id -g)" \
     --volume "$PWD:/repo:ro" \

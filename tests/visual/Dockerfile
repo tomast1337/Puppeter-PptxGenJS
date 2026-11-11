@@ -8,7 +8,9 @@ ARG APT_SNAPSHOT=20261110T000000Z
 ARG BUN_VERSION=1.4.0
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
+# snapshot.ubuntu.com intermittently fails TLS/fetches; retry instead of failing the build.
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
+    && apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates \
     && apt-get update --snapshot "$APT_SNAPSHOT" \
     && apt-get install --yes --no-install-recommends --snapshot "$APT_SNAPSHOT" \
