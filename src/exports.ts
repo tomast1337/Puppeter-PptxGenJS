@@ -1,3 +1,4 @@
+import { closeBrowser as closeSharedBrowser } from "./browser";
 import { UnsupportedChartError } from "./chart/errors";
 import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
 import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
@@ -5,10 +6,14 @@ import { PuppeteerGen } from "./PuppeterrGen";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
 import { alignToCSS, colorToCSS, convertToPixels, generatePageCSS, inchesToPixels, percentageToPixels, pointsToPixels, valignToCSS } from "./utils";
 
+// Explicit type keeps puppeteer types (and their Node typings) out of the public declarations.
+const closeBrowser: () => Promise<void> = closeSharedBrowser;
+
 export {
     alignToCSS,
     CHART_TYPE_COMPATIBILITY,
     COMPATIBILITY,
+    closeBrowser,
     colorToCSS,
     convertToPixels,
     DEFAULT_PAGE_SIZE,

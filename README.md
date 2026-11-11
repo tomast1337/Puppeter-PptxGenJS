@@ -264,9 +264,19 @@ The library automatically generates CSS that:
 
 1. Builds HTML document with styled elements
 2. Injects CSS for layout and styling
-3. Launches Puppeteer browser
+3. Reuses a shared `chrome-headless-shell` browser (launched on demand)
 4. Renders HTML to PDF with correct page size
 5. Outputs PDF file
+
+Concurrent and back-to-back `writeFile()` calls share one browser, which
+skips Chromium startup. The browser closes after 1 second idle, so scripts
+exit on their own. Call `closeBrowser()` to shut it down immediately:
+
+```typescript
+import { closeBrowser } from "puppeteer-pptxgenjs";
+
+await closeBrowser();
+```
 
 ## Compatibility
 
