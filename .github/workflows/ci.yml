@@ -94,18 +94,5 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.0
-
-      - name: Install locked dependencies
-        run: bun ci
-
-      - name: Install visual comparison tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes imagemagick libreoffice poppler-utils
-
-      - name: Run visual comparison
-        run: bun run test:visual
+      - name: Run visual comparison in pinned image
+        run: sh scripts/test-visual-docker.sh
