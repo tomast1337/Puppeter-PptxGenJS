@@ -6,7 +6,7 @@ I've successfully implemented a comprehensive PptxGenJS interface for PDF genera
 
 ## What Was Implemented
 
-### 1. Page Layouts (`src/pageLayouts.ts`)
+### 1. Page Layouts (`packages/pptxgenjs/src/pageLayouts.ts`)
 
 Created comprehensive page size definitions with:
 - **Presentation formats**: 16:9, 4:3, 16:10 (standard presentation ratios)
@@ -14,7 +14,7 @@ Created comprehensive page size definitions with:
 - **Both orientations**: All sizes available in landscape and portrait
 - **Default layout**: 16:9 landscape (most common for presentations)
 
-### 2. Utility Functions (`src/utils.ts`)
+### 2. Utility Functions (`packages/pptxgenjs/src/utils.ts`)
 
 Implemented conversion and styling utilities:
 - `inchesToPixels()` - Converts inches to pixels at 96 DPI
@@ -26,7 +26,7 @@ Implemented conversion and styling utilities:
 - `valignToCSS()` - Converts PptxGenJS valign to CSS flex alignment
 - `pointsToPixels()` - Converts font points to pixels
 
-### 3. Enhanced PuppeteerGen Class (`src/PuppeterrGen.ts`)
+### 3. Enhanced PuppeteerGen Class (`packages/pptxgenjs/src/PuppeterrGen.ts`)
 
 **Main Features:**
 - Constructor accepts PageSize parameter for custom layouts
@@ -112,7 +112,7 @@ Implemented conversion and styling utilities:
 - Best practices
 - Troubleshooting
 
-### 7. Exports (`src/exports.ts`)
+### 7. Exports (`packages/pptxgenjs/src/exports.ts`)
 
 Clean public API with:
 - PuppeteerGen class
@@ -168,15 +168,15 @@ The generated CSS includes:
 ## Files Created/Modified
 
 ### New Files:
-- `src/pageLayouts.ts` - Page size definitions
-- `src/utils.ts` - Utility functions
-- `src/exports.ts` - Public API
+- `packages/pptxgenjs/src/pageLayouts.ts` - Page size definitions
+- `packages/pptxgenjs/src/utils.ts` - Utility functions
+- `packages/pptxgenjs/src/exports.ts` - Public API
 - `examples/comprehensive-example.ts` - Feature examples
 - `USAGE.md` - Detailed documentation
 - `IMPLEMENTATION_SUMMARY.md` - This file
 
 ### Modified Files:
-- `src/PuppeterrGen.ts` - Enhanced implementation
+- `packages/pptxgenjs/src/PuppeterrGen.ts` - Enhanced implementation
 - `src/index.ts` - Better examples
 - `README.md` - Comprehensive project documentation
 
@@ -212,8 +212,7 @@ Generated Files:
 ### Simple Example
 
 ```typescript
-import { PuppeteerGen } from "./src/PuppeterrGen";
-import { PAGE_SIZES } from "./src/pageLayouts";
+import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
 
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 const slide = pres.addSlide();

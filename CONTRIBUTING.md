@@ -6,8 +6,9 @@ PowerPoint as practical.
 
 ## Development setup
 
-This repository uses Bun to install dependencies, run tests, and build the
-package.
+This repository is a Bun workspace: each published package lives in
+`packages/<name>/` (see the package table in the README). Bun installs
+dependencies, runs tests, and builds every package.
 
 ```bash
 bun install
@@ -64,7 +65,7 @@ PptxGenJS 4.0.1 is the compatibility baseline. When behavior is unclear,
 prefer observed PptxGenJS runtime behavior and generated OOXML over browser
 defaults.
 
-- Keep compatibility defaults in `src/defaults.ts`.
+- Keep compatibility defaults in `packages/pptxgenjs/src/defaults.ts`.
 - Preserve chainable slide methods and PptxGenJS method signatures.
 - Make unsupported behavior explicit instead of silently ignoring it.
 - Add regression tests for compatibility quirks.
