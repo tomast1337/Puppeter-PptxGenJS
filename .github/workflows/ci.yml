@@ -88,15 +88,46 @@ jobs:
 
   visual:
     name: Visual parity
-    # Temporarily manual-only: building the pinned image from snapshot.ubuntu.com
-    # often exceeds the timeout. Run `bun run test:visual:docker` locally until the
-    # image is cached or prebuilt.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Generous for the rare run that must rebuild the image from snapshot.ubuntu.com.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Fork PRs get a read-only token, so they build the image but cannot publish it.
+      CAN_PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Resolve pinned image tag
+        id: image
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "ref=ghcr.io/${owner}/puppeteer-gen-visual:${{ hashFiles('tests/visual/Dockerfile', 'package.json', 'bun.lock') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        if: env.CAN_PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The tag hashes every input of the image, so it is only rebuilt when they change.
+      - name: Pull or build pinned image
+        env:
+          IMAGE: ${{ steps.image.outputs.ref }}
+        run: |
+          if docker pull "$IMAGE"; then exit 0; fi
+          docker build --tag "$IMAGE" --file tests/visual/Dockerfile .
+          # Publishing only speeds up later runs; this run already has the image it built.
+          if [ "$CAN_PUSH" = true ]; then
+            docker push "$IMAGE" || echo "::warning::Could not publish $IMAGE; later runs will rebuild it"
+          fi
+
       - name: Run visual comparison in pinned image
+        env:
+          VISUAL_IMAGE: ${{ steps.image.outputs.ref }}
         run: sh scripts/test-visual-docker.sh

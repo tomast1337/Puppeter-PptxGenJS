@@ -220,6 +220,12 @@ locally with Docker; artifacts are written to `.visual-parity/`:
 bun run test:visual:docker
 ```
 
+CI doesn't rebuild the image on every run. It pulls
+`ghcr.io/tomast1337/puppeteer-gen-visual:<hash>`, where the tag hashes the
+Dockerfile, `package.json` and `bun.lock`, and only builds and publishes a new
+image when one of those changes. To test against a prebuilt image locally, set
+`VISUAL_IMAGE=<image>`.
+
 ## Documentation
 
 For detailed documentation, see [USAGE.md](./USAGE.md) which covers:
