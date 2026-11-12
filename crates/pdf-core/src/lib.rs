@@ -1,6 +1,6 @@
-//! Spike: render the text objects of `PuppeteerGen.getModel()` straight to PDF.
+//! Renders the text and shape objects of the normalized model (`getModel()`) straight to PDF.
 //!
-//! Pure core shared by the `wasm` (wasm-bindgen) and `node` (napi-rs) bindings:
+//! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen):
 //! model JSON + font bytes in, PDF bytes out. Units in the model are CSS px at
 //! 96 dpi; the PDF page is drawn in px under a 0.75 scale.
 
@@ -88,7 +88,9 @@ impl Renderer {
         families.iter().map(|(_, faces)| faces.len() as u32).sum()
     }
 
-    /// Features in the last rendered model that this spike ignored.
+    /// Features of the last rendered model that were not drawn (unsupported object kinds,
+    /// effects, options), deduplicated and sorted. `@pdfdeck/wasm` throws on them unless the caller passes
+    /// `onUnsupported: "warn"`.
     pub fn warnings(&self) -> Vec<String> {
         self.warnings.iter().cloned().collect()
     }
