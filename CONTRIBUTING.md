@@ -34,12 +34,71 @@ change.
 
 ## Code style
 
-Use WebStorm to format source files. The repository's `.editorconfig` specifies
-four-space indentation, LF endings, two spaces in JSON/YAML, and a preferred
-line width of 512. Keep double quotes in JavaScript/TypeScript. Avoid reformatting
-generated shape data, visual assets, build output, and local planning notes.
+`bun fmt` formats TypeScript, JavaScript, JSON, YAML and Markdown, and rustfmt
+formats `crates/`. One command runs both:
+
+```bash
+bun run fmt          # format everything
+bun run fmt:check    # what CI's "Format" job runs; non-zero when a file needs formatting
+```
+
+`fmt:ts`, `fmt:ts:check`, `fmt:rust` and `fmt:rust:check` run one side. `bun
+fmt` needs Bun >= 1.4.4. The Rust scripts use the toolchain pinned in
+`rust-toolchain.toml` and, like `build:wasm`, fall back to the pinned Docker
+image when the host has no matching rustc (`WASM_BUILD=docker` forces it).
+
+Configuration, in one place each:
+
+- `.editorconfig`: four-space indentation (two in JSON/YAML), LF endings and
+  the 320-column line width, read by both `bun fmt` and WebStorm.
+- `bunfig.toml` `[fmt]`: the rest of the style (double quotes, semicolons,
+  trailing commas, `x => x` arrows) and the files never formatted: the
+  wasm-bindgen glue, generated preset shapes, `crates/` and gallery output.
+  `.gitignore`d paths such as `dist/` are skipped too.
+- `crates/rustfmt.toml`: Rust (`max_width = 160`, stable options only).
 
 Avoid unrelated formatting changes in the same pull request.
+
+### WebStorm
+
+WebStorm's own Reformat Code does not match `bun fmt` (it neither adds trailing
+commas nor joins or wraps lines the same way), so let `bun fmt` format files:
+
+1. Settings | Tools | File Watchers | + | Custom.
+2. File type: TypeScript (add one watcher per type you edit: JavaScript, JSON,
+   YAML, Markdown). Scope: Project Files.
+3. Program: `bun`. Arguments: `fmt --no-script $FilePath$`. Output paths to
+   refresh: `$FilePath$`. Working directory: `$ProjectFileDir$`.
+4. Under Advanced Options, untick "Auto-save edited files to trigger the
+   watcher" to format on explicit save (Ctrl+S) only, and untick "Trigger the
+   watcher on external changes".
+
+Pass `--no-script` whenever you call `bun fmt` directly: with a `fmt` script in
+`package.json`, plain `bun fmt` runs that script instead. For Rust, RustRover
+and rust-analyzer run rustfmt with `crates/rustfmt.toml`; enable format on save
+there.
+
+### Pre-commit hook (optional)
+
+Nothing installs hooks for you. To format staged files on commit, save this as
+`.git/hooks/pre-commit` and make it executable:
+
+```sh
+#!/bin/sh
+bun fmt --no-script --staged
+```
+
+`--staged` formats and re-stages only staged files; a file that also has
+unstaged changes is reported instead of rewritten, and the commit stops.
+
+### Blame
+
+Formatting-only commits are listed in `.git-blame-ignore-revs`. GitHub skips
+them automatically; for local `git blame`, run once:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
 
 ## Build and test
 
@@ -47,6 +106,7 @@ Run the relevant unit tests while developing. Before submitting a pull request,
 run the complete validation suite:
 
 ```bash
+bun run fmt:check
 bun run typecheck
 bun test
 bun run build
@@ -100,8 +160,8 @@ build also fails when the binary's gzip size exceeds `GZIP_BUDGET` in
 Rust checks, as CI runs them:
 
 ```bash
+bun run fmt:rust:check   # cargo fmt --all --check with the pinned toolchain
 cd crates
-cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo clippy -p text-pdf-wasm --target wasm32-unknown-unknown -- -D warnings
 cargo test
