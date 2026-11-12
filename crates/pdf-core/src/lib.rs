@@ -280,7 +280,12 @@ impl Renderer {
         let families = self.fonts.collection.register_fonts(Blob::from(data), None);
         // parley appends the `emoji` generic family for emoji-presentation clusters.
         for (id, _) in &families {
-            if self.fonts.collection.family_name(*id).is_some_and(|name| name.to_ascii_lowercase().contains("emoji")) {
+            if self
+                .fonts
+                .collection
+                .family_name(*id)
+                .is_some_and(|name| name.to_ascii_lowercase().contains("emoji"))
+            {
                 self.fonts.collection.set_generic_families(GenericFamily::Emoji, std::iter::once(*id));
             }
         }
@@ -339,10 +344,10 @@ impl Renderer {
         let mut h = g.height.unwrap_or(0.0);
 
         let layout = text.as_ref().map(|t| self.fit_text(t, w, h));
-        if let (Some(t), Some(l)) = (&text, &layout) {
-            if t.fit == "resize" {
-                h = h.max(l.height + t.margin[0] + t.margin[2]);
-            }
+        if let (Some(t), Some(l)) = (&text, &layout)
+            && t.fit == "resize"
+        {
+            h = h.max(l.height + t.margin[0] + t.margin[2]);
         }
 
         let t = &style.transform;
@@ -373,26 +378,26 @@ impl Renderer {
             if let Some(fill) = style.fill.as_ref().filter(|f| f.visible).and_then(|f| parse_color(&f.color)) {
                 fill_path(surface, rect_path(x, y, w, h, radius), fill);
             }
-            if let Some(line) = style.line.as_ref().filter(|l| l.visible && l.width > 0.0) {
-                if let Some(color) = parse_color(&line.color).filter(|c| c.3 > 0.0) {
-                    // PowerPoint/LibreOffice centre the stroke on the geometry.
-                    let dash = line.dash_array.as_ref().map(|d| StrokeDash {
-                        array: d.split_whitespace().filter_map(|v| v.parse().ok()).collect(),
-                        offset: 0.0,
-                    });
-                    surface.set_fill(None);
-                    surface.set_stroke(Some(Stroke {
-                        paint: rgb::Color::new(color.0, color.1, color.2).into(),
-                        width: line.width,
-                        opacity: NormalizedF32::new(color.3).unwrap(),
-                        dash,
-                        ..Stroke::default()
-                    }));
-                    if let Some(path) = rect_path(x, y, w, h, radius) {
-                        surface.draw_path(&path);
-                    }
-                    surface.set_stroke(None);
+            if let Some(line) = style.line.as_ref().filter(|l| l.visible && l.width > 0.0)
+                && let Some(color) = parse_color(&line.color).filter(|c| c.3 > 0.0)
+            {
+                // PowerPoint/LibreOffice centre the stroke on the geometry.
+                let dash = line.dash_array.as_ref().map(|d| StrokeDash {
+                    array: d.split_whitespace().filter_map(|v| v.parse().ok()).collect(),
+                    offset: 0.0,
+                });
+                surface.set_fill(None);
+                surface.set_stroke(Some(Stroke {
+                    paint: rgb::Color::new(color.0, color.1, color.2).into(),
+                    width: line.width,
+                    opacity: NormalizedF32::new(color.3).unwrap(),
+                    dash,
+                    ..Stroke::default()
+                }));
+                if let Some(path) = rect_path(x, y, w, h, radius) {
+                    surface.draw_path(&path);
                 }
+                surface.set_stroke(None);
             }
         }
 
