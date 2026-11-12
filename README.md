@@ -212,7 +212,9 @@ const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer: remo
 The `/html` entry exposes the same API without loading Puppeteer, jsdom, or any
 `node:*` module. It uses `document.implementation.createHTMLDocument()` from
 the global DOM, resolves data URIs and http(s) images with `fetch`, and has no
-default PDF renderer.
+default PDF renderer. `tests/htmlBrowser.test.ts` runs the browser bundle of
+this entry in headless Chromium on every CI run (text, shapes, images, tables,
+charts, components, `toHtml()`, and `toPdf()` with an injected renderer).
 
 ```typescript
 import PuppeteerGen from "puppeteer-pptxgenjs/html";

@@ -16,7 +16,8 @@ export function renderComponent(document: Document, component: ReturnType<typeof
     host.style.position = "absolute";
     host.style.overflow = COMPONENT_DEFAULTS.overflow;
     if (typeof content === "string") host.innerHTML = content;
-    else if (document.defaultView && content instanceof document.defaultView.HTMLElement) host.appendChild(content.cloneNode(true));
+    // Not `instanceof`: browser documents from createHTMLDocument() have no defaultView to supply the HTMLElement class.
+    else if ((content as Node | undefined)?.ownerDocument === document && (content as Element).namespaceURI === "http://www.w3.org/1999/xhtml") host.appendChild(content.cloneNode(true));
     else throw new Error("Component render must return HTML text or an HTMLElement from the supplied document");
     for (const image of host.querySelectorAll("img")) {
         if (image.hasAttribute("srcset")) throw new Error("Component images do not support srcset; use a single src");

@@ -317,7 +317,8 @@ function parseSvg(document: Document, source: string): SVGSVGElement {
     const template = document.createElement("template");
     template.innerHTML = source.trim();
     const svg = template.content.firstElementChild;
-    if (!(svg instanceof document.defaultView!.SVGSVGElement) || svg.tagName.toLowerCase() !== "svg") {
+    // Not `instanceof`: browser documents from createHTMLDocument() have a null defaultView.
+    if (svg?.namespaceURI !== "http://www.w3.org/2000/svg" || svg.localName !== "svg") {
         throw new TypeError("Chart renderer did not return an SVG root element");
     }
     for (const element of svg.querySelectorAll("*")) {
@@ -330,7 +331,7 @@ function parseSvg(document: Document, source: string): SVGSVGElement {
             }
         }
     }
-    return svg;
+    return svg as SVGSVGElement;
 }
 
 function namespaceSvgIds(svg: SVGSVGElement, namespace: string): void {
