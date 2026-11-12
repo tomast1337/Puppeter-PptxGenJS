@@ -3,9 +3,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
+import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen as HtmlPuppeteerGen, type ModelRenderer, type NormalizedPresentation } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
@@ -154,8 +156,26 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
     test("throws on unsupported objects by default and lists them", async () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
-        pres.addSlide().addText("Text", { x: 1, y: 1, w: 3, h: 1 }).addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 }).addShape("ellipse", { x: 4, y: 1, w: 1, h: 1 });
-        await expect(pres.toPdf()).rejects.toThrow(/object kind 'image' not rendered[\s\S]*preset shape 'ellipse'/);
+        pres.addSlide()
+            .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
+            .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 })
+            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
+        await expect(pres.toPdf()).rejects.toThrow(/object kind 'image' not rendered[\s\S]*object shadow not rendered/);
+    });
+
+    test("draws every preset shape the model emits, with dashed lines and arrowheads, without warnings", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pres = new PuppeteerGen(PAGE, { renderer });
+        const line = { color: "17365D", width: 1.5, dashType: "dash", beginArrowType: "oval", endArrowType: "stealth" } as const;
+        let slide = pres.addSlide();
+        for (const [index, shape] of CORE_SVG_SHAPES.entries()) {
+            if (index > 0 && index % 30 === 0) slide = pres.addSlide();
+            const options = { x: (index % 6) * 1.6, y: Math.floor((index % 30) / 6), w: 1.4, h: 0.9, fill: { color: "5B9BD5", transparency: 20 }, line, rotate: 15, flipH: index % 2 === 0 };
+            const points = [{ x: 0, y: 0 }, { x: 1.4, y: 0.9, curve: { type: "arc", wR: 0.7, hR: 0.45, stAng: 0, swAng: 90 } }, { close: true }] as const;
+            slide.addShape(shape as PptxGenJS.SHAPE_NAME, shape === "custGeom" ? { ...options, points: [...points] } : options);
+        }
+        expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
+        expect(renderer.warnings()).toEqual([]);
     });
 
     test('onUnsupported: "warn" renders and reports skipped objects', async () => {
