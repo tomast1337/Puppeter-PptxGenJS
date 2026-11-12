@@ -32,12 +32,12 @@ const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 const slide = pres.addSlide();
 
 // Add text to the slide
-slide.addText("Hello World!", { 
-    x: 1,        // 1 inch from left
-    y: 1,        // 1 inch from top
+slide.addText("Hello World!", {
+    x: 1, // 1 inch from left
+    y: 1, // 1 inch from top
     fontSize: 32,
     bold: true,
-    color: "#0066CC"
+    color: "#0066CC",
 });
 
 // Generate PDF
@@ -54,24 +54,24 @@ PuppeteerGen supports multiple predefined page sizes in both landscape and portr
 import { PAGE_SIZES } from "@pdfdeck/pptxgenjs";
 
 // Presentation formats
-PAGE_SIZES.SCREEN_4X3.landscape      // 10" × 7.5"
-PAGE_SIZES.SCREEN_4X3.portrait       // 7.5" × 10"
-PAGE_SIZES.SCREEN_16X9.landscape     // 10" × 5.625" (default)
-PAGE_SIZES.SCREEN_16X9.portrait      // 5.625" × 10"
-PAGE_SIZES.SCREEN_16X10.landscape    // 10" × 6.25"
-PAGE_SIZES.SCREEN_16X10.portrait     // 6.25" × 10"
+PAGE_SIZES.SCREEN_4X3.landscape; // 10" × 7.5"
+PAGE_SIZES.SCREEN_4X3.portrait; // 7.5" × 10"
+PAGE_SIZES.SCREEN_16X9.landscape; // 10" × 5.625" (default)
+PAGE_SIZES.SCREEN_16X9.portrait; // 5.625" × 10"
+PAGE_SIZES.SCREEN_16X10.landscape; // 10" × 6.25"
+PAGE_SIZES.SCREEN_16X10.portrait; // 6.25" × 10"
 
 // Document formats
-PAGE_SIZES.LETTER.landscape          // 11" × 8.5"
-PAGE_SIZES.LETTER.portrait           // 8.5" × 11"
-PAGE_SIZES.LEGAL.landscape           // 14" × 8.5"
-PAGE_SIZES.LEGAL.portrait            // 8.5" × 14"
-PAGE_SIZES.A4.landscape              // 11.69" × 8.27"
-PAGE_SIZES.A4.portrait               // 8.27" × 11.69"
-PAGE_SIZES.A3.landscape              // 16.54" × 11.69"
-PAGE_SIZES.A3.portrait               // 11.69" × 16.54"
-PAGE_SIZES.TABLOID.landscape         // 17" × 11"
-PAGE_SIZES.TABLOID.portrait          // 11" × 17"
+PAGE_SIZES.LETTER.landscape; // 11" × 8.5"
+PAGE_SIZES.LETTER.portrait; // 8.5" × 11"
+PAGE_SIZES.LEGAL.landscape; // 14" × 8.5"
+PAGE_SIZES.LEGAL.portrait; // 8.5" × 14"
+PAGE_SIZES.A4.landscape; // 11.69" × 8.27"
+PAGE_SIZES.A4.portrait; // 8.27" × 11.69"
+PAGE_SIZES.A3.landscape; // 16.54" × 11.69"
+PAGE_SIZES.A3.portrait; // 11.69" × 16.54"
+PAGE_SIZES.TABLOID.landscape; // 17" × 11"
+PAGE_SIZES.TABLOID.portrait; // 11" × 17"
 ```
 
 ### Usage Examples
@@ -107,20 +107,20 @@ All positioning and sizing in PuppeteerGen uses **inches** as the unit of measur
 const slide = pres.addSlide();
 
 // Position text at specific coordinates
-slide.addText("Top Left", { 
-    x: 0.5,    // 0.5 inches from left
-    y: 0.5,    // 0.5 inches from top
-    w: 3,      // 3 inches wide
-    h: 0.5     // 0.5 inches tall
+slide.addText("Top Left", {
+    x: 0.5, // 0.5 inches from left
+    y: 0.5, // 0.5 inches from top
+    w: 3, // 3 inches wide
+    h: 0.5, // 0.5 inches tall
 });
 
 // Center text horizontally (assuming 10" wide slide)
-slide.addText("Centered", { 
-    x: 2.5,    // (10 - 5) / 2 = 2.5
+slide.addText("Centered", {
+    x: 2.5, // (10 - 5) / 2 = 2.5
     y: 2,
     w: 5,
     h: 1,
-    align: "center"
+    align: "center",
 });
 ```
 
@@ -134,13 +134,13 @@ PuppeteerGen supports rich text formatting options:
 slide.addText("Styled Text", {
     x: 1,
     y: 1,
-    fontSize: 24,           // Font size in points
-    fontFace: "Arial",      // Font family
-    bold: true,             // Bold text
-    italic: true,           // Italic text
-    underline: true,        // Underlined text
-    color: "#FF0000",       // Text color (hex, RGB, or named)
-    fill: { color: "#FFFF00" }  // Background color
+    fontSize: 24, // Font size in points
+    fontFace: "Arial", // Font family
+    bold: true, // Bold text
+    italic: true, // Italic text
+    underline: true, // Underlined text
+    color: "#FF0000", // Text color (hex, RGB, or named)
+    fill: { color: "#FFFF00" }, // Background color
 });
 ```
 
@@ -161,14 +161,17 @@ slide.addText("Bottom", { x: 7, y: 1, w: 2, h: 2, valign: "bottom" });
 ### Multi-part Text
 
 ```typescript
-slide.addText([
-    { text: "Regular ", options: {} },
-    { text: "Bold ", options: { bold: true } },
-    { text: "Colored", options: { color: "#FF0000" } }
-], {
-    x: 1,
-    y: 1
-});
+slide.addText(
+    [
+        { text: "Regular ", options: {} },
+        { text: "Bold ", options: { bold: true } },
+        { text: "Colored", options: { color: "#FF0000" } },
+    ],
+    {
+        x: 1,
+        y: 1,
+    },
+);
 ```
 
 ## Tables
@@ -178,48 +181,46 @@ Create tables with custom styling for cells:
 ### Basic Table
 
 ```typescript
-slide.addTable([
-    ["Header 1", "Header 2", "Header 3"],
-    ["Row 1 Col 1", "Row 1 Col 2", "Row 1 Col 3"],
-    ["Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3"]
-], {
-    x: 1,
-    y: 1,
-    w: 8,
-    h: 3
-});
+slide.addTable(
+    [
+        ["Header 1", "Header 2", "Header 3"],
+        ["Row 1 Col 1", "Row 1 Col 2", "Row 1 Col 3"],
+        ["Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3"],
+    ],
+    {
+        x: 1,
+        y: 1,
+        w: 8,
+        h: 3,
+    },
+);
 ```
 
 ### Styled Table
 
 ```typescript
-slide.addTable([
+slide.addTable(
     [
-        { text: "Product", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" }},
-        { text: "Price", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" }},
-        { text: "Stock", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" }}
+        [
+            { text: "Product", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } },
+            { text: "Price", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } },
+            { text: "Stock", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } },
+        ],
+        [{ text: "Widget A" }, { text: "$19.99", options: { align: "right" } }, { text: "150", options: { align: "center", color: "#00AA00" } }],
+        [{ text: "Widget B" }, { text: "$29.99", options: { align: "right" } }, { text: "25", options: { align: "center", color: "#FF0000" } }],
+        [
+            { text: "Total", options: { bold: true, fill: "#D9E2F3" } },
+            { text: "$49.98", options: { bold: true, align: "right", fill: "#D9E2F3" } },
+            { text: "175", options: { bold: true, align: "center", fill: "#D9E2F3" } },
+        ],
     ],
-    [
-        { text: "Widget A" },
-        { text: "$19.99", options: { align: "right" }},
-        { text: "150", options: { align: "center", color: "#00AA00" }}
-    ],
-    [
-        { text: "Widget B" },
-        { text: "$29.99", options: { align: "right" }},
-        { text: "25", options: { align: "center", color: "#FF0000" }}
-    ],
-    [
-        { text: "Total", options: { bold: true, fill: "#D9E2F3" }},
-        { text: "$49.98", options: { bold: true, align: "right", fill: "#D9E2F3" }},
-        { text: "175", options: { bold: true, align: "center", fill: "#D9E2F3" }}
-    ]
-], {
-    x: 1,
-    y: 2,
-    w: 8,
-    h: 3
-});
+    {
+        x: 1,
+        y: 2,
+        w: 8,
+        h: 3,
+    },
+);
 ```
 
 ## Multiple Slides
@@ -231,18 +232,27 @@ const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 
 // Title slide
 const slide1 = pres.addSlide();
-slide1.addText("My Presentation", { 
-    x: 1, y: 2, w: 8, 
-    fontSize: 48, bold: true, align: "center" 
+slide1.addText("My Presentation", {
+    x: 1,
+    y: 2,
+    w: 8,
+    fontSize: 48,
+    bold: true,
+    align: "center",
 });
 
 // Content slide
 const slide2 = pres.addSlide();
-slide2.addText("Content", { 
-    x: 1, y: 0.5, fontSize: 36, bold: true 
+slide2.addText("Content", {
+    x: 1,
+    y: 0.5,
+    fontSize: 36,
+    bold: true,
 });
-slide2.addText("• Point 1\n• Point 2\n• Point 3", { 
-    x: 1.5, y: 1.5, fontSize: 24 
+slide2.addText("• Point 1\n• Point 2\n• Point 3", {
+    x: 1.5,
+    y: 1.5,
+    fontSize: 24,
 });
 
 // Generate PDF with all slides
@@ -260,7 +270,7 @@ const pres = new PuppeteerGen();
 pres.defineLayout({
     name: "Custom Wide",
     width: 12,
-    height: 6
+    height: 6,
 });
 
 const slide = pres.addSlide();
@@ -277,7 +287,7 @@ const pres = new PuppeteerGen();
 pres.setPageSize({
     width: 8,
     height: 8,
-    name: "Square"
+    name: "Square",
 });
 ```
 
@@ -296,32 +306,32 @@ Creates a new PuppeteerGen instance with the specified page size (default: 16:9 
 #### Methods
 
 - `addSlide(props?: AddSlideProps): PptxSlide`
-  - Adds a new slide to the presentation
+    - Adds a new slide to the presentation
 
 - `defineLayout(layout: PresLayout): void`
-  - Defines a custom page layout with width and height
+    - Defines a custom page layout with width and height
 
 - `setPageSize(pageSize: PageSize): void`
-  - Changes the page size of the presentation
+    - Changes the page size of the presentation
 
 - `writeFile(props: WriteFileProps): Promise<string>`
-  - Generates the PDF file and writes it to disk
+    - Generates the PDF file and writes it to disk
 
 ### PuppeteerSlide Class
 
 #### Methods
 
 - `addText(text: string | TextProps[], options?: TextPropsOptions): Slide`
-  - Adds text to the slide with optional styling
+    - Adds text to the slide with optional styling
 
 - `addTable(rows: TableRow[], options?: TableProps): Slide`
-  - Adds a table to the slide
+    - Adds a table to the slide
 
 - `addImage(options: ImageProps): Slide`
-  - Adds an image to the slide
+    - Adds an image to the slide
 
 - `addShape(shapeName: SHAPE_NAME, options?: ShapeProps): Slide`
-  - Adds a shape to the slide
+    - Adds a shape to the slide
 
 ### Common Options
 
@@ -352,11 +362,11 @@ Creates a new PuppeteerGen instance with the specified page size (default: 16:9 
 
 - `text`: string - Cell text content
 - `options`: object - Cell styling options
-  - `bold`: boolean
-  - `color`: string
-  - `fill`: string
-  - `fontSize`: number
-  - `align`: "left" | "center" | "right"
+    - `bold`: boolean
+    - `color`: string
+    - `fill`: string
+    - `fontSize`: number
+    - `align`: "left" | "center" | "right"
 
 ## CSS and Print Layout
 
@@ -386,6 +396,7 @@ bun run examples/comprehensive-example.ts
 ```
 
 This will generate several PDF files demonstrating different features:
+
 - `example-16x9-landscape.pdf` - 16:9 presentation format
 - `example-a4-portrait.pdf` - A4 document format
 - `example-letter-landscape.pdf` - Letter document format
@@ -428,4 +439,3 @@ Verify that you're using the correct page size and that your position/size value
 ### Puppeteer won't launch
 
 Make sure all dependencies are installed and that you have the necessary system libraries for Puppeteer.
-

@@ -308,14 +308,14 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
 
     /** PDF bytes from the configured renderer; nothing is written to disk. */
     async toPdf(): Promise<Uint8Array> {
-        if (!this.renderer) throw new Error("toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry (\"puppeteer-pptxgenjs\") for the Puppeteer default");
+        if (!this.renderer) throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("puppeteer-pptxgenjs") for the Puppeteer default');
         // shortcut: model renderers get getModel() as-is (image sources unresolved); resolve them once the WASM backend draws images (#17).
         if ("renderModel" in this.renderer) return this.renderer.renderModel(this.getModel());
         return this.renderer.render(await this.toHtml());
     }
 
     async writeFile(_props: PptxWriteFileProps): Promise<string> {
-        throw new Error("writeFile() needs filesystem access and is only available from the Node entry (\"puppeteer-pptxgenjs\"); use toPdf() or toHtml() instead");
+        throw new Error('writeFile() needs filesystem access and is only available from the Node entry ("puppeteer-pptxgenjs"); use toPdf() or toHtml() instead');
     }
 
     addSection(_props: PptxSectionProps): void {

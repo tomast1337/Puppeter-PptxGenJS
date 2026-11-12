@@ -13,7 +13,13 @@ function deck() {
         const slide = pres.addSlide();
         slide.addText(`Slide ${i + 1}`, { x: 1, y: 1, w: 8, h: 1, fontSize: 32, bold: true });
         slide.addShape("rect", { x: 1, y: 2.5, w: 3, h: 1.5, fill: { color: "4472C4" } });
-        slide.addTable([[{ text: "A" }, { text: "B" }], [{ text: "1" }, { text: "2" }]], { x: 5, y: 2.5, w: 4 });
+        slide.addTable(
+            [
+                [{ text: "A" }, { text: "B" }],
+                [{ text: "1" }, { text: "2" }],
+            ],
+            { x: 5, y: 2.5, w: 4 },
+        );
     }
     return pres;
 }

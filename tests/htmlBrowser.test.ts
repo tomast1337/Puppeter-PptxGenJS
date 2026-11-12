@@ -48,14 +48,7 @@ describe("html entry in Chromium", () => {
                         const pres = new PuppeteerGen(page, { renderer });
                         pres.addSlide()
                             .addText("Plain text", { x: 0.5, y: 0.5, w: 4, h: 0.5 })
-                            .addText(
-                                [
-                                    { text: "Bold ", options: { bold: true, color: "FF0000" } },
-                                    { text: "italic", options: { italic: true, breakLine: true } },
-                                    { text: "Second line" },
-                                ],
-                                { x: 0.5, y: 1.2, w: 4, h: 1 },
-                            )
+                            .addText([{ text: "Bold ", options: { bold: true, color: "FF0000" } }, { text: "italic", options: { italic: true, breakLine: true } }, { text: "Second line" }], { x: 0.5, y: 1.2, w: 4, h: 1 })
                             .addShape("roundRect", { x: 5, y: 0.5, w: 2, h: 1, fill: { color: "0088CC" }, line: { color: "000000", width: 1 } })
                             .addImage({ data: png, x: 5, y: 2, w: 1, h: 1 });
                         pres.addSlide().addTable(
@@ -75,15 +68,15 @@ describe("html entry in Chromium", () => {
                         });
                         pres.addSlide()
                             .addComponent({ type: "test/badge", version: 1, props: { label: "Component badge" } }, { x: 7, y: 0.5, w: 2, h: 0.5 })
-                            .addChart(
-                            "bar",
-                            [{ name: "Series", labels: ["A", "B", "C"], values: [1, 3, 2] }],
-                            { x: 0.5, y: 0.5, w: 6, h: 4 },
-                        );
+                            .addChart("bar", [{ name: "Series", labels: ["A", "B", "C"], values: [1, 3, 2] }], { x: 0.5, y: 0.5, w: 6, h: 4 });
                         const document = await pres.toHtml();
                         const pdf = new TextDecoder().decode(await pres.toPdf());
 
-                        const failure = async (run: () => Promise<unknown>) => run().then(() => "resolved", (error: Error) => error.message);
+                        const failure = async (run: () => Promise<unknown>) =>
+                            run().then(
+                                () => "resolved",
+                                (error: Error) => error.message,
+                            );
                         const filePath = new PuppeteerGen(page);
                         filePath.addSlide().addImage({ path: "images/logo.png", x: 1, y: 1, w: 1, h: 1 });
                         const noRenderer = new PuppeteerGen(page);

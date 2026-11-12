@@ -252,20 +252,24 @@ export const PARITY_REGIONS = [
     h: Math.ceil(h * 96) + 7,
 }));
 
-const SAMPLE_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(`
+const SAMPLE_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(
+    `
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200" preserveAspectRatio="none">
   <rect width="200" height="100" fill="#4472C4"/><rect x="200" width="200" height="100" fill="#ED7D31"/>
   <rect y="100" width="200" height="100" fill="#70AD47"/><rect x="200" y="100" width="200" height="100" fill="#FFC000"/>
   <circle cx="200" cy="100" r="42" fill="#FFFFFF" stroke="#17365D" stroke-width="10"/>
   <path d="M0 0L400 200M400 0L0 200" stroke="#17365D" stroke-width="6" opacity=".65"/>
-</svg>`).toString("base64")}`;
+</svg>`,
+).toString("base64")}`;
 
-const TALL_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(`
+const TALL_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(
+    `
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="400" viewBox="0 0 200 400" preserveAspectRatio="none">
   <rect width="100" height="200" fill="#5B9BD5"/><rect x="100" width="100" height="200" fill="#ED7D31"/>
   <rect y="200" width="100" height="200" fill="#70AD47"/><rect x="100" y="200" width="100" height="200" fill="#FFC000"/>
   <circle cx="100" cy="200" r="38" fill="#FFFFFF" stroke="#17365D" stroke-width="9"/>
-</svg>`).toString("base64")}`;
+</svg>`,
+).toString("base64")}`;
 
 /**
  * One shared fixture is rendered by both engines. Keep all options here within

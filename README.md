@@ -34,14 +34,14 @@ appearance can differ more noticeably.
 The project is moving to the `@pdfdeck` scope (issue #22). The repository is a
 Bun workspace with one package per directory under `packages/`:
 
-| Package | Contents | Depends on | Entries |
-| --- | --- | --- | --- |
-| `@pdfdeck/model` | Normalized presentation model types and renderer interfaces (`PresentationRenderer`, `ModelRenderer`, `HtmlPresentationDocument`) | nothing | `.` (types only) |
-| `@pdfdeck/pptxgenjs` | The PptxGenJS-compatible API (`PuppeteerGen`), defaults, normalization, DOM renderers, vendored pptxgenjs 4.0.1 types | `@pdfdeck/model`; `@pdfdeck/puppeteer` (Node entry only) | `.` (Node), `./html` (browser-safe) |
-| `@pdfdeck/puppeteer` | `PuppeteerPdfRenderer` and the shared Chromium (`closeBrowser`) | `@pdfdeck/model`, `puppeteer` | `.` (Node) |
-| `@pdfdeck/wasm` | Opt-in WebAssembly text renderer | `@pdfdeck/model` | `.` (browser, Node and Bun conditions) |
-| `@pdfdeck/react` | `registerReactComponent` | `@pdfdeck/pptxgenjs`; `react` and `react-dom` as peers | `.` |
-| `puppeteer-pptxgenjs` | Deprecation shim: re-exports `@pdfdeck/pptxgenjs` and the `/html`, `/react` and `/wasm` subpaths | the packages above | `.`, `./html`, `./react`, `./wasm` |
+| Package               | Contents                                                                                                                          | Depends on                                               | Entries                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------- |
+| `@pdfdeck/model`      | Normalized presentation model types and renderer interfaces (`PresentationRenderer`, `ModelRenderer`, `HtmlPresentationDocument`) | nothing                                                  | `.` (types only)                       |
+| `@pdfdeck/pptxgenjs`  | The PptxGenJS-compatible API (`PuppeteerGen`), defaults, normalization, DOM renderers, vendored pptxgenjs 4.0.1 types             | `@pdfdeck/model`; `@pdfdeck/puppeteer` (Node entry only) | `.` (Node), `./html` (browser-safe)    |
+| `@pdfdeck/puppeteer`  | `PuppeteerPdfRenderer` and the shared Chromium (`closeBrowser`)                                                                   | `@pdfdeck/model`, `puppeteer`                            | `.` (Node)                             |
+| `@pdfdeck/wasm`       | Opt-in WebAssembly text renderer                                                                                                  | `@pdfdeck/model`                                         | `.` (browser, Node and Bun conditions) |
+| `@pdfdeck/react`      | `registerReactComponent`                                                                                                          | `@pdfdeck/pptxgenjs`; `react` and `react-dom` as peers   | `.`                                    |
+| `puppeteer-pptxgenjs` | Deprecation shim: re-exports `@pdfdeck/pptxgenjs` and the `/html`, `/react` and `/wasm` subpaths                                  | the packages above                                       | `.`, `./html`, `./react`, `./wasm`     |
 
 The `@pdfdeck/*` packages are **not published yet**. Until they are, install
 `puppeteer-pptxgenjs` (0.1.x is the single-package release). Once they are,
@@ -96,12 +96,12 @@ const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 const slide = pres.addSlide();
 
 // Add text with positioning and styling
-slide.addText("Hello World!", { 
-    x: 1,           // 1 inch from left
-    y: 1,           // 1 inch from top
+slide.addText("Hello World!", {
+    x: 1, // 1 inch from left
+    y: 1, // 1 inch from top
     fontSize: 32,
     bold: true,
-    color: "#0066CC"
+    color: "#0066CC",
 });
 
 // Generate PDF
@@ -111,11 +111,13 @@ await pres.writeFile({ fileName: "presentation.pdf" });
 ## Available Page Sizes
 
 ### Presentation Formats
+
 - `PAGE_SIZES.SCREEN_16X9` - 16:9 widescreen (10" × 5.625")
 - `PAGE_SIZES.SCREEN_4X3` - 4:3 standard (10" × 7.5")
 - `PAGE_SIZES.SCREEN_16X10` - 16:10 widescreen (10" × 6.25")
 
 ### Document Formats
+
 - `PAGE_SIZES.LETTER` - US Letter (8.5" × 11")
 - `PAGE_SIZES.LEGAL` - US Legal (8.5" × 14")
 - `PAGE_SIZES.A4` - ISO A4 (8.27" × 11.69")
@@ -155,28 +157,28 @@ slide.addText("Styled Text", {
     underline: true,
     color: "#FF0000",
     fill: { color: "#FFFF00" },
-    align: "center"
+    align: "center",
 });
 ```
 
 ### Tables
 
 ```typescript
-slide.addTable([
+slide.addTable(
     [
-        { text: "Header 1", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" }},
-        { text: "Header 2", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" }}
+        [
+            { text: "Header 1", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } },
+            { text: "Header 2", options: { bold: true, fill: "#4472C4", color: "#FFFFFF" } },
+        ],
+        [{ text: "Row 1 Col 1" }, { text: "Row 1 Col 2", options: { align: "right", color: "#00AA00" } }],
     ],
-    [
-        { text: "Row 1 Col 1" },
-        { text: "Row 1 Col 2", options: { align: "right", color: "#00AA00" }}
-    ]
-], {
-    x: 1,
-    y: 2,
-    w: 8,
-    h: 2
-});
+    {
+        x: 1,
+        y: 2,
+        w: 8,
+        h: 2,
+    },
+);
 ```
 
 ### Multiple Slides
@@ -218,15 +220,15 @@ Both follow PptxGenJS 4.0.1 semantics, but return PDF bytes instead of a PPTX
 zip. `write()` accepts `{ outputType }` or, as PptxGenJS does at runtime, a bare
 outputType string.
 
-| Call | Result |
-| --- | --- |
-| `write()` / `write({})` | `Blob` (`application/pdf`) |
-| `write({ outputType: "blob" })` | `Blob` (`application/pdf`) |
-| `write({ outputType: "uint8array" })` | `Uint8Array` |
-| `write({ outputType: "arraybuffer" })` | `ArrayBuffer` |
-| `write({ outputType: "base64" })` | base64 `string` |
-| `write({ outputType: "binarystring" })` | latin1 `string`, one char per byte |
-| `write({ outputType: "nodebuffer" })` / `write({ outputType: "STREAM" })` / `stream()` | Node `Buffer` |
+| Call                                                                                   | Result                             |
+| -------------------------------------------------------------------------------------- | ---------------------------------- |
+| `write()` / `write({})`                                                                | `Blob` (`application/pdf`)         |
+| `write({ outputType: "blob" })`                                                        | `Blob` (`application/pdf`)         |
+| `write({ outputType: "uint8array" })`                                                  | `Uint8Array`                       |
+| `write({ outputType: "arraybuffer" })`                                                 | `ArrayBuffer`                      |
+| `write({ outputType: "base64" })`                                                      | base64 `string`                    |
+| `write({ outputType: "binarystring" })`                                                | latin1 `string`, one char per byte |
+| `write({ outputType: "nodebuffer" })` / `write({ outputType: "STREAM" })` / `stream()` | Node `Buffer`                      |
 
 `compression` is accepted and ignored: in PptxGenJS it only selects zip
 DEFLATE vs STORE. Unknown output types throw before rendering. `nodebuffer`
@@ -289,11 +291,11 @@ frame.onload = () => frame.contentWindow?.print();
 
 Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
 
-| Option | Node entry default | `/html` default |
-| --- | --- | --- |
-| `renderer?: PresentationRenderer \| ModelRenderer` | `PuppeteerPdfRenderer` | none: `toPdf()` throws |
+| Option                                               | Node entry default                                         | `/html` default                         |
+| ---------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------- |
+| `renderer?: PresentationRenderer \| ModelRenderer`   | `PuppeteerPdfRenderer`                                     | none: `toPdf()` throws                  |
 | `resolveImage?: (source: string) => Promise<string>` | data URIs, http(s), file paths relative to `process.cwd()` | data URIs and http(s); file paths throw |
-| `createDocument?: () => Document` | jsdom | global `document`; throws without a DOM |
+| `createDocument?: () => Document`                    | jsdom                                                      | global `document`; throws without a DOM |
 
 In `/html`, `writeFile()` throws because it needs a filesystem; use `toPdf()`.
 Without a global DOM (for example a worker or a server runtime without
@@ -375,6 +377,7 @@ bun run examples/comprehensive-example.ts
 ```
 
 This generates multiple example PDFs demonstrating:
+
 - Different page sizes and orientations
 - Positioning with inches
 - Text styling (bold, italic, colors, alignment)
@@ -421,6 +424,7 @@ image when one of those changes. To test against a prebuilt image locally, set
 ## Documentation
 
 For detailed documentation, see [USAGE.md](./USAGE.md) which covers:
+
 - Complete API reference
 - Positioning and sizing guide
 - Text styling options
@@ -464,6 +468,7 @@ that PuppeteerGen reproduces and the current compatibility status.
 ### Positioning System
 
 All positioning uses **inches** as the unit (consistent with PptxGenJS):
+
 - `x`, `y`: Position from top-left corner
 - `w`, `h`: Width and height
 - Converted to pixels at 96 DPI for HTML/CSS
@@ -471,6 +476,7 @@ All positioning uses **inches** as the unit (consistent with PptxGenJS):
 ### CSS Generation
 
 The library automatically generates CSS that:
+
 - Sets page dimensions using `@page` rule
 - Creates slide containers with exact dimensions
 - Positions elements absolutely
@@ -536,10 +542,7 @@ pres.registerComponent("acme/metric", 1, {
         return card;
     },
 });
-pres.addSlide().addComponent(
-    { type: "acme/metric", version: 1, props: { label: "Revenue", value: 42 } },
-    { x: 1, y: 1, w: 3, h: 1, objectName: "revenue-card" },
-);
+pres.addSlide().addComponent({ type: "acme/metric", version: 1, props: { label: "Revenue", value: 42 } }, { x: 1, y: 1, w: 3, h: 1, objectName: "revenue-card" });
 await pres.writeFile({ fileName: "metrics.pdf" });
 ```
 
@@ -616,10 +619,7 @@ const presentation = new PuppeteerGen();
 registerReactComponent(presentation, "acme/metric", 1, MetricCard, {
     schema: metricSchema,
 });
-presentation.addSlide().addComponent(
-    { type: "acme/metric", version: 1, props: { label: "Revenue", value: 42 } },
-    { x: 1, y: 1, w: 3, h: 1 },
-);
+presentation.addSlide().addComponent({ type: "acme/metric", version: 1, props: { label: "Revenue", value: 42 } }, { x: 1, y: 1, w: 3, h: 1 });
 await presentation.writeFile({ fileName: "react-metrics.pdf" });
 ```
 
