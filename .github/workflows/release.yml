@@ -97,7 +97,8 @@ jobs:
       - name: npm publish --dry-run
         run: |
           for tarball in release/*.tgz; do
-            npm publish --dry-run "$tarball"
+            # ./ prefix: npm reads a bare "dir/file.tgz" as a GitHub owner/repo shorthand.
+            npm publish --dry-run "./$tarball"
           done
 
       # TODO(publish): nothing is published to npm yet; no token or @pdfdeck org exists. Once they
