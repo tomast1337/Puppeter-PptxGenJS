@@ -4,6 +4,8 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  # Release runs every CI job before packing (.github/workflows/release.yml).
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,13 +15,77 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  wasm:
+    name: WASM build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      # Keyed on every pin, so a toolchain or dependency bump starts a fresh target dir.
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            crates/target
+          key: wasm-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'crates/wasm-toolchain.env', 'crates/Cargo.lock') }}
+          restore-keys: wasm-${{ runner.os }}-
+
+      - name: Install pinned Rust toolchain
+        # rustup reads rust-toolchain.toml (rustc, wasm32 target, clippy, rustfmt).
+        run: rustup toolchain install && rustc --version
+
+      - name: Check formatting
+        working-directory: crates
+        run: cargo fmt --check
+
+      - name: Run clippy
+        working-directory: crates
+        run: |
+          cargo clippy --all-targets -- -D warnings
+          cargo clippy -p text-pdf-wasm --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Run Rust tests
+        working-directory: crates
+        run: cargo test
+
+      # Fails over the gzip budget; prints sha256, raw and gzip sizes.
+      - name: Build WASM with pinned tools
+        run: sh packages/wasm/build-wasm.sh
+
+      # The glue is committed so TypeScript checks without Rust; the hash proves this build
+      # reproduced the contributor's byte for byte.
+      - name: Check committed glue and hash match the build
+        run: git diff --exit-code -- packages/wasm/src
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm
+          path: packages/wasm/src/text_pdf_wasm_bg.wasm
+          if-no-files-found: error
+          retention-days: 14
+
   build:
     name: Build and test package
+    # Runs (and fails at the download) even when "WASM build" fails, so this required check cannot pass as skipped.
+    needs: wasm
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm
+          path: packages/wasm/src
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -62,6 +128,8 @@ jobs:
 
   node-compatibility:
     name: Packed package on Node.js ${{ matrix.node }}
+    needs: wasm
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -83,6 +151,12 @@ jobs:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
 
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm
+          path: packages/wasm/src
+
       - name: Install locked dependencies
         run: bun ci
 
@@ -91,6 +165,8 @@ jobs:
 
   visual:
     name: Visual parity
+    needs: wasm
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     # Generous for the rare run that must rebuild the image from snapshot.ubuntu.com.
     timeout-minutes: 45
@@ -103,6 +179,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm
+          path: packages/wasm/src
 
       - name: Resolve pinned image tag
         id: image
@@ -124,7 +206,10 @@ jobs:
           IMAGE: ${{ steps.image.outputs.ref }}
         run: |
           if docker pull "$IMAGE"; then exit 0; fi
-          docker build --tag "$IMAGE" --file tests/visual/Dockerfile .
+          # apt drops stalled snapshot.ubuntu.com connections after 30s and retries 5 times (see the
+          # Dockerfile); if a fetch still fails, retry the build once, reusing any finished layers.
+          docker build --tag "$IMAGE" --file tests/visual/Dockerfile . \
+            || docker build --tag "$IMAGE" --file tests/visual/Dockerfile .
           # Publishing only speeds up later runs; this run already has the image it built.
           if [ "$CAN_PUSH" = true ]; then
             docker push "$IMAGE" || echo "::warning::Could not publish $IMAGE; later runs will rebuild it"
@@ -134,3 +219,9 @@ jobs:
         env:
           VISUAL_IMAGE: ${{ steps.image.outputs.ref }}
         run: sh scripts/test-visual-docker.sh
+
+      - name: Run WASM visual comparison in pinned image
+        if: ${{ !cancelled() }}
+        env:
+          VISUAL_IMAGE: ${{ steps.image.outputs.ref }}
+        run: sh scripts/test-visual-docker.sh test:visual:wasm
