@@ -1,0 +1,7 @@
+# The exact compiler the committed WASM hash (packages/wasm/src/text_pdf_wasm_bg.wasm.sha256)
+# was built with. The other WASM tools are pinned in crates/wasm-toolchain.env.
+[toolchain]
+channel = "1.95.0"
+targets = ["wasm32-unknown-unknown"]
+components = ["clippy", "rustfmt"]
+profile = "minimal"
