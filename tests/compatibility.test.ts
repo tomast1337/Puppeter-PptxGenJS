@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY } from "../packages/pptxgenjs/src/compatibility";
+import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY, WASM_COMPATIBILITY } from "../packages/pptxgenjs/src/compatibility";
 
 const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified"]);
 const TEXT_OPTION_KEYS = [
@@ -124,6 +124,16 @@ describe("compatibility manifest", () => {
         for (const option of IMAGE_OPTION_KEYS) {
             expect(COMPATIBILITY.image.options[option]).toBeDefined();
         }
+    });
+
+    test("tracks the WASM backend's shape support on the same option surface", () => {
+        expect(Object.keys(WASM_COMPATIBILITY.shape.options).sort()).toEqual(Object.keys(COMPATIBILITY.shape.options).sort());
+        expect(WASM_COMPATIBILITY.shape.status).toBe("partial");
+        expect(WASM_COMPATIBILITY.shape.options.presetGeometry).toBe("implemented");
+        expect(WASM_COMPATIBILITY.shape.options.lineEndArrow).toBe("implemented");
+        expect(WASM_COMPATIBILITY.shape.options.shadow).toBe("unsupported");
+        expect(WASM_COMPATIBILITY.shape.options.hyperlink).toBe("unsupported");
+        expect(WASM_COMPATIBILITY.shape.options.text).toBe("partial");
     });
 
     test("tracks every ShapeProps field and classifies every preset", () => {

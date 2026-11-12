@@ -105,12 +105,57 @@ pub(crate) struct LineModel {
     pub(crate) color: String,
     pub(crate) width: f32,
     pub(crate) dash_array: Option<String>,
+    pub(crate) begin_arrow: Option<String>,
+    pub(crate) end_arrow: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub(crate) struct ShapeModel {
     pub(crate) name: String,
-    pub(crate) geometry: Value,
+    /// The coordinate space of `geometry` (an SVG viewBox stretched over the object box).
+    pub(crate) width: f32,
+    pub(crate) height: f32,
+    pub(crate) geometry: ShapeGeometry,
+    pub(crate) link: Option<Value>,
+}
+
+/// `NormalizedShapeGeometry`. An unknown `kind` fails the model rather than drawing a substitute.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub(crate) enum ShapeGeometry {
+    Rect {
+        radius: f32,
+    },
+    Ellipse,
+    Line {
+        inverse: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    Path {
+        /// SVG path data.
+        data: String,
+        /// SVG `matrix(a b c d e f)`.
+        transform: Option<String>,
+        faces: Option<Vec<ShapeFace>>,
+        outline_data: Option<String>,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ShapeFace {
+    pub(crate) data: String,
+    pub(crate) fill_modifier: Option<FillModifier>,
+}
+
+/// DrawingML path `fill` shading for one face of a multi-face preset (can, cube, bevel, ...).
+#[derive(Deserialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum FillModifier {
+    Darken,
+    DarkenLess,
+    Lighten,
+    LightenLess,
 }
 
 #[derive(Deserialize)]

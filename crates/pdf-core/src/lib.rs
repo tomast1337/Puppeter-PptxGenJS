@@ -7,16 +7,15 @@
 mod color;
 mod model;
 mod path;
+mod shape;
 mod text;
 
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
 
 use krilla::Document;
-use krilla::color::rgb;
 use krilla::geom::{Size, Transform};
 use krilla::page::PageSettings;
-use krilla::paint::{Stroke, StrokeDash};
 use krilla::surface::Surface;
 use krilla::text::{Font, KrillaGlyph};
 use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, SourceCache};
@@ -115,12 +114,12 @@ impl Renderer {
             if let Some(bg) = parse_color(&slide.background) {
                 fill_path(&mut surface, rect_path(0.0, 0.0, page_w, page_h, 0.0), bg);
             }
-            for object in &slide.objects {
-                self.draw_object(&mut surface, object);
-            }
+            // Close the surface before returning an error: krilla asserts balanced push/pop on finish.
+            let drawn = slide.objects.iter().try_for_each(|object| self.draw_object(&mut surface, object));
             surface.pop();
             surface.finish();
             page.finish();
+            drawn?;
         }
         document.finish().map_err(|e| format!("PDF serialization failed: {e:?}"))
     }
@@ -129,13 +128,13 @@ impl Renderer {
         self.warnings.insert(message.into());
     }
 
-    fn draw_object(&mut self, surface: &mut Surface, object: &SlideObject) {
+    fn draw_object(&mut self, surface: &mut Surface, object: &SlideObject) -> Result<(), String> {
         let (style, shape, text) = match object {
             SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref()),
             SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None),
             SlideObject::Unsupported(kind) => {
                 self.warn(format!("object kind '{kind}' not rendered"));
-                return;
+                return Ok(());
             }
         };
         let g = &style.geometry;
@@ -163,43 +162,10 @@ impl Renderer {
         surface.push_transform(&flip);
 
         if style.shadow.as_ref().is_some_and(|s| s.visible) {
+            // shortcut: krilla has no blur filter for the drop shadow; draw it when the backend gains one.
             self.warn("object shadow not rendered");
         }
-        // Geometry: text boxes are rectangles; shapes support rect/roundRect only.
-        let radius = match shape.map(|s| (&s.name, &s.geometry)) {
-            None => Some(0.0),
-            Some((_, geo)) if geo["kind"] == "rect" => Some(geo["radius"].as_f64().unwrap_or(0.0) as f32),
-            Some((name, _)) => {
-                self.warn(format!("preset shape '{name}' geometry not rendered"));
-                None
-            }
-        };
-        if let Some(radius) = radius {
-            if let Some(fill) = style.fill.as_ref().filter(|f| f.visible).and_then(|f| parse_color(&f.color)) {
-                fill_path(surface, rect_path(x, y, w, h, radius), fill);
-            }
-            if let Some(line) = style.line.as_ref().filter(|l| l.visible && l.width > 0.0)
-                && let Some(color) = parse_color(&line.color).filter(|c| c.3 > 0.0)
-            {
-                // PowerPoint/LibreOffice centre the stroke on the geometry.
-                let dash = line.dash_array.as_ref().map(|d| StrokeDash {
-                    array: d.split_whitespace().filter_map(|v| v.parse().ok()).collect(),
-                    offset: 0.0,
-                });
-                surface.set_fill(None);
-                surface.set_stroke(Some(Stroke {
-                    paint: rgb::Color::new(color.0, color.1, color.2).into(),
-                    width: line.width,
-                    opacity: unit(color.3),
-                    dash,
-                    ..Stroke::default()
-                }));
-                if let Some(path) = rect_path(x, y, w, h, radius) {
-                    surface.draw_path(&path);
-                }
-                surface.set_stroke(None);
-            }
-        }
+        let drawn = self.draw_geometry(surface, shape, style, x, y, w, h);
 
         if let Some(text) = text {
             self.draw_text(surface, text, &layout, x, y, w, h);
@@ -211,6 +177,7 @@ impl Renderer {
         if opacity {
             surface.pop();
         }
+        drawn
     }
 }
 
@@ -247,6 +214,65 @@ mod tests {
         }
     }
 
+    /// A filled, stroked shape object with `geometry` (a JSON object without its braces) and
+    /// extra `ObjectStyle`/`NormalizedShape` fields.
+    fn shape_with(geometry: &str, line: &str, extra_style: &str, extra_shape: &str) -> String {
+        slide_with(&format!(
+            r##"{{"kind":"shape","style":{{"geometry":{{"x":10,"y":20,"width":200,"height":100}},
+            "transform":{{"rotation":30,"flipH":true,"flipV":false,"opacity":0.8}},
+            "fill":{{"visible":true,"color":"rgba(68, 114, 196, 0.5)"}},
+            "line":{{"visible":true,"color":"#17365D","width":2,"style":"dashed","dashArray":"8 6"{line}}}{extra_style}}},
+            "shape":{{"name":"test","width":100,"height":50,"geometry":{{{geometry}}}{extra_shape}}}}}"##
+        ))
+    }
+
+    #[test]
+    fn draws_every_geometry_kind_without_warnings() {
+        let arrows = r#","beginArrow":"oval","endArrow":"triangle""#;
+        for geometry in [
+            r#""kind":"rect","radius":8"#,
+            r#""kind":"ellipse""#,
+            r#""kind":"line","inverse":true"#,
+            r#""kind":"path","data":"M 0 0 L 100 0 A 50 25 0 0 1 0 50 Q 10 10 0 0 Z","transform":"matrix(1 0 0 -1 0 50)""#,
+            r#""kind":"path","data":"M 0 0","faces":[{"data":"M 0 0 L 100 0 L 0 50 Z","fillModifier":"darken"},{"data":"M 0 50 L 100 0 L 100 50 Z"}],"outlineData":"M 0 0 L 100 0 L 100 50 L 0 50 Z""#,
+        ] {
+            let mut r = Renderer::new();
+            assert!(r.render(&shape_with(geometry, arrows, "", "")).unwrap().starts_with(b"%PDF"), "{geometry}");
+            assert_eq!(r.warnings(), Vec::<String>::new(), "{geometry}");
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_shape_geometry() {
+        let mut r = Renderer::new();
+        for geometry in [
+            r#""kind":"path","data":"M 0 0 X 5 5""#,
+            r#""kind":"path","data":"M 0 0 L 5 5","transform":"rotate(90)""#,
+            r#""kind":"path","data":"M 0 0","faces":[{"data":"M 0 0 L 1 1","fillModifier":"shade"}]"#,
+            r#""kind":"star","points":5"#,
+        ] {
+            let error = r.render(&shape_with(geometry, "", "", "")).unwrap_err();
+            assert!(error.contains("shape") || error.contains("invalid model"), "{geometry}: {error}");
+        }
+    }
+
+    #[test]
+    fn reports_shape_features_it_does_not_draw() {
+        let mut r = Renderer::new();
+        let shadow = r##","shadow":{"visible":true,"color":"rgba(0, 0, 0, 0.3)","blur":4,"offsetX":3,"offsetY":3,"inset":false}"##;
+        let link = r#","link":{"href":"https://example.com"}"#;
+        r.render(&shape_with(r#""kind":"line","inverse":false"#, r#","endArrow":"hook""#, shadow, link))
+            .unwrap();
+        assert_eq!(
+            r.warnings(),
+            vec![
+                "line arrowhead 'hook' not rendered",
+                "object shadow not rendered",
+                "shape hyperlink annotations not emitted"
+            ]
+        );
+    }
+
     /// A text-in-shape object whose fill, line, run, outline, highlight and
     /// underline all use `color`.
     fn model_with_color(color: &str) -> String {
@@ -260,7 +286,7 @@ mod tests {
             r#"{{"pageSize":{{"width":10,"height":5.625}},"slides":[{{"background":"{color}","objects":[{{"kind":"text",
             "style":{{"geometry":{{"x":10,"y":10,"width":300,"height":100}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":0.5}},
             "fill":{{"visible":true,"color":"{color}"}},"line":{{"visible":true,"color":"{color}","width":2}}}},
-            "shape":{{"name":"rect","geometry":{{"kind":"rect","radius":0}}}},
+            "shape":{{"name":"rect","width":300,"height":100,"geometry":{{"kind":"rect","radius":0}}}},
             "text":{{"paragraphs":[{{"runs":[{run}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[]}}],
             "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}}}]}}]}}"#
         )

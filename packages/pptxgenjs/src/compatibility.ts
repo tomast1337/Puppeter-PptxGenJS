@@ -443,3 +443,24 @@ export const COMPATIBILITY = Object.freeze({
         }),
     }),
 } as const);
+
+/**
+ * What the WASM backend (`@pdfdeck/wasm`, crates/pdf-core) draws, per family and option, against the
+ * same option surface as `COMPATIBILITY`. Families not listed here are not drawn: the backend reports
+ * them through `warnings()` (and throws unless `onUnsupported: "warn"`).
+ */
+export const WASM_COMPATIBILITY = Object.freeze({
+    shape: Object.freeze<CompatibilityEntry>({
+        status: "partial",
+        options: Object.freeze({
+            ...Object.fromEntries(Object.keys(COMPATIBILITY.shape.options).map(option => [option, "implemented" as const])),
+            // As in the Puppeteer renderer.
+            align: "unsupported",
+            // Reported through warnings(): no link annotations and no blurred drop shadow yet.
+            hyperlink: "unsupported",
+            shadow: "unsupported",
+            // Text in shapes uses the WASM text layout and inherits its gaps (tab stops, synthetic styles, ...).
+            text: "partial",
+        }),
+    }),
+} as const);

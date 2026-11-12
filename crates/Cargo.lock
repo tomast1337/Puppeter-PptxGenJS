@@ -792,6 +792,7 @@ name = "text-pdf-core"
 version = "0.0.0"
 dependencies = [
  "krilla",
+ "kurbo",
  "parley",
  "serde",
  "serde_json",

@@ -6,13 +6,18 @@ use krilla::surface::Surface;
 use crate::color::{Rgba, fill_of};
 
 pub(crate) fn fill_path(surface: &mut Surface, path: Option<Path>, color: Rgba) {
-    let Some(path) = path else { return };
+    if let Some(path) = path {
+        fill(surface, &path, color);
+    }
+}
+
+pub(crate) fn fill(surface: &mut Surface, path: &Path, color: Rgba) {
     if color.3 <= 0.0 {
         return;
     }
     surface.set_stroke(None);
     surface.set_fill(Some(fill_of(color)));
-    surface.draw_path(&path);
+    surface.draw_path(path);
 }
 
 pub(crate) fn rect_path(x: f32, y: f32, w: f32, h: f32, radius: f32) -> Option<Path> {
