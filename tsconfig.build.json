@@ -1,15 +1,15 @@
 {
+  // Base for the per-package declaration builds; scripts/build.ts sets include, rootDir, outDir and clears paths.
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    // A single package may not pull in the DOM and Node types the whole-repo typecheck gets transitively.
+    "lib": ["ESNext", "DOM"],
+    "types": ["node"],
     "allowImportingTsExtensions": false,
     "declaration": true,
     "declarationMap": false,
     "emitDeclarationOnly": true,
     "noEmit": false,
-    "outDir": "./dist",
-    "rootDir": "./src",
     "sourceMap": false
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["tests", "examples", "dist"]
+  }
 }
