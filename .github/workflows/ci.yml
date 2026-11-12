@@ -88,6 +88,10 @@ jobs:
 
   visual:
     name: Visual parity
+    # Temporarily manual-only: building the pinned image from snapshot.ubuntu.com
+    # often exceeds the timeout. Run `bun run test:visual:docker` locally until the
+    # image is cached or prebuilt.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
