@@ -1,8 +1,31 @@
+import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdfdeck/model";
+
 /**
- * Converts inches to pixels (96 DPI standard)
+ * Converts inches to CSS pixels
  */
 export function inchesToPixels(inches: number): number {
-    return inches * 96;
+    return inches * CSS_PX_PER_INCH;
+}
+
+/**
+ * Converts CSS pixels to inches
+ */
+export function pixelsToInches(pixels: number): number {
+    return pixels / CSS_PX_PER_INCH;
+}
+
+/**
+ * Converts inches to points
+ */
+export function inchesToPoints(inches: number): number {
+    return inches * POINTS_PER_INCH;
+}
+
+/**
+ * Converts points to inches
+ */
+export function pointsToInches(points: number): number {
+    return points / POINTS_PER_INCH;
 }
 
 /**
@@ -26,7 +49,7 @@ export function convertToPixels(value: number | `${number}%` | undefined, contai
             const percentage = parseFloat(value);
             return percentageToPixels(percentage, containerSize);
         }
-        return parseFloat(value) * 96; // assume inches if no unit
+        return inchesToPixels(parseFloat(value)); // assume inches if no unit
     }
 
     // Numbers are assumed to be in inches (PptxGenJS convention)
@@ -37,5 +60,5 @@ export function convertToPixels(value: number | `${number}%` | undefined, contai
  * Converts point size to pixels
  */
 export function pointsToPixels(points: number): number {
-    return points * (96 / 72); // 72 points = 1 inch
+    return points * (CSS_PX_PER_INCH / POINTS_PER_INCH);
 }

@@ -2,6 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
 import type { NormalizedTable } from "@pdfdeck/model";
 import type { PageSize } from "../../pageLayouts";
+import { inchesToPoints, pixelsToInches, pointsToInches } from "../../units";
 import { normalizeTable } from "./index";
 
 export interface PaginatedTablePage {
@@ -31,7 +32,7 @@ function verticalInches(value: number | `${number}%` | undefined, fallback: numb
 
 function marginInches(margin?: number | FourSideMargin): FourSideMargin {
     const values: FourSideMargin = margin === undefined ? [...PPTX_DEFAULTS.table.marginIn] : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
-    return values[0] >= 1 ? (values.map(value => value / 72) as FourSideMargin) : ([...values] as FourSideMargin);
+    return values[0] >= 1 ? (values.map(pointsToInches) as FourSideMargin) : ([...values] as FourSideMargin);
 }
 
 function cellValue(cell: PptxGenJS.TableCell): string | PptxGenJS.TableCell[] {
@@ -103,7 +104,7 @@ function wrapLineToCapacity(line: TextPiece[], charactersPerLine: number): TextP
 function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number, table: PptxGenJS.TableProps): TextPiece[][] {
     const fontSize = cell.options?.fontSize ?? table.fontSize ?? PPTX_DEFAULTS.table.fontSizePt;
     const characterWeight = table.autoPageCharWeight ?? PPTX_DEFAULTS.table.autoPageCharWeight;
-    const charactersPerLine = Math.max(1, Math.floor((columnWidth * 72) / (fontSize / (2.3 + characterWeight))));
+    const charactersPerLine = Math.max(1, Math.floor(inchesToPoints(columnWidth) / (fontSize / (PPTX_DEFAULTS.table.autoPageCharConstant + characterWeight))));
 
     const pieces = inputPieces(cell);
     const explicitLines = splitExplicitLines(pieces);
@@ -166,11 +167,11 @@ function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTabl
     row.forEach(cell => {
         const colspan = Math.max(1, Math.floor(cell.options?.colspan ?? 1));
         const colWidth = normalized.columns.slice(column, column + colspan).reduce((sum, width) => sum + width, 0);
-        widths.push(colWidth / 96);
+        widths.push(pixelsToInches(colWidth));
         column += colspan;
     });
 
-    const lines = row.map((cell, index) => wrappedLines(cell, widths[index] ?? normalized.width / 96, options));
+    const lines = row.map((cell, index) => wrappedLines(cell, widths[index] ?? pixelsToInches(normalized.width), options));
 
     return {
         lines,

@@ -1,3 +1,4 @@
+import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdfdeck/model";
 import { inchesToPixels, pointsToPixels } from "./units";
 
 export type FourSideMargin = [number, number, number, number];
@@ -17,8 +18,8 @@ const PIE_CHART_COLORS = Object.freeze(["5DA5DA", "FAA43A", "60BD68", "F17CB0", 
 export const PPTX_DEFAULTS = Object.freeze({
     sourceVersion: PPTX_DEFAULTS_VERSION,
     units: Object.freeze({
-        cssDpi: 96,
-        pointsPerInch: 72,
+        cssDpi: CSS_PX_PER_INCH,
+        pointsPerInch: POINTS_PER_INCH,
         emuPerInch: 914400,
         emuPerPoint: 12700,
     }),
@@ -124,6 +125,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         valign: "top" as const,
         autoPage: false,
         autoPageCharWeight: 0,
+        // PptxGenJS 4.0.1 getSlidesForTableRows: chars per line = width in pt / (fontSize / (2.3 + autoPageCharWeight));
+        // its comments call 2.3 the "Character Constant" (FOCO), calibrated against PowerPoint line breaks.
+        autoPageCharConstant: 2.3,
         autoPageLineWeight: 0,
         autoPageRepeatHeader: false,
         autoPageHeaderRows: 1,

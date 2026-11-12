@@ -1,6 +1,8 @@
+import { POINTS_PER_INCH } from "@pdfdeck/model";
 import type PptxGenJS from "pptxgenjs";
 import type { FourSideMargin } from "../../defaults";
 import type { PageSize } from "../../pageLayouts";
+import { inchesToPixels } from "../../units";
 
 export interface NormalizedHtmlTable {
     rows: PptxGenJS.TableRow[];
@@ -18,8 +20,8 @@ function cssPixels(value: string | null | undefined, relativeTo: number): number
     const amount = parseFloat(source);
     if (!Number.isFinite(amount)) return 0;
     if (source.endsWith("%")) return (relativeTo * amount) / 100;
-    if (source.endsWith("in")) return amount * 96;
-    if (source.endsWith("pt")) return (amount * 96) / 72;
+    if (source.endsWith("in")) return inchesToPixels(amount);
+    if (source.endsWith("pt")) return inchesToPixels(amount) / POINTS_PER_INCH;
     return amount;
 }
 
@@ -101,7 +103,7 @@ export function normalizeHtmlTable(document: Document, elementId: string, option
     const slideMargin = margins(options.slideMargin);
     const outerWidth = typeof options.w === "number" ? options.w : pageSize.width;
     const usableWidth = outerWidth - slideMargin[1] - slideMargin[3];
-    const tableWidthPx = cssPixels(element.style.width, usableWidth * 96) || usableWidth * 96;
+    const tableWidthPx = cssPixels(element.style.width, inchesToPixels(usableWidth)) || inchesToPixels(usableWidth);
     const firstRow = element.querySelector("tr");
     const firstCells = firstRow ? Array.from(firstRow.cells) : [];
     const measured: number[] = [];
