@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "../src/defaults";
+import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "../packages/pptxgenjs/src/defaults";
 
 describe("defaults contract", () => {
     test("is pinned to the audited PptxGenJS version", () => {

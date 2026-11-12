@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type PptxGenJS from "pptxgenjs";
-import { paginateTableRows } from "../src/normalize/tablePagination";
-import { PuppeteerGen } from "../src/node";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/tablePagination";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const rows = (count: number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: `Value ${index + 1}` }]);

@@ -1,6 +1,6 @@
 import pptxgen from "pptxgenjs";
-import { PuppeteerGen } from "../src/PuppeterrGen";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/PuppeterrGen";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 // Example 1: Using different page sizes
 async function examplePageSizes() {

@@ -3,10 +3,10 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
-import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type PresentationRenderer } from "../src/html";
-import { PuppeteerGen } from "../src/node";
-import { dataUri } from "../src/normalize/image";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { dataUri } from "../packages/pptxgenjs/src/normalize/image";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const PNG_DATA = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
@@ -30,14 +30,14 @@ function deck(pres: HtmlPuppeteerGen): HtmlPuppeteerGen {
 describe("browser-safe html entry", () => {
     test("bundles for the browser without puppeteer, jsdom or node:* modules", async () => {
         // The installed bun-types predate Bun.build's metafile option, which the runtime supports.
-        const config = { entrypoints: [resolve(import.meta.dir, "../src/html.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0];
+        const config = { entrypoints: [resolve(import.meta.dir, "../packages/pptxgenjs/src/html.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0];
         const build = (await Bun.build(config)) as Awaited<ReturnType<typeof Bun.build>> & { metafile: { inputs: Record<string, { imports: { path: string }[] }> } };
         expect(build.success).toBe(true);
         const inputs = build.metafile.inputs;
         const forbidden = /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/;
         expect(Object.keys(inputs).filter(path => forbidden.test(path))).toEqual([]);
         expect(Object.values(inputs).flatMap(input => input.imports.map(entry => entry.path).filter(path => forbidden.test(path)))).toEqual([]);
-        expect(Object.keys(inputs)).not.toContain("src/node.ts");
+        expect(Object.keys(inputs)).not.toContain("packages/pptxgenjs/src/node.ts");
     });
 
     test("toHtml returns a self-contained document without launching Chromium or reading files", async () => {

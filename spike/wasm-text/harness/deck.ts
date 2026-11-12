@@ -3,7 +3,7 @@
 // overflow). Later slides are swallowed so every engine sees the same deck.
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
-import type { PuppeteerGen } from "../../../src/node";
+import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 import { populateParityFixture } from "../../../tests/visual/fixture";
 
 export const TEXT_PAGES = 9;

@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
-import { closeBrowser, withBrowser } from "../src/browser";
+import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 
 // Runs the /html entry in real Chromium; tests/html.test.ts only covers it with an injected jsdom document.
 const PNG_DATA = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
@@ -8,7 +8,7 @@ const PNG_DATA = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1
 afterAll(() => closeBrowser());
 
 async function bundleHtmlEntry(): Promise<string> {
-    const build = await Bun.build({ entrypoints: [resolve(import.meta.dir, "../src/html.ts")], target: "browser", format: "esm" });
+    const build = await Bun.build({ entrypoints: [resolve(import.meta.dir, "../packages/pptxgenjs/src/html.ts")], target: "browser", format: "esm" });
     expect(build.success).toBe(true);
     expect(build.outputs).toHaveLength(1);
     return build.outputs[0]!.text();

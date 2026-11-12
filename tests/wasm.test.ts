@@ -3,13 +3,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
-import { PuppeteerGen as HtmlPuppeteerGen, type ModelRenderer, type NormalizedPresentation } from "../src/html";
-import { closeBrowser, withBrowser } from "../src/browser";
-import { PuppeteerGen } from "../src/node";
-import { PAGE_SIZES } from "../src/pageLayouts";
-import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../src/wasm/browser";
-import { createWasmRenderer, loadSystemFonts } from "../src/wasm/node";
-import type { InitInput, Renderer } from "../src/wasm/text_pdf_wasm.js";
+import { PuppeteerGen as HtmlPuppeteerGen, type ModelRenderer, type NormalizedPresentation } from "../packages/pptxgenjs/src/html";
+import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
+import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
+import type { InitInput, Renderer } from "../packages/wasm/src/text_pdf_wasm.js";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
 // incompatible binding, or changing the model the loader serializes, fails `bun run typecheck`.
@@ -118,7 +118,7 @@ describe("font loading", () => {
 });
 
 test("the browser WASM entry bundles without puppeteer, jsdom or node:* modules", async () => {
-    const config = { entrypoints: [resolve(import.meta.dir, "../src/wasm/browser.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0];
+    const config = { entrypoints: [resolve(import.meta.dir, "../packages/wasm/src/browser.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0];
     const build = (await Bun.build(config)) as Awaited<ReturnType<typeof Bun.build>> & { metafile: { inputs: Record<string, { imports: { path: string }[] }> } };
     expect(build.success).toBe(true);
     const forbidden = /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/;
@@ -128,10 +128,10 @@ test("the browser WASM entry bundles without puppeteer, jsdom or node:* modules"
 });
 
 // These need the binary from `bun run build:wasm` and real fonts; CI cannot build Rust yet (issue #16).
-const wasmBuilt = await Bun.file(resolve(import.meta.dir, "../src/wasm/text_pdf_wasm_bg.wasm")).exists();
+const wasmBuilt = await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/text_pdf_wasm_bg.wasm")).exists();
 const systemFonts = wasmBuilt ? await loadSystemFonts().catch(() => []) : [];
 const canRender = wasmBuilt && systemFonts.length > 0;
-if (!canRender) console.warn(`Skipping WASM render tests: ${wasmBuilt ? "no system fonts found" : "src/wasm/text_pdf_wasm_bg.wasm is not built (bun run build:wasm)"}`);
+if (!canRender) console.warn(`Skipping WASM render tests: ${wasmBuilt ? "no system fonts found" : "packages/wasm/src/text_pdf_wasm_bg.wasm is not built (bun run build:wasm)"}`);
 
 describe.skipIf(!canRender)("WASM backend render", () => {
     test("renders text slides to a PDF with one page per slide", async () => {
@@ -167,13 +167,13 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
     test("the html and browser WASM entries produce a PDF in Chromium, loading the .wasm by URL", async () => {
         const bundle = async (entry: string) => {
-            const build = await Bun.build({ entrypoints: [resolve(import.meta.dir, `../src/${entry}.ts`)], target: "browser", format: "esm" });
+            const build = await Bun.build({ entrypoints: [resolve(import.meta.dir, `../packages/${entry}.ts`)], target: "browser", format: "esm" });
             expect(build.success).toBe(true);
             return build.outputs[0]!.text();
         };
-        const [html, wasm] = await Promise.all([bundle("html"), bundle("wasm/browser")]);
+        const [html, wasm] = await Promise.all([bundle("pptxgenjs/src/html"), bundle("wasm/src/browser")]);
         const files: Record<string, { body: Uint8Array; contentType: string }> = {
-            "https://assets.test/text_pdf_wasm_bg.wasm": { body: await Bun.file(resolve(import.meta.dir, "../src/wasm/text_pdf_wasm_bg.wasm")).bytes(), contentType: "application/wasm" },
+            "https://assets.test/text_pdf_wasm_bg.wasm": { body: await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/text_pdf_wasm_bg.wasm")).bytes(), contentType: "application/wasm" },
             "https://assets.test/font.ttf": { body: systemFonts[0]!, contentType: "font/ttf" },
         };
         const result = await withBrowser(async browser => {

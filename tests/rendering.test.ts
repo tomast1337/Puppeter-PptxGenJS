@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { PuppeteerGen } from "../src/node";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("PuppeteerGen DOM rendering", () => {
     test("creates fixed-size slides and positions text in inches", () => {

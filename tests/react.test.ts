@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { Component, createElement, useEffect, useId } from "react";
 import { z } from "zod";
-import { PuppeteerGen } from "../src/node";
-import { registerReactComponent } from "../src/react";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { registerReactComponent } from "../packages/react/src/react";
 
 interface MetricProps {
     label: string;

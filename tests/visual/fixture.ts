@@ -2,9 +2,9 @@ import { Buffer } from "node:buffer";
 import type PptxGenJS from "pptxgenjs";
 import { createElement } from "react";
 import { z } from "zod";
-import { GENERATED_PRESET_NAMES } from "../../src/normalize/generatedPreset";
-import { PuppeteerGen } from "../../src/node";
-import { registerReactComponent } from "../../src/react";
+import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/generatedPreset";
+import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
+import { registerReactComponent } from "../../packages/react/src/react";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 

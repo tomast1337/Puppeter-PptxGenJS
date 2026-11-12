@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { GENERATED_PRESET_NAMES } from "../src/normalize/generatedPreset";
-import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../src/normalize/shape";
-import { normalizeLine } from "../src/normalize/style";
-import { PuppeteerGen } from "../src/node";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
+import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
+import { normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 

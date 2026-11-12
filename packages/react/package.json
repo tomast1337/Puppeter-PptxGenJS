@@ -1,0 +1,61 @@
+{
+  "name": "@pdfdeck/react",
+  "version": "0.2.0",
+  "description": "React component adapter for @pdfdeck/pptxgenjs",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/react.js",
+  "types": "./dist/react.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "default": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomast1337/Puppeter-PptxGenJS.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/tomast1337/Puppeter-PptxGenJS/issues"
+  },
+  "homepage": "https://github.com/tomast1337/Puppeter-PptxGenJS#readme",
+  "keywords": [
+    "pdf",
+    "presentation",
+    "react"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "prepack": "bun ../../scripts/build.ts"
+  },
+  "dependencies": {
+    "@pdfdeck/pptxgenjs": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  }
+}

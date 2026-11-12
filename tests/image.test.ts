@@ -3,9 +3,9 @@ import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { PuppeteerGen, resolveImageSource } from "../src/node";
-import { normalizeImage } from "../src/normalize/image";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { PuppeteerGen, resolveImageSource } from "../packages/pptxgenjs/src/node";
+import { normalizeImage } from "../packages/pptxgenjs/src/normalize/image";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const PNG_DATA = "data:image/png;base64,iVBORw0KGgo=";

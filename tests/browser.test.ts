@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { closeBrowser, withBrowser } from "../src/browser";
+import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 
 afterAll(closeBrowser);
 

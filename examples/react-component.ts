@@ -1,6 +1,6 @@
 import { createElement } from "react";
-import PuppeteerGen from "../src/exports";
-import { registerReactComponent } from "../src/react";
+import PuppeteerGen from "../packages/pptxgenjs/src/exports";
+import { registerReactComponent } from "../packages/react/src/react";
 
 function MetricCard({ label, value }: { label: string; value: number }) {
     return createElement(

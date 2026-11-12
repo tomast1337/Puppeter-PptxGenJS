@@ -3,13 +3,13 @@
 // then runs warm loops. Medians over BENCH_RUNS (default 20 warm, 7 cold).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ModelRenderer } from "../../../src/render/document";
+import type { ModelRenderer } from "../../../packages/pptxgenjs/src/render/document";
 
 type Engine = "puppeteer" | "wasm";
 const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 
 async function deckPdf(renderer?: ModelRenderer): Promise<Uint8Array> {
-    const [{ PuppeteerGen }, { PAGE_SIZES }, { populateTextDeck }] = await Promise.all([import("../../../src/node"), import("../../../src/pageLayouts"), import("./deck")]);
+    const [{ PuppeteerGen }, { PAGE_SIZES }, { populateTextDeck }] = await Promise.all([import("../../../packages/pptxgenjs/src/node"), import("../../../packages/pptxgenjs/src/pageLayouts"), import("./deck")]);
     return populateTextDeck(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf();
 }
 

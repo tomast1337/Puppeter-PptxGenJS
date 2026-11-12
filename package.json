@@ -1,68 +1,17 @@
 {
-  "name": "puppeteer-pptxgenjs",
-  "version": "0.1.1",
-  "description": "A PptxGenJS-compatible API for generating PDFs with Puppeteer",
-  "license": "MIT",
-  "main": "./dist/exports.js",
-  "module": "./dist/exports.js",
-  "types": "./dist/exports.d.ts",
+  "name": "pdfdeck-workspace",
+  "private": true,
   "type": "module",
-  "private": false,
-  "files": [
-    "dist"
+  "workspaces": [
+    "packages/*"
   ],
-  "sideEffects": false,
   "engines": {
     "node": ">=22",
     "bun": ">=1.2.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tomast1337/Puppeter-PptxGenJS.git"
-  },
-  "bugs": {
-    "url": "https://github.com/tomast1337/Puppeter-PptxGenJS/issues"
-  },
-  "homepage": "https://github.com/tomast1337/Puppeter-PptxGenJS#readme",
-  "keywords": [
-    "pdf",
-    "pptxgenjs",
-    "powerpoint",
-    "presentation",
-    "puppeteer"
-  ],
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/exports.d.ts",
-      "import": "./dist/exports.js",
-      "default": "./dist/exports.js"
-    },
-    "./html": {
-      "types": "./dist/html.d.ts",
-      "import": "./dist/html.js",
-      "default": "./dist/html.js"
-    },
-    "./wasm": {
-      "types": "./dist/wasm/browser.d.ts",
-      "browser": "./dist/wasm/browser.js",
-      "bun": "./dist/wasm/node.js",
-      "node": "./dist/wasm/node.js",
-      "default": "./dist/wasm/browser.js"
-    },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js",
-      "default": "./dist/react.js"
-    }
-  },
   "scripts": {
     "build": "bun run scripts/build.ts",
-    "build:wasm": "sh scripts/build-wasm.sh",
-    "prepack": "bun run build",
+    "build:wasm": "sh packages/wasm/build-wasm.sh",
     "test:package": "bun run scripts/test-package.ts",
     "typecheck": "node --max-old-space-size=2048 --stack-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "test": "bun test",
@@ -80,23 +29,5 @@
     "react": "^19",
     "react-dom": "^19",
     "typescript": "^5"
-  },
-  "dependencies": {
-    "echarts": "6.1.0",
-    "jsdom": "^26.1.0",
-    "puppeteer": "^24.15.0",
-    "zod": "4.4.3"
-  },
-  "peerDependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
   }
 }

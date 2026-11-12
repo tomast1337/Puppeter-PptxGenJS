@@ -1,7 +1,7 @@
 // Emoji and CJK fallback deck (spike only). Needs the spike image
 // (spike/wasm-text/Dockerfile), which adds Noto Color Emoji and Noto Sans CJK.
 import type PptxGenJS from "pptxgenjs";
-import type { PuppeteerGen } from "../../../src/node";
+import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 
 export const EMOJI_PAGES = 2;
 
