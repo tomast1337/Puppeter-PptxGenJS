@@ -1,7 +1,7 @@
 // Scores the WASM backend's PDFs (and, for context, the Puppeteer default's) against the same
 // LibreOffice reference, with the tests/visual/compare.ts machinery (pdftoppm 96dpi, ImageMagick
 // RMSE, crops padded like PARITY_REGIONS). Run in the pinned visual image:
-//   bun run test:visual:wasm:docker [text|emoji ...]
+//   bun run test:visual:wasm:docker [text|emoji|shapes ...]
 //
 // Gate (WASM only):
 // - every page <= PAGE_THRESHOLD, the AGENTS.md whole-slide limit.
@@ -18,15 +18,20 @@ import { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../../../packages/pptxgenjs/src/pageLayouts";
 import { createRenderer } from "./backend";
 import baseline from "./baseline.json";
-import { populateTextDeck, TEXT_PAGES } from "./deck";
+import { populateShapeDeck, populateTextDeck, SHAPE_PAGES, TEXT_PAGES } from "./deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
 import { BASELINE_EPSILON, CROP_TARGET, PAGE_THRESHOLD } from "../thresholds";
 
 type Populate = <T extends pptxgen | PuppeteerGen>(presentation: T) => T;
+type SlideObject = ReturnType<PuppeteerGen["getModel"]>["slides"][number]["objects"][number];
+const isText = (object: SlideObject) => object.kind === "text";
 // emoji: Noto Color Emoji / Noto Sans CJK fallback (issue #14), installed in the pinned image.
-const DECKS: Record<string, { populate: Populate; pages: number }> = {
-    text: { populate: populateTextDeck, pages: TEXT_PAGES },
-    emoji: { populate: populateEmojiDeck, pages: EMOJI_PAGES },
+// `crop` picks the objects that get a crop each: text boxes, or for the shapes deck every shape
+// (with or without text), so labels do not dilute the geometry scores.
+const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: SlideObject) => boolean }> = {
+    text: { populate: populateTextDeck, pages: TEXT_PAGES, crop: isText },
+    emoji: { populate: populateEmojiDeck, pages: EMOJI_PAGES, crop: isText },
+    shapes: { populate: populateShapeDeck, pages: SHAPE_PAGES, crop: object => object.kind === "shape" || (object.kind === "text" && object.shape !== undefined) },
 };
 const deckNames = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(DECKS);
 const root = join(tmpdir(), "wasm-parity");
@@ -53,7 +58,7 @@ const measured: Record<string, Record<string, number>> = {};
 for (const deckName of deckNames) {
     const deckSpec = DECKS[deckName];
     if (!deckSpec) throw new Error(`unknown deck '${deckName}' (expected ${Object.keys(DECKS).join(", ")})`);
-    const { populate, pages: PAGES } = deckSpec;
+    const { populate, pages: PAGES, crop } = deckSpec;
     const out = join(root, deckName);
     mkdirSync(out, { recursive: true });
 
@@ -85,7 +90,7 @@ for (const deckName of deckNames) {
             rendered.find(file => new RegExp(`^${name}-0*${page}\\.png$`).test(file))!,
         );
 
-    // 3. Page RMSE and one crop per text object.
+    // 3. Page RMSE and one crop per selected object.
     const pages: ({ page: number; nonText: string[] } & Record<string, unknown>)[] = [];
     for (let page = 1; page <= PAGES; page++) {
         const scores = Object.fromEntries(await Promise.all(engines.map(async e => [e, await rmse(png("reference", page), png(e, page))])));
@@ -96,15 +101,14 @@ for (const deckName of deckNames) {
     for (const [index, slide] of model.slides.entries()) {
         const page = index + 1;
         for (const object of slide.objects) {
-            if (object.kind !== "text") continue;
+            if (!crop(object)) continue;
             const { x, y, width = 0, height = 0 } = object.style.geometry;
             const x0 = Math.max(0, Math.floor(x) - 3);
             const y0 = Math.max(0, Math.floor(y) - 3);
             const geometry = `${Math.min(960 - x0, Math.ceil(width) + 7)}x${Math.min(540 - y0, Math.ceil(height) + 7)}+${x0}+${y0}`;
-            const label = object.text.paragraphs
-                .map(p => p.runs.map(r => r.text).join(""))
-                .join(" / ")
-                .slice(0, 40);
+            const text = object.kind === "text" ? object.text.paragraphs.map(p => p.runs.map(r => r.text).join("")).join(" / ") : "";
+            const shape = object.kind === "shape" || object.kind === "text" ? object.shape?.name : undefined;
+            const label = [shape, text].filter(Boolean).join(": ").slice(0, 40);
             const name = `p${page}-${object.style.objectName.replace(/\W+/g, "")}`;
             const files: Record<string, string> = {};
             for (const engine of ["reference", ...engines]) {
