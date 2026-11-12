@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY } from "../src/compatibility";
+import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY } from "../packages/pptxgenjs/src/compatibility";
 
 const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified"]);
 const TEXT_OPTION_KEYS = [

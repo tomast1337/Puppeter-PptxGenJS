@@ -1,7 +1,7 @@
 // bun spike/wasm-text/harness/render.ts <out.pdf>
 import { writeFileSync } from "node:fs";
-import { PuppeteerGen } from "../../../src/node";
-import { PAGE_SIZES } from "../../../src/pageLayouts";
+import { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../../../packages/pptxgenjs/src/pageLayouts";
 import { createRenderer } from "./backend";
 import { populateTextDeck } from "./deck";
 

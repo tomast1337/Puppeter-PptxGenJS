@@ -5,8 +5,8 @@
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import pptxgen from "pptxgenjs";
-import { PuppeteerGen } from "../../../src/node";
-import { PAGE_SIZES } from "../../../src/pageLayouts";
+import { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../../../packages/pptxgenjs/src/pageLayouts";
 import { createRenderer } from "./backend";
 import { populateTextDeck, TEXT_PAGES } from "./deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";

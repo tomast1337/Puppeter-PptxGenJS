@@ -2,10 +2,10 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeGeometry, normalizeTransform } from "../src/normalize/geometry";
-import { resolveImageSource } from "../src/node";
-import { normalizeColor, normalizeFill, normalizeLine, normalizeShadow } from "../src/normalize/style";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { normalizeGeometry, normalizeTransform } from "../packages/pptxgenjs/src/normalize/geometry";
+import { resolveImageSource } from "../packages/pptxgenjs/src/node";
+import { normalizeColor, normalizeFill, normalizeLine, normalizeShadow } from "../packages/pptxgenjs/src/normalize/style";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("shared object normalization", () => {
     test("normalizes inches and percentages against page dimensions", () => {

@@ -1,0 +1,50 @@
+{
+  "name": "@pdfdeck/wasm",
+  "version": "0.2.0",
+  "description": "Opt-in WebAssembly text renderer for the pdfdeck model (browser, Node and Bun)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/browser.js",
+  "types": "./dist/browser.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/browser.d.ts",
+      "browser": "./dist/browser.js",
+      "bun": "./dist/node.js",
+      "node": "./dist/node.js",
+      "default": "./dist/browser.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomast1337/Puppeter-PptxGenJS.git",
+    "directory": "packages/wasm"
+  },
+  "bugs": {
+    "url": "https://github.com/tomast1337/Puppeter-PptxGenJS/issues"
+  },
+  "homepage": "https://github.com/tomast1337/Puppeter-PptxGenJS#readme",
+  "keywords": [
+    "pdf",
+    "presentation",
+    "wasm"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "prepack": "bun ../../scripts/build.ts"
+  },
+  "dependencies": {
+    "@pdfdeck/model": "workspace:*"
+  }
+}

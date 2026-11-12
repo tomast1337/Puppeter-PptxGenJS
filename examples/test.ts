@@ -1,6 +1,6 @@
 import pptxgen from "pptxgenjs";
-import { PuppeteerGen } from "../src/PuppeterrGen";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/PuppeterrGen";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 function main(pres: pptxgen | PuppeteerGen) {
     // First slide with simple text

@@ -110,5 +110,5 @@ const output =
     `    readonly paths: readonly { readonly w?: string; readonly h?: string; readonly fill?: string; readonly stroke?: string; readonly commands: readonly (readonly string[])[] }[];\n` +
     `};\n` +
     `export const GENERATED_PRESET_SHAPES: Readonly<Record<string, GeneratedPresetDefinition>> = ${JSON.stringify(definitions)};\n`;
-writeFileSync(new URL("../src/generatedPresetShapes.ts", import.meta.url), output);
+writeFileSync(new URL("../packages/pptxgenjs/src/generatedPresetShapes.ts", import.meta.url), output);
 console.log(`Generated ${Object.keys(definitions).length} preset definitions.`);

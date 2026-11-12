@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeText } from "../src/normalize/text";
-import { PuppeteerGen } from "../src/node";
+import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
 describe("text normalization", () => {
     test("accepts numbers and preserves empty hard-line paragraphs", () => {

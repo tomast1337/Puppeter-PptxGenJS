@@ -1,0 +1,67 @@
+{
+  "name": "puppeteer-pptxgenjs",
+  "version": "0.2.0",
+  "description": "Deprecated: moved to @pdfdeck/pptxgenjs. Re-exports it (and /html, /react, /wasm) so existing imports keep working",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "import": "./dist/html.js",
+      "default": "./dist/html.js"
+    },
+    "./wasm": {
+      "types": "./dist/wasm.d.ts",
+      "import": "./dist/wasm.js",
+      "default": "./dist/wasm.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "default": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomast1337/Puppeter-PptxGenJS.git",
+    "directory": "packages/puppeteer-pptxgenjs"
+  },
+  "bugs": {
+    "url": "https://github.com/tomast1337/Puppeter-PptxGenJS/issues"
+  },
+  "homepage": "https://github.com/tomast1337/Puppeter-PptxGenJS#readme",
+  "keywords": [
+    "pdf",
+    "pptxgenjs",
+    "powerpoint",
+    "presentation",
+    "puppeteer"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "prepack": "bun ../../scripts/build.ts"
+  },
+  "dependencies": {
+    "@pdfdeck/pptxgenjs": "workspace:*",
+    "@pdfdeck/react": "workspace:*",
+    "@pdfdeck/wasm": "workspace:*"
+  }
+}

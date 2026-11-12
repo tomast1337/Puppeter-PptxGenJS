@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type PptxGenJS from "pptxgenjs";
-import { UnsupportedChartError } from "../src/chart/errors";
-import { formatChartNumber } from "../src/chart/format";
-import { normalizeChart } from "../src/normalize/chart";
-import { PuppeteerGen } from "../src/node";
+import { UnsupportedChartError } from "../packages/pptxgenjs/src/chart/errors";
+import { formatChartNumber } from "../packages/pptxgenjs/src/chart/format";
+import { normalizeChart } from "../packages/pptxgenjs/src/normalize/chart";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
 const categoricalData: PptxGenJS.OptsChartData[] = [
     { name: "First", labels: ["A", "B", "C"], values: [2, 5, 3] },

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { NormalizedPresentation } from "../src/model/types";
-import { createNodeDocument, PuppeteerGen } from "../src/node";
-import { renderPresentationDocument } from "../src/render/slide";
+import type { NormalizedPresentation } from "../packages/model/src/types";
+import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { renderPresentationDocument } from "../packages/pptxgenjs/src/render/slide";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 

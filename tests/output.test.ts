@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
-import { PuppeteerGen } from "../src/html";
-import { convertPdfOutput, resolveOutputType } from "../src/output";
-import type { HtmlPresentationDocument, PresentationRenderer } from "../src/render/document";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/html";
+import { convertPdfOutput, resolveOutputType } from "../packages/pptxgenjs/src/output";
+import type { HtmlPresentationDocument, PresentationRenderer } from "../packages/pptxgenjs/src/render/document";
 
 // Every byte value, so latin1/base64 conversions are checked across the full range.
 const BYTES = Uint8Array.from({ length: 256 }, (_, index) => index);

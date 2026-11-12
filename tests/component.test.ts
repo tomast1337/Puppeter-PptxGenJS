@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
-import { normalizeComponent } from "../src/components/normalize";
-import { COMPONENT_DEFAULTS } from "../src/defaults";
-import { PuppeteerGen } from "../src/node";
-import { PAGE_SIZES } from "../src/pageLayouts";
+import { normalizeComponent } from "../packages/pptxgenjs/src/components/normalize";
+import { COMPONENT_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const input = { type: "example/metric", version: 1, props: { label: "Revenue", value: 42 } };
 const options = { x: 1, y: 2, w: 3, h: 1 };

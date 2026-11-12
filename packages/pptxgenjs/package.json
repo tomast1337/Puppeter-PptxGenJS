@@ -1,0 +1,59 @@
+{
+  "name": "@pdfdeck/pptxgenjs",
+  "version": "0.2.0",
+  "description": "A PptxGenJS-compatible API for generating PDFs with Puppeteer",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/exports.js",
+  "types": "./dist/exports.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/exports.d.ts",
+      "import": "./dist/exports.js",
+      "default": "./dist/exports.js"
+    },
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "import": "./dist/html.js",
+      "default": "./dist/html.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomast1337/Puppeter-PptxGenJS.git",
+    "directory": "packages/pptxgenjs"
+  },
+  "bugs": {
+    "url": "https://github.com/tomast1337/Puppeter-PptxGenJS/issues"
+  },
+  "homepage": "https://github.com/tomast1337/Puppeter-PptxGenJS#readme",
+  "keywords": [
+    "pdf",
+    "pptxgenjs",
+    "powerpoint",
+    "presentation",
+    "puppeteer"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "prepack": "bun ../../scripts/build.ts"
+  },
+  "dependencies": {
+    "@pdfdeck/model": "workspace:*",
+    "@pdfdeck/puppeteer": "workspace:*",
+    "echarts": "6.1.0",
+    "jsdom": "^26.1.0",
+    "zod": "4.4.3"
+  }
+}

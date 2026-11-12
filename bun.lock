@@ -3,13 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "puppeteer-pptxgenjs",
-      "dependencies": {
-        "echarts": "6.1.0",
-        "jsdom": "^26.1.0",
-        "puppeteer": "^24.15.0",
-        "zod": "4.4.3",
-      },
+      "name": "pdfdeck-workspace",
       "devDependencies": {
         "@types/bun": "latest",
         "@types/jsdom": "^21.1.7",
@@ -20,6 +14,46 @@
         "react-dom": "^19",
         "typescript": "^5",
       },
+    },
+    "packages/model": {
+      "name": "@pdfdeck/model",
+      "version": "0.2.0",
+    },
+    "packages/pptxgenjs": {
+      "name": "@pdfdeck/pptxgenjs",
+      "version": "0.2.0",
+      "dependencies": {
+        "@pdfdeck/model": "workspace:*",
+        "@pdfdeck/puppeteer": "workspace:*",
+        "echarts": "6.1.0",
+        "jsdom": "^26.1.0",
+        "zod": "4.4.3",
+      },
+    },
+    "packages/puppeteer": {
+      "name": "@pdfdeck/puppeteer",
+      "version": "0.2.0",
+      "dependencies": {
+        "@pdfdeck/model": "workspace:*",
+        "puppeteer": "^24.15.0",
+      },
+    },
+    "packages/puppeteer-pptxgenjs": {
+      "name": "puppeteer-pptxgenjs",
+      "version": "0.2.0",
+      "dependencies": {
+        "@pdfdeck/pptxgenjs": "workspace:*",
+        "@pdfdeck/react": "workspace:*",
+        "@pdfdeck/wasm": "workspace:*",
+      },
+    },
+    "packages/react": {
+      "name": "@pdfdeck/react",
+      "version": "0.2.0",
+      "dependencies": {
+        "@pdfdeck/pptxgenjs": "workspace:*",
+        "zod": "4.4.3",
+      },
       "peerDependencies": {
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -28,6 +62,13 @@
         "react",
         "react-dom",
       ],
+    },
+    "packages/wasm": {
+      "name": "@pdfdeck/wasm",
+      "version": "0.2.0",
+      "dependencies": {
+        "@pdfdeck/model": "workspace:*",
+      },
     },
   },
   "packages": {
@@ -46,6 +87,16 @@
     "@csstools/css-parser-algorithms": ["@csstools/css-parser-algorithms@3.0.5", "", { "peerDependencies": { "@csstools/css-tokenizer": "^3.0.4" } }, "sha512-DaDeUkXZKjdGhgYaHNJTV9pV7Y9B3b644jCLs9Upc3VeNGg6LWARAT6O+Q+/COo+2gg/bM5rhpMAtf70WqfBdQ=="],
 
     "@csstools/css-tokenizer": ["@csstools/css-tokenizer@3.0.4", "", {}, "sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw=="],
+
+    "@pdfdeck/model": ["@pdfdeck/model@workspace:packages/model"],
+
+    "@pdfdeck/pptxgenjs": ["@pdfdeck/pptxgenjs@workspace:packages/pptxgenjs"],
+
+    "@pdfdeck/puppeteer": ["@pdfdeck/puppeteer@workspace:packages/puppeteer"],
+
+    "@pdfdeck/react": ["@pdfdeck/react@workspace:packages/react"],
+
+    "@pdfdeck/wasm": ["@pdfdeck/wasm@workspace:packages/wasm"],
 
     "@puppeteer/browsers": ["@puppeteer/browsers@2.10.6", "", { "dependencies": { "debug": "^4.4.1", "extract-zip": "^2.0.1", "progress": "^2.0.3", "proxy-agent": "^6.5.0", "semver": "^7.7.2", "tar-fs": "^3.1.0", "yargs": "^17.7.2" }, "bin": { "browsers": "lib/cjs/main-cli.js" } }, "sha512-pHUn6ZRt39bP3698HFQlu2ZHCkS/lPcpv7fVQcGBSzNNygw171UXAKrCUhy+TEMw4lEttOKDgNpb04hwUAJeiQ=="],
 
@@ -246,6 +297,8 @@
     "puppeteer": ["puppeteer@24.15.0", "", { "dependencies": { "@puppeteer/browsers": "2.10.6", "chromium-bidi": "7.2.0", "cosmiconfig": "^9.0.0", "devtools-protocol": "0.0.1464554", "puppeteer-core": "24.15.0", "typed-query-selector": "^2.12.0" }, "bin": { "puppeteer": "lib/cjs/puppeteer/node/cli.js" } }, "sha512-HPSOTw+DFsU/5s2TUUWEum9WjFbyjmvFDuGHtj2X4YUz2AzOzvKMkT3+A3FR+E+ZefiX/h3kyLyXzWJWx/eMLQ=="],
 
     "puppeteer-core": ["puppeteer-core@24.15.0", "", { "dependencies": { "@puppeteer/browsers": "2.10.6", "chromium-bidi": "7.2.0", "debug": "^4.4.1", "devtools-protocol": "0.0.1464554", "typed-query-selector": "^2.12.0", "ws": "^8.18.3" } }, "sha512-2iy0iBeWbNyhgiCGd/wvGrDSo73emNFjSxYOcyAqYiagkYt5q4cPfVXaVDKBsukgc2fIIfLAalBZlaxldxdDYg=="],
+
+    "puppeteer-pptxgenjs": ["puppeteer-pptxgenjs@workspace:packages/puppeteer-pptxgenjs"],
 
     "queue": ["queue@6.0.2", "", { "dependencies": { "inherits": "~2.0.3" } }, "sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA=="],
 

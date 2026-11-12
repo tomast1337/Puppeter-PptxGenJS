@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
-import { PAGE_SIZES } from "../src/pageLayouts";
-import { serializeHtmlPresentation } from "../src/render/document";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { serializeHtmlPresentation } from "../packages/pptxgenjs/src/render/document";
 
 describe("HTML presentation serialization", () => {
     test("serializes the document and carries page dimensions for renderers", () => {
