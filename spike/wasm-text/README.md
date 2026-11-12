@@ -14,8 +14,12 @@ sh spike/wasm-text/scripts/build.sh          # pkg/ (wasm-pack --target web) + t
 sh spike/wasm-text/scripts/docker.sh compare # fidelity vs LibreOffice, in the pinned visual image
 sh spike/wasm-text/scripts/docker.sh bench   # cold/warm timings: Puppeteer vs WASM vs native
 cargo test -p text-pdf-core                  # run from spike/wasm-text
+
+# Emoji and CJK deck (issue #14): spike image = visual image + Noto Color Emoji + Noto Sans CJK
+docker build -t puppeteer-gen-visual-emoji spike/wasm-text
+VISUAL_IMAGE=puppeteer-gen-visual-emoji sh spike/wasm-text/scripts/docker.sh compare emoji
 ```
 
 Results (PDFs, PNG crops, `montage-*.png`, `fidelity.json`, `bench.json`) are written to
-`spike/wasm-text/results/`, which is gitignored. The harness reads fonts from `FONT_DIRS`
+`spike/wasm-text/results/<deck>/`, which is gitignored. The harness reads fonts from `FONT_DIRS`
 (default `/usr/share/fonts`).
