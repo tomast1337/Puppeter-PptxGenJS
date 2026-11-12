@@ -12,11 +12,14 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "build:wasm": "sh packages/wasm/build-wasm.sh",
+    "build:wasm:docker": "WASM_BUILD=docker sh packages/wasm/build-wasm.sh",
     "test:package": "bun run scripts/test-package.ts",
     "typecheck": "node --max-old-space-size=2048 --stack-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "test": "bun test",
     "test:visual": "bun run tests/visual/compare.ts",
     "test:visual:docker": "sh scripts/test-visual-docker.sh",
+    "test:visual:wasm": "bun run tests/visual/wasm/compare.ts",
+    "test:visual:wasm:docker": "sh scripts/test-visual-docker.sh test:visual:wasm",
     "bench": "bun run scripts/bench.ts",
     "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts"
   },
