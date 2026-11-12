@@ -31,7 +31,14 @@ RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERS
 ENV PUPPETEER_CACHE_DIR=/opt/puppeteer
 WORKDIR /deps
 COPY package.json bun.lock ./
-# Only chrome-headless-shell is used (src/browser.ts); skipping full Chrome saves ~360MB.
+# Every workspace manifest, or the frozen install rejects the lockfile (keep in sync with packages/).
+COPY packages/model/package.json packages/model/
+COPY packages/puppeteer/package.json packages/puppeteer/
+COPY packages/pptxgenjs/package.json packages/pptxgenjs/
+COPY packages/wasm/package.json packages/wasm/
+COPY packages/react/package.json packages/react/
+COPY packages/puppeteer-pptxgenjs/package.json packages/puppeteer-pptxgenjs/
+# Only chrome-headless-shell is used (packages/puppeteer/src/browser.ts); skipping full Chrome saves ~360MB.
 RUN PUPPETEER_CHROME_SKIP_DOWNLOAD=true bun ci && chmod -R a+rX /deps /opt/puppeteer
 
 # Runs as the host user so artifacts stay owned by them.
