@@ -26,23 +26,15 @@ if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
     exit 1
 fi
 
-mode=${WASM_BUILD:-auto}
-[ "${CI:-}" = true ] && [ "$mode" = auto ] && mode=host
-rust_version=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
-problem=
+WITH_RUST_SOURCED=1
+. scripts/with-rust.sh
 if [ "$(uname -sm)" != "Linux x86_64" ]; then
     # shortcut: prebuilt tools are pinned for linux-x86_64 only; add per-platform sums if contributors need native builds.
     problem="host is $(uname -sm), the pinned tools are linux-x86_64"
-elif ! rustc --version 2>/dev/null | grep -q "^rustc $rust_version "; then
-    problem="rustc $rust_version not found (have: $(rustc --version 2>/dev/null || echo none))"
 fi
 if [ "$mode" = docker ] || { [ -n "$problem" ] && [ "$mode" = auto ]; }; then
     [ -n "$problem" ] && echo "$problem; building in $RUST_IMAGE"
-    mkdir -p crates/target
-    # The registry lives under crates/target so repeated Docker builds reuse it.
-    exec docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" --volume "$root:/src" --workdir /src \
-        --env HOME=/tmp --env CARGO_HOME=/src/crates/target/docker-cargo-home --env WASM_BUILD=host \
-        "$RUST_IMAGE" sh packages/wasm/build-wasm.sh
+    in_rust_image sh packages/wasm/build-wasm.sh
 fi
 if [ -n "$problem" ]; then
     echo "$problem (WASM_BUILD=$mode forbids the Docker fallback)" >&2

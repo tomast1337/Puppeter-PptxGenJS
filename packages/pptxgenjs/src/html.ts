@@ -40,16 +40,6 @@ export type { FourSideMargin } from "./defaults";
 export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
 export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeterrGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
-export type {
-    PptxGenJSLike,
-    PptxShapeProps,
-    PptxSlide,
-    PptxTableProps,
-    PptxTableRow,
-    PptxTextProps,
-    PptxTextPropsOptions,
-    PptxWriteFileProps,
-    PptxWriteProps,
-} from "./pptx";
+export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 export type { HtmlPresentationDocument, ModelRenderer, PresentationRenderer } from "./render/document";
 export type { ColorProps } from "./utils";

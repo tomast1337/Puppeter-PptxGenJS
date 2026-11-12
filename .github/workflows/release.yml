@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  # Every CI job: typecheck, tests, packed consumers on Node 22/24, Puppeteer and WASM visual
+  # Every CI job: Format, typecheck, tests, packed consumers on Node 22/24, Puppeteer and WASM visual
   # parity, and "WASM build" (fmt, clippy, cargo test, glue, hash and size budget).
   ci:
     uses: ./.github/workflows/ci.yml
@@ -34,7 +34,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.4
 
       - name: Set up Node.js and npm registry
         uses: actions/setup-node@v6

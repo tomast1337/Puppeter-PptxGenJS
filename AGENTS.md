@@ -78,6 +78,7 @@ For each compatibility change:
 4. Run:
 
 ```bash
+bun run fmt:check
 bun run typecheck
 bun test
 bun run test:visual

@@ -83,7 +83,11 @@ for (const deckName of deckNames) {
     }
     // pdftoppm zero-pads page numbers to the document's page count.
     const rendered = readdirSync(out);
-    const png = (name: string, page: number) => join(out, rendered.find(file => new RegExp(`^${name}-0*${page}\\.png$`).test(file))!);
+    const png = (name: string, page: number) =>
+        join(
+            out,
+            rendered.find(file => new RegExp(`^${name}-0*${page}\\.png$`).test(file))!,
+        );
 
     // 3. Page RMSE and one crop per text object.
     const pages: ({ page: number; nonText: string[] } & Record<string, unknown>)[] = [];
@@ -101,7 +105,10 @@ for (const deckName of deckNames) {
             const x0 = Math.max(0, Math.floor(x) - 3);
             const y0 = Math.max(0, Math.floor(y) - 3);
             const geometry = `${Math.min(960 - x0, Math.ceil(width) + 7)}x${Math.min(540 - y0, Math.ceil(height) + 7)}+${x0}+${y0}`;
-            const label = object.text.paragraphs.map(p => p.runs.map(r => r.text).join("")).join(" / ").slice(0, 40);
+            const label = object.text.paragraphs
+                .map(p => p.runs.map(r => r.text).join(""))
+                .join(" / ")
+                .slice(0, 40);
             const name = `p${page}-${object.style.objectName.replace(/\W+/g, "")}`;
             const files: Record<string, string> = {};
             for (const engine of ["reference", ...engines]) {

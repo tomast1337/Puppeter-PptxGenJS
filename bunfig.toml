@@ -1,0 +1,21 @@
+# `bun fmt` (bun run fmt:ts). Indentation, line endings and the 320-column print width come from
+# .editorconfig, which bun fmt and WebStorm both read; these options keep the existing code style
+# (double quotes, semicolons and trailing commas are bun fmt's defaults). See CONTRIBUTING.md.
+[fmt]
+# The code writes `x => x`, not `(x) => x`.
+arrowParens = "avoid"
+# Generated or vendored files, and directories with their own formatter. .gitignore'd paths
+# (dist/, node_modules/, .visual-parity/, crates/target/) are skipped already.
+ignorePatterns = [
+    # wasm-bindgen output: CI checks it equals a fresh build byte for byte.
+    "packages/wasm/src/text_pdf_wasm.js",
+    "packages/wasm/src/text_pdf_wasm.d.ts",
+    # Written by scripts/generate-preset-shapes.ts.
+    "packages/pptxgenjs/src/generatedPresetShapes.ts",
+    # Rust and Cargo files: formatted by rustfmt (bun run fmt:rust).
+    "crates/",
+    "bun.lock",
+    # Gallery output and local scratch work.
+    "visual-comparison/",
+    "scratch/",
+]

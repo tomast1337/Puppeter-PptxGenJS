@@ -69,5 +69,5 @@ export async function createWasmRenderer(options: WasmRendererOptions): Promise<
 }
 
 export async function loadSystemFonts(_options?: SystemFontOptions): Promise<Uint8Array[]> {
-    throw new Error('loadSystemFonts() reads the filesystem and is only available under Node/Bun; in a browser pass font bytes to createWasmRenderer({ fonts })');
+    throw new Error("loadSystemFonts() reads the filesystem and is only available under Node/Bun; in a browser pass font bytes to createWasmRenderer({ fonts })");
 }

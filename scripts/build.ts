@@ -48,19 +48,21 @@ try {
                 await Bun.write(resolve(outputDirectory, `${entry}.js`), transpiler.transformSync(await readFile(resolve(packageDirectory, `src/${entry}.ts`), "utf8")));
             }
         }
-        const bundle = transpileOnly ? { success: true, logs: [], outputs: entrypoints } : await Bun.build({
-            entrypoints: entrypoints.map(entry => resolve(packageDirectory, `src/${entry}.ts`)),
-            outdir: outputDirectory,
-            target: "node",
-            format: "esm",
-            // Dependencies, including the other @pdfdeck packages, stay imports.
-            packages: "external",
-            // The root tsconfig maps @pdfdeck/* to sources for development; never inline them.
-            external: ["@pdfdeck/*"],
-            sourcemap: "inline",
+        const bundle = transpileOnly
+            ? { success: true, logs: [], outputs: entrypoints }
+            : await Bun.build({
+                  entrypoints: entrypoints.map(entry => resolve(packageDirectory, `src/${entry}.ts`)),
+                  outdir: outputDirectory,
+                  target: "node",
+                  format: "esm",
+                  // Dependencies, including the other @pdfdeck packages, stay imports.
+                  packages: "external",
+                  // The root tsconfig maps @pdfdeck/* to sources for development; never inline them.
+                  external: ["@pdfdeck/*"],
+                  sourcemap: "inline",
 
-            minify: true,
-        });
+                  minify: true,
+              });
         if (!bundle.success) {
             bundle.logs.forEach(log => {
                 console.error(log);

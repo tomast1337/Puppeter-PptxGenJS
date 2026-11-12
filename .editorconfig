@@ -6,7 +6,8 @@ end_of_line = lf
 indent_style = space
 indent_size = 4
 insert_final_newline = true
-max_line_length = 512
+# bun fmt wraps here too. 320 changes the fewest existing lines (512 would join hand-wrapped chains).
+max_line_length = 320
 
 [*.{json,jsonc,yml,yaml}]
 indent_size = 2
