@@ -91,15 +91,6 @@ bun fmt --no-script --staged
 `--staged` formats and re-stages only staged files; a file that also has
 unstaged changes is reported instead of rewritten, and the commit stops.
 
-### Blame
-
-Formatting-only commits are listed in `.git-blame-ignore-revs`. GitHub skips
-them automatically; for local `git blame`, run once:
-
-```bash
-git config blame.ignoreRevsFile .git-blame-ignore-revs
-```
-
 ## Build and test
 
 Run the relevant unit tests while developing. Before submitting a pull request,
