@@ -142,8 +142,9 @@ the type comments.
 ## Export
 
 PptxGenJS defaults are recorded as compression disabled, `blob` output, and
-`Presentation.pptx`. PuppeteerGen's eventual `write()`/`stream()` compatibility
-can translate those semantics to PDF-specific output.
+`Presentation.pptx`. PuppeteerGen's `write()` defaults to a `blob` of the PDF,
+`stream()` returns a Node `Buffer`, and `compression` is accepted but ignored
+because it only selects zip DEFLATE vs STORE.
 
 ## Other mapped defaults
 
