@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type PptxGenJS from "pptxgenjs";
-import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/tablePagination";
+import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 

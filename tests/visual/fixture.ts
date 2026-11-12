@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { z } from "zod";
 import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/generatedPreset";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
-import { registerReactComponent } from "../../packages/react/src/react";
+import { registerReactComponent } from "../../packages/react/src/index";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 

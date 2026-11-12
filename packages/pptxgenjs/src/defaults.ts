@@ -1,4 +1,4 @@
-import { inchesToPixels, pointsToPixels } from "./utils";
+import { inchesToPixels, pointsToPixels } from "./units";
 
 export type FourSideMargin = [number, number, number, number];
 

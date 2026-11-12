@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedImage, NormalizedImageSizing } from "@pdfdeck/model";
 import type { PageSize } from "../pageLayouts";
-import { convertToPixels } from "../utils";
+import { convertToPixels } from "../units";
 
 export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
     ".gif": "image/gif",

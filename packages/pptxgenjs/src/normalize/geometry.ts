@@ -1,6 +1,6 @@
 import type { Coord, NormalizedGeometry, NormalizedTransform } from "@pdfdeck/model";
 import type { PageSize } from "../pageLayouts";
-import { convertToPixels } from "../utils";
+import { convertToPixels } from "../units";
 
 export interface PositionOptions {
     x?: Coord;

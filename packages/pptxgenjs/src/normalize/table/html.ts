@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
-import type { FourSideMargin } from "../defaults";
-import type { PageSize } from "../pageLayouts";
+import type { FourSideMargin } from "../../defaults";
+import type { PageSize } from "../../pageLayouts";
 
 export interface NormalizedHtmlTable {
     rows: PptxGenJS.TableRow[];

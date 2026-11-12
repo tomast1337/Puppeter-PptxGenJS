@@ -14,7 +14,7 @@ const ALLOWED: Record<string, string[]> = {
     react: ["@pdfdeck/pptxgenjs"],
     "puppeteer-pptxgenjs": ["@pdfdeck/pptxgenjs", "@pdfdeck/react", "@pdfdeck/wasm"],
 };
-const NODE_ONLY: Record<string, string[]> = { "@pdfdeck/puppeteer": ["pptxgenjs/src/exports.ts", "pptxgenjs/src/node.ts"] };
+const NODE_ONLY: Record<string, string[]> = { "@pdfdeck/puppeteer": ["pptxgenjs/src/index.ts", "pptxgenjs/src/node.ts"] };
 
 async function sources(directory: string): Promise<string[]> {
     const entries = await readdir(directory, { withFileTypes: true });

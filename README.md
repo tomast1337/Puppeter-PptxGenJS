@@ -442,14 +442,17 @@ that PuppeteerGen reproduces and the current compatibility status.
 ├── packages/
 │   ├── model/src/         # @pdfdeck/model: normalized model types and renderer interfaces
 │   ├── pptxgenjs/src/     # @pdfdeck/pptxgenjs
-│   │   ├── PuppeterrGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
+│   │   ├── PuppeteerGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
 │   │   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
 │   │   ├── output.ts          # write()/stream() outputType conversion of PDF bytes
 │   │   ├── pageLayouts.ts     # Page size definitions
-│   │   ├── utils.ts           # Utility functions
+│   │   ├── units.ts           # Inch, point and percentage to pixel conversion
+│   │   ├── color.ts           # PptxGenJS color to CSS color
+│   │   ├── alignment.ts       # PptxGenJS alignment to CSS
+│   │   ├── pageCss.ts         # Page and slide CSS
 │   │   ├── pptx.ts            # Type definitions
 │   │   ├── html.ts            # Browser-safe entry (@pdfdeck/pptxgenjs/html)
-│   │   └── exports.ts         # Node entry (@pdfdeck/pptxgenjs)
+│   │   └── index.ts           # Node entry (@pdfdeck/pptxgenjs)
 │   ├── puppeteer/src/     # @pdfdeck/puppeteer: PuppeteerPdfRenderer and the shared browser
 │   ├── wasm/src/          # @pdfdeck/wasm: WASM backend loaders + wasm-bindgen glue
 │   ├── react/src/         # @pdfdeck/react: React component adapter

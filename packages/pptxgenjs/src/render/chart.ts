@@ -5,7 +5,7 @@ import { SVGRenderer } from "echarts/renderers";
 import { formatChartNumber } from "../chart/format";
 import type { ChartExtensionInput } from "../chart/types";
 import type { NormalizedChart, NormalizedObjectStyle } from "@pdfdeck/model";
-import { pointsToPixels } from "../utils";
+import { pointsToPixels } from "../units";
 import { renderBar3DSvg } from "./chart3d";
 import { applyObjectStyle } from "./style";
 

@@ -1,7 +1,8 @@
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdfdeck/model";
-import { colorToCSS, pointsToPixels } from "../utils";
+import { colorToCSS } from "../color";
+import { pointsToPixels } from "../units";
 
 type ColorValue = string | { color?: string; transparency?: number; alpha?: number; type?: string };
 

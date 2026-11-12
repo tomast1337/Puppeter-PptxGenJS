@@ -1,7 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedLine, NormalizedShape, NormalizedTextBox } from "@pdfdeck/model";
 import type { PageSize } from "../pageLayouts";
-import { convertToPixels, inchesToPixels } from "../utils";
+import { convertToPixels, inchesToPixels } from "../units";
 import { GENERATED_PRESET_NAMES, generatedPresetGeometry } from "./generatedPreset";
 
 const POLYGON_SIDES = Object.freeze({ pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8, decagon: 10, dodecagon: 12 } as const);

@@ -12,9 +12,9 @@ const packagesDirectory = resolve(projectRoot, "packages");
 const PACKAGES = [
     { name: "model", entrypoints: ["index"] },
     { name: "puppeteer", entrypoints: ["index"] },
-    { name: "pptxgenjs", entrypoints: ["exports", "html"] },
+    { name: "pptxgenjs", entrypoints: ["index", "html"] },
     { name: "wasm", entrypoints: ["browser", "node"] },
-    { name: "react", entrypoints: ["react"] },
+    { name: "react", entrypoints: ["index"] },
     // Pure re-exports, so transpiled instead of bundled: with the root tsconfig paths, Bun 1.4.0 (CI)
     // bundles `export { default } from "@pdfdeck/pptxgenjs"` to an export of an undeclared binding.
     { name: "puppeteer-pptxgenjs", entrypoints: ["index", "html", "react", "wasm"], transpileOnly: true },
@@ -111,7 +111,7 @@ for (const declarationFile of await declarationFiles(pptxDirectory)) {
     await writeFile(declarationFile, standalone);
 }
 
-const builtEntrypoint = resolve(pptxDirectory, "exports.js");
+const builtEntrypoint = resolve(pptxDirectory, "index.js");
 const bundledSource = await readFile(builtEntrypoint, "utf8");
 if (/from\s+["']pptxgenjs["']|require\(["']pptxgenjs["']\)/.test(bundledSource)) {
     throw new Error("The runtime bundle must not import pptxgenjs; it is a type-only development oracle");

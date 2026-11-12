@@ -1,6 +1,6 @@
 import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedChart } from "@pdfdeck/model";
-import { pointsToPixels } from "../utils";
+import { pointsToPixels } from "../units";
 
 interface Point {
     x: number;

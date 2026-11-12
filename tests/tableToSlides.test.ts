@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/htmlTable";
+import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/table/html";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
