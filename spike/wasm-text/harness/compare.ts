@@ -1,14 +1,13 @@
-// Scores Puppeteer, WASM and native PDFs of the text deck against the same
+// Scores the Puppeteer and WASM backends' PDFs of the text deck against the same
 // LibreOffice reference, with the tests/visual/compare.ts machinery
 // (pdftoppm 96dpi, ImageMagick RMSE, crops padded like PARITY_REGIONS).
 // Run inside the visual image: spike/wasm-text/scripts/docker.sh
-import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../../../src/node";
 import { PAGE_SIZES } from "../../../src/pageLayouts";
-import { createRenderer, loadFonts } from "./backend";
+import { createRenderer } from "./backend";
 import { populateTextDeck, TEXT_PAGES } from "./deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
 
@@ -41,21 +40,15 @@ populate(reference);
 await reference.writeFile({ fileName: join(out, "reference.pptx") });
 await run(["libreoffice", "--headless", `-env:UserInstallation=file://${join(out, "lo-profile")}`, "--convert-to", "pdf", "--outdir", out, join(out, "reference.pptx")]);
 
-// 2. Puppeteer and the two Rust bindings from the same model.
+// 2. The same deck through the Puppeteer default and the WASM backend.
 const deck = populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape));
 writeFileSync(join(out, "puppeteer.pdf"), await deck.toPdf());
 const model = deck.getModel();
-const warnings: Record<string, string[]> = {};
-for (const kind of ["wasm", "native"] as const) {
-    const renderer = await createRenderer(kind);
-    loadFonts(renderer);
-    writeFileSync(join(out, `${kind}.pdf`), renderer.render(JSON.stringify(model)));
-    warnings[kind] = renderer.warnings();
-}
-const sha = (file: string) => createHash("sha256").update(readFileSync(join(out, file))).digest("hex");
-const identical = sha("wasm.pdf") === sha("native.pdf");
+const renderer = await createRenderer();
+writeFileSync(join(out, "wasm.pdf"), await populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf());
+const warnings = renderer.warnings();
 
-const engines = ["puppeteer", "wasm", "native"] as const;
+const engines = ["puppeteer", "wasm"] as const;
 for (const name of ["reference", ...engines]) {
     await run(["pdftoppm", "-png", "-r", "96", "-f", "1", "-l", String(PAGES), join(out, `${name}.pdf`), join(out, name)]);
 }
@@ -64,13 +57,13 @@ const rendered = readdirSync(out);
 const png = (name: string, page: number) => join(out, rendered.find(file => new RegExp(`^${name}-0*${page}\\.png$`).test(file))!);
 
 // 3. Page RMSE and one crop per text object.
-const pages = [];
+const pages: ({ page: number; nonText: string[] } & Record<string, unknown>)[] = [];
 for (let page = 1; page <= PAGES; page++) {
     const scores = Object.fromEntries(await Promise.all(engines.map(async e => [e, await rmse(png("reference", page), png(e, page))])));
     pages.push({ page, nonText: model.slides[page - 1]!.objects.filter(o => o.kind !== "text" && o.kind !== "shape").map(o => o.kind), ...scores });
 }
 
-const crops = [];
+const crops: Record<string, unknown>[] = [];
 for (const [index, slide] of model.slides.entries()) {
     const page = index + 1;
     for (const object of slide.objects) {
@@ -95,14 +88,13 @@ for (const [index, slide] of model.slides.entries()) {
 
 const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 const summary = Object.fromEntries(engines.map(e => [e, { pageMedian: median(pages.map(p => p[e] as number)), cropMedian: median(crops.map(c => c[e] as number)), cropsUnder008: crops.filter(c => (c[e] as number) <= 0.08).length }]));
-const result = { identical, sha: { wasm: sha("wasm.pdf"), native: sha("native.pdf") }, warnings, pages, crops, summary, cropCount: crops.length };
+const result = { warnings, pages, crops, summary, cropCount: crops.length };
 writeFileSync(join(out, "fidelity.json"), JSON.stringify(result, null, 2));
 
 const f = (n: unknown) => (n as number).toFixed(4);
-console.log("| page | non-text objects | Puppeteer | WASM | native |\n|---|---|---|---|---|");
-for (const p of pages) console.log(`| ${p.page} | ${p.nonText.join(", ") || "-"} | ${f(p.puppeteer)} | ${f(p.wasm)} | ${f(p.native)} |`);
-console.log("\n| crop | text | Puppeteer | WASM | native |\n|---|---|---|---|---|");
-for (const c of crops) console.log(`| ${c.name} | ${c.label} | ${f(c.puppeteer)} | ${f(c.wasm)} | ${f(c.native)} |`);
+console.log("| page | non-text objects | Puppeteer | WASM |\n|---|---|---|---|");
+for (const p of pages) console.log(`| ${p.page} | ${p.nonText.join(", ") || "-"} | ${f(p.puppeteer)} | ${f(p.wasm)} |`);
+console.log("\n| crop | text | Puppeteer | WASM |\n|---|---|---|---|");
+for (const c of crops) console.log(`| ${c.name} | ${c.label} | ${f(c.puppeteer)} | ${f(c.wasm)} |`);
 console.log(`\nsummary: ${JSON.stringify(summary)}`);
-console.log(`wasm.pdf and native.pdf byte-identical: ${identical}`);
-console.log(`warnings: ${JSON.stringify(warnings.wasm)}`);
+console.log(`warnings: ${JSON.stringify(warnings)}`);
