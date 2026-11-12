@@ -2,7 +2,7 @@
 //!
 //! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen):
 //! model JSON + font bytes in, PDF bytes out. Units in the model are CSS px at
-//! 96 dpi; the PDF page is drawn in px under a 0.75 scale.
+//! 96 dpi (`PX_PER_IN`); the PDF page is drawn in px under a `PT_PER_PX` (0.75) scale.
 
 mod color;
 mod model;
@@ -26,6 +26,13 @@ use crate::color::{parse_color, unit};
 use crate::model::{Presentation, SlideObject};
 use crate::path::{fill_path, rect_path};
 use crate::text::layout::{BoxLayout, Brush};
+
+/// Model page sizes are in inches; PDF user space is in points.
+const PT_PER_IN: f32 = 72.0;
+/// Model geometry is in CSS px.
+const PX_PER_IN: f32 = 96.0;
+/// The page is drawn in px under this scale.
+const PT_PER_PX: f32 = PT_PER_IN / PX_PER_IN;
 
 pub struct Renderer {
     fonts: FontContext,
@@ -99,12 +106,12 @@ impl Renderer {
         self.warnings.clear();
         let model: Presentation = serde_json::from_str(model_json).map_err(|e| format!("invalid model: {e}"))?;
         let mut document = Document::new();
-        let page_size = Size::from_wh(model.page_size.width * 72.0, model.page_size.height * 72.0).ok_or("invalid page size")?;
-        let (page_w, page_h) = (model.page_size.width * 96.0, model.page_size.height * 96.0);
+        let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
+        let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
         for slide in &model.slides {
             let mut page = document.start_page_with(PageSettings::new(page_size));
             let mut surface = page.surface();
-            surface.push_transform(&Transform::from_scale(0.75, 0.75));
+            surface.push_transform(&Transform::from_scale(PT_PER_PX, PT_PER_PX));
             if let Some(bg) = parse_color(&slide.background) {
                 fill_path(&mut surface, rect_path(0.0, 0.0, page_w, page_h, 0.0), bg);
             }
