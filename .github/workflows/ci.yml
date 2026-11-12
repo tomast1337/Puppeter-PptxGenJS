@@ -122,7 +122,10 @@ jobs:
         run: |
           if docker pull "$IMAGE"; then exit 0; fi
           docker build --tag "$IMAGE" --file tests/visual/Dockerfile .
-          if [ "$CAN_PUSH" = true ]; then docker push "$IMAGE"; fi
+          # Publishing only speeds up later runs; this run already has the image it built.
+          if [ "$CAN_PUSH" = true ]; then
+            docker push "$IMAGE" || echo "::warning::Could not publish $IMAGE; later runs will rebuild it"
+          fi
 
       - name: Run visual comparison in pinned image
         env:
