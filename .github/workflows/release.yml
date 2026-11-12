@@ -7,15 +7,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
+  # Every CI job: typecheck, tests, packed consumers on Node 22/24, Puppeteer and WASM visual
+  # parity, and "WASM build" (fmt, clippy, cargo test, glue, hash and size budget).
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write
+
   release:
     name: Build GitHub release
+    needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -38,30 +49,60 @@ jobs:
       - name: Require a matching version tag
         if: github.event_name == 'push'
         run: |
-          PACKAGE_VERSION=$(bun -e 'console.log((await Bun.file("package.json").json()).version)')
-          test "v${PACKAGE_VERSION}" = "${GITHUB_REF_NAME}"
+          for manifest in packages/*/package.json; do
+            version=$(bun -e "console.log((await Bun.file('$manifest').json()).version)")
+            test "v${version}" = "${GITHUB_REF_NAME}" || { echo "$manifest is $version, tag is $GITHUB_REF_NAME"; exit 1; }
+          done
 
-      - name: Validate and build
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm
+          path: packages/wasm/src
+
+      # CI built the .wasm on the runner; rebuild it from scratch in the pinned Rust image, at a
+      # different path. Both must match the committed hash, so the released binary is reproducible.
+      - name: Rebuild WASM in Docker and compare hashes
         run: |
-          bun run typecheck
-          bun test
-          bun run build
-          bun run test:package
+          (cd packages/wasm/src && sha256sum -c text_pdf_wasm_bg.wasm.sha256)
+          mv packages/wasm/src/text_pdf_wasm_bg.wasm "$RUNNER_TEMP/ci.wasm"
+          rm -rf crates/target
+          bun run build:wasm:docker
+          cmp "$RUNNER_TEMP/ci.wasm" packages/wasm/src/text_pdf_wasm_bg.wasm
+          git diff --exit-code -- packages/wasm/src
+          echo "WASM sha256 $(cut -d' ' -f1 packages/wasm/src/text_pdf_wasm_bg.wasm.sha256) reproduced in Docker" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install visual comparison tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes imagemagick libreoffice poppler-utils
+      - name: Build packages
+        run: bun run build
 
-      - name: Run visual comparison
-        run: bun run test:visual
-
-      - name: Pack release artifact
+      - name: Pack release artifacts
         run: |
           mkdir -p release
-          bun pm pack --destination release
+          # Built by the previous step, so skip each package's prepack build.
+          for package in packages/*/; do
+            (cd "$package" && bun pm pack --ignore-scripts --destination ../../release)
+          done
           cd release
           sha256sum *.tgz > SHA256SUMS
+
+      - name: Verify the @pdfdeck/wasm tarball ships the built binary
+        run: |
+          tarball=$(ls release/pdfdeck-wasm-*.tgz)
+          tar -xzOf "$tarball" package/dist/text_pdf_wasm_bg.wasm > "$RUNNER_TEMP/packed.wasm"
+          expected=$(cut -d' ' -f1 packages/wasm/src/text_pdf_wasm_bg.wasm.sha256)
+          actual=$(sha256sum "$RUNNER_TEMP/packed.wasm" | cut -d' ' -f1)
+          echo "packed sha256=$actual raw=$(wc -c < "$RUNNER_TEMP/packed.wasm") gzip=$(gzip -9cn "$RUNNER_TEMP/packed.wasm" | wc -c)"
+          test "$actual" = "$expected"
+
+      - name: npm publish --dry-run
+        run: |
+          for tarball in release/*.tgz; do
+            npm publish --dry-run "$tarball"
+          done
+
+      # TODO(publish): nothing is published to npm yet; no token or @pdfdeck org exists. Once they
+      # do, add a tag-only step here that runs `npm publish --provenance` for each tarball, gated on
+      # the token secret (or npm trusted publishing via the id-token permission above).
 
       - name: Attest release provenance
         if: github.event.repository.private == false
@@ -72,15 +113,11 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ github.ref_name }}
+          name: release-${{ github.sha }}
           path: |
             release/*.tgz
             release/SHA256SUMS
           if-no-files-found: error
-
-      - name: Publish package to npm
-        if: github.event_name == 'push' && vars.NPM_PUBLISH == 'true'
-        run: npm publish release/*.tgz --access public
 
       - name: Create GitHub release
         if: github.event_name == 'push'
