@@ -1,21 +1,21 @@
 // Cold start and per-deck time for the text deck: Puppeteer default vs the WASM backend,
-// both through PuppeteerGen.toPdf(). `bun bench.ts` spawns fresh processes for cold numbers,
+// both through PuppeteerGen.toPdf(). `bun run bench:wasm` spawns fresh processes for cold numbers,
 // then runs warm loops. Medians over BENCH_RUNS (default 20 warm, 7 cold).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ModelRenderer } from "../../../packages/pptxgenjs/src/render/document";
+import type { ModelRenderer } from "../packages/pptxgenjs/src/render/document";
 
 type Engine = "puppeteer" | "wasm";
 const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 
 async function deckPdf(renderer?: ModelRenderer): Promise<Uint8Array> {
-    const [{ PuppeteerGen }, { PAGE_SIZES }, { populateTextDeck }] = await Promise.all([import("../../../packages/pptxgenjs/src/node"), import("../../../packages/pptxgenjs/src/pageLayouts"), import("../../../tests/visual/wasm/deck")]);
+    const [{ PuppeteerGen }, { PAGE_SIZES }, { populateTextDeck }] = await Promise.all([import("../packages/pptxgenjs/src/node"), import("../packages/pptxgenjs/src/pageLayouts"), import("../tests/visual/wasm/deck")]);
     return populateTextDeck(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf();
 }
 
 async function setup(engine: Engine): Promise<ModelRenderer | undefined> {
     if (engine === "puppeteer") return undefined;
-    const { createRenderer } = await import("../../../tests/visual/wasm/backend");
+    const { createRenderer } = await import("../tests/visual/wasm/backend");
     return createRenderer();
 }
 
@@ -65,5 +65,5 @@ for (const engine of ["puppeteer", "wasm"] as const) {
     results[engine] = { coldSetupMs: median(setups), coldFirstDeckMs: median(firsts), coldProcessWallMs: median(walls), warmDeckMs: median(deckMs), pdfBytes: size };
     console.log(engine, JSON.stringify(results[engine]));
 }
-if (process.env.SPIKE_OUT) writeFileSync(join(process.env.SPIKE_OUT, "bench.json"), JSON.stringify({ warmRuns, coldRuns, results }, null, 2));
+if (process.env.BENCH_OUT) writeFileSync(join(process.env.BENCH_OUT, "bench.json"), JSON.stringify({ warmRuns, coldRuns, results }, null, 2));
 process.exit(0);

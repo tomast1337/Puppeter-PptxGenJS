@@ -6,7 +6,8 @@ the spike measured ~1.7 ms/render gain against an 8-package release matrix (#8).
 
 The fidelity harness and its decks (text, emoji/CJK) moved to `tests/visual/wasm/`
 and run in CI (`bun run test:visual:wasm:docker`, see CONTRIBUTING.md); the pinned
-visual image now carries the emoji and CJK fonts. What remains here is the benchmark:
+visual image now carries the emoji and CJK fonts. The benchmark moved to `scripts/bench-wasm.ts`
+(`bun run bench:wasm`); this script still runs it in the pinned image:
 
 ```sh
 bun run build:wasm                         # packages/wasm/src/text_pdf_wasm_bg.wasm
