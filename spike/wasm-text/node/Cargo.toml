@@ -1,0 +1,16 @@
+[package]
+name = "text-pdf-node"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+text-pdf-core = { workspace = true }
+napi = { version = "3.16.2", default-features = false, features = ["napi4"] }
+napi-derive = "3.7.1"
+
+[build-dependencies]
+napi-build = "2.6.0"

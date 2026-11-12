@@ -1,0 +1,16 @@
+[package]
+name = "text-pdf-wasm"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+text-pdf-core = { workspace = true }
+wasm-bindgen = "0.2.130"
+
+# Rust >=1.87 emits bulk-memory/nontrapping-fptoint by default; tell wasm-opt.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue"]
