@@ -10,6 +10,7 @@ mod path;
 mod text;
 
 use std::collections::{BTreeSet, HashMap};
+use std::ops::Range;
 
 use krilla::Document;
 use krilla::color::rgb;
@@ -17,20 +18,28 @@ use krilla::geom::{Size, Transform};
 use krilla::page::PageSettings;
 use krilla::paint::{Stroke, StrokeDash};
 use krilla::surface::Surface;
-use krilla::text::Font;
+use krilla::text::{Font, KrillaGlyph};
 use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, SourceCache};
 use parley::{FontContext, LayoutContext};
 
 use crate::color::{parse_color, unit};
 use crate::model::{Presentation, SlideObject};
 use crate::path::{fill_path, rect_path};
-use crate::text::layout::Brush;
+use crate::text::layout::{BoxLayout, Brush};
 
 pub struct Renderer {
     fonts: FontContext,
     layout_cx: LayoutContext<Brush>,
     pdf_fonts: HashMap<(u64, u32), Font>,
     warnings: BTreeSet<String>,
+    // Scratch buffers for the per-object, per-paragraph and per-glyph-run paths: each user
+    // clear()s one before filling it, so its capacity survives across objects and renders.
+    text_layout: BoxLayout,
+    span_ranges: Vec<Range<usize>>,
+    span_families: Vec<String>,
+    glyph_ranges: Vec<Range<usize>>,
+    positioned: Vec<parley::Glyph>,
+    glyphs: Vec<KrillaGlyph>,
 }
 
 impl Default for Renderer {
@@ -53,6 +62,12 @@ impl Renderer {
             layout_cx: LayoutContext::new(),
             pdf_fonts: HashMap::new(),
             warnings: BTreeSet::new(),
+            text_layout: BoxLayout::default(),
+            span_ranges: Vec::new(),
+            span_families: Vec::new(),
+            glyph_ranges: Vec::new(),
+            positioned: Vec::new(),
+            glyphs: Vec::new(),
         }
     }
 
@@ -118,11 +133,12 @@ impl Renderer {
         let (x, y, w) = (g.x, g.y, g.width.unwrap_or(0.0));
         let mut h = g.height.unwrap_or(0.0);
 
-        let layout = text.map(|t| self.fit_text(t, w, h));
-        if let (Some(t), Some(l)) = (&text, &layout)
-            && t.fit == "resize"
-        {
-            h = h.max(l.height + t.margin[0] + t.margin[2]);
+        let mut layout = std::mem::take(&mut self.text_layout);
+        if let Some(t) = text {
+            self.fit_text(t, w, h, &mut layout);
+            if t.fit == "resize" {
+                h = h.max(layout.height + t.margin[0] + t.margin[2]);
+            }
         }
 
         let t = &style.transform;
@@ -176,9 +192,10 @@ impl Renderer {
             }
         }
 
-        if let (Some(text), Some(layout)) = (&text, &layout) {
-            self.draw_text(surface, text, layout, x, y, w, h);
+        if let Some(text) = text {
+            self.draw_text(surface, text, &layout, x, y, w, h);
         }
+        self.text_layout = layout;
 
         surface.pop();
         surface.pop();
@@ -240,17 +257,20 @@ mod tests {
         )
     }
 
-    #[test]
-    fn renders_out_of_range_and_nan_alpha_without_panicking() {
-        let mut r = Renderer::new();
-        // Text paints (outline, highlight, underline) are only drawn for shaped glyphs, which need a font.
-        let font = [
+    /// Glyph paths (outlines, decorations, glyph buffers) only run for shaped glyphs, which need a font.
+    fn liberation_sans() -> Option<Vec<u8>> {
+        [
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
         ]
         .iter()
-        .find_map(|p| std::fs::read(p).ok());
-        let has_font = font.is_some_and(|f| r.add_font(f) > 0);
+        .find_map(|p| std::fs::read(p).ok())
+    }
+
+    #[test]
+    fn renders_out_of_range_and_nan_alpha_without_panicking() {
+        let mut r = Renderer::new();
+        let has_font = liberation_sans().is_some_and(|f| r.add_font(f) > 0);
         if !has_font {
             eprintln!("Liberation Sans not installed: glyph outline paths not exercised");
         }
@@ -261,6 +281,60 @@ mod tests {
                 has_font,
                 pdf.windows(9).any(|w| w == b"/FontFile"),
                 "alpha {alpha}: glyphs drawn iff a font is installed"
+            );
+        }
+    }
+
+    /// A shrink-to-fit box (re-laid out several times) holding a bulleted paragraph and an
+    /// empty one, beside a plain text box.
+    fn shrink_model() -> String {
+        let run = |text: &str| {
+            format!(
+                r#"{{"text":"{text}","fontFace":"Arial","fontSize":28,"color":"rgb(17, 34, 51)","bold":false,"italic":false,
+                "decoration":{{"underline":false,"strike":true,"doubleStrike":false}},"verticalAlign":"baseline",
+                "baselineOffset":0,"characterSpacing":0,"softBreakBefore":false}}"#
+            )
+        };
+        let para =
+            |runs: &str, bullet: &str| format!(r#"{{"runs":[{runs}],"align":"center","rtl":false,"spaceBefore":2,"spaceAfter":4,"tabStops":[]{bullet}}}"#);
+        let object = |x: u32, fit: &str, paragraphs: &str| {
+            format!(
+                r#"{{"kind":"text","style":{{"geometry":{{"x":{x},"y":10,"width":200,"height":60}},
+                "transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}}}},
+                "text":{{"paragraphs":[{paragraphs}],"margin":[4,4,4,4],"verticalAlign":"middle","wrap":true,"fit":"{fit}","direction":"horz"}}}}"#
+            )
+        };
+        let long = format!("{},{}", run("Shrink this oversized text until it fits "), run("within the fixed box"));
+        let shrink = [
+            para(&long, r#","bullet":{"marker":"•","indent":20,"level":1}"#),
+            para(&run(""), ""),
+            para(&run("Tail"), ""),
+        ]
+        .join(",");
+        let plain = object(300, "none", &para(&run("Plain"), ""));
+        format!(
+            r##"{{"pageSize":{{"width":10,"height":5.625}},"slides":[{{"background":"#FFFFFF","objects":[{},{plain}]}}]}}"##,
+            object(10, "shrink", &shrink)
+        )
+    }
+
+    #[test]
+    fn reused_scratch_buffers_render_identically() {
+        let font = liberation_sans();
+        let renderer = || {
+            let mut r = Renderer::new();
+            if let Some(f) = &font {
+                r.add_font(f.clone());
+            }
+            r
+        };
+        let fresh = renderer().render(&shrink_model()).unwrap();
+        let mut reused = renderer();
+        reused.render(&model_with_color("#336699")).unwrap();
+        for pass in 0..2 {
+            assert!(
+                reused.render(&shrink_model()).unwrap() == fresh,
+                "pass {pass}: output depends on earlier renders"
             );
         }
     }
