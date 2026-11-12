@@ -29,29 +29,56 @@ appearance can differ more noticeably.
 - **Custom layouts** - Define your own page dimensions
 - **Print-optimized CSS** - Automatic CSS generation for consistent PDF output
 
+## Packages
+
+The project is moving to the `@pdfdeck` scope (issue #22). The repository is a
+Bun workspace with one package per directory under `packages/`:
+
+| Package | Contents | Depends on | Entries |
+| --- | --- | --- | --- |
+| `@pdfdeck/model` | Normalized presentation model types and renderer interfaces (`PresentationRenderer`, `ModelRenderer`, `HtmlPresentationDocument`) | nothing | `.` (types only) |
+| `@pdfdeck/pptxgenjs` | The PptxGenJS-compatible API (`PuppeteerGen`), defaults, normalization, DOM renderers, vendored pptxgenjs 4.0.1 types | `@pdfdeck/model`; `@pdfdeck/puppeteer` (Node entry only) | `.` (Node), `./html` (browser-safe) |
+| `@pdfdeck/puppeteer` | `PuppeteerPdfRenderer` and the shared Chromium (`closeBrowser`) | `@pdfdeck/model`, `puppeteer` | `.` (Node) |
+| `@pdfdeck/wasm` | Opt-in WebAssembly text renderer | `@pdfdeck/model` | `.` (browser, Node and Bun conditions) |
+| `@pdfdeck/react` | `registerReactComponent` | `@pdfdeck/pptxgenjs`; `react` and `react-dom` as peers | `.` |
+| `puppeteer-pptxgenjs` | Deprecation shim: re-exports `@pdfdeck/pptxgenjs` and the `/html`, `/react` and `/wasm` subpaths | the packages above | `.`, `./html`, `./react`, `./wasm` |
+
+The `@pdfdeck/*` packages are **not published yet**. Until they are, install
+`puppeteer-pptxgenjs` (0.1.x is the single-package release). Once they are,
+`puppeteer-pptxgenjs` becomes a thin shim over them and will be deprecated;
+the old import paths keep working.
+
 ## Installation
 
 ```bash
-npm install puppeteer-pptxgenjs
+npm install @pdfdeck/pptxgenjs          # drop-in PptxGenJS API; Puppeteer PDF output by default
+npm install @pdfdeck/wasm               # optional: WASM text renderer
+npm install @pdfdeck/react react react-dom   # optional: React components
 ```
 
-The published package supports Node.js 22 and newer. Bun remains supported as
+`@pdfdeck/pptxgenjs` installs `@pdfdeck/puppeteer` for its Node entry's
+default renderer; install `@pdfdeck/puppeteer` directly only to use
+`PuppeteerPdfRenderer` or `closeBrowser` without the compatibility layer.
+
+The published packages support Node.js 22 and newer. Bun remains supported as
 both a runtime and the development toolchain used by this repository.
 
-Build the consumable package entrypoint and TypeScript declarations:
+Build every package's entrypoints and TypeScript declarations:
 
 ```bash
 bun run build
 ```
 
-The build writes the bundled ESM entrypoint, source map, and declaration files
-to `dist/`. Runtime dependencies remain external so Puppeteer can locate its
+The build writes each package's bundled ESM entrypoints, source maps, and
+declaration files to `packages/<name>/dist/`. Runtime dependencies, including
+the other `@pdfdeck` packages, remain external so Puppeteer can locate its
 installed browser correctly. The pinned PptxGenJS package is used only while
 developing to audit its API types; the build vendors its declaration file and
-license, so consumers neither install nor execute PptxGenJS. Package tarballs
-run this build automatically.
+license into `@pdfdeck/pptxgenjs`, so consumers neither install nor execute
+PptxGenJS. Package tarballs run this build automatically.
 
-Verify the packed artifact in a clean temporary consumer project with:
+Verify the packed packages, and the `puppeteer-pptxgenjs` shim, in clean
+temporary consumer projects with:
 
 ```bash
 bun run test:package
@@ -60,7 +87,7 @@ bun run test:package
 ## Quick Start
 
 ```typescript
-import PuppeteerGen, { PAGE_SIZES } from "puppeteer-pptxgenjs";
+import PuppeteerGen, { PAGE_SIZES } from "@pdfdeck/pptxgenjs";
 
 // Create a presentation with 16:9 layout
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
@@ -176,7 +203,7 @@ launches Chromium. `toPdf()` returns the PDF bytes from the configured renderer
 without touching the filesystem; `writeFile()` is `toPdf()` plus a file write.
 
 ```typescript
-import PuppeteerGen from "puppeteer-pptxgenjs";
+import PuppeteerGen from "@pdfdeck/pptxgenjs";
 
 const pres = new PuppeteerGen();
 pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });
@@ -213,7 +240,7 @@ Any object implementing `PresentationRenderer` can turn the HTML into a PDF
 default `PuppeteerPdfRenderer` adapter.
 
 ```typescript
-import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "puppeteer-pptxgenjs";
+import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "@pdfdeck/pptxgenjs";
 
 const remoteRenderer: PresentationRenderer = {
     async render({ html, pageSize }: HtmlPresentationDocument): Promise<Uint8Array> {
@@ -228,7 +255,17 @@ const remoteRenderer: PresentationRenderer = {
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer: remoteRenderer });
 ```
 
-### Browser and other runtimes (`puppeteer-pptxgenjs/html`)
+The default renderer lives in `@pdfdeck/puppeteer` and works on any
+`HtmlPresentationDocument`, for example one produced by the `/html` entry:
+
+```typescript
+import { closeBrowser, PuppeteerPdfRenderer } from "@pdfdeck/puppeteer";
+
+const pdf = await new PuppeteerPdfRenderer().render(await pres.toHtml());
+await closeBrowser();
+```
+
+### Browser and other runtimes (`@pdfdeck/pptxgenjs/html`)
 
 The `/html` entry exposes the same API without loading Puppeteer, jsdom, or any
 `node:*` module. It uses `document.implementation.createHTMLDocument()` from
@@ -238,7 +275,7 @@ this entry in headless Chromium on every CI run (text, shapes, images, tables,
 charts, components, `toHtml()`, and `toPdf()` with an injected renderer).
 
 ```typescript
-import PuppeteerGen from "puppeteer-pptxgenjs/html";
+import PuppeteerGen from "@pdfdeck/pptxgenjs/html";
 
 const pres = new PuppeteerGen();
 pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });
@@ -262,7 +299,7 @@ In `/html`, `writeFile()` throws because it needs a filesystem; use `toPdf()`.
 Without a global DOM (for example a worker or a server runtime without
 jsdom), pass `createDocument`.
 
-### WASM backend (`puppeteer-pptxgenjs/wasm`, opt-in, text only)
+### WASM backend (`@pdfdeck/wasm`, opt-in, text only)
 
 An experimental renderer that draws `getModel()` straight to PDF in
 WebAssembly (Rust, `crates/`), without HTML or Chromium. Puppeteer stays the
@@ -292,8 +329,8 @@ are ~50 MB together, so in a browser supply your own (ideally subsetted) fonts.
 
 ```typescript
 // Node / Bun
-import PuppeteerGen from "puppeteer-pptxgenjs";
-import { createWasmRenderer, loadSystemFonts } from "puppeteer-pptxgenjs/wasm";
+import PuppeteerGen from "@pdfdeck/pptxgenjs";
+import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
 
 const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
 const pres = new PuppeteerGen(undefined, { renderer });
@@ -303,8 +340,8 @@ await pres.writeFile({ fileName: "hello.pdf" });
 
 ```typescript
 // Browser
-import PuppeteerGen from "puppeteer-pptxgenjs/html";
-import { createWasmRenderer } from "puppeteer-pptxgenjs/wasm";
+import PuppeteerGen from "@pdfdeck/pptxgenjs/html";
+import { createWasmRenderer } from "@pdfdeck/wasm";
 
 const font = new Uint8Array(await (await fetch("/fonts/Carlito-Regular.ttf")).arrayBuffer());
 // `wasm` defaults to text_pdf_wasm_bg.wasm next to the module; pass a URL or bytes if your bundler moves it.
@@ -317,7 +354,7 @@ const pdf = await pres.write({ outputType: "blob" });
 The `browser` export condition resolves to a build without `node:*` modules;
 `node`/`bun` resolve to one that reads the `.wasm` from disk. Building the
 binary needs Rust: `bun run build:wasm` (wasm-pack + wasm-opt) copies it to
-`src/wasm/`, and `bun run build` ships it in `dist/wasm/`. Tests that need it
+`packages/wasm/src/`, and `bun run build` ships it in `packages/wasm/dist/`. Tests that need it
 skip with a message when it is not built.
 
 ## Running Examples
@@ -395,16 +432,21 @@ that PuppeteerGen reproduces and the current compatibility status.
 ## Project Structure
 
 ```
-├── src/
-│   ├── PuppeterrGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
-│   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
-│   ├── output.ts          # write()/stream() outputType conversion of PDF bytes
-│   ├── pageLayouts.ts     # Page size definitions
-│   ├── utils.ts           # Utility functions
-│   ├── pptx.ts            # Type definitions
-│   ├── html.ts            # Browser-safe entry (puppeteer-pptxgenjs/html)
-│   ├── exports.ts         # Node entry (puppeteer-pptxgenjs)
-│   └── wasm/              # Opt-in WASM backend loaders (puppeteer-pptxgenjs/wasm) + wasm-bindgen glue
+├── packages/
+│   ├── model/src/         # @pdfdeck/model: normalized model types and renderer interfaces
+│   ├── pptxgenjs/src/     # @pdfdeck/pptxgenjs
+│   │   ├── PuppeterrGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
+│   │   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
+│   │   ├── output.ts          # write()/stream() outputType conversion of PDF bytes
+│   │   ├── pageLayouts.ts     # Page size definitions
+│   │   ├── utils.ts           # Utility functions
+│   │   ├── pptx.ts            # Type definitions
+│   │   ├── html.ts            # Browser-safe entry (@pdfdeck/pptxgenjs/html)
+│   │   └── exports.ts         # Node entry (@pdfdeck/pptxgenjs)
+│   ├── puppeteer/src/     # @pdfdeck/puppeteer: PuppeteerPdfRenderer and the shared browser
+│   ├── wasm/src/          # @pdfdeck/wasm: WASM backend loaders + wasm-bindgen glue
+│   ├── react/src/         # @pdfdeck/react: React component adapter
+│   └── puppeteer-pptxgenjs/src/  # Deprecation shim re-exporting the packages above
 ├── crates/                # Rust workspace: pdf-core (model -> PDF) and pdf-wasm (wasm-bindgen)
 ├── examples/
 │   ├── test.ts                   # Basic example
@@ -445,7 +487,7 @@ skips Chromium startup. The browser closes after 1 second idle, so scripts
 exit on their own. Call `closeBrowser()` to shut it down immediately:
 
 ```typescript
-import { closeBrowser } from "puppeteer-pptxgenjs";
+import { closeBrowser } from "@pdfdeck/pptxgenjs";
 
 await closeBrowser();
 ```
@@ -503,7 +545,7 @@ await pres.writeFile({ fileName: "metrics.pdf" });
 positive. Components follow insertion order and clip content to their box.
 `objectName` is optional. Other drawing options (rotation, percentage geometry,
 fill, etc.) are currently unsupported: style the inner HTML in the renderer.
-Component default overflow is tracked in `src/defaults.ts`.
+Component default overflow is tracked in `packages/pptxgenjs/src/defaults.ts`.
 
 A component's type and positive integer version select an exact registration.
 Different versions can coexist; duplicate registration and unknown versions
@@ -541,17 +583,17 @@ new version and migrate documents explicitly. Standard PptxGenJS has no
 Install matching React 19 packages in the consuming application:
 
 ```sh
-npm install react@19 react-dom@19
+npm install @pdfdeck/react react@19 react-dom@19
 # TypeScript applications also need their React types:
 npm install --save-dev @types/react@19 @types/react-dom@19
 ```
 
-The adapter is a separate package entrypoint. Importing `puppeteer-pptxgenjs`
-without `/react` does not load or require React.
+The adapter is a separate package, `@pdfdeck/react`. Importing
+`@pdfdeck/pptxgenjs` alone does not load or require React.
 
 ```tsx
-import PuppeteerGen from "puppeteer-pptxgenjs";
-import { registerReactComponent } from "puppeteer-pptxgenjs/react";
+import PuppeteerGen from "@pdfdeck/pptxgenjs";
+import { registerReactComponent } from "@pdfdeck/react";
 
 import { z } from "zod";
 

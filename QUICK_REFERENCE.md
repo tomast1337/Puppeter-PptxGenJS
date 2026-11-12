@@ -3,8 +3,7 @@
 ## Import
 
 ```typescript
-import { PuppeteerGen } from "./src/PuppeterrGen";
-import { PAGE_SIZES } from "./src/pageLayouts";
+import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
 ```
 
 ## Create Presentation
@@ -147,8 +146,7 @@ await pres.writeFile({ fileName: "output.pdf" });
 ## Complete Example
 
 ```typescript
-import { PuppeteerGen } from "./src/PuppeterrGen";
-import { PAGE_SIZES } from "./src/pageLayouts";
+import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
 
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 
@@ -249,7 +247,7 @@ slide.addText("Important", {
 
 ```bash
 # Basic example
-bun run src/index.ts
+bun run examples/test.ts
 
 # Comprehensive examples
 bun run examples/comprehensive-example.ts

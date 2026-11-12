@@ -23,7 +23,7 @@ use parley::{
 use serde::Deserialize;
 use serde_json::Value;
 
-// ---------------------------------------------------------------- model (subset of src/model/types.ts)
+// ---------------------------------------------------------------- model (subset of packages/model/src/types.ts)
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -745,7 +745,7 @@ impl Renderer {
     }
 }
 
-/// CSS `line-height: 1.2`, as used by src/render/text.ts for single spacing.
+/// CSS `line-height: 1.2`, as used by packages/pptxgenjs/src/render/text.ts for single spacing.
 /// Measured: font-metrics line height (ascent+descent+gap) scored slightly worse
 /// against LibreOffice on the text deck (page median 0.0580 vs 0.0556).
 const DEFAULT_LINE_HEIGHT: f32 = 1.2;

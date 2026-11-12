@@ -5,7 +5,7 @@ OOXML rather than browser defaults. The contract is pinned to
 `pptxgenjs@4.0.1`.
 
 Values are confirmed from the installed PptxGenJS source, generated OOXML, and
-the visual parity fixture. Runtime constants live in `src/defaults.ts`. That
+the visual parity fixture. Runtime constants live in `packages/pptxgenjs/src/defaults.ts`. That
 module also contains defaults for renderers that have not been implemented yet.
 
 When PptxGenJS deliberately omits an OOXML attribute, the relevant Office/theme

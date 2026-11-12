@@ -23,8 +23,7 @@ bun install
 ## Quick Start
 
 ```typescript
-import { PuppeteerGen } from "./src/PuppeterrGen";
-import { PAGE_SIZES } from "./src/pageLayouts";
+import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
 
 // Create a new presentation
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
@@ -52,7 +51,7 @@ PuppeteerGen supports multiple predefined page sizes in both landscape and portr
 ### Available Page Sizes
 
 ```typescript
-import { PAGE_SIZES } from "./src/pageLayouts";
+import { PAGE_SIZES } from "@pdfdeck/pptxgenjs";
 
 // Presentation formats
 PAGE_SIZES.SCREEN_4X3.landscape      // 10" × 7.5"

@@ -26,7 +26,7 @@ Use this precedence when behavior is ambiguous:
 4. PptxGenJS type declarations and documentation
 5. Browser defaults only when none of the above defines behavior
 
-All implicit rendering values belong in `src/defaults.ts`. Never introduce a
+All implicit rendering values belong in `packages/pptxgenjs/src/defaults.ts`. Never introduce a
 renderer-specific magic default when a PptxGenJS or Office default exists.
 
 `docs/` contains optional local planning notes and is intentionally ignored by
