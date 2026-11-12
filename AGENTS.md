@@ -67,7 +67,7 @@ its allow-list only with a reason in the PR. The target layout is #22.
 and the browser build of `wasm` import no `node:*` module, puppeteer or jsdom. Runtime-specific code
 lives in a file named for the runtime, beside the shared code it extends: `packages/wasm/src/node.ts`
 reads the binary and system fonts and then calls `browser.ts`; `packages/pptxgenjs/src/node.ts` wires
-in Puppeteer and jsdom around `PuppeterrGen.ts`. The package `exports` map picks the file by
+in Puppeteer and jsdom around `PuppeteerGen.ts`. The package `exports` map picks the file by
 condition (`node`, `bun`, `browser`).
 
 ## Design
@@ -122,7 +122,7 @@ moved, not referenced.
 
 **A value that means something has one name, in one place.** PptxGenJS and Office defaults live in
 `packages/pptxgenjs/src/defaults.ts`. Unit conversions (96 CSS px per inch, 72 pt per inch, EMU) are
-named once (`PPTX_DEFAULTS.units`, `utils.ts` helpers) and used by that name, never retyped as `* 96` in
+named once (`PPTX_DEFAULTS.units`, `units.ts` helpers) and used by that name, never retyped as `* 96` in
 another file. Environment variable names (`VISUAL_DIFF_THRESHOLD`, `WASM_BASELINE_UPDATE`,
 `BENCH_RUNS`, `FONT_DIRS`), visual thresholds (0.12 page, 0.08 crop, 0.002 baseline epsilon) and budgets
 (`GZIP_BUDGET` in `packages/wasm/build-wasm.sh`) are named once and imported. Plain `0`, `1`, `0.5`, and
@@ -151,7 +151,7 @@ instantiation). Data loaded once stays loaded; do not micro-optimize code that r
    all candidates.
 
 Measure before and after on the same deck and machine: `bun run bench` (Puppeteer, `BENCH_RUNS`
-sequential and concurrent), and `spike/wasm-text/harness/bench.ts` for the WASM backend. Put both numbers
+sequential and concurrent), and `bun run bench:wasm` for the WASM backend. Put both numbers
 in the PR. An optimization keeps behavior identical: visual score lines must not change, and the wasm
 hash changes only when Rust code or its pins change.
 
@@ -260,8 +260,7 @@ comments with concrete evidence. Do not loosen thresholds only to make a regress
 - **Required checks must pass** before merge: "Build and test package", "Packed package on Node.js 22",
   "Packed package on Node.js 24", "Visual parity", "WASM build", and "Format" (#27). Never rename a CI
   job: the branch rules match on these names.
-- Merge with a merge commit, or rebase when commit hashes matter (a formatting commit listed in
-  `.git-blame-ignore-revs` must keep its hash).
+- Any merge method is fine; squash is the default.
 - The PR description says what changed and why, which PptxGenJS behavior was the reference, which tests
   were added, and what known gaps remain (with issue links).
 
