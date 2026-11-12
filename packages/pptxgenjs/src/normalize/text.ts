@@ -234,13 +234,13 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): 
     return pieces;
 }
 
-function shouldStartNewGroup(currentPiece: TextPiece, previousPiece?: TextPiece, parentAlign?: any): boolean {
+function shouldStartNewGroup(currentPiece: TextPiece, previousPiece?: TextPiece, parentAlign?: PptxGenJS.HAlign): boolean {
     if (!previousPiece) return false;
     const alignmentChanged = currentPiece.options.align !== previousPiece.options.align && Boolean(currentPiece.options.align || parentAlign);
     return alignmentChanged || Boolean(currentPiece.options.bullet);
 }
 
-function groupPieces(pieces: TextPiece[], parentAlign?: any): TextPiece[][] {
+function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextPiece[][] {
     const groups: TextPiece[][] = [];
     let current: TextPiece[] = [];
 
@@ -273,10 +273,10 @@ function getTextDirection(vert?: string): "vertical" | "vertical270" | "stacked"
 }
 
 function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | "none" {
-    if (options.fit) return options.fit as any;
+    if (options.fit) return options.fit;
     if (options.shrinkText) return "shrink";
     if (options.autoFit) return "resize";
-    return PPTX_DEFAULTS.text.fit as any;
+    return PPTX_DEFAULTS.text.fit;
 }
 
 export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}): NormalizedTextBox {

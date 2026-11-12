@@ -24,5 +24,6 @@ export function colorToCSS(value?: string | ColorProps): string {
     const hex = normalized.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
     if (!hex) return normalized;
 
-    return `rgba(${parseInt(hex[1]!, 16)}, ${parseInt(hex[2]!, 16)}, ${parseInt(hex[3]!, 16)}, ${alpha})`;
+    const [red, green, blue] = hex.slice(1, 4).map(channel => parseInt(channel, 16));
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }

@@ -1,5 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
+import type { NormalizedTable } from "@pdfdeck/model";
 import type { PageSize } from "../../pageLayouts";
 import { normalizeTable } from "./index";
 
@@ -29,8 +30,8 @@ function verticalInches(value: number | `${number}%` | undefined, fallback: numb
 }
 
 function marginInches(margin?: number | FourSideMargin): FourSideMargin {
-    const values = margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
-    return values[0]! >= 1 ? (values.map(value => value / 72) as FourSideMargin) : ([...values] as FourSideMargin);
+    const values: FourSideMargin = margin === undefined ? [...PPTX_DEFAULTS.table.marginIn] : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
+    return values[0] >= 1 ? (values.map(value => value / 72) as FourSideMargin) : ([...values] as FourSideMargin);
 }
 
 function cellValue(cell: PptxGenJS.TableCell): string | PptxGenJS.TableCell[] {
@@ -158,13 +159,13 @@ function calculateLineHeight(row: PptxGenJS.TableRow, table: PptxGenJS.TableProp
     }, 0);
 }
 
-function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: any, options: PptxGenJS.TableProps): RowMetrics {
+function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTable, options: PptxGenJS.TableProps): RowMetrics {
     const widths: number[] = [];
     let column = 0;
 
     row.forEach(cell => {
         const colspan = Math.max(1, Math.floor(cell.options?.colspan ?? 1));
-        const colWidth = normalized.columns.slice(column, column + colspan).reduce((sum: number, width: number) => sum + width, 0);
+        const colWidth = normalized.columns.slice(column, column + colspan).reduce((sum, width) => sum + width, 0);
         widths.push(colWidth / 96);
         column += colspan;
     });
@@ -232,6 +233,7 @@ export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS
 
             const capacity = perLine > 0 ? Math.max(1, Math.floor((available() - used - margins) / perLine)) : cycles - firstLine;
             const count = Math.min(capacity, cycles - firstLine);
+            // `lines` is `row.map(...)` from calculateRowMetrics, so every cell index has an entry.
             const fragment = row.map((cell, index) => cellFromLines(cell, lines[index]!.slice(firstLine, firstLine + count)));
 
             pages.at(-1)!.rows.push(fragment);

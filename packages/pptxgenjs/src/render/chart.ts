@@ -176,7 +176,8 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
     const grid = chartGrid(chart);
 
     if (chart.type === "pie" || chart.type === "doughnut") {
-        const series = chart.series[0]!;
+        const [series] = chart.series;
+        if (!series) throw new TypeError(`A ${chart.type} chart model needs one data series; got none`);
         return {
             ...common,
             series: [
@@ -283,7 +284,8 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
                   }
                 : { show: false },
     }));
-    const valueAxis = valueAxes[0]!;
+    const [valueAxis] = valueAxes;
+    if (!valueAxis) throw new TypeError(`A ${chart.type} chart model needs at least one value axis; got none`);
     return {
         ...common,
         grid,
