@@ -49,4 +49,4 @@ RUN PUPPETEER_CHROME_SKIP_DOWNLOAD=true bun ci && chmod -R a+rX /deps /opt/puppe
 RUN mkdir -m 1777 /work
 ENV HOME=/tmp TMPDIR=/out
 WORKDIR /work
-CMD ["sh", "-c", "tar -C /repo --exclude=./node_modules --exclude=./.git --exclude=./dist --exclude=./.visual-parity -cf - . | tar --no-overwrite-dir -xf - && ln -s /deps/node_modules node_modules && bun run test:visual"]
+CMD ["sh", "-c", "tar -C /repo --exclude=./node_modules --exclude=./.git --exclude=./dist --exclude=./.visual-parity --exclude=./crates/target -cf - . | tar --no-overwrite-dir -xf - && ln -s /deps/node_modules node_modules && bun run ${VISUAL_SCRIPT:-test:visual}"]

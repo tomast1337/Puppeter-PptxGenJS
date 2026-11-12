@@ -2,8 +2,8 @@
 import { writeFileSync } from "node:fs";
 import { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../../../packages/pptxgenjs/src/pageLayouts";
-import { createRenderer } from "./backend";
-import { populateTextDeck } from "./deck";
+import { createRenderer } from "../../../tests/visual/wasm/backend";
+import { populateTextDeck } from "../../../tests/visual/wasm/deck";
 
 const [out = "text-deck.pdf"] = process.argv.slice(2);
 const renderer = await createRenderer();

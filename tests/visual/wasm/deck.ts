@@ -4,7 +4,7 @@
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
-import { populateParityFixture } from "../../../tests/visual/fixture";
+import { populateParityFixture } from "../fixture";
 
 export const TEXT_PAGES = 9;
 
