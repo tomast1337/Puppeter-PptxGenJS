@@ -5,8 +5,8 @@
 //
 // Gate (WASM only):
 // - every page <= PAGE_THRESHOLD, the AGENTS.md whole-slide limit.
-// - every deck: no crop scores worse than its committed baseline.json entry + EPSILON. Most crops
-//   are still above the 0.08 target, so a fixed limit would either fail today or hide regressions
+// - every deck: no crop scores worse than its committed baseline.json entry + BASELINE_EPSILON. Most crops
+//   are still above the CROP_TARGET (0.08), so a fixed limit would either fail today or hide regressions
 //   behind a loosened threshold; the baseline is a ratchet that only moves down.
 // WASM_BASELINE_UPDATE=1 writes the measured scores to <out>/baseline.json; review the diff and copy
 // it over tests/visual/wasm/baseline.json deliberately (CONTRIBUTING.md).
@@ -20,11 +20,7 @@ import { createRenderer } from "./backend";
 import baseline from "./baseline.json";
 import { populateTextDeck, TEXT_PAGES } from "./deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
-
-const PAGE_THRESHOLD = 0.12;
-// The pinned image makes scores repeatable to the last digit; 0.002 absorbs the 4-decimal rounding
-// of baseline.json plus a few antialiased pixels, well below one misplaced glyph in a crop (~0.01).
-const EPSILON = 0.002;
+import { BASELINE_EPSILON, CROP_TARGET, PAGE_THRESHOLD } from "../thresholds";
 
 type Populate = <T extends pptxgen | PuppeteerGen>(presentation: T) => T;
 // emoji: Noto Color Emoji / Noto Sans CJK fallback (issue #14), installed in the pinned image.
@@ -122,7 +118,7 @@ for (const deckName of deckNames) {
         }
     }
 
-    const summary = Object.fromEntries(engines.map(e => [e, { pageMedian: median(pages.map(p => p[e] as number)), cropMedian: median(crops.map(c => c[e] as number)), cropsUnder008: crops.filter(c => (c[e] as number) <= 0.08).length }]));
+    const summary = Object.fromEntries(engines.map(e => [e, { pageMedian: median(pages.map(p => p[e] as number)), cropMedian: median(crops.map(c => c[e] as number)), cropsUnder008: crops.filter(c => (c[e] as number) <= CROP_TARGET).length }]));
     writeFileSync(join(out, "fidelity.json"), JSON.stringify({ warnings, pages, crops, summary, cropCount: crops.length }, null, 2));
 
     // 4. Gate the WASM scores.
@@ -143,14 +139,14 @@ for (const deckName of deckNames) {
         if (limit === undefined) {
             failures.push(`${deckName} crop ${name}: no baseline entry`);
             status = " FAIL (no baseline)";
-        } else if ((c.wasm as number) > limit + EPSILON) {
-            failures.push(`${deckName} crop ${name}: WASM ${f(c.wasm)} > baseline ${f(limit)} + ${EPSILON}`);
+        } else if ((c.wasm as number) > limit + BASELINE_EPSILON) {
+            failures.push(`${deckName} crop ${name}: WASM ${f(c.wasm)} > baseline ${f(limit)} + ${BASELINE_EPSILON}`);
             status = " FAIL";
-        } else if ((c.wasm as number) < limit - EPSILON) improved.push(name);
+        } else if ((c.wasm as number) < limit - BASELINE_EPSILON) improved.push(name);
         console.log(`| ${name} | ${c.label} | ${f(c.puppeteer)} | ${f(c.wasm)}${status} | ${limit === undefined ? "-" : f(limit)} |`);
     }
     for (const stale of Object.keys(expected).filter(name => !(name in measured[deckName]!))) failures.push(`${deckName} crop ${stale}: in baseline.json but no longer measured`);
-    if (improved.length) console.log(`\nImproved beyond ${EPSILON}: ${improved.join(", ")}. Ratchet them down with WASM_BASELINE_UPDATE=1.`);
+    if (improved.length) console.log(`\nImproved beyond ${BASELINE_EPSILON}: ${improved.join(", ")}. Ratchet them down with WASM_BASELINE_UPDATE=1.`);
     console.log(`\nsummary: ${JSON.stringify(summary)}`);
     console.log(`warnings: ${JSON.stringify(warnings)}`);
 }
@@ -163,5 +159,5 @@ if (process.env.WASM_BASELINE_UPDATE === "1") {
     console.error(`\nWASM visual parity failed:\n- ${failures.join("\n- ")}`);
     process.exit(1);
 } else {
-    console.log(`\nWASM visual parity passed: pages <= ${PAGE_THRESHOLD}, every crop within ${EPSILON} of baseline.json.`);
+    console.log(`\nWASM visual parity passed: pages <= ${PAGE_THRESHOLD}, every crop within ${BASELINE_EPSILON} of baseline.json.`);
 }

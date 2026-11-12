@@ -7,8 +7,9 @@ import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../../packages/pptxgenjs/src/pageLayouts";
 import { PARITY_REGIONS, populateParityFixture } from "./fixture";
 import { writeVisualGallery } from "./gallery";
+import { PAGE_THRESHOLD } from "./thresholds";
 
-const threshold = Number(process.env.VISUAL_DIFF_THRESHOLD ?? "0.12");
+const threshold = Number(process.env.VISUAL_DIFF_THRESHOLD ?? PAGE_THRESHOLD);
 if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
     throw new Error("VISUAL_DIFF_THRESHOLD must be a number between 0 and 1");
 }

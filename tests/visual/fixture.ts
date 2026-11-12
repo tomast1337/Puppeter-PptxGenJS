@@ -4,7 +4,9 @@ import { createElement } from "react";
 import { z } from "zod";
 import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/generatedPreset";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
+import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
+import { CROP_TARGET, FLOWCHART_DIVIDER_CROP_THRESHOLD, TABLE_CROP_THRESHOLD, TABLE_LAYOUT_CROP_THRESHOLD } from "./thresholds";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -223,6 +225,15 @@ const SHAPED_TEXT_CASES = [
 ] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
+// Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
+function cropThreshold(name: string): number {
+    if (name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-")) return TABLE_LAYOUT_CROP_THRESHOLD;
+    if (name.startsWith("table-")) return TABLE_CROP_THRESHOLD;
+    if (FLOWCHART_DIVIDER_CROPS.includes(name)) return FLOWCHART_DIVIDER_CROP_THRESHOLD;
+    return CROP_TARGET;
+}
+const FLOWCHART_DIVIDER_CROPS = ["flowChartInternalStorage", "flowChartPredefinedProcess"];
+
 export const PARITY_REGIONS = [
     ...CURVED_CASES,
     ...CIRCULAR_CASES,
@@ -241,15 +252,11 @@ export const PARITY_REGIONS = [
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
-    // LibreOffice rasterizes multiple coincident 1.15pt divider strokes with
-    // fewer fully opaque pixels than Chromium. Geometry and divider positions
-    // match; compound shapes and dense table grids need narrow rasterization
-    // allowances. The table pages remain below 0.09 whole-slide RMSE.
-    threshold: name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-") ? 0.12 : name.startsWith("table-") ? 0.09 : ["flowChartInternalStorage", "flowChartPredefinedProcess"].includes(name) ? 0.11 : 0.08,
-    x: Math.floor(x * 96) - 3,
-    y: Math.floor(y * 96) - 3,
-    w: Math.ceil(w * 96) + 7,
-    h: Math.ceil(h * 96) + 7,
+    threshold: cropThreshold(name),
+    x: Math.floor(inchesToPixels(x)) - 3,
+    y: Math.floor(inchesToPixels(y)) - 3,
+    w: Math.ceil(inchesToPixels(w)) + 7,
+    h: Math.ceil(inchesToPixels(h)) + 7,
 }));
 
 const SAMPLE_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(
