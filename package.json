@@ -46,6 +46,13 @@
       "import": "./dist/html.js",
       "default": "./dist/html.js"
     },
+    "./wasm": {
+      "types": "./dist/wasm/browser.d.ts",
+      "browser": "./dist/wasm/browser.js",
+      "bun": "./dist/wasm/node.js",
+      "node": "./dist/wasm/node.js",
+      "default": "./dist/wasm/browser.js"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",
@@ -54,6 +61,7 @@
   },
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "build:wasm": "sh scripts/build-wasm.sh",
     "prepack": "bun run build",
     "test:package": "bun run scripts/test-package.ts",
     "typecheck": "node --max-old-space-size=2048 --stack-size=8192 ./node_modules/typescript/bin/tsc --noEmit",

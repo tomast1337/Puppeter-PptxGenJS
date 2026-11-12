@@ -48,5 +48,5 @@ export type {
     PptxWriteFileProps,
     PptxWriteProps,
 } from "./pptx";
-export type { HtmlPresentationDocument, PresentationRenderer } from "./render/document";
+export type { HtmlPresentationDocument, ModelRenderer, PresentationRenderer } from "./render/document";
 export type { ColorProps } from "./utils";

@@ -41,3 +41,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Local planning and agent working notes
 docs/*
+
+# Built by `bun run build:wasm` (issue #16 builds it in CI)
+src/wasm/*.wasm

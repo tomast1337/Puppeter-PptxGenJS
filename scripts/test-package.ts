@@ -191,6 +191,40 @@ console.log("html entry package consumer passed");
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
     await run([process.execPath, "run", htmlRunnerPath], consumerDirectory);
     await run(["node", "--experimental-strip-types", htmlRunnerPath], consumerDirectory);
+
+    // The ./wasm entry: its browser condition must stay browser-safe, and it renders under Node and Bun when the binary was built.
+    const wasmConsumerSource = `
+import PuppeteerGen, { PAGE_SIZES } from "${packageMetadata.name}";
+import { createWasmRenderer, loadSystemFonts } from "${packageMetadata.name}/wasm";
+
+const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
+const presentation = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer });
+presentation.addSlide().addText("WASM package consumer", { x: 1, y: 1, w: 4, h: 1, fontFace: "Calibri" });
+presentation.addSlide().addShape("roundRect", { x: 1, y: 1, w: 2, h: 1, fill: { color: "0088CC" } });
+const pdf = new TextDecoder("latin1").decode(await presentation.toPdf());
+if (!pdf.startsWith("%PDF-") || pdf.match(/\\/Type\\s*\\/Page\\b(?!s)/g)?.length !== 2) throw new Error("WASM entry did not render a two-page PDF");
+console.log(\`WASM package consumer generated a PDF under \${"Bun" in globalThis ? "Bun" : "Node.js"}\`);
+`;
+    const wasmConsumerPath = join(consumerDirectory, "wasm-consumer.ts");
+    await Bun.write(wasmConsumerPath, wasmConsumerSource);
+    const wasmBrowserPath = join(consumerDirectory, "wasm-browser.ts");
+    await Bun.write(wasmBrowserPath, `export { createWasmRenderer } from "${packageMetadata.name}/wasm";\n`);
+    const wasmBrowserBundle = await Bun.build({ entrypoints: [wasmBrowserPath], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0]);
+    if (!wasmBrowserBundle.success) throw new AggregateError(wasmBrowserBundle.logs, "The packed wasm entry failed to bundle for the browser");
+    const wasmInputs = Object.keys((wasmBrowserBundle as unknown as { metafile: { inputs: Record<string, unknown> } }).metafile.inputs);
+    if (!wasmInputs.some(path => path.endsWith("dist/wasm/browser.js")) || wasmInputs.some(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path))) {
+        throw new Error(`The packed wasm entry's browser condition is not browser-safe: ${wasmInputs.join(", ")}`);
+    }
+    if (await Bun.file(join(consumerDirectory, "node_modules", packageMetadata.name, "dist/wasm/text_pdf_wasm_bg.wasm")).exists()) {
+        const wasmConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
+        wasmConfig.files.push("wasm-consumer.ts");
+        await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(wasmConfig, null, 2));
+        await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
+        await run([process.execPath, "run", wasmConsumerPath], consumerDirectory);
+        await run(["node", "--experimental-strip-types", wasmConsumerPath], consumerDirectory);
+    } else {
+        console.warn("Skipping the WASM package consumer: the package was built without src/wasm/text_pdf_wasm_bg.wasm (bun run build:wasm; CI builds it from issue #16)");
+    }
     // Install React only after the core consumer has been typechecked and run without it.
     await run([process.execPath, "add", "--dev", "--ignore-scripts", ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${packageMetadata.devDependencies[name]}`)], consumerDirectory);
     const reactConsumerSource = `
