@@ -254,13 +254,71 @@ Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
 
 | Option | Node entry default | `/html` default |
 | --- | --- | --- |
-| `renderer?: PresentationRenderer` | `PuppeteerPdfRenderer` | none: `toPdf()` throws |
+| `renderer?: PresentationRenderer \| ModelRenderer` | `PuppeteerPdfRenderer` | none: `toPdf()` throws |
 | `resolveImage?: (source: string) => Promise<string>` | data URIs, http(s), file paths relative to `process.cwd()` | data URIs and http(s); file paths throw |
 | `createDocument?: () => Document` | jsdom | global `document`; throws without a DOM |
 
 In `/html`, `writeFile()` throws because it needs a filesystem; use `toPdf()`.
 Without a global DOM (for example a worker or a server runtime without
 jsdom), pass `createDocument`.
+
+### WASM backend (`puppeteer-pptxgenjs/wasm`, opt-in, text only)
+
+An experimental renderer that draws `getModel()` straight to PDF in
+WebAssembly (Rust, `crates/`), without HTML or Chromium. Puppeteer stays the
+default; nothing loads the WASM code unless you import this entry, and the
+`.wasm` binary (~2 MB, ~850 KB gzip) is only fetched by `createWasmRenderer()`.
+It implements `ModelRenderer`, so `toPdf()`, `write()`, `stream()` and
+`writeFile()` work unchanged.
+
+**Status:** text boxes (runs, paragraphs, bullets, insets, rotation, fit) and
+`rect`/`roundRect` fills and lines only. Images, tables, charts, components,
+other preset shapes, shadows, tab stops and hyperlink annotations are not
+drawn yet (issue #17).
+
+**Unsupported content:** by default `toPdf()` throws an error listing
+everything the backend could not draw. Pass `onUnsupported: "warn"` to get the
+PDF anyway; the skipped items are then in `renderer.warnings()`.
+
+**Fonts:** WASM cannot see system fonts, so you pass font files (TTF/OTF/TTC
+bytes); at least one is required. Office faces fall back to their
+metric-compatible equivalents when the originals are not supplied: Calibri ->
+Carlito, Cambria -> Caladea, Arial/Helvetica -> Liberation Sans, Times New
+Roman -> Liberation Serif, Courier New -> Liberation Mono, then DejaVu Sans.
+Under Node/Bun, `loadSystemFonts()` reads those faces (and the Office
+originals, Noto Color Emoji and Noto Sans CJK when installed) from the system
+font directories; pass `{ dirs, match }` to choose others. Emoji and CJK fonts
+are ~50 MB together, so in a browser supply your own (ideally subsetted) fonts.
+
+```typescript
+// Node / Bun
+import PuppeteerGen from "puppeteer-pptxgenjs";
+import { createWasmRenderer, loadSystemFonts } from "puppeteer-pptxgenjs/wasm";
+
+const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
+const pres = new PuppeteerGen(undefined, { renderer });
+pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1, fontFace: "Calibri" });
+await pres.writeFile({ fileName: "hello.pdf" });
+```
+
+```typescript
+// Browser
+import PuppeteerGen from "puppeteer-pptxgenjs/html";
+import { createWasmRenderer } from "puppeteer-pptxgenjs/wasm";
+
+const font = new Uint8Array(await (await fetch("/fonts/Carlito-Regular.ttf")).arrayBuffer());
+// `wasm` defaults to text_pdf_wasm_bg.wasm next to the module; pass a URL or bytes if your bundler moves it.
+const renderer = await createWasmRenderer({ fonts: [font], onUnsupported: "warn" });
+const pres = new PuppeteerGen(undefined, { renderer });
+pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });
+const pdf = await pres.write({ outputType: "blob" });
+```
+
+The `browser` export condition resolves to a build without `node:*` modules;
+`node`/`bun` resolve to one that reads the `.wasm` from disk. Building the
+binary needs Rust: `bun run build:wasm` (wasm-pack + wasm-opt) copies it to
+`src/wasm/`, and `bun run build` ships it in `dist/wasm/`. Tests that need it
+skip with a message when it is not built.
 
 ## Running Examples
 
@@ -345,7 +403,9 @@ that PuppeteerGen reproduces and the current compatibility status.
 │   ├── utils.ts           # Utility functions
 │   ├── pptx.ts            # Type definitions
 │   ├── html.ts            # Browser-safe entry (puppeteer-pptxgenjs/html)
-│   └── exports.ts         # Node entry (puppeteer-pptxgenjs)
+│   ├── exports.ts         # Node entry (puppeteer-pptxgenjs)
+│   └── wasm/              # Opt-in WASM backend loaders (puppeteer-pptxgenjs/wasm) + wasm-bindgen glue
+├── crates/                # Rust workspace: pdf-core (model -> PDF) and pdf-wasm (wasm-bindgen)
 ├── examples/
 │   ├── test.ts                   # Basic example
 │   └── comprehensive-example.ts  # Feature demonstrations

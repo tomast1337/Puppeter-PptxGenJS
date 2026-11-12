@@ -9,7 +9,7 @@ if (outputDirectory === projectRoot) throw new Error("Refusing to clean the proj
 await rm(outputDirectory, { recursive: true, force: true });
 
 const bundle = await Bun.build({
-    entrypoints: [resolve(projectRoot, "src/exports.ts"), resolve(projectRoot, "src/html.ts"), resolve(projectRoot, "src/react.ts")],
+    entrypoints: ["exports", "html", "react", "wasm/browser", "wasm/node"].map(entry => resolve(projectRoot, `src/${entry}.ts`)),
     outdir: outputDirectory,
     target: "node",
     format: "esm",
@@ -76,10 +76,16 @@ if (/from\s+["']react(?:-dom)?(?:\/[^"']*)?["']|import\(["']react(?:-dom)?/.test
 if (/\bBun\s*\./.test(bundledSource)) {
     throw new Error("The runtime bundle must not depend on Bun APIs; published packages support Node.js");
 }
-const htmlSource = await readFile(resolve(outputDirectory, "html.js"), "utf8");
-if (/from\s*["'](?:puppeteer|jsdom|node:)|import\(["'](?:puppeteer|jsdom|node:)|require\(["'](?:puppeteer|jsdom|node:)/.test(htmlSource)) {
-    throw new Error("The browser-safe html bundle must not import puppeteer, jsdom or node:* modules");
+for (const browserSafe of ["html.js", "wasm/browser.js"]) {
+    const source = await readFile(resolve(outputDirectory, browserSafe), "utf8");
+    if (/from\s*["'](?:puppeteer|jsdom|node:)|import\(["'](?:puppeteer|jsdom|node:)|require\(["'](?:puppeteer|jsdom|node:)/.test(source)) {
+        throw new Error(`The browser-safe ${browserSafe} bundle must not import puppeteer, jsdom or node:* modules`);
+    }
 }
+// The WASM loaders resolve the binary next to themselves (dist/wasm/); CI cannot build it yet (issue #16).
+const wasmBinary = resolve(projectRoot, "src/wasm/text_pdf_wasm_bg.wasm");
+if (await Bun.file(wasmBinary).exists()) await copyFile(wasmBinary, resolve(outputDirectory, "wasm/text_pdf_wasm_bg.wasm"));
+else console.warn("src/wasm/text_pdf_wasm_bg.wasm is not built (bun run build:wasm); the package's ./wasm entry will not work");
 for (const declarationFile of await declarationFiles(outputDirectory)) {
     const source = await readFile(declarationFile, "utf8");
     if (/from\s+["']pptxgenjs["']|import\(["']pptxgenjs["']\)/.test(source)) {

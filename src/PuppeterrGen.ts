@@ -19,7 +19,7 @@ import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
-import { type HtmlPresentationDocument, type PresentationRenderer, serializeHtmlPresentation } from "./render/document";
+import { type HtmlPresentationDocument, type ModelRenderer, type PresentationRenderer, serializeHtmlPresentation } from "./render/document";
 import { convertPdfOutput, resolveOutputType } from "./output";
 import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, renderSlideObject } from "./render/slide";
 
@@ -240,8 +240,8 @@ export class PuppeteerSlide implements PptxSlide {
 
 /** Runtime adapters. The Node entry supplies jsdom, filesystem image paths and Puppeteer by default. */
 export interface PuppeteerGenOptions {
-    /** Turns the serialized HTML into PDF bytes for toPdf() and writeFile(). */
-    renderer?: PresentationRenderer;
+    /** Turns the serialized HTML (PresentationRenderer) or the normalized model (ModelRenderer) into PDF bytes for toPdf() and writeFile(). */
+    renderer?: PresentationRenderer | ModelRenderer;
     /** Resolves an addImage() path or URL to a data URI before serialization. */
     resolveImage?: (source: string) => Promise<string>;
     /** Creates the empty HTML document slides are rendered into. */
@@ -254,7 +254,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     private slideCount = 0;
     private readonly components = new ComponentRegistry();
     private slides: PuppeteerSlide[] = [];
-    private readonly renderer: PresentationRenderer | undefined;
+    private readonly renderer: PresentationRenderer | ModelRenderer | undefined;
     private readonly resolveImage: (source: string) => Promise<string>;
 
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE, options: PuppeteerGenOptions = {}) {
@@ -309,6 +309,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     /** PDF bytes from the configured renderer; nothing is written to disk. */
     async toPdf(): Promise<Uint8Array> {
         if (!this.renderer) throw new Error("toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry (\"puppeteer-pptxgenjs\") for the Puppeteer default");
+        // shortcut: model renderers get getModel() as-is (image sources unresolved); resolve them once the WASM backend draws images (#17).
+        if ("renderModel" in this.renderer) return this.renderer.renderModel(this.getModel());
         return this.renderer.render(await this.toHtml());
     }
 

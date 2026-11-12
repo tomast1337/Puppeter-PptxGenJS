@@ -26,6 +26,5 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  // Rust/WASM spike harness (issue #8); not part of the package.
-  "exclude": ["node_modules", "dist", "spike"]
+  "exclude": ["node_modules", "dist", "crates"]
 }
