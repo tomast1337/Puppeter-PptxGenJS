@@ -1,4 +1,4 @@
-//! wasm-bindgen binding. JS surface (identical to the napi binding):
+//! wasm-bindgen binding. JS surface:
 //! `new Renderer()`, `addFont(bytes): number`, `render(modelJson): Uint8Array`, `warnings(): string[]`.
 use wasm_bindgen::prelude::*;
 
