@@ -304,7 +304,9 @@ jsdom), pass `createDocument`.
 An experimental renderer that draws `getModel()` straight to PDF in
 WebAssembly (Rust, `crates/`), without HTML or Chromium. Puppeteer stays the
 default; nothing loads the WASM code unless you import this entry, and the
-`.wasm` binary (~2 MB, ~850 KB gzip) is only fetched by `createWasmRenderer()`.
+`.wasm` binary (~2.2 MB, ~910 KB gzip) is only fetched by `createWasmRenderer()`.
+The prebuilt binary ships in the `@pdfdeck/wasm` tarball, so installing it
+needs no Rust toolchain.
 It implements `ModelRenderer`, so `toPdf()`, `write()`, `stream()` and
 `writeFile()` work unchanged.
 
@@ -352,10 +354,11 @@ const pdf = await pres.write({ outputType: "blob" });
 ```
 
 The `browser` export condition resolves to a build without `node:*` modules;
-`node`/`bun` resolve to one that reads the `.wasm` from disk. Building the
-binary needs Rust: `bun run build:wasm` (wasm-pack + wasm-opt) copies it to
-`packages/wasm/src/`, and `bun run build` ships it in `packages/wasm/dist/`. Tests that need it
-skip with a message when it is not built.
+`node`/`bun` resolve to one that reads the `.wasm` from disk. To build the
+binary from this repository, `bun run build:wasm` (pinned Rust toolchain, or
+Docker when it is missing; see CONTRIBUTING.md) copies it to
+`packages/wasm/src/`, and `bun run build` ships it in `packages/wasm/dist/`.
+Tests that need it skip with a message when it is not built, except in CI.
 
 ## Running Examples
 
