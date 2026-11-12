@@ -31,10 +31,10 @@
     "paths": {
       "@pdfdeck/model": ["./packages/model/src/index.ts"],
       "@pdfdeck/puppeteer": ["./packages/puppeteer/src/index.ts"],
-      "@pdfdeck/pptxgenjs": ["./packages/pptxgenjs/src/exports.ts"],
+      "@pdfdeck/pptxgenjs": ["./packages/pptxgenjs/src/index.ts"],
       "@pdfdeck/pptxgenjs/html": ["./packages/pptxgenjs/src/html.ts"],
       "@pdfdeck/wasm": ["./packages/wasm/src/browser.ts"],
-      "@pdfdeck/react": ["./packages/react/src/react.ts"]
+      "@pdfdeck/react": ["./packages/react/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist", "crates"]

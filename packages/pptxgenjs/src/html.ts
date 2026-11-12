@@ -3,9 +3,12 @@ import { UnsupportedChartError } from "./chart/errors";
 import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
 import { parseComponentProps } from "./components/schema";
 import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
-import { PuppeteerGen } from "./PuppeterrGen";
+import { PuppeteerGen } from "./PuppeteerGen";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
-import { alignToCSS, colorToCSS, convertToPixels, generatePageCSS, inchesToPixels, percentageToPixels, pointsToPixels, valignToCSS } from "./utils";
+import { alignToCSS, valignToCSS } from "./alignment";
+import { colorToCSS } from "./color";
+import { generatePageCSS } from "./pageCss";
+import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "./units";
 
 export {
     alignToCSS,
@@ -38,8 +41,8 @@ export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
 export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
 export type { FourSideMargin } from "./defaults";
 export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
-export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeterrGen";
+export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeteerGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
 export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 export type { HtmlPresentationDocument, ModelRenderer, PresentationRenderer } from "./render/document";
-export type { ColorProps } from "./utils";
+export type { ColorProps } from "./color";

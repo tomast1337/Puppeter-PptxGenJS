@@ -15,7 +15,7 @@ Created comprehensive page size definitions with:
 - **Both orientations**: All sizes available in landscape and portrait
 - **Default layout**: 16:9 landscape (most common for presentations)
 
-### 2. Utility Functions (`packages/pptxgenjs/src/utils.ts`)
+### 2. Utility Functions (`units.ts`, `color.ts`, `alignment.ts`, `pageCss.ts` in `packages/pptxgenjs/src/`)
 
 Implemented conversion and styling utilities:
 
@@ -28,7 +28,7 @@ Implemented conversion and styling utilities:
 - `valignToCSS()` - Converts PptxGenJS valign to CSS flex alignment
 - `pointsToPixels()` - Converts font points to pixels
 
-### 3. Enhanced PuppeteerGen Class (`packages/pptxgenjs/src/PuppeterrGen.ts`)
+### 3. Enhanced PuppeteerGen Class (`packages/pptxgenjs/src/PuppeteerGen.ts`)
 
 **Main Features:**
 
@@ -89,7 +89,7 @@ Implemented conversion and styling utilities:
 
 ### 5. Example Files
 
-**Basic Example (`src/index.ts`):**
+**Basic Example (`examples/test.ts`):**
 
 - Demonstrates text positioning
 - Shows multiple slides
@@ -125,7 +125,7 @@ Implemented conversion and styling utilities:
 - Best practices
 - Troubleshooting
 
-### 7. Exports (`packages/pptxgenjs/src/exports.ts`)
+### 7. Exports (`packages/pptxgenjs/src/index.ts`)
 
 Clean public API with:
 
@@ -185,16 +185,16 @@ The generated CSS includes:
 ### New Files:
 
 - `packages/pptxgenjs/src/pageLayouts.ts` - Page size definitions
-- `packages/pptxgenjs/src/utils.ts` - Utility functions
-- `packages/pptxgenjs/src/exports.ts` - Public API
+- `packages/pptxgenjs/src/{units,color,alignment,pageCss}.ts` - Utility functions
+- `packages/pptxgenjs/src/index.ts` - Public API
 - `examples/comprehensive-example.ts` - Feature examples
-- `USAGE.md` - Detailed documentation
-- `IMPLEMENTATION_SUMMARY.md` - This file
+- `docs/USAGE.md` - Detailed documentation
+- `docs/IMPLEMENTATION_SUMMARY.md` - This file
 
 ### Modified Files:
 
-- `packages/pptxgenjs/src/PuppeterrGen.ts` - Enhanced implementation
-- `src/index.ts` - Better examples
+- `packages/pptxgenjs/src/PuppeteerGen.ts` - Enhanced implementation
+- `examples/test.ts` - Better examples
 - `README.md` - Comprehensive project documentation
 
 ## Test Results
@@ -202,7 +202,7 @@ The generated CSS includes:
 All tests passed successfully:
 
 ```bash
-✓ Basic example (src/index.ts)
+✓ Basic example (examples/test.ts)
   - Generated Hello-World-pptxgen.pptx
   - Generated Hello-World-PuppeteerGen.pdf
 

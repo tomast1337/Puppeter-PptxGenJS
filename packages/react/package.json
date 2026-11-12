@@ -4,13 +4,13 @@
   "description": "React component adapter for @pdfdeck/pptxgenjs",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/react.js",
-  "types": "./dist/react.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js",
-      "default": "./dist/react.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [

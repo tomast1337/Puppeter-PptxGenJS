@@ -1,7 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
-import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
-import type { PageSize } from "../pageLayouts";
-import { normalizeTable } from "./table";
+import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
+import type { PageSize } from "../../pageLayouts";
+import { normalizeTable } from "./index";
 
 export interface PaginatedTablePage {
     rows: PptxGenJS.TableRow[];

@@ -4,13 +4,13 @@
   "description": "A PptxGenJS-compatible API for generating PDFs with Puppeteer",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/exports.js",
-  "types": "./dist/exports.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/exports.d.ts",
-      "import": "./dist/exports.js",
-      "default": "./dist/exports.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./html": {
       "types": "./dist/html.d.ts",

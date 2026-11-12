@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { alignToCSS, colorToCSS, convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels, valignToCSS } from "../packages/pptxgenjs/src/utils";
+import { alignToCSS, valignToCSS } from "../packages/pptxgenjs/src/alignment";
+import { colorToCSS } from "../packages/pptxgenjs/src/color";
+import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "../packages/pptxgenjs/src/units";
 
 describe("measurement conversion", () => {
     test("converts inches and points at 96 DPI", () => {

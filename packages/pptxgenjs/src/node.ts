@@ -7,7 +7,7 @@ import { JSDOM } from "jsdom";
 import { dataUri, MIME_TYPES, resolveRemoteImageSource } from "./normalize/image";
 import type { PageSize } from "./pageLayouts";
 import type { PptxWriteFileProps } from "./pptx";
-import { PuppeteerGen as CorePuppeteerGen, type PuppeteerGenOptions } from "./PuppeterrGen";
+import { PuppeteerGen as CorePuppeteerGen, type PuppeteerGenOptions } from "./PuppeteerGen";
 
 export function createNodeDocument(): Document {
     return new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;

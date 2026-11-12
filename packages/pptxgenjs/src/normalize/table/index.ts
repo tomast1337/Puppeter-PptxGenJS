@@ -1,10 +1,10 @@
 import type PptxGenJS from "pptxgenjs";
-import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
+import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
 import type { NormalizedTable, NormalizedTableBorder } from "@pdfdeck/model";
-import type { PageSize } from "../pageLayouts";
-import { convertToPixels, inchesToPixels, pointsToPixels } from "../utils";
-import { normalizeColor, normalizeFill } from "./style";
-import { normalizeText, type TextInput } from "./text";
+import type { PageSize } from "../../pageLayouts";
+import { convertToPixels, inchesToPixels, pointsToPixels } from "../../units";
+import { normalizeColor, normalizeFill } from "../style";
+import { normalizeText, type TextInput } from "../text";
 
 const INHERITED_CELL_OPTIONS = ["align", "bold", "border", "color", "fill", "fontFace", "fontSize", "margin", "textDirection", "underline", "valign"] as const;
 

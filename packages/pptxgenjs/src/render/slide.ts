@@ -3,7 +3,7 @@ import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "../defaults";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
 import { normalizeColor } from "../normalize/style";
 import type { PageSize } from "../pageLayouts";
-import { inchesToPixels, pointsToPixels } from "../utils";
+import { inchesToPixels, pointsToPixels } from "../units";
 import { renderChart, renderChartExtension } from "./chart";
 import { renderComponent } from "./component";
 import { renderImage } from "./image";

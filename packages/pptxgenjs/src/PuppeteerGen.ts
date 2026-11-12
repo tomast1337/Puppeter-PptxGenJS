@@ -6,13 +6,13 @@ import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentPr
 import { PPTX_DEFAULTS } from "./defaults";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
-import { normalizeHtmlTable } from "./normalize/htmlTable";
+import { normalizeHtmlTable } from "./normalize/table/html";
 import { normalizeImage, resolveDocumentImages, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox } from "./normalize/shape";
 import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
-import { paginateTableRows } from "./normalize/tablePagination";
+import { paginateTableRows } from "./normalize/table/pagination";
 import { normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";

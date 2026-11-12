@@ -1,5 +1,5 @@
 import pptxgen from "pptxgenjs";
-import { PuppeteerGen } from "../packages/pptxgenjs/src/PuppeterrGen";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/PuppeteerGen";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 function main(pres: pptxgen | PuppeteerGen) {

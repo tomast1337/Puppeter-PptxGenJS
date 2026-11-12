@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { Component, createElement, useEffect, useId } from "react";
 import { z } from "zod";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
-import { registerReactComponent } from "../packages/react/src/react";
+import { registerReactComponent } from "../packages/react/src/index";
 
 interface MetricProps {
     label: string;
