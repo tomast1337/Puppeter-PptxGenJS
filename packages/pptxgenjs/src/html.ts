@@ -4,6 +4,7 @@ import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY }
 import { parseComponentProps } from "./components/schema";
 import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
 import { PuppeteerGen } from "./PuppeteerGen";
+import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
 import { alignToCSS, valignToCSS } from "./alignment";
 import { colorToCSS } from "./color";
@@ -31,6 +32,7 @@ export {
     tableMarginToCSS,
     textMarginToCSS,
     UnsupportedChartError,
+    UnsupportedFeatureError,
     valignToCSS,
 };
 export default PuppeteerGen;

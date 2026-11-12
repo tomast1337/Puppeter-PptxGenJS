@@ -21,6 +21,7 @@ import { renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
 import { type HtmlPresentationDocument, type ModelRenderer, type PresentationRenderer, serializeHtmlPresentation } from "./render/document";
 import { convertPdfOutput, resolveOutputType } from "./output";
+import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, renderSlideObject } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
@@ -132,7 +133,8 @@ export class PuppeteerSlide implements PptxSlide {
         return this;
     }
 
-    addChart(type: PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[], data: any[], options?: PptxGenJS.IChartOpts | undefined): PptxGenJS.Slide {
+    // PptxGenJS declares `data: any[]`; `unknown[]` accepts every argument that does and is narrowed below.
+    addChart(type: PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[], data: unknown[], options?: PptxGenJS.IChartOpts | undefined): PptxGenJS.Slide {
         // PptxGenJS treats the second argument as the shared options object for
         // IChartMulti[] calls; each mixed entry already carries its own data.
         const chartOptions = Array.isArray(type) && !Array.isArray(data) ? (data as unknown as PptxGenJS.IChartOpts) : (options ?? {});
@@ -168,11 +170,12 @@ export class PuppeteerSlide implements PptxSlide {
     }
 
     addMedia(_options: PptxGenJS.MediaProps): PptxGenJS.Slide {
-        throw new Error("Method not implemented.");
+        throw new UnsupportedFeatureError("addMedia", "A PDF cannot play audio or video; add a poster frame with addImage() and link the media through its `hyperlink` option.");
     }
 
     addNotes(_notes: string): PptxGenJS.Slide {
-        throw new Error("Method not implemented.");
+        // PptxGenJS writes notes to the notes page only; the slide, and so a PDF of it, never shows them.
+        return this;
     }
 
     addShape(shapeName: PptxGenJS.SHAPE_NAME | "custGeom", options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
@@ -318,8 +321,10 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
         throw new Error('writeFile() needs filesystem access and is only available from the Node entry ("puppeteer-pptxgenjs"); use toPdf() or toHtml() instead');
     }
 
-    addSection(_props: PptxSectionProps): void {
-        throw new Error("Method not implemented.");
+    addSection(props: PptxSectionProps): void {
+        // Sections only group slides in PowerPoint's slide list and draw nothing; keep PptxGenJS's input warnings.
+        if (!props) console.warn("addSection requires an argument");
+        else if (!props.title) console.warn("addSection requires a title");
     }
 
     addSlide(props?: PptxAddSlideProps | undefined): PuppeteerSlide;
@@ -365,7 +370,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     }
 
     defineSlideMaster(_props: PptxSlideMasterProps): void {
-        throw new Error("Method not implemented.");
+        throw new UnsupportedFeatureError("defineSlideMaster", "Set `slide.background` and add the shared objects to each slide from a helper function instead of a master.");
     }
 
     tableToSlides(eleId: string, props?: PptxTableToSlidesProps | undefined): void {
