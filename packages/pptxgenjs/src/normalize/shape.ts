@@ -1296,8 +1296,8 @@ function actionButtonGeometry(shapeName: (typeof ACTION_BUTTON_SHAPES)[number], 
             [stemInnerLeft, y29],
             [stemLeft, y29],
         ]);
-        lightFaces.push(`${dot.move} ${dot.arcs} Z ${stem}`);
-        details = lightFaces[0]!;
+        details = `${dot.move} ${dot.arcs} Z ${stem}`;
+        lightFaces.push(details);
     } else if (shapeName === "actionButtonHelp") {
         const g13 = (short * 3) / 4;
         const g14 = g13 / 7;

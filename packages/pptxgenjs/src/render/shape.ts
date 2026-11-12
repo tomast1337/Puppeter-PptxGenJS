@@ -8,7 +8,7 @@ function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten
     const hex = color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
     if (hex) {
         const channel = (value: string) => transform(parseInt(value, 16)).toString(16).padStart(2, "0");
-        return `#${channel(hex[1]!)}${channel(hex[2]!)}${channel(hex[3]!)}`;
+        return `#${hex.slice(1, 4).map(channel).join("")}`;
     }
     const rgb = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
     if (!rgb) return color;
