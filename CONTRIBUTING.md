@@ -55,9 +55,89 @@ bun run test:visual
 git diff --check
 ```
 
+`bun run test:package` needs the built `.wasm` (`bun run build:wasm`) and fails
+without it, because a `@pdfdeck/wasm` tarball without the binary is broken.
+
 The visual suite requires LibreOffice, Poppler, and ImageMagick. New or changed
 rendering behavior should include unit coverage and, where useful, a visual
 fixture. Do not increase a visual threshold merely to make a regression pass.
+`bun run test:visual:docker` runs it in the pinned image CI uses
+(`tests/visual/Dockerfile`), which is the only environment whose scores count.
+
+## WASM backend (Rust)
+
+`@pdfdeck/wasm` wraps the Rust renderer in `crates/`. Consumers get the
+prebuilt `.wasm` in the npm tarball; contributors build it with one command:
+
+```bash
+bun run build:wasm          # host toolchain when it matches the pins, else Docker
+bun run build:wasm:docker   # always build in the pinned rust image
+```
+
+Pins, in one place each:
+
+- `rust-toolchain.toml`: rustc, the `wasm32-unknown-unknown` target, clippy,
+  rustfmt. rustup installs it automatically.
+- `crates/wasm-toolchain.env`: wasm-pack, wasm-bindgen-cli (must equal the
+  `wasm-bindgen` crate in `crates/Cargo.lock`; the build checks it), binaryen's
+  wasm-opt, their sha256 sums, and the Docker fallback image. The build
+  downloads these into `crates/target/wasm-tools/` and never uses copies on your
+  PATH.
+- `crates/pdf-wasm/Cargo.toml`: the wasm-opt flags. Rust >= 1.87 emits
+  bulk-memory, non-trapping float-to-int, sign-ext and related instructions by
+  default, so wasm-opt must be told to accept them.
+
+Without Docker, a host build needs rustup and curl on linux-x86_64. The build
+remaps source paths, so host, Docker and CI builds produce the same bytes.
+
+It writes the wasm-bindgen glue (`text_pdf_wasm.js`/`.d.ts`) and
+`text_pdf_wasm_bg.wasm.sha256` into `packages/wasm/src/`; commit both whenever
+they change. The "WASM build" CI job rebuilds from scratch and fails when either
+differs, so a stale glue file or a non-reproducible binary cannot merge. The
+build also fails when the binary's gzip size exceeds `GZIP_BUDGET` in
+`packages/wasm/build-wasm.sh`; raising it is a deliberate, reviewed change.
+
+Rust checks, as CI runs them:
+
+```bash
+cd crates
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo clippy -p text-pdf-wasm --target wasm32-unknown-unknown -- -D warnings
+cargo test
+```
+
+### WASM visual baseline
+
+```bash
+bun run build:wasm
+bun run test:visual:wasm:docker          # text and emoji decks; or append `text`
+```
+
+This scores the WASM backend against the same LibreOffice references as the
+Puppeteer suite, in the same pinned image. Every page of the text and emoji/CJK
+decks must stay at or below 0.12. Most per-object crops are still above the 0.08 target, so instead of
+a fixed limit each crop must not score worse than its entry in
+`tests/visual/wasm/baseline.json` (plus 0.002 for rounding). The baseline is a
+ratchet: lower it when a change improves a crop, never raise it to hide a
+regression. To update it deliberately:
+
+```bash
+WASM_BASELINE_UPDATE=1 bun run test:visual:wasm:docker
+cp .visual-parity/wasm-parity/baseline.json tests/visual/wasm/baseline.json
+git diff tests/visual/wasm/baseline.json   # explain every increase in the PR
+```
+
+Side-by-side crops (`montage-*.png`) land in `.visual-parity/wasm-parity/<deck>/`.
+
+## Releases
+
+`.github/workflows/release.yml` (manual, or on a `v*` tag) runs every CI job,
+rebuilds the `.wasm` in Docker and checks it matches CI's build and the
+committed hash, packs every package, checks the `@pdfdeck/wasm` tarball carries
+that binary, and runs `npm publish --dry-run`. On a tag it also checks every
+package version matches the tag and creates the GitHub release. It does not
+publish to npm yet.
 
 ## Compatibility changes
 

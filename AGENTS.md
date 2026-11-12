@@ -85,6 +85,11 @@ and compared with PuppeteerGen using rasterized PDFs. Keep whole-slide normalize
 RMSE at or below `0.12`. Prefer feature-level crops with a target of `0.08` so
 small regressions cannot hide in large blank regions.
 
+The WASM backend (`bun run test:visual:wasm:docker`) keeps the 0.12 page limit
+on its text and emoji/CJK decks and gates crops against
+`tests/visual/wasm/baseline.json`, a no-regression ratchet: lower entries when
+crops improve, never raise one to make a regression pass.
+
 Visual differences caused by LibreOffice or font rasterization must be recorded
 in tests or code comments with concrete evidence. Do not loosen thresholds only
 to make a regression pass.
