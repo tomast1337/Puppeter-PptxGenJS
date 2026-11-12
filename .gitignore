@@ -39,8 +39,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Visual parity artifacts
 .visual-parity/
 
-# Local planning and agent working notes
-docs/*
+# Local planning and agent working notes (not committed)
+notes/*
 
 # Built by `bun run build:wasm` (issue #16 builds it in CI)
 packages/wasm/src/*.wasm

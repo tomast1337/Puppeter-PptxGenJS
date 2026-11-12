@@ -29,7 +29,11 @@ Use this precedence when behavior is ambiguous:
 All implicit rendering values belong in `packages/pptxgenjs/src/defaults.ts`. Never introduce a
 renderer-specific magic default when a PptxGenJS or Office default exists.
 
-`docs/` contains optional local planning notes and is intentionally ignored by
+`docs/` holds the committed user guides (usage, quick reference, defaults,
+implementation notes); keep the repository root for README, CONTRIBUTING,
+AGENTS and LICENSE.
+
+`notes/` contains optional local planning notes and is intentionally ignored by
 Git. Read relevant files there when present, but do not depend on them being in
 a fresh checkout and do not link them from committed documentation.
 
