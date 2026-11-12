@@ -2,16 +2,19 @@ import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+const PACKAGES = ["model", "puppeteer", "pptxgenjs", "wasm", "react", "puppeteer-pptxgenjs"];
+
 const projectRoot = resolve(import.meta.dir, "..");
-const temporaryRoot = await mkdtemp(join(tmpdir(), "puppeteer-gen-consumer-"));
-const consumerDirectory = join(temporaryRoot, "consumer");
-const packageMetadata = (await Bun.file(resolve(projectRoot, "package.json")).json()) as {
-    name: string;
-    version: string;
-    devDependencies: Record<string, string>;
-};
-const tarballName = `${packageMetadata.name.replace(/^@/, "").replace("/", "-")}-${packageMetadata.version}.tgz`;
-const tarball = join(temporaryRoot, tarballName);
+const temporaryRoot = await mkdtemp(join(tmpdir(), "pdfdeck-consumer-"));
+const rootMetadata = (await Bun.file(resolve(projectRoot, "package.json")).json()) as { devDependencies: Record<string, string> };
+
+/** Import specifiers of the four public entries, so the same consumer checks run against @pdfdeck/* and the legacy shim. */
+interface EntryNames {
+    main: string;
+    html: string;
+    wasm: string;
+    react: string;
+}
 
 async function run(command: string[], cwd: string): Promise<void> {
     const child = Bun.spawn(command, { cwd, stdout: "inherit", stderr: "inherit" });
@@ -19,9 +22,17 @@ async function run(command: string[], cwd: string): Promise<void> {
     if (exitCode !== 0) throw new Error(`${command.join(" ")} failed with exit code ${exitCode}`);
 }
 
-try {
-    await run([process.execPath, "pm", "pack", "--destination", temporaryRoot], projectRoot);
+async function output(command: string[], cwd: string): Promise<string> {
+    const child = Bun.spawn(command, { cwd, stdout: "pipe", stderr: "inherit" });
+    const text = await new Response(child.stdout).text();
+    if ((await child.exited) !== 0) throw new Error(`${command.join(" ")} failed`);
+    return text;
+}
 
+const tarballs: Record<string, string> = {};
+let wasmShipped = false;
+
+async function checkConsumer(consumerDirectory: string, dependencies: string[], names: EntryNames): Promise<void> {
     await mkdir(consumerDirectory);
     await Bun.write(
         join(consumerDirectory, "package.json"),
@@ -30,7 +41,9 @@ try {
                 name: "puppeteer-gen-package-consumer",
                 private: true,
                 type: "module",
-                dependencies: { [packageMetadata.name]: `file:${tarball}` },
+                dependencies: Object.fromEntries(dependencies.map(name => [name, `file:${tarballs[name]}`])),
+                // The @pdfdeck/* versions are not on npm yet: resolve them all from the packed tarballs.
+                overrides: Object.fromEntries(Object.entries(tarballs).map(([name, tarball]) => [name, `file:${tarball}`])),
             },
             null,
             2,
@@ -60,7 +73,7 @@ import PuppeteerGen, {
     type PuppeteerSlide,
     type PptxSlide,
     type PptxTextPropsOptions,
-} from "${packageMetadata.name}";
+} from "${names.main}";
 
 const options: PptxTextPropsOptions = {
     x: 1, y: 1, w: 3, h: 1,
@@ -111,7 +124,7 @@ console.log("standalone package consumer passed");
     const nodeConsumerSource = `
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import PuppeteerGen, { PAGE_SIZES } from "${packageMetadata.name}";
+import PuppeteerGen, { PAGE_SIZES } from "${names.main}";
 
 if (typeof globalThis.Bun !== "undefined") {
     throw new Error("Node compatibility test unexpectedly ran under Bun");
@@ -152,7 +165,7 @@ console.log("Node.js package consumer generated a PDF");
 
     // The /html entry must stay browser-safe at the package level, and run against a caller-supplied DOM.
     const htmlConsumerSource = `
-import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "${packageMetadata.name}/html";
+import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "${names.html}";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
@@ -194,8 +207,8 @@ console.log("html entry package consumer passed");
 
     // The ./wasm entry: its browser condition must stay browser-safe, and it renders under Node and Bun when the binary was built.
     const wasmConsumerSource = `
-import PuppeteerGen, { PAGE_SIZES } from "${packageMetadata.name}";
-import { createWasmRenderer, loadSystemFonts } from "${packageMetadata.name}/wasm";
+import PuppeteerGen, { PAGE_SIZES } from "${names.main}";
+import { createWasmRenderer, loadSystemFonts } from "${names.wasm}";
 
 const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
 const presentation = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer });
@@ -208,14 +221,14 @@ console.log(\`WASM package consumer generated a PDF under \${"Bun" in globalThis
     const wasmConsumerPath = join(consumerDirectory, "wasm-consumer.ts");
     await Bun.write(wasmConsumerPath, wasmConsumerSource);
     const wasmBrowserPath = join(consumerDirectory, "wasm-browser.ts");
-    await Bun.write(wasmBrowserPath, `export { createWasmRenderer } from "${packageMetadata.name}/wasm";\n`);
+    await Bun.write(wasmBrowserPath, `export { createWasmRenderer } from "${names.wasm}";\n`);
     const wasmBrowserBundle = await Bun.build({ entrypoints: [wasmBrowserPath], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0]);
     if (!wasmBrowserBundle.success) throw new AggregateError(wasmBrowserBundle.logs, "The packed wasm entry failed to bundle for the browser");
     const wasmInputs = Object.keys((wasmBrowserBundle as unknown as { metafile: { inputs: Record<string, unknown> } }).metafile.inputs);
-    if (!wasmInputs.some(path => path.endsWith("dist/wasm/browser.js")) || wasmInputs.some(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path))) {
+    if (!wasmInputs.some(path => path.endsWith("@pdfdeck/wasm/dist/browser.js")) || wasmInputs.some(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path))) {
         throw new Error(`The packed wasm entry's browser condition is not browser-safe: ${wasmInputs.join(", ")}`);
     }
-    if (await Bun.file(join(consumerDirectory, "node_modules", packageMetadata.name, "dist/wasm/text_pdf_wasm_bg.wasm")).exists()) {
+    if (wasmShipped) {
         const wasmConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
         wasmConfig.files.push("wasm-consumer.ts");
         await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(wasmConfig, null, 2));
@@ -223,14 +236,14 @@ console.log(\`WASM package consumer generated a PDF under \${"Bun" in globalThis
         await run([process.execPath, "run", wasmConsumerPath], consumerDirectory);
         await run(["node", "--experimental-strip-types", wasmConsumerPath], consumerDirectory);
     } else {
-        console.warn("Skipping the WASM package consumer: the package was built without src/wasm/text_pdf_wasm_bg.wasm (bun run build:wasm; CI builds it from issue #16)");
+        console.warn("Skipping the WASM package consumer: @pdfdeck/wasm was built without packages/wasm/src/text_pdf_wasm_bg.wasm (bun run build:wasm; CI builds it from issue #16)");
     }
     // Install React only after the core consumer has been typechecked and run without it.
-    await run([process.execPath, "add", "--dev", "--ignore-scripts", ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${packageMetadata.devDependencies[name]}`)], consumerDirectory);
+    await run([process.execPath, "add", "--dev", "--ignore-scripts", ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${rootMetadata.devDependencies[name]}`)], consumerDirectory);
     const reactConsumerSource = `
 import { createElement, useId } from "react";
-import PuppeteerGen from "${packageMetadata.name}";
-import { registerReactComponent } from "${packageMetadata.name}/react";
+import PuppeteerGen from "${names.main}";
+import { registerReactComponent } from "${names.react}";
 
 function Card({ label }: { label: string }) {
     const id = useId();
@@ -258,6 +271,43 @@ console.log("React adapter package consumer passed");
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
     await run([process.execPath, "run", reactConsumerPath], consumerDirectory);
     await run(["node", "--experimental-strip-types", reactConsumerPath], consumerDirectory);
+}
+
+try {
+    await run([process.execPath, "run", "build"], projectRoot);
+    for (const directory of PACKAGES) {
+        const packageDirectory = resolve(projectRoot, "packages", directory);
+        const manifest = (await Bun.file(join(packageDirectory, "package.json")).json()) as { name: string; version: string };
+        // Built once above, so skip each package's prepack build.
+        await run([process.execPath, "pm", "pack", "--ignore-scripts", "--quiet", "--destination", temporaryRoot], packageDirectory);
+        const tarball = join(temporaryRoot, `${manifest.name.replace(/^@/, "").replace("/", "-")}-${manifest.version}.tgz`);
+        tarballs[manifest.name] = tarball;
+        // workspace:* must become the real version in the published manifest.
+        const packed = JSON.parse(await output(["tar", "-xzOf", tarball, "package/package.json"], temporaryRoot)) as Record<string, unknown>;
+        const workspaceDependencies = Object.entries({ ...(packed.dependencies as object), ...(packed.peerDependencies as object) }).filter(([dependency]) => dependency.startsWith("@pdfdeck/"));
+        if (JSON.stringify(packed).includes("workspace:") || workspaceDependencies.some(([, version]) => version !== manifest.version)) {
+            throw new Error(`${manifest.name} was packed with unresolved workspace dependencies: ${JSON.stringify(workspaceDependencies)}`);
+        }
+        const files = (await output(["tar", "-tzf", tarball], temporaryRoot)).split("\n");
+        if (!files.some(file => file.startsWith("package/dist/") && file.endsWith(".d.ts"))) throw new Error(`${manifest.name} was packed without its dist`);
+        if (manifest.name === "@pdfdeck/wasm") wasmShipped = files.includes("package/dist/text_pdf_wasm_bg.wasm");
+        if (manifest.name === "@pdfdeck/pptxgenjs" && !files.includes("package/dist/pptxgenjs.d.ts")) throw new Error("@pdfdeck/pptxgenjs was packed without the vendored pptxgenjs types");
+        console.log(`packed ${manifest.name}@${manifest.version} (${workspaceDependencies.map(entry => entry.join("@")).join(", ") || "no workspace dependencies"})`);
+    }
+
+    await checkConsumer(join(temporaryRoot, "pdfdeck-consumer"), ["@pdfdeck/pptxgenjs", "@pdfdeck/wasm", "@pdfdeck/react"], {
+        main: "@pdfdeck/pptxgenjs",
+        html: "@pdfdeck/pptxgenjs/html",
+        wasm: "@pdfdeck/wasm",
+        react: "@pdfdeck/react",
+    });
+    // The deprecation shim runs the consumer sources unchanged from the single-package release: a drop-in proof.
+    await checkConsumer(join(temporaryRoot, "legacy-consumer"), ["puppeteer-pptxgenjs"], {
+        main: "puppeteer-pptxgenjs",
+        html: "puppeteer-pptxgenjs/html",
+        wasm: "puppeteer-pptxgenjs/wasm",
+        react: "puppeteer-pptxgenjs/react",
+    });
 } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
 }
