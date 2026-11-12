@@ -20,10 +20,9 @@ use krilla::surface::Surface;
 use krilla::text::Font;
 use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, SourceCache};
 use parley::{FontContext, LayoutContext};
-use serde_json::Value;
 
 use crate::color::{parse_color, unit};
-use crate::model::{ObjectStyle, Presentation, ShapeModel, TextBox};
+use crate::model::{Presentation, SlideObject};
 use crate::path::{fill_path, rect_path};
 use crate::text::layout::Brush;
 
@@ -93,7 +92,7 @@ impl Renderer {
                 fill_path(&mut surface, rect_path(0.0, 0.0, page_w, page_h, 0.0), bg);
             }
             for object in &slide.objects {
-                self.draw_object(&mut surface, object)?;
+                self.draw_object(&mut surface, object);
             }
             surface.pop();
             surface.finish();
@@ -106,26 +105,20 @@ impl Renderer {
         self.warnings.insert(message.into());
     }
 
-    fn draw_object(&mut self, surface: &mut Surface, object: &Value) -> Result<(), String> {
-        let kind = object.get("kind").and_then(Value::as_str).unwrap_or("?");
-        if kind != "text" && kind != "shape" {
-            self.warn(format!("object kind '{kind}' not rendered"));
-            return Ok(());
-        }
-        let style: ObjectStyle = serde_json::from_value(object["style"].clone()).map_err(|e| format!("style: {e}"))?;
-        let shape: Option<ShapeModel> = match object.get("shape") {
-            Some(v) if !v.is_null() => Some(serde_json::from_value(v.clone()).map_err(|e| format!("shape: {e}"))?),
-            _ => None,
-        };
-        let text: Option<TextBox> = match object.get("text") {
-            Some(v) if kind == "text" => Some(serde_json::from_value(v.clone()).map_err(|e| format!("text: {e}"))?),
-            _ => None,
+    fn draw_object(&mut self, surface: &mut Surface, object: &SlideObject) {
+        let (style, shape, text) = match object {
+            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref()),
+            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None),
+            SlideObject::Unsupported(kind) => {
+                self.warn(format!("object kind '{kind}' not rendered"));
+                return;
+            }
         };
         let g = &style.geometry;
         let (x, y, w) = (g.x, g.y, g.width.unwrap_or(0.0));
         let mut h = g.height.unwrap_or(0.0);
 
-        let layout = text.as_ref().map(|t| self.fit_text(t, w, h));
+        let layout = text.map(|t| self.fit_text(t, w, h));
         if let (Some(t), Some(l)) = (&text, &layout)
             && t.fit == "resize"
         {
@@ -148,7 +141,7 @@ impl Renderer {
             self.warn("object shadow not rendered");
         }
         // Geometry: text boxes are rectangles; shapes support rect/roundRect only.
-        let radius = match shape.as_ref().map(|s| (&s.name, &s.geometry)) {
+        let radius = match shape.map(|s| (&s.name, &s.geometry)) {
             None => Some(0.0),
             Some((_, geo)) if geo["kind"] == "rect" => Some(geo["radius"].as_f64().unwrap_or(0.0) as f32),
             Some((name, _)) => {
@@ -192,7 +185,6 @@ impl Renderer {
         if opacity {
             surface.pop();
         }
-        Ok(())
     }
 }
 
@@ -207,6 +199,26 @@ mod tests {
         let pdf = r.render(model).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
         assert_eq!(r.warnings(), vec!["object kind 'image' not rendered".to_string()]);
+    }
+
+    fn slide_with(object: &str) -> String {
+        format!(r##"{{"pageSize":{{"width":10,"height":5.625}},"slides":[{{"background":"#FFFFFF","objects":[{object}]}}]}}"##)
+    }
+
+    #[test]
+    fn reports_objects_without_a_string_kind() {
+        let mut r = Renderer::new();
+        r.render(&slide_with(r#"{"style":{}},{"kind":7}"#)).unwrap();
+        assert_eq!(r.warnings(), vec!["object kind '?' not rendered".to_string()]);
+    }
+
+    #[test]
+    fn rejects_malformed_drawn_objects_instead_of_skipping_them() {
+        let mut r = Renderer::new();
+        // A known kind with a bad payload must not fall through to the unsupported-kind warning.
+        for object in [r#"{"kind":"text","style":{}}"#, r#"{"kind":"shape","style":{}}"#] {
+            assert!(r.render(&slide_with(object)).is_err(), "{object}");
+        }
     }
 
     /// A text-in-shape object whose fill, line, run, outline, highlight and

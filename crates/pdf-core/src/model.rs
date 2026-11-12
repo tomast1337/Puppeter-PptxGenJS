@@ -1,6 +1,7 @@
 //! The subset of the normalized model (packages/model/src/types.ts) this renderer reads.
 
-use serde::Deserialize;
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 #[derive(Deserialize)]
@@ -19,7 +20,44 @@ pub(crate) struct PageSize {
 #[derive(Deserialize)]
 pub(crate) struct Slide {
     pub(crate) background: String,
-    pub(crate) objects: Vec<Value>,
+    pub(crate) objects: Vec<SlideObject>,
+}
+
+/// `NormalizedSlideObject`, tagged by `kind`.
+pub(crate) enum SlideObject {
+    Text(TextObject),
+    Shape(ShapeObject),
+    /// Any other `kind` (image, table, chart, ...), or `?` when it is missing or not a
+    /// string: reported through `warnings()` instead of failing the model.
+    Unsupported(String),
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TextObject {
+    pub(crate) style: ObjectStyle,
+    pub(crate) shape: Option<ShapeModel>,
+    pub(crate) text: Option<TextBox>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ShapeObject {
+    pub(crate) style: ObjectStyle,
+    pub(crate) shape: Option<ShapeModel>,
+}
+
+/// Dispatches on `kind` by hand instead of `#[serde(tag = "kind")]`: serde's catch-all
+/// variants either drop the kind name (`other`) or swallow the errors of a malformed
+/// text or shape object (`untagged`). Each object is buffered once and moved, never cloned.
+impl<'de> Deserialize<'de> for SlideObject {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let object = Value::deserialize(deserializer)?;
+        let typed = match object.get("kind").and_then(Value::as_str) {
+            Some("text") => TextObject::deserialize(object).map(SlideObject::Text),
+            Some("shape") => ShapeObject::deserialize(object).map(SlideObject::Shape),
+            kind => return Ok(SlideObject::Unsupported(kind.unwrap_or("?").to_owned())),
+        };
+        typed.map_err(D::Error::custom)
+    }
 }
 
 #[derive(Deserialize)]
