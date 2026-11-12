@@ -136,7 +136,7 @@ for (const browserSafe of BROWSER_SAFE) {
         throw new Error(`The browser-safe ${browserSafe} bundle must not import puppeteer, jsdom or node:* modules`);
     }
 }
-// The WASM loaders resolve the binary next to themselves (dist/); CI cannot build it yet (issue #16).
+// The WASM loaders resolve the binary next to themselves (dist/). scripts/test-package.ts fails a tarball without it.
 const wasmBinary = resolve(packagesDirectory, "wasm/src/text_pdf_wasm_bg.wasm");
 if (await Bun.file(wasmBinary).exists()) await copyFile(wasmBinary, resolve(packagesDirectory, "wasm/dist/text_pdf_wasm_bg.wasm"));
 else console.warn("packages/wasm/src/text_pdf_wasm_bg.wasm is not built (bun run build:wasm); @pdfdeck/wasm will not work");

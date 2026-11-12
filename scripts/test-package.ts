@@ -30,7 +30,6 @@ async function output(command: string[], cwd: string): Promise<string> {
 }
 
 const tarballs: Record<string, string> = {};
-let wasmShipped = false;
 
 async function checkConsumer(consumerDirectory: string, dependencies: string[], names: EntryNames): Promise<void> {
     await mkdir(consumerDirectory);
@@ -205,7 +204,7 @@ console.log("html entry package consumer passed");
     await run([process.execPath, "run", htmlRunnerPath], consumerDirectory);
     await run(["node", "--experimental-strip-types", htmlRunnerPath], consumerDirectory);
 
-    // The ./wasm entry: its browser condition must stay browser-safe, and it renders under Node and Bun when the binary was built.
+    // The ./wasm entry: its browser condition must stay browser-safe, and it renders under Node and Bun.
     const wasmConsumerSource = `
 import PuppeteerGen, { PAGE_SIZES } from "${names.main}";
 import { createWasmRenderer, loadSystemFonts } from "${names.wasm}";
@@ -228,16 +227,12 @@ console.log(\`WASM package consumer generated a PDF under \${"Bun" in globalThis
     if (!wasmInputs.some(path => path.endsWith("@pdfdeck/wasm/dist/browser.js")) || wasmInputs.some(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path))) {
         throw new Error(`The packed wasm entry's browser condition is not browser-safe: ${wasmInputs.join(", ")}`);
     }
-    if (wasmShipped) {
-        const wasmConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
-        wasmConfig.files.push("wasm-consumer.ts");
-        await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(wasmConfig, null, 2));
-        await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
-        await run([process.execPath, "run", wasmConsumerPath], consumerDirectory);
-        await run(["node", "--experimental-strip-types", wasmConsumerPath], consumerDirectory);
-    } else {
-        console.warn("Skipping the WASM package consumer: @pdfdeck/wasm was built without packages/wasm/src/text_pdf_wasm_bg.wasm (bun run build:wasm; CI builds it from issue #16)");
-    }
+    const wasmConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
+    wasmConfig.files.push("wasm-consumer.ts");
+    await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(wasmConfig, null, 2));
+    await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
+    await run([process.execPath, "run", wasmConsumerPath], consumerDirectory);
+    await run(["node", "--experimental-strip-types", wasmConsumerPath], consumerDirectory);
     // Install React only after the core consumer has been typechecked and run without it.
     await run([process.execPath, "add", "--dev", "--ignore-scripts", ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${rootMetadata.devDependencies[name]}`)], consumerDirectory);
     const reactConsumerSource = `
@@ -290,7 +285,8 @@ try {
         }
         const files = (await output(["tar", "-tzf", tarball], temporaryRoot)).split("\n");
         if (!files.some(file => file.startsWith("package/dist/") && file.endsWith(".d.ts"))) throw new Error(`${manifest.name} was packed without its dist`);
-        if (manifest.name === "@pdfdeck/wasm") wasmShipped = files.includes("package/dist/text_pdf_wasm_bg.wasm");
+        // Consumers never build Rust: the tarball must carry the prebuilt binary (bun run build:wasm, or CI's "WASM build" job).
+        if (manifest.name === "@pdfdeck/wasm" && !files.includes("package/dist/text_pdf_wasm_bg.wasm")) throw new Error("@pdfdeck/wasm was packed without dist/text_pdf_wasm_bg.wasm (run bun run build:wasm first)");
         if (manifest.name === "@pdfdeck/pptxgenjs" && !files.includes("package/dist/pptxgenjs.d.ts")) throw new Error("@pdfdeck/pptxgenjs was packed without the vendored pptxgenjs types");
         console.log(`packed ${manifest.name}@${manifest.version} (${workspaceDependencies.map(entry => entry.join("@")).join(", ") || "no workspace dependencies"})`);
     }
