@@ -21,7 +21,13 @@
     "test:visual:wasm": "bun run tests/visual/wasm/compare.ts",
     "test:visual:wasm:docker": "sh scripts/test-visual-docker.sh test:visual:wasm",
     "bench": "bun run scripts/bench.ts",
-    "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts"
+    "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts",
+    "fmt": "bun run fmt:ts && bun run fmt:rust",
+    "fmt:check": "bun run fmt:ts:check && bun run fmt:rust:check",
+    "fmt:ts": "bun fmt --no-script",
+    "fmt:ts:check": "bun fmt --no-script --check",
+    "fmt:rust": "sh scripts/with-rust.sh cargo fmt --manifest-path crates/Cargo.toml --all",
+    "fmt:rust:check": "sh scripts/with-rust.sh cargo fmt --manifest-path crates/Cargo.toml --all --check"
   },
   "devDependencies": {
     "@types/bun": "latest",
