@@ -10,6 +10,9 @@ export interface ReactComponentRegistrar {
 
 export type ReactComponentOptions<Props extends object> = { schema: z.ZodType<Props>; parseProps?: never } | { schema?: never; parseProps?: (props: ComponentProps) => Props };
 
+// Module-level because the presentation type is structural and has no slot for adapter state: each
+// presentation's render count gives its React trees distinct useId prefixes. Keyed weakly by the
+// presentation, which owns its entry; the entry is released when the presentation is garbage collected.
 const renderCounts = new WeakMap<object, number>();
 
 /** Register a synchronous React-to-HTML renderer. React code never enters the saved document. */
