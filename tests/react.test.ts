@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Component, createElement, useEffect, useId } from "react";
 import { z } from "zod";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen } from "../src/node";
 import { registerReactComponent } from "../src/react";
 
 interface MetricProps {

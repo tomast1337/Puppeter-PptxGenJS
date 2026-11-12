@@ -1,4 +1,3 @@
-import { writeFile } from "node:fs/promises";
 import type PptxGenJS from "pptxgenjs";
 import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 import { normalizeComponent } from "./components/normalize";
@@ -8,7 +7,7 @@ import { PPTX_DEFAULTS } from "./defaults";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "./model/types";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/htmlTable";
-import { normalizeImage, resolveDocumentImages } from "./normalize/image";
+import { normalizeImage, resolveDocumentImages, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox } from "./normalize/shape";
 import { normalizeColor, normalizeLine } from "./normalize/style";
@@ -20,8 +19,7 @@ import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
-import { serializeHtmlPresentation } from "./render/document";
-import { PuppeteerPdfRenderer } from "./render/puppeteerPdf";
+import { type HtmlPresentationDocument, type PresentationRenderer, serializeHtmlPresentation } from "./render/document";
 import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, renderSlideObject } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
@@ -239,16 +237,30 @@ export class PuppeteerSlide implements PptxSlide {
     }
 }
 
+/** Runtime adapters. The Node entry supplies jsdom, filesystem image paths and Puppeteer by default. */
+export interface PuppeteerGenOptions {
+    /** Turns the serialized HTML into PDF bytes for toPdf() and writeFile(). */
+    renderer?: PresentationRenderer;
+    /** Resolves an addImage() path or URL to a data URI before serialization. */
+    resolveImage?: (source: string) => Promise<string>;
+    /** Creates the empty HTML document slides are rendered into. */
+    createDocument?: () => Document;
+}
+
 export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout" | "AlignH" | "AlignV" | "ChartType" | "OutputType" | "SchemeColor" | "ShapeType" | "PlaceholderType" | "layout" | "rtlMode" | "author" | "company" | "revision" | "subject" | "theme" | "title"> {
     private pageSize: PageSize;
     page: Document;
     private slideCount = 0;
     private readonly components = new ComponentRegistry();
     private slides: PuppeteerSlide[] = [];
+    private readonly renderer: PresentationRenderer | undefined;
+    private readonly resolveImage: (source: string) => Promise<string>;
 
-    constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE) {
+    constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE, options: PuppeteerGenOptions = {}) {
         this.pageSize = pageSize;
-        this.page = createPresentationDocument(pageSize);
+        this.renderer = options.renderer;
+        this.resolveImage = options.resolveImage ?? resolveRemoteImageSource;
+        this.page = createPresentationDocument(pageSize, options.createDocument);
     }
 
     registerComponent<Props extends object = ComponentProps>(type: string, version: number, definition: ComponentDefinition<Props>): this {
@@ -284,17 +296,20 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
         throw new Error("Method not implemented.");
     }
 
-    async writeFile({ fileName }: PptxWriteFileProps): Promise<string> {
-        if (!fileName) {
-            throw new Error("fileName is required");
-        }
+    /** The complete self-contained HTML document (images inlined as data URIs). Does not launch a browser. */
+    async toHtml(): Promise<HtmlPresentationDocument> {
+        await resolveDocumentImages(this.page, this.resolveImage);
+        return serializeHtmlPresentation(this.page, this.pageSize);
+    }
 
-        await resolveDocumentImages(this.page);
+    /** PDF bytes from the configured renderer; nothing is written to disk. */
+    async toPdf(): Promise<Uint8Array> {
+        if (!this.renderer) throw new Error("toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry (\"puppeteer-pptxgenjs\") for the Puppeteer default");
+        return this.renderer.render(await this.toHtml());
+    }
 
-        const document = serializeHtmlPresentation(this.page, this.pageSize);
-        const pdf = await new PuppeteerPdfRenderer().render(document);
-        await writeFile(fileName, pdf);
-        return fileName;
+    async writeFile(_props: PptxWriteFileProps): Promise<string> {
+        throw new Error("writeFile() needs filesystem access and is only available from the Node entry (\"puppeteer-pptxgenjs\"); use toPdf() or toHtml() instead");
     }
 
     addSection(_props: PptxSectionProps): void {

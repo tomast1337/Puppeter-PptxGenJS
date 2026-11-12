@@ -168,6 +168,77 @@ slide2.addText("Content", { x: 1, y: 0.5, fontSize: 36 });
 await pres.writeFile({ fileName: "multi-slide.pdf" });
 ```
 
+### HTML only
+
+`toHtml()` returns the complete, self-contained HTML document (page CSS
+included, every image inlined as a data URI) and its page size. It never
+launches Chromium. `toPdf()` returns the PDF bytes from the configured renderer
+without touching the filesystem; `writeFile()` is `toPdf()` plus a file write.
+
+```typescript
+import PuppeteerGen from "puppeteer-pptxgenjs";
+
+const pres = new PuppeteerGen();
+pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });
+
+const { html, pageSize } = await pres.toHtml(); // no browser launched
+const pdf = await pres.toPdf(); // Uint8Array from the Puppeteer renderer
+```
+
+### Custom renderer
+
+Any object implementing `PresentationRenderer` can turn the HTML into a PDF
+(Playwright, a remote rendering service, ...). The Node entry exports the
+default `PuppeteerPdfRenderer` adapter.
+
+```typescript
+import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "puppeteer-pptxgenjs";
+
+const remoteRenderer: PresentationRenderer = {
+    async render({ html, pageSize }: HtmlPresentationDocument): Promise<Uint8Array> {
+        const response = await fetch("https://renderer.example.com/pdf", {
+            method: "POST",
+            body: JSON.stringify({ html, width: `${pageSize.width}in`, height: `${pageSize.height}in` }),
+        });
+        return new Uint8Array(await response.arrayBuffer());
+    },
+};
+
+const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer: remoteRenderer });
+```
+
+### Browser and other runtimes (`puppeteer-pptxgenjs/html`)
+
+The `/html` entry exposes the same API without loading Puppeteer, jsdom, or any
+`node:*` module. It uses `document.implementation.createHTMLDocument()` from
+the global DOM, resolves data URIs and http(s) images with `fetch`, and has no
+default PDF renderer.
+
+```typescript
+import PuppeteerGen from "puppeteer-pptxgenjs/html";
+
+const pres = new PuppeteerGen();
+pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });
+const { html } = await pres.toHtml();
+
+// Print client-side, or pass { renderer } to the constructor and call toPdf().
+const frame = document.body.appendChild(document.createElement("iframe"));
+frame.srcdoc = html;
+frame.onload = () => frame.contentWindow?.print();
+```
+
+Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
+
+| Option | Node entry default | `/html` default |
+| --- | --- | --- |
+| `renderer?: PresentationRenderer` | `PuppeteerPdfRenderer` | none: `toPdf()` throws |
+| `resolveImage?: (source: string) => Promise<string>` | data URIs, http(s), file paths relative to `process.cwd()` | data URIs and http(s); file paths throw |
+| `createDocument?: () => Document` | jsdom | global `document`; throws without a DOM |
+
+In `/html`, `writeFile()` throws because it needs a filesystem; use `toPdf()`.
+Without a global DOM (for example a worker or a server runtime without
+jsdom), pass `createDocument`.
+
 ## Running Examples
 
 Run the basic example:
@@ -244,11 +315,13 @@ that PuppeteerGen reproduces and the current compatibility status.
 
 ```
 ├── src/
-│   ├── PuppeterrGen.ts    # Main implementation
+│   ├── PuppeterrGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
+│   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
 │   ├── pageLayouts.ts     # Page size definitions
 │   ├── utils.ts           # Utility functions
 │   ├── pptx.ts            # Type definitions
-│   └── exports.ts         # Public API exports
+│   ├── html.ts            # Browser-safe entry (puppeteer-pptxgenjs/html)
+│   └── exports.ts         # Node entry (puppeteer-pptxgenjs)
 ├── examples/
 │   ├── test.ts                   # Basic example
 │   └── comprehensive-example.ts  # Feature demonstrations
@@ -297,8 +370,8 @@ await closeBrowser();
 
 - Targets the PptxGenJS 4.0.1 API and observed runtime behavior
 - Works with Node.js 22+ and Bun
-- Requires Puppeteer for PDF generation
-- Uses jsdom for HTML document manipulation
+- The Node entry uses Puppeteer for PDF generation and jsdom for the HTML
+  document; the `/html` entry uses neither
 - Tracks implemented, partial, unsupported, and visually verified behavior in
   the compatibility manifest
 

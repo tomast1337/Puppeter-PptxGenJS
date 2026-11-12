@@ -137,11 +137,60 @@ const pdf = await readFile(pdfPath);
 if (pdf.subarray(0, 4).toString() !== "%PDF") {
     throw new Error("Packed package did not generate a PDF under Node.js");
 }
+const html = await presentation.toHtml();
+if (!html.html.includes('src="data:image/svg+xml;base64,') || html.html.includes("data-source-path")) {
+    throw new Error("Packed package toHtml() did not inline the file image under Node.js");
+}
+if (Buffer.from(await presentation.toPdf()).subarray(0, 4).toString() !== "%PDF") {
+    throw new Error("Packed package toPdf() did not return PDF bytes under Node.js");
+}
 console.log("Node.js package consumer generated a PDF");
 `;
     const nodeConsumerSourcePath = join(consumerDirectory, "consumer.mjs");
     await Bun.write(nodeConsumerSourcePath, nodeConsumerSource);
     await run(["node", nodeConsumerSourcePath], consumerDirectory);
+
+    // The /html entry must stay browser-safe at the package level, and run against a caller-supplied DOM.
+    const htmlConsumerSource = `
+import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "${packageMetadata.name}/html";
+
+const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+export async function check(createDocument: () => Document): Promise<void> {
+    const received: HtmlPresentationDocument[] = [];
+    const renderer: PresentationRenderer = { render: async document => (received.push(document), new Uint8Array([37, 80, 68, 70])) };
+    const presentation = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { createDocument, renderer });
+    presentation.addSlide().addText("HTML entry", { x: 1, y: 1, w: 3, h: 1 }).addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 });
+    const html = await presentation.toHtml();
+    if (!html.html.includes("HTML entry") || !html.html.includes("@page") || !html.html.includes(PNG)) throw new Error("html entry toHtml() output is incomplete");
+    if ((await presentation.toPdf()).length !== 4 || received[0]?.html !== html.html) throw new Error("html entry did not delegate to the renderer");
+    const failures = await Promise.all([
+        new PuppeteerGen(undefined, { createDocument }).toPdf().then(() => "", (error: Error) => error.message),
+        presentation.writeFile({ fileName: "deck.pdf" }).then(() => "", (error: Error) => error.message),
+    ]);
+    if (!failures[0]?.includes("requires a renderer") || !failures[1]?.includes("Node entry")) throw new Error(\`html entry errors were not explicit: \${failures.join(" | ")}\`);
+}
+`;
+    await Bun.write(join(consumerDirectory, "html-consumer.ts"), htmlConsumerSource);
+    const browserBundle = await Bun.build({ entrypoints: [join(consumerDirectory, "html-consumer.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0]);
+    if (!browserBundle.success) throw new AggregateError(browserBundle.logs, "The packed html entry failed to bundle for the browser");
+    const browserInputs = Object.keys((browserBundle as unknown as { metafile: { inputs: Record<string, unknown> } }).metafile.inputs);
+    const nodeOnlyInputs = browserInputs.filter(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path));
+    if (nodeOnlyInputs.length) throw new Error(`The packed html entry pulled Node-only modules into a browser bundle: ${nodeOnlyInputs.join(", ")}`);
+    const htmlRunnerSource = `
+import { JSDOM } from "jsdom";
+import { check } from "./html-consumer.ts";
+await check(() => new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document);
+console.log("html entry package consumer passed");
+`;
+    const htmlRunnerPath = join(consumerDirectory, "html-runner.mts");
+    await Bun.write(htmlRunnerPath, htmlRunnerSource);
+    const htmlConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
+    htmlConfig.files.push("html-consumer.ts");
+    await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(htmlConfig, null, 2));
+    await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
+    await run([process.execPath, "run", htmlRunnerPath], consumerDirectory);
+    await run(["node", "--experimental-strip-types", htmlRunnerPath], consumerDirectory);
     // Install React only after the core consumer has been typechecked and run without it.
     await run([process.execPath, "add", "--dev", "--ignore-scripts", ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${packageMetadata.devDependencies[name]}`)], consumerDirectory);
     const reactConsumerSource = `

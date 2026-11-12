@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { z } from "zod";
 import { normalizeComponent } from "../src/components/normalize";
 import { COMPONENT_DEFAULTS } from "../src/defaults";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen } from "../src/node";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 const input = { type: "example/metric", version: 1, props: { label: "Revenue", value: 42 } };

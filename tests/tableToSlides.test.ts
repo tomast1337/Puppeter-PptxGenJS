@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { normalizeHtmlTable } from "../src/normalize/htmlTable";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen } from "../src/node";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;

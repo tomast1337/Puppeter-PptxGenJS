@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen } from "../src/node";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 describe("PuppeteerGen DOM rendering", () => {

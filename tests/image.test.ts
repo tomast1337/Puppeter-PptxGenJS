@@ -3,8 +3,8 @@ import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { normalizeImage, resolveImageSource } from "../src/normalize/image";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen, resolveImageSource } from "../src/node";
+import { normalizeImage } from "../src/normalize/image";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;

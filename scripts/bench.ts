@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen } from "../src/node";
 
 const RUNS = Number(process.env.BENCH_RUNS ?? 5);
 const dir = await mkdtemp(join(tmpdir(), "puppeteer-gen-bench-"));

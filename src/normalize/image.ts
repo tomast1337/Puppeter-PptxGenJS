@@ -1,13 +1,10 @@
-import { readFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedImage, NormalizedImageSizing } from "../model/types";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels } from "../utils";
 
-const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
+export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
     ".gif": "image/gif",
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
@@ -24,12 +21,16 @@ function validateDataUri(source: string): string {
     return source;
 }
 
-function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): string {
-    const buffer = bytes instanceof ArrayBuffer ? Buffer.from(bytes) : Buffer.from(bytes);
-    return `data:${mime};base64,${buffer.toString("base64")}`;
+export function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): string {
+    // Browser-safe base64: no Buffer. Chunked so large images stay under the argument limit.
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    let binary = "";
+    for (let index = 0; index < view.length; index += 0x8000) binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
+    return `data:${mime};base64,${btoa(binary)}`;
 }
 
-export async function resolveImageSource(source: string, cwd = process.cwd()): Promise<string> {
+/** Runtime-neutral image resolution: data URIs and http(s) URLs only. File paths need a runtime adapter. */
+export async function resolveRemoteImageSource(source: string): Promise<string> {
     if (/^data:/i.test(source)) return validateDataUri(source);
     if (/^https?:\/\//i.test(source)) {
         let response: Response;
@@ -43,25 +44,16 @@ export async function resolveImageSource(source: string, cwd = process.cwd()): P
         if (!mime?.startsWith("image/")) throw new Error(`Remote resource is not an image: ${source}`);
         return dataUri(await response.arrayBuffer(), mime);
     }
-
-    const path = source.startsWith("file:") ? fileURLToPath(source) : resolve(cwd, source);
-    const mime = MIME_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream";
-    if (!mime.startsWith("image/")) throw new Error(`Unsupported image type '${mime}': ${path}`);
-    try {
-        return dataUri(await readFile(path), mime);
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Image file not found: ${path}`, { cause: error });
-        throw new Error(`Unable to read image file: ${path}`, { cause: error });
-    }
+    throw new Error(`Cannot resolve image path '${source}' without filesystem access: use the Node entry ("puppeteer-pptxgenjs") or pass a resolveImage option`);
 }
 
-export async function resolveDocumentImages(document: Document, cwd = process.cwd()): Promise<void> {
+export async function resolveDocumentImages(document: Document, resolveImage: (source: string) => Promise<string>): Promise<void> {
     const images = Array.from(document.querySelectorAll<HTMLImageElement>("img[data-source-path], img[data-source-url]"));
     await Promise.all(
         images.map(async image => {
             const source = image.dataset.sourcePath ?? image.dataset.sourceUrl;
             if (!source) return;
-            image.src = await resolveImageSource(source, cwd);
+            image.src = await resolveImage(source);
             delete image.dataset.sourcePath;
             delete image.dataset.sourceUrl;
         }),

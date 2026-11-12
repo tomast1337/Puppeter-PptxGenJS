@@ -9,7 +9,7 @@ if (outputDirectory === projectRoot) throw new Error("Refusing to clean the proj
 await rm(outputDirectory, { recursive: true, force: true });
 
 const bundle = await Bun.build({
-    entrypoints: [resolve(projectRoot, "src/exports.ts"), resolve(projectRoot, "src/react.ts")],
+    entrypoints: [resolve(projectRoot, "src/exports.ts"), resolve(projectRoot, "src/html.ts"), resolve(projectRoot, "src/react.ts")],
     outdir: outputDirectory,
     target: "node",
     format: "esm",
@@ -76,6 +76,10 @@ if (/from\s+["']react(?:-dom)?(?:\/[^"']*)?["']|import\(["']react(?:-dom)?/.test
 if (/\bBun\s*\./.test(bundledSource)) {
     throw new Error("The runtime bundle must not depend on Bun APIs; published packages support Node.js");
 }
+const htmlSource = await readFile(resolve(outputDirectory, "html.js"), "utf8");
+if (/from\s*["'](?:puppeteer|jsdom|node:)|import\(["'](?:puppeteer|jsdom|node:)|require\(["'](?:puppeteer|jsdom|node:)/.test(htmlSource)) {
+    throw new Error("The browser-safe html bundle must not import puppeteer, jsdom or node:* modules");
+}
 for (const declarationFile of await declarationFiles(outputDirectory)) {
     const source = await readFile(declarationFile, "utf8");
     if (/from\s+["']pptxgenjs["']|import\(["']pptxgenjs["']\)/.test(source)) {
@@ -86,8 +90,12 @@ const entrypoint = await import(`${pathToFileURL(builtEntrypoint).href}?build-sm
 if (typeof entrypoint.default !== "function" || entrypoint.default !== entrypoint.PuppeteerGen) {
     throw new Error("Built entrypoint does not expose PuppeteerGen as its named and default export");
 }
-if (!entrypoint.PAGE_SIZES || !entrypoint.PPTX_DEFAULTS_VERSION) {
+if (!entrypoint.PAGE_SIZES || !entrypoint.PPTX_DEFAULTS_VERSION || typeof entrypoint.PuppeteerPdfRenderer !== "function") {
     throw new Error("Built entrypoint is missing public constants");
+}
+const htmlEntrypoint = await import(`${pathToFileURL(resolve(outputDirectory, "html.js")).href}?build-smoke=${Date.now()}`);
+if (typeof htmlEntrypoint.default !== "function" || htmlEntrypoint.default === entrypoint.default || "closeBrowser" in htmlEntrypoint) {
+    throw new Error("Built html entrypoint must expose the core PuppeteerGen without Node adapters");
 }
 
 console.log(`Built ${bundle.outputs.length} JavaScript artifact(s) and TypeScript declarations in dist/`);

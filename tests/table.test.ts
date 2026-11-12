@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type PptxGenJS from "pptxgenjs";
 import { normalizeTable } from "../src/normalize/table";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen } from "../src/node";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;

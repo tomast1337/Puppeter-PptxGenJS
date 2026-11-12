@@ -1,4 +1,3 @@
-import * as jsdom from "jsdom";
 import type { ComponentRegistry } from "../components/registry";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "../defaults";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "../model/types";
@@ -70,8 +69,15 @@ export function renderSlide(document: Document, slide: NormalizedSlide, index: n
     return element;
 }
 
-export function createPresentationDocument(pageSize: PageSize): Document {
-    const document = new jsdom.JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;
+/** Default document factory for browser runtimes; the Node entry injects jsdom instead. */
+export function createBrowserDocument(): Document {
+    const document = (globalThis as { document?: Document }).document;
+    if (!document) throw new Error("No DOM is available: pass a createDocument option to PuppeteerGen, or use the Node entry (\"puppeteer-pptxgenjs\")");
+    return document.implementation.createHTMLDocument();
+}
+
+export function createPresentationDocument(pageSize: PageSize, createDocument: () => Document = createBrowserDocument): Document {
+    const document = createDocument();
     applyPresentationStyles(document, pageSize);
     return document;
 }
@@ -85,8 +91,8 @@ export function applyPresentationStyles(document: Document, pageSize: PageSize):
 }
 
 /** Pure HTML render pass: the normalized model is the only input besides component definitions. */
-export function renderPresentationDocument(presentation: NormalizedPresentation, components?: ComponentRegistry): Document {
-    const document = createPresentationDocument(presentation.pageSize);
+export function renderPresentationDocument(presentation: NormalizedPresentation, components?: ComponentRegistry, createDocument?: () => Document): Document {
+    const document = createPresentationDocument(presentation.pageSize, createDocument);
     presentation.slides.forEach((slide, index) => document.body.appendChild(renderSlide(document, slide, index, components)));
     return document;
 }
