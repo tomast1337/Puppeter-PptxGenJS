@@ -127,11 +127,16 @@ test("the browser WASM entry bundles without puppeteer, jsdom or node:* modules"
     expect(Object.values(inputs).flatMap(input => input.imports.map(entry => entry.path).filter(path => forbidden.test(path)))).toEqual([]);
 });
 
-// These need the binary from `bun run build:wasm` and real fonts; CI cannot build Rust yet (issue #16).
+// These need the binary from `bun run build:wasm` and real fonts. CI downloads the binary from its
+// "WASM build" job, so there a missing binary or font set fails instead of skipping.
 const wasmBuilt = await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/text_pdf_wasm_bg.wasm")).exists();
 const systemFonts = wasmBuilt ? await loadSystemFonts().catch(() => []) : [];
 const canRender = wasmBuilt && systemFonts.length > 0;
-if (!canRender) console.warn(`Skipping WASM render tests: ${wasmBuilt ? "no system fonts found" : "packages/wasm/src/text_pdf_wasm_bg.wasm is not built (bun run build:wasm)"}`);
+if (!canRender) {
+    const reason = wasmBuilt ? "no system fonts found" : "packages/wasm/src/text_pdf_wasm_bg.wasm is not built (bun run build:wasm)";
+    if (process.env.CI === "true") throw new Error(`WASM render tests cannot run in CI: ${reason}`);
+    console.warn(`Skipping WASM render tests: ${reason}`);
+}
 
 describe.skipIf(!canRender)("WASM backend render", () => {
     test("renders text slides to a PDF with one page per slide", async () => {
