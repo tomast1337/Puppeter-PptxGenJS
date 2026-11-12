@@ -257,5 +257,5 @@ bun run examples/comprehensive-example.ts
 
 - Full documentation: [USAGE.md](./USAGE.md)
 - Implementation details: [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)
-- Project overview: [README.md](./README.md)
+- Project overview: [README.md](../README.md)
 

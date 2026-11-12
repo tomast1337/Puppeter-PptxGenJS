@@ -420,7 +420,7 @@ image when one of those changes. To test against a prebuilt image locally, set
 
 ## Documentation
 
-For detailed documentation, see [USAGE.md](./USAGE.md) which covers:
+For detailed documentation, see [USAGE.md](./docs/USAGE.md) which covers:
 - Complete API reference
 - Positioning and sizing guide
 - Text styling options
@@ -429,7 +429,7 @@ For detailed documentation, see [USAGE.md](./USAGE.md) which covers:
 - CSS and print layout details
 - Best practices and troubleshooting
 
-See [DEFAULTS.md](./DEFAULTS.md) for the measured PptxGenJS/PowerPoint defaults
+See [DEFAULTS.md](./docs/DEFAULTS.md) for the measured PptxGenJS/PowerPoint defaults
 that PuppeteerGen reproduces and the current compatibility status.
 
 ## Project Structure
@@ -455,7 +455,7 @@ that PuppeteerGen reproduces and the current compatibility status.
 │   ├── test.ts                   # Basic example
 │   └── comprehensive-example.ts  # Feature demonstrations
 ├── tests/                       # Unit, DOM, and visual parity tests
-├── USAGE.md               # Detailed documentation
+├── docs/                  # Usage guide, quick reference, defaults, implementation notes
 └── README.md              # This file
 ```
 
