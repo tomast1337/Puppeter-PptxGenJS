@@ -170,6 +170,9 @@ struct Outline {
 struct Rgba(u8, u8, u8, f32);
 
 /// The model carries CSS colors: `#RRGGBB`, `rgba(r, g, b, a)` or `transparent`.
+/// As in CSS, out-of-range values clamp: alpha to [0, 1], channels to [0, 255]
+/// (`as u8` saturates; it truncates where CSS rounds). A NaN component makes the
+/// color invalid, like any other unparsable color.
 fn parse_color(css: &str) -> Option<Rgba> {
     let css = css.trim();
     if let Some(hex) = css.strip_prefix('#') {
@@ -178,9 +181,12 @@ fn parse_color(css: &str) -> Option<Rgba> {
     }
     let inner = css.strip_prefix("rgba(").or_else(|| css.strip_prefix("rgb("))?.strip_suffix(')')?;
     let parts: Vec<f32> = inner.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+    if parts.iter().any(|v| v.is_nan()) {
+        return None;
+    }
     match parts.as_slice() {
         [r, g, b] => Some(Rgba(*r as u8, *g as u8, *b as u8, 1.0)),
-        [r, g, b, a] => Some(Rgba(*r as u8, *g as u8, *b as u8, *a)),
+        [r, g, b, a] => Some(Rgba(*r as u8, *g as u8, *b as u8, a.clamp(0.0, 1.0))),
         _ => None,
     }
 }
@@ -188,9 +194,15 @@ fn parse_color(css: &str) -> Option<Rgba> {
 fn fill_of(c: Rgba) -> Fill {
     Fill {
         paint: rgb::Color::new(c.0, c.1, c.2).into(),
-        opacity: NormalizedF32::new(c.3.clamp(0.0, 1.0)).unwrap(),
+        opacity: unit(c.3),
         ..Fill::default()
     }
+}
+
+/// Clamps to [0, 1]. NaN, which no model value carries (JSON has none and
+/// `parse_color` rejects it), becomes transparent rather than a panic.
+fn unit(v: f32) -> NormalizedF32 {
+    NormalizedF32::new(v.clamp(0.0, 1.0)).unwrap_or(NormalizedF32::ZERO)
 }
 
 /// Requested face first, then the metric-compatible alias the docker image's
@@ -353,7 +365,7 @@ impl Renderer {
         let t = &style.transform;
         let opacity = t.opacity < 1.0;
         if opacity {
-            surface.push_opacity(NormalizedF32::new(t.opacity.clamp(0.0, 1.0)).unwrap());
+            surface.push_opacity(unit(t.opacity));
         }
         let (cx, cy) = (x + w / 2.0, y + h / 2.0);
         let (fx, fy) = (if t.flip_h { -1.0 } else { 1.0 }, if t.flip_v { -1.0 } else { 1.0 });
@@ -390,7 +402,7 @@ impl Renderer {
                 surface.set_stroke(Some(Stroke {
                     paint: rgb::Color::new(color.0, color.1, color.2).into(),
                     width: line.width,
-                    opacity: NormalizedF32::new(color.3).unwrap(),
+                    opacity: unit(color.3),
                     dash,
                     ..Stroke::default()
                 }));
@@ -654,7 +666,9 @@ impl Renderer {
                 let run = glyph_run.run();
                 let size = run.font_size();
                 let metrics = *run.font_metrics();
-                let paint = &paints[glyph_run.style().brush.0 as usize];
+                let paint = paints
+                    .get(glyph_run.style().brush.0 as usize)
+                    .expect("layout_text sets every brush to the index of the paint it pushes alongside");
                 let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
                 let start = ox + glyph_run.offset();
                 let advance = glyph_run.advance();
@@ -715,7 +729,7 @@ impl Renderer {
                     surface.set_stroke(Some(Stroke {
                         paint: rgb::Color::new(color.0, color.1, color.2).into(),
                         width,
-                        opacity: NormalizedF32::new(color.3).unwrap(),
+                        opacity: unit(color.3),
                         ..Stroke::default()
                     }));
                     surface.draw_glyphs(origin, &glyphs, font, text, size, false);
@@ -790,6 +804,11 @@ mod tests {
         assert_eq!(parse_color("#17365D"), Some(Rgba(0x17, 0x36, 0x5D, 1.0)));
         assert_eq!(parse_color("rgba(23, 54, 93, 0)"), Some(Rgba(23, 54, 93, 0.0)));
         assert_eq!(parse_color("transparent"), None);
+        // CSS clamps out-of-range components; NaN is not a CSS number.
+        assert_eq!(parse_color("rgba(300, -5, 12.7, 2)"), Some(Rgba(255, 0, 12, 1.0)));
+        assert_eq!(parse_color("rgba(0, 0, 0, -1)"), Some(Rgba(0, 0, 0, 0.0)));
+        assert_eq!(parse_color("rgba(0, 0, 0, NaN)"), None);
+        assert_eq!(parse_color("rgb(NaN, 0, 0)"), None);
     }
 
     #[test]
@@ -805,5 +824,49 @@ mod tests {
         let pdf = r.render(model).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
         assert_eq!(r.warnings(), vec!["object kind 'image' not rendered".to_string()]);
+    }
+
+    /// A text-in-shape object whose fill, line, run, outline, highlight and
+    /// underline all use `color`.
+    fn model_with_color(color: &str) -> String {
+        let run = format!(
+            r#"{{"text":"Ag","fontFace":"Liberation Sans","fontSize":24,"color":"{color}","bold":false,"italic":false,
+            "decoration":{{"underline":true,"underlineColor":"{color}","strike":false,"doubleStrike":false}},
+            "verticalAlign":"baseline","baselineOffset":0,"characterSpacing":0,"highlight":"{color}",
+            "outline":{{"color":"{color}","width":1}},"softBreakBefore":false}}"#
+        );
+        format!(
+            r#"{{"pageSize":{{"width":10,"height":5.625}},"slides":[{{"background":"{color}","objects":[{{"kind":"text",
+            "style":{{"geometry":{{"x":10,"y":10,"width":300,"height":100}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":0.5}},
+            "fill":{{"visible":true,"color":"{color}"}},"line":{{"visible":true,"color":"{color}","width":2}}}},
+            "shape":{{"name":"rect","geometry":{{"kind":"rect","radius":0}}}},
+            "text":{{"paragraphs":[{{"runs":[{run}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[]}}],
+            "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}}}]}}]}}"#
+        )
+    }
+
+    #[test]
+    fn renders_out_of_range_and_nan_alpha_without_panicking() {
+        let mut r = Renderer::new();
+        // Text paints (outline, highlight, underline) are only drawn for shaped glyphs, which need a font.
+        let font = [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+        ]
+        .iter()
+        .find_map(|p| std::fs::read(p).ok());
+        let has_font = font.is_some_and(|f| r.add_font(f) > 0);
+        if !has_font {
+            eprintln!("Liberation Sans not installed: glyph outline paths not exercised");
+        }
+        for alpha in ["2", "-1", "NaN", "inf"] {
+            let pdf = r.render(&model_with_color(&format!("rgba(10, 20, 30, {alpha})"))).unwrap();
+            assert!(pdf.starts_with(b"%PDF"), "alpha {alpha}");
+            assert_eq!(
+                has_font,
+                pdf.windows(9).any(|w| w == b"/FontFile"),
+                "alpha {alpha}: glyphs drawn iff a font is installed"
+            );
+        }
     }
 }
