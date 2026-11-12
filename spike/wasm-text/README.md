@@ -1,19 +1,17 @@
-# Spike: text-only PDF renderer from `getModel()` (issue #8)
+# Spike harness: text-only PDF renderer from `getModel()` (issue #8)
 
-Throwaway spike. It is not wired into `src/`, the package or CI.
+The renderer moved to `crates/` (`pdf-core`, `pdf-wasm`) and ships as the opt-in
+`puppeteer-pptxgenjs/wasm` entry (`src/wasm/`). The napi-rs native addon was dropped:
+the spike measured ~1.7 ms/render gain against an 8-package release matrix (#8).
 
-- `core/` holds the pure renderer: model JSON + font bytes -> PDF bytes (krilla 0.8 + parley 0.13).
-- `wasm/` is the wasm-bindgen binding, meant for the `/html` browser entry.
-- `node/` is the napi-rs binding, meant for the Node/Bun entry.
-
-Both bindings expose the same JS surface: `new Renderer()`, `addFont(bytes): number`,
-`render(modelJson): Uint8Array` and `warnings(): string[]`.
+What remains here is the scoring harness, which now goes through the public API
+(`createWasmRenderer` + `PuppeteerGen.toPdf()`):
 
 ```sh
-sh spike/wasm-text/scripts/build.sh          # pkg/ (wasm-pack --target web) + text_pdf_node.node
+bun run build:wasm                           # src/wasm/text_pdf_wasm_bg.wasm
 sh spike/wasm-text/scripts/docker.sh compare # fidelity vs LibreOffice, in the pinned visual image
-sh spike/wasm-text/scripts/docker.sh bench   # cold/warm timings: Puppeteer vs WASM vs native
-cargo test -p text-pdf-core                  # run from spike/wasm-text
+sh spike/wasm-text/scripts/docker.sh bench   # cold/warm timings: Puppeteer vs WASM
+(cd crates && cargo test)
 
 # Emoji and CJK deck (issue #14): spike image = visual image + Noto Color Emoji + Noto Sans CJK
 docker build -t puppeteer-gen-visual-emoji spike/wasm-text
@@ -21,5 +19,5 @@ VISUAL_IMAGE=puppeteer-gen-visual-emoji sh spike/wasm-text/scripts/docker.sh com
 ```
 
 Results (PDFs, PNG crops, `montage-*.png`, `fidelity.json`, `bench.json`) are written to
-`spike/wasm-text/results/<deck>/`, which is gitignored. The harness reads fonts from `FONT_DIRS`
-(default `/usr/share/fonts`).
+`spike/wasm-text/results/<deck>/` (bench: `results/`), which is gitignored. The harness reads fonts from `FONT_DIRS`
+(default: the system font directories, via `loadSystemFonts()`).
