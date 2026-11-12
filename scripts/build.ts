@@ -9,7 +9,7 @@ const projectRoot = resolve(import.meta.dir, "..");
 const packagesDirectory = resolve(projectRoot, "packages");
 
 /** Source entrypoints (relative to the package's src/) per package, in dependency order. */
-export const PACKAGES = [
+const PACKAGES = [
     { name: "model", entrypoints: ["index"] },
     { name: "puppeteer", entrypoints: ["index"] },
     { name: "pptxgenjs", entrypoints: ["exports", "html"] },
