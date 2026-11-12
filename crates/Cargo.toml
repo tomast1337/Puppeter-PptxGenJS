@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["pdf-core", "pdf-wasm"]
+
+[workspace.dependencies]
+text-pdf-core = { path = "pdf-core" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
