@@ -21,6 +21,7 @@
     "test:visual:wasm": "bun run tests/visual/wasm/compare.ts",
     "test:visual:wasm:docker": "sh scripts/test-visual-docker.sh test:visual:wasm",
     "bench": "bun run scripts/bench.ts",
+    "bench:wasm": "bun run scripts/bench-wasm.ts",
     "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts",
     "fmt": "bun run fmt:ts && bun run fmt:rust",
     "fmt:check": "bun run fmt:ts:check && bun run fmt:rust:check",
