@@ -185,6 +185,27 @@ const { html, pageSize } = await pres.toHtml(); // no browser launched
 const pdf = await pres.toPdf(); // Uint8Array from the Puppeteer renderer
 ```
 
+### `write()` and `stream()`
+
+Both follow PptxGenJS 4.0.1 semantics, but return PDF bytes instead of a PPTX
+zip. `write()` accepts `{ outputType }` or, as PptxGenJS does at runtime, a bare
+outputType string.
+
+| Call | Result |
+| --- | --- |
+| `write()` / `write({})` | `Blob` (`application/pdf`) |
+| `write({ outputType: "blob" })` | `Blob` (`application/pdf`) |
+| `write({ outputType: "uint8array" })` | `Uint8Array` |
+| `write({ outputType: "arraybuffer" })` | `ArrayBuffer` |
+| `write({ outputType: "base64" })` | base64 `string` |
+| `write({ outputType: "binarystring" })` | latin1 `string`, one char per byte |
+| `write({ outputType: "nodebuffer" })` / `write({ outputType: "STREAM" })` / `stream()` | Node `Buffer` |
+
+`compression` is accepted and ignored: in PptxGenJS it only selects zip
+DEFLATE vs STORE. Unknown output types throw before rendering. `nodebuffer`
+and `STREAM` throw in runtimes without a global `Buffer` (for example a browser
+using `/html`); use another output type there.
+
 ### Custom renderer
 
 Any object implementing `PresentationRenderer` can turn the HTML into a PDF
@@ -319,6 +340,7 @@ that PuppeteerGen reproduces and the current compatibility status.
 ├── src/
 │   ├── PuppeterrGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
 │   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
+│   ├── output.ts          # write()/stream() outputType conversion of PDF bytes
 │   ├── pageLayouts.ts     # Page size definitions
 │   ├── utils.ts           # Utility functions
 │   ├── pptx.ts            # Type definitions

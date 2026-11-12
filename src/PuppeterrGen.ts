@@ -20,6 +20,7 @@ import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, Ppt
 import { renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
 import { type HtmlPresentationDocument, type PresentationRenderer, serializeHtmlPresentation } from "./render/document";
+import { convertPdfOutput, resolveOutputType } from "./output";
 import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, renderSlideObject } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
@@ -288,12 +289,15 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
         return structuredClone({ pageSize: this.pageSize, slides: this.slides.map(slide => slide.model) });
     }
 
-    stream(_props?: PptxWriteBaseProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
-        throw new Error("Method not implemented.");
+    /** PptxGenJS `stream()`: the PDF as a Node Buffer. `compression` is ignored (zip-only). */
+    async stream(_props?: PptxWriteBaseProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
+        return convertPdfOutput(await this.toPdf(), "STREAM");
     }
 
-    write(_props?: PptxWriteProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
-        throw new Error("Method not implemented.");
+    /** PptxGenJS `write()`: the PDF as the requested outputType, default `blob`. `compression` is ignored (zip-only). */
+    async write(props?: PptxWriteProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
+        const outputType = resolveOutputType(props);
+        return convertPdfOutput(await this.toPdf(), outputType);
     }
 
     /** The complete self-contained HTML document (images inlined as data URIs). Does not launch a browser. */

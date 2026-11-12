@@ -21,12 +21,16 @@ function validateDataUri(source: string): string {
     return source;
 }
 
-export function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): string {
-    // Browser-safe base64: no Buffer. Chunked so large images stay under the argument limit.
+/** One latin1 char per byte, without Buffer. Chunked so large inputs stay under the argument limit. */
+export function binaryString(bytes: ArrayBuffer | Uint8Array): string {
     const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     let binary = "";
     for (let index = 0; index < view.length; index += 0x8000) binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
-    return `data:${mime};base64,${btoa(binary)}`;
+    return binary;
+}
+
+export function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): string {
+    return `data:${mime};base64,${btoa(binaryString(bytes))}`;
 }
 
 /** Runtime-neutral image resolution: data URIs and http(s) URLs only. File paths need a runtime adapter. */
