@@ -1,6 +1,6 @@
 import type { Coord, NormalizedGeometry, NormalizedTransform } from "@pdfdeck/model";
 import type { PageSize } from "../pageLayouts";
-import { convertToPixels } from "../units";
+import { convertToPixels, inchesToPixels } from "../units";
 
 export interface PositionOptions {
     x?: Coord;
@@ -17,8 +17,8 @@ export interface TransformOptions {
 }
 
 export function normalizeGeometry(options: PositionOptions, defaults: PositionOptions, pageSize: PageSize): NormalizedGeometry {
-    const width = pageSize.width * 96;
-    const height = pageSize.height * 96;
+    const width = inchesToPixels(pageSize.width);
+    const height = inchesToPixels(pageSize.height);
     const x = options.x ?? defaults.x ?? 0;
     const y = options.y ?? defaults.y ?? 0;
     const w = options.w ?? defaults.w;

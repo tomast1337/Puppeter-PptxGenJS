@@ -1,9 +1,9 @@
-import type { HtmlPresentationDocument, PresentationRenderer } from "@pdfdeck/model";
+import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type PresentationRenderer } from "@pdfdeck/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 
-// Model page sizes are in inches; CSS pixels are 96 per inch (the same conversion as the compat layer's inchesToPixels).
-const inchesToPixels = (inches: number): number => inches * 96;
+// Model page sizes are in inches.
+const inchesToPixels = (inches: number): number => inches * CSS_PX_PER_INCH;
 
 export class PuppeteerPdfRenderer implements PresentationRenderer {
     render(document: HtmlPresentationDocument): Promise<Uint8Array> {

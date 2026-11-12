@@ -22,6 +22,7 @@ import { renderComponent } from "./render/component";
 import { type HtmlPresentationDocument, type ModelRenderer, type PresentationRenderer, serializeHtmlPresentation } from "./render/document";
 import { convertPdfOutput, resolveOutputType } from "./output";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
+import { pixelsToInches } from "./units";
 import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, renderSlideObject } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
@@ -209,13 +210,13 @@ export class PuppeteerSlide implements PptxSlide {
         const tableStyle = normalizeObjectStyle(
             {
                 ...tableOptions,
-                w: table.width / 96,
-                h: table.height === undefined ? undefined : table.height / 96,
+                w: pixelsToInches(table.width),
+                h: table.height === undefined ? undefined : pixelsToInches(table.height),
             },
             {
                 x: PPTX_DEFAULTS.table.x,
                 y: PPTX_DEFAULTS.table.y,
-                w: table.width / 96,
+                w: pixelsToInches(table.width),
             },
             this.pageSize,
             this.nextObjectName("Table", tableOptions.objectName),

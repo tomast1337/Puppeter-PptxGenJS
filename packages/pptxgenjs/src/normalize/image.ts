@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedImage, NormalizedImageSizing } from "@pdfdeck/model";
 import type { PageSize } from "../pageLayouts";
-import { convertToPixels } from "../units";
+import { convertToPixels, inchesToPixels } from "../units";
 
 export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
     ".gif": "image/gif",
@@ -91,8 +91,8 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
         throw new Error("hyperlink requires either url or slide");
     }
     const sizing = options.sizing;
-    const pageWidth = pageSize.width * 96;
-    const pageHeight = pageSize.height * 96;
+    const pageWidth = inchesToPixels(pageSize.width);
+    const pageHeight = inchesToPixels(pageSize.height);
     const sourceWidth = convertToPixels(options.w || PPTX_DEFAULTS.image.w, pageWidth);
     const sourceHeight = convertToPixels(options.h || PPTX_DEFAULTS.image.h, pageHeight);
     const boxWidth = sizing ? convertToPixels(sizing.w || options.w || PPTX_DEFAULTS.image.w, pageWidth) : sourceWidth;

@@ -113,7 +113,7 @@ type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
 type ShapePoint = NonNullable<PptxGenJS.ShapeProps["points"]>[number];
 
 function coordinate(value: PptxGenJS.Coord, axis: "x" | "y", pageSize: PageSize): number {
-    return convertToPixels(value, (axis === "x" ? pageSize.width : pageSize.height) * 96);
+    return convertToPixels(value, inchesToPixels(axis === "x" ? pageSize.width : pageSize.height));
 }
 
 function cleanNumber(value: number): number {

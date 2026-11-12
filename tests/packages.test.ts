@@ -81,10 +81,11 @@ describe("workspace packages", () => {
         expect(Object.fromEntries(Object.entries(paths).map(([name, [path]]) => [name, path]))).toEqual(expected);
     });
 
-    test("@pdfdeck/model bundles for the browser without any import", async () => {
+    test("@pdfdeck/model bundles for the browser without importing anything outside itself", async () => {
         const config = { entrypoints: [join(PACKAGES_DIR, "model/src/index.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0];
         const build = (await Bun.build(config)) as Awaited<ReturnType<typeof Bun.build>> & { metafile: { inputs: Record<string, { imports: { path: string }[] }> } };
         expect(build.success).toBe(true);
-        expect(Object.values(build.metafile.inputs).flatMap(input => input.imports)).toEqual([]);
+        const imports = Object.values(build.metafile.inputs).flatMap(input => input.imports);
+        expect(imports.filter(({ path }) => !resolve(path).startsWith(join(PACKAGES_DIR, "model/src/")))).toEqual([]);
     });
 });
