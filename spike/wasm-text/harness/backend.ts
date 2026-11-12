@@ -25,7 +25,8 @@ export async function createRenderer(kind: BackendKind): Promise<TextPdfRenderer
 
 // The faces the visual image installs (tests/visual/Dockerfile). WASM cannot
 // see system fonts, so the harness reads them and passes the bytes in.
-const FONT_FILE = /^(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?)\.ttf$/;
+// The spike image (spike/wasm-text/Dockerfile) adds Noto Color Emoji and Noto Sans CJK.
+const FONT_FILE = /^(?:(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?|NotoColorEmoji)\.ttf|NotoSansCJK-(?:Regular|Bold)\.ttc)$/;
 
 export function fontFiles(dirs = (process.env.FONT_DIRS ?? "/usr/share/fonts").split(":")): string[] {
     const found: string[] = [];

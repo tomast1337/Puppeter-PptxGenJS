@@ -15,7 +15,7 @@ use krilla::paint::{Fill, Stroke, StrokeDash};
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
 use krilla::{Data, Document};
-use parley::fontique::{Blob, Collection, CollectionOptions, SourceCache};
+use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, SourceCache};
 use parley::{
     Alignment, AlignmentOptions, BaseDirection, FontContext, FontStyle, FontWeight, Layout, LayoutContext, LineHeight, OverflowWrap, PositionedLayoutItem,
     StyleProperty, TextWrapMode, VerticalAlign, WhiteSpaceCollapse,
@@ -195,7 +195,9 @@ fn fill_of(c: Rgba) -> Fill {
 
 /// Requested face first, then the metric-compatible alias the docker image's
 /// fontconfig (30-metric-aliases.conf) would pick, then DejaVu Sans, the
-/// image's default sans-serif, which also covers Arabic/Greek/Cyrillic.
+/// image's default sans-serif, which also covers Arabic/Greek/Cyrillic, then
+/// Noto Sans CJK JP for Han/Kana/Hangul. Emoji clusters additionally fall
+/// through to the registered `emoji` generic family (see `add_font`).
 fn family_stack(face: &str) -> String {
     let alias = match face.to_ascii_lowercase().as_str() {
         "calibri" | "calibri light" => "Carlito",
@@ -207,7 +209,7 @@ fn family_stack(face: &str) -> String {
         _ => face,
     };
     let quote = |s: &str| format!("\"{}\"", s.replace('"', ""));
-    format!("{}, {}, \"DejaVu Sans\"", quote(face), quote(alias))
+    format!("{}, {}, \"DejaVu Sans\", \"Noto Sans CJK JP\"", quote(face), quote(alias))
 }
 
 // ---------------------------------------------------------------- layout
@@ -276,6 +278,12 @@ impl Renderer {
     /// Registers a font file (TTF/OTF/TTC). Returns the number of faces registered.
     pub fn add_font(&mut self, data: Vec<u8>) -> u32 {
         let families = self.fonts.collection.register_fonts(Blob::from(data), None);
+        // parley appends the `emoji` generic family for emoji-presentation clusters.
+        for (id, _) in &families {
+            if self.fonts.collection.family_name(*id).is_some_and(|name| name.to_ascii_lowercase().contains("emoji")) {
+                self.fonts.collection.set_generic_families(GenericFamily::Emoji, std::iter::once(*id));
+            }
+        }
         families.iter().map(|(_, faces)| faces.len() as u32).sum()
     }
 
@@ -508,6 +516,14 @@ impl Renderer {
                     "super" => builder.push(StyleProperty::VerticalAlign(VerticalAlign::SUPER), r.clone()),
                     "sub" => builder.push(StyleProperty::VerticalAlign(VerticalAlign::SUB), r.clone()),
                     _ => {}
+                }
+            }
+            // parley tries the run's own stack before the emoji family, so a text font that has
+            // U+2764 wins even with VS16. Force emoji presentation: base char + U+FE0F go to the emoji font.
+            // shortcut: covers only `X U+FE0F`; ZWJ/keycap sequences already resolve via parley's emoji path.
+            for (i, _) in s.match_indices('\u{FE0F}') {
+                if let Some((start, _)) = s[..i].char_indices().next_back() {
+                    builder.push(StyleProperty::FontFamily("\"Noto Color Emoji\"".into()), start..i + 3);
                 }
             }
             let mut layout: Layout<Brush> = builder.build(&s);
@@ -773,8 +789,8 @@ mod tests {
 
     #[test]
     fn maps_office_fonts_to_metric_aliases() {
-        assert_eq!(family_stack("Calibri"), "\"Calibri\", \"Carlito\", \"DejaVu Sans\"");
-        assert_eq!(family_stack("Arial"), "\"Arial\", \"Liberation Sans\", \"DejaVu Sans\"");
+        assert_eq!(family_stack("Calibri"), "\"Calibri\", \"Carlito\", \"DejaVu Sans\", \"Noto Sans CJK JP\"");
+        assert_eq!(family_stack("Arial"), "\"Arial\", \"Liberation Sans\", \"DejaVu Sans\", \"Noto Sans CJK JP\"");
     }
 
     #[test]

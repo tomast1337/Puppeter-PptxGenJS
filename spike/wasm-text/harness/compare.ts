@@ -10,8 +10,13 @@ import { PuppeteerGen } from "../../../src/node";
 import { PAGE_SIZES } from "../../../src/pageLayouts";
 import { createRenderer, loadFonts } from "./backend";
 import { populateTextDeck, TEXT_PAGES } from "./deck";
+import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
 
-const out = process.env.SPIKE_OUT ?? "results";
+// `compare.ts [text|emoji]`; the emoji deck needs the spike image (spike/wasm-text/Dockerfile).
+const deckName = process.argv[2] ?? "text";
+const [populate, PAGES] = deckName === "emoji" ? [populateEmojiDeck, EMOJI_PAGES] : [populateTextDeck, TEXT_PAGES];
+
+const out = join(process.env.SPIKE_OUT ?? "results", deckName);
 mkdirSync(out, { recursive: true });
 
 async function run(command: string[], ok = [0]): Promise<string> {
@@ -32,12 +37,12 @@ async function rmse(a: string, b: string): Promise<number> {
 const reference = new pptxgen();
 reference.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
 reference.layout = "PARITY";
-populateTextDeck(reference);
+populate(reference);
 await reference.writeFile({ fileName: join(out, "reference.pptx") });
 await run(["libreoffice", "--headless", `-env:UserInstallation=file://${join(out, "lo-profile")}`, "--convert-to", "pdf", "--outdir", out, join(out, "reference.pptx")]);
 
 // 2. Puppeteer and the two Rust bindings from the same model.
-const deck = populateTextDeck(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape));
+const deck = populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape));
 writeFileSync(join(out, "puppeteer.pdf"), await deck.toPdf());
 const model = deck.getModel();
 const warnings: Record<string, string[]> = {};
@@ -52,7 +57,7 @@ const identical = sha("wasm.pdf") === sha("native.pdf");
 
 const engines = ["puppeteer", "wasm", "native"] as const;
 for (const name of ["reference", ...engines]) {
-    await run(["pdftoppm", "-png", "-r", "96", "-f", "1", "-l", String(TEXT_PAGES), join(out, `${name}.pdf`), join(out, name)]);
+    await run(["pdftoppm", "-png", "-r", "96", "-f", "1", "-l", String(PAGES), join(out, `${name}.pdf`), join(out, name)]);
 }
 // pdftoppm zero-pads page numbers to the document's page count.
 const rendered = readdirSync(out);
@@ -60,7 +65,7 @@ const png = (name: string, page: number) => join(out, rendered.find(file => new 
 
 // 3. Page RMSE and one crop per text object.
 const pages = [];
-for (let page = 1; page <= TEXT_PAGES; page++) {
+for (let page = 1; page <= PAGES; page++) {
     const scores = Object.fromEntries(await Promise.all(engines.map(async e => [e, await rmse(png("reference", page), png(e, page))])));
     pages.push({ page, nonText: model.slides[page - 1]!.objects.filter(o => o.kind !== "text" && o.kind !== "shape").map(o => o.kind), ...scores });
 }
