@@ -15,8 +15,10 @@ const PACKAGES = [
     { name: "pptxgenjs", entrypoints: ["exports", "html"] },
     { name: "wasm", entrypoints: ["browser", "node"] },
     { name: "react", entrypoints: ["react"] },
-    { name: "puppeteer-pptxgenjs", entrypoints: ["index", "html", "react", "wasm"] },
-] as const;
+    // Pure re-exports, so transpiled instead of bundled: with the root tsconfig paths, Bun 1.4.0 (CI)
+    // bundles `export { default } from "@pdfdeck/pptxgenjs"` to an export of an undeclared binding.
+    { name: "puppeteer-pptxgenjs", entrypoints: ["index", "html", "react", "wasm"], transpileOnly: true },
+] as { name: string; entrypoints: string[]; transpileOnly?: boolean }[];
 
 /** Bundles that must load in a browser: no puppeteer, jsdom or node:* imports. */
 const BROWSER_SAFE = ["model/dist/index.js", "pptxgenjs/dist/html.js", "wasm/dist/browser.js"];
@@ -34,13 +36,19 @@ async function declarationFiles(directory: string): Promise<string[]> {
 
 const configDirectory = await mkdtemp(join(tmpdir(), "pdfdeck-build-"));
 try {
-    for (const { name, entrypoints } of PACKAGES) {
+    for (const { name, entrypoints, transpileOnly } of PACKAGES) {
         const packageDirectory = resolve(packagesDirectory, name);
         const outputDirectory = resolve(packageDirectory, "dist");
         if (outputDirectory === packageDirectory) throw new Error("Refusing to clean a package root");
         await rm(outputDirectory, { recursive: true, force: true });
 
-        const bundle = await Bun.build({
+        if (transpileOnly) {
+            const transpiler = new Bun.Transpiler({ loader: "ts", target: "node" });
+            for (const entry of entrypoints) {
+                await Bun.write(resolve(outputDirectory, `${entry}.js`), transpiler.transformSync(await readFile(resolve(packageDirectory, `src/${entry}.ts`), "utf8")));
+            }
+        }
+        const bundle = transpileOnly ? { success: true, logs: [], outputs: entrypoints } : await Bun.build({
             entrypoints: entrypoints.map(entry => resolve(packageDirectory, `src/${entry}.ts`)),
             outdir: outputDirectory,
             target: "node",
@@ -150,4 +158,8 @@ if (!entrypoint.PAGE_SIZES || !entrypoint.PPTX_DEFAULTS_VERSION || typeof entryp
 const htmlEntrypoint = await import(`${pathToFileURL(resolve(pptxDirectory, "html.js")).href}?build-smoke=${Date.now()}`);
 if (typeof htmlEntrypoint.default !== "function" || htmlEntrypoint.default === entrypoint.default || "closeBrowser" in htmlEntrypoint) {
     throw new Error("Built html entrypoint must expose the core PuppeteerGen without Node adapters");
+}
+for (const entry of ["index", "html"]) {
+    const shim = await import(`${pathToFileURL(resolve(packagesDirectory, `puppeteer-pptxgenjs/dist/${entry}.js`)).href}?build-smoke=${Date.now()}`);
+    if (typeof shim.default !== "function" || shim.default !== shim.PuppeteerGen) throw new Error(`Built puppeteer-pptxgenjs/dist/${entry}.js does not re-export PuppeteerGen as its default`);
 }
