@@ -3,7 +3,7 @@ import type PptxGenJS from "pptxgenjs";
 import { createElement } from "react";
 import { z } from "zod";
 import { GENERATED_PRESET_NAMES } from "../../src/normalize/generatedPreset";
-import { PuppeteerGen } from "../../src/PuppeterrGen";
+import { PuppeteerGen } from "../../src/node";
 import { registerReactComponent } from "../../src/react";
 
 type Presentation = PptxGenJS | PuppeteerGen;

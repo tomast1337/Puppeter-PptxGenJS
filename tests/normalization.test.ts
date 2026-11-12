@@ -3,7 +3,7 @@ import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { normalizeGeometry, normalizeTransform } from "../src/normalize/geometry";
-import { resolveImageSource } from "../src/normalize/image";
+import { resolveImageSource } from "../src/node";
 import { normalizeColor, normalizeFill, normalizeLine, normalizeShadow } from "../src/normalize/style";
 import { PAGE_SIZES } from "../src/pageLayouts";
 

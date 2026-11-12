@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { GENERATED_PRESET_NAMES } from "../src/normalize/generatedPreset";
 import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../src/normalize/shape";
 import { normalizeLine } from "../src/normalize/style";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { PuppeteerGen } from "../src/node";
 import { PAGE_SIZES } from "../src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;

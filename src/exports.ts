@@ -1,55 +1,11 @@
 import { closeBrowser as closeSharedBrowser } from "./browser";
-import { UnsupportedChartError } from "./chart/errors";
-import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
-import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
-import { PuppeteerGen } from "./PuppeterrGen";
-import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
-import { alignToCSS, colorToCSS, convertToPixels, generatePageCSS, inchesToPixels, percentageToPixels, pointsToPixels, valignToCSS } from "./utils";
+import { PuppeteerGen } from "./node";
+import { PuppeteerPdfRenderer } from "./render/puppeteerPdf";
 
 // Explicit type keeps puppeteer types (and their Node typings) out of the public declarations.
 const closeBrowser: () => Promise<void> = closeSharedBrowser;
 
-export {
-    alignToCSS,
-    CHART_TYPE_COMPATIBILITY,
-    COMPATIBILITY,
-    closeBrowser,
-    colorToCSS,
-    convertToPixels,
-    DEFAULT_PAGE_SIZE,
-    generatePageCSS,
-    inchesToPixels,
-    PAGE_SIZES,
-    PPTX_DEFAULTS,
-    PPTX_DEFAULTS_VERSION,
-    PuppeteerGen,
-    percentageToPixels,
-    pointsToPixels,
-    SHAPE_GEOMETRY_COMPATIBILITY,
-    tableMarginToCSS,
-    textMarginToCSS,
-    UnsupportedChartError,
-    valignToCSS,
-};
+// The Node entry is the browser-safe core plus Node defaults; the local PuppeteerGen shadows the core one.
+export * from "./html";
+export { closeBrowser, PuppeteerGen, PuppeteerPdfRenderer };
 export default PuppeteerGen;
-
-export type { UnsupportedChartDetails, UnsupportedChartReason } from "./chart/errors";
-export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
-export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
-export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
-export type { FourSideMargin } from "./defaults";
-export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "./model/types";
-export type { PuppeteerSlide } from "./PuppeterrGen";
-export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
-export type {
-    PptxGenJSLike,
-    PptxShapeProps,
-    PptxSlide,
-    PptxTableProps,
-    PptxTableRow,
-    PptxTextProps,
-    PptxTextPropsOptions,
-    PptxWriteFileProps,
-    PptxWriteProps,
-} from "./pptx";
-export type { ColorProps } from "./utils";

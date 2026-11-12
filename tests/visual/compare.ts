@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import pptxgen from "pptxgenjs";
-import { PuppeteerGen } from "../../src/PuppeterrGen";
+import { PuppeteerGen } from "../../src/node";
 import { PAGE_SIZES } from "../../src/pageLayouts";
 import { PARITY_REGIONS, populateParityFixture } from "./fixture";
 import { writeVisualGallery } from "./gallery";

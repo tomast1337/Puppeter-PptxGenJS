@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { NormalizedPresentation } from "../src/model/types";
-import { PuppeteerGen } from "../src/PuppeterrGen";
+import { createNodeDocument, PuppeteerGen } from "../src/node";
 import { renderPresentationDocument } from "../src/render/slide";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -72,8 +72,8 @@ describe("normalized slide-object model", () => {
         expect(JSON.stringify(parsed)).toBe(json);
 
         const components = (pres as unknown as { components: Parameters<typeof renderPresentationDocument>[1] }).components;
-        expect(html(renderPresentationDocument(model, components))).toBe(html(pres.page));
-        expect(html(renderPresentationDocument(parsed, components))).toBe(html(pres.page));
+        expect(html(renderPresentationDocument(model, components, createNodeDocument))).toBe(html(pres.page));
+        expect(html(renderPresentationDocument(parsed, components, createNodeDocument))).toBe(html(pres.page));
     });
 
     test("records slide properties and returns a detached copy", () => {
@@ -87,7 +87,7 @@ describe("normalized slide-object model", () => {
 
     test("components need their registry to render; errors still throw from addX and leave the model unchanged", () => {
         const pres = representativeDeck();
-        expect(() => renderPresentationDocument(pres.getModel())).toThrow("requires its component registry");
+        expect(() => renderPresentationDocument(pres.getModel(), undefined, createNodeDocument)).toThrow("requires its component registry");
 
         const slide = pres.addSlide();
         expect(() => slide.addChart("bar", [{ name: "S", labels: ["A"], values: [1] }], { x: 0, y: 0, w: 0, h: 1 })).toThrow("greater than zero");

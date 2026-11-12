@@ -41,6 +41,11 @@
       "import": "./dist/exports.js",
       "default": "./dist/exports.js"
     },
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "import": "./dist/html.js",
+      "default": "./dist/html.js"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",
