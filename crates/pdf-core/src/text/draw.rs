@@ -57,6 +57,9 @@ impl Renderer {
     }
 
     fn draw_layout(&mut self, surface: &mut Surface, layout: &Layout<Brush>, text: &str, paints: &[RunPaint], ox: f32, oy: f32) {
+        let mut ranges = std::mem::take(&mut self.glyph_ranges);
+        let mut positioned = std::mem::take(&mut self.positioned);
+        let mut glyphs = std::mem::take(&mut self.glyphs);
         for line in layout.lines() {
             for item in line.items() {
                 let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
@@ -82,7 +85,7 @@ impl Renderer {
                 }
 
                 // Glyph -> source text cluster ranges, for the PDF ToUnicode map.
-                let mut ranges = Vec::new();
+                ranges.clear();
                 for cluster in run.visual_clusters() {
                     if cluster.style_index() == glyph_run.style_index() {
                         for _ in cluster.glyphs() {
@@ -90,29 +93,28 @@ impl Renderer {
                         }
                     }
                 }
-                let positioned: Vec<_> = glyph_run.positioned_glyphs().collect();
+                positioned.clear();
+                positioned.extend(glyph_run.positioned_glyphs());
                 if ranges.len() != positioned.len() {
                     // shortcut: a run whose style repeats non-contiguously maps all glyphs to the run's text; fix if text extraction matters.
-                    ranges = vec![run.text_range(); positioned.len()];
+                    ranges.clear();
+                    ranges.resize(positioned.len(), run.text_range());
                 }
                 let mut pen = glyph_run.offset();
-                let glyphs: Vec<KrillaGlyph> = positioned
-                    .iter()
-                    .zip(ranges)
-                    .map(|(g, range)| {
-                        let glyph = KrillaGlyph::new(
-                            GlyphId::new(g.id),
-                            g.advance / size,
-                            (g.x - pen) / size,
-                            -(g.y - glyph_run.baseline()) / size,
-                            0.0,
-                            range,
-                            None,
-                        );
-                        pen += g.advance;
-                        glyph
-                    })
-                    .collect();
+                glyphs.clear();
+                glyphs.extend(positioned.iter().zip(ranges.drain(..)).map(|(g, range)| {
+                    let glyph = KrillaGlyph::new(
+                        GlyphId::new(g.id),
+                        g.advance / size,
+                        (g.x - pen) / size,
+                        -(g.y - glyph_run.baseline()) / size,
+                        0.0,
+                        range,
+                        None,
+                    );
+                    pen += g.advance;
+                    glyph
+                }));
                 let Some(font) = self.pdf_font(run.font()) else {
                     self.warn("font could not be embedded");
                     continue;
@@ -153,5 +155,8 @@ impl Renderer {
                 }
             }
         }
+        self.glyph_ranges = ranges;
+        self.positioned = positioned;
+        self.glyphs = glyphs;
     }
 }

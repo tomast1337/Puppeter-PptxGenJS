@@ -34,6 +34,7 @@ pub(crate) struct ParaLayout {
     pub(crate) marker: Option<(String, Layout<Brush>, f32)>,
 }
 
+#[derive(Default)]
 pub(crate) struct BoxLayout {
     pub(crate) paras: Vec<ParaLayout>,
     pub(crate) paints: Vec<RunPaint>,
@@ -49,8 +50,8 @@ const DEFAULT_LINE_HEIGHT: f32 = 1.2;
 impl Renderer {
     /// Lays the box out, applying the current renderer's shrink-to-fit rule:
     /// scale fonts (and px line heights) by 0.95 up to 20 times while the
-    /// content overflows the inset box.
-    pub(crate) fn fit_text(&mut self, text: &TextBox, w: f32, h: f32) -> BoxLayout {
+    /// content overflows the inset box. Fills `layout`, reusing its buffers.
+    pub(crate) fn fit_text(&mut self, text: &TextBox, w: f32, h: f32, layout: &mut BoxLayout) {
         let [top, right, bottom, left] = text.margin;
         let vertical = text.direction == "vertical" || text.direction == "vertical270";
         if text.direction == "stacked" {
@@ -62,22 +63,23 @@ impl Renderer {
             (w - left - right, h - top - bottom)
         };
         let mut scale = 1.0;
-        let mut layout = self.layout_text(text, inner_w, scale);
+        self.layout_text(text, inner_w, scale, layout);
         if text.fit == "shrink" {
             for _ in 0..20 {
                 if layout.height <= inner_h + 0.5 && layout.width <= inner_w + 0.5 {
                     break;
                 }
                 scale *= 0.95;
-                layout = self.layout_text(text, inner_w, scale);
+                self.layout_text(text, inner_w, scale, layout);
             }
         }
-        layout
     }
 
-    fn layout_text(&mut self, text: &TextBox, inner_w: f32, scale: f32) -> BoxLayout {
-        let mut paints = Vec::new();
-        let mut paras = Vec::new();
+    /// Lays out every paragraph into `out`, replacing what it held.
+    fn layout_text(&mut self, text: &TextBox, inner_w: f32, scale: f32, out: &mut BoxLayout) {
+        out.paras.clear();
+        out.paints.clear();
+        let paints = &mut out.paints;
         let (mut y, mut width) = (0.0f32, 0.0f32);
         for paragraph in &text.paragraphs {
             if !paragraph.tab_stops.is_empty() {
@@ -89,23 +91,24 @@ impl Renderer {
             };
             let max_w = if text.wrap { Some((inner_w - indent).max(1.0)) } else { None };
 
-            // Runs -> one string plus style spans. Empty paragraphs keep a line box.
+            // Runs -> one string plus one style span per run, zipped with `paragraph.runs`.
+            // Empty paragraphs keep a line box: a single span styled by the first run.
             let mut s = String::new();
-            let mut spans = Vec::new();
+            let mut spans = std::mem::take(&mut self.span_ranges);
+            spans.clear();
             for (i, run) in paragraph.runs.iter().enumerate() {
                 if run.soft_break_before && i > 0 {
                     s.push('\n');
                 }
                 let start = s.len();
                 s.push_str(&run.text);
-                spans.push((start..s.len(), run));
+                spans.push(start..s.len());
             }
             let first = paragraph.runs.first();
             if s.is_empty() {
                 s.push('\u{200B}');
-                if let Some(r) = first {
-                    spans = vec![(0..s.len(), r)];
-                }
+                spans.clear();
+                spans.push(0..s.len());
             }
 
             let line_height = match paragraph.line_height {
@@ -119,11 +122,10 @@ impl Renderer {
             builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
             builder.push_default(StyleProperty::OverflowWrap(OverflowWrap::BreakWord));
             builder.push_default(StyleProperty::TextWrapMode(if text.wrap { TextWrapMode::Wrap } else { TextWrapMode::NoWrap }));
-            let mut families = Vec::new();
-            for (range, run) in &spans {
-                families.push((range.clone(), family_stack(&run.font_face)));
-            }
-            for ((range, run), (_, family)) in spans.iter().zip(&families) {
+            let mut families = std::mem::take(&mut self.span_families);
+            families.clear();
+            families.extend(paragraph.runs.iter().take(spans.len()).map(|run| family_stack(&run.font_face)));
+            for ((range, run), family) in spans.iter().zip(&paragraph.runs).zip(&families) {
                 let index = paints.len() as u32;
                 let color = parse_color(&run.color).unwrap_or_default();
                 paints.push(RunPaint {
@@ -166,6 +168,8 @@ impl Renderer {
                 }
             }
             let mut layout: Layout<Brush> = builder.build(&s);
+            self.span_ranges = spans;
+            self.span_families = families;
             for run in &paragraph.runs {
                 if run.glow.is_some() || run.shadow.as_ref().is_some_and(|s| s.visible) {
                     self.warn("text glow/shadow not rendered");
@@ -231,14 +235,10 @@ impl Renderer {
             y += paragraph.space_before;
             width = width.max(x + layout.width());
             let height = layout.height();
-            paras.push(ParaLayout { text: s, layout, x, y, marker });
+            out.paras.push(ParaLayout { text: s, layout, x, y, marker });
             y += height + paragraph.space_after;
         }
-        BoxLayout {
-            paras,
-            paints,
-            width,
-            height: y,
-        }
+        out.width = width;
+        out.height = y;
     }
 }
