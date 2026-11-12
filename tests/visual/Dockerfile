@@ -8,7 +8,8 @@ FROM ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab0
 LABEL org.opencontainers.image.source=https://github.com/tomast1337/Puppeter-PptxGenJS
 
 ARG APT_SNAPSHOT=20261110T000000Z
-ARG BUN_VERSION=1.4.0
+# 1.4.4 is the first release with `bun fmt` (bun run fmt:check); CI and release.yml pin the same.
+ARG BUN_VERSION=1.4.4
 ENV DEBIAN_FRONTEND=noninteractive
 
 # snapshot.ubuntu.com intermittently fails TLS/fetches or stalls mid-download: retry, and drop a
