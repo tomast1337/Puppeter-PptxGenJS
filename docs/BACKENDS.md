@@ -134,12 +134,12 @@ In `/html`, `writeFile()` throws because it needs a filesystem; use `toPdf()`.
 Without a global DOM (for example a worker or a server runtime without
 jsdom), pass `createDocument`.
 
-## WASM backend (`@pdfdeck/wasm`, opt-in, text, shapes and images)
+## WASM backend (`@pdfdeck/wasm`, opt-in, text, shapes, images and tables)
 
 An experimental renderer that draws `getModel()` straight to PDF in
 WebAssembly (Rust, `crates/`), without HTML or Chromium. Puppeteer stays the
 default; nothing loads the WASM code unless you import this entry, and the
-`.wasm` binary (~2.4 MB, ~960 KB gzip) is only fetched by `createWasmRenderer()`.
+`.wasm` binary (~2.4 MB, ~971 KB gzip) is only fetched by `createWasmRenderer()`.
 The prebuilt binary ships in the `@pdfdeck/wasm` tarball, so installing it
 needs no Rust toolchain.
 It implements `ModelRenderer`, so `toPdf()`, `write()`, `stream()` and
@@ -147,11 +147,14 @@ It implements `ModelRenderer`, so `toPdf()`, `write()`, `stream()` and
 
 **Status:** text boxes (runs, paragraphs, bullets, tab stops, insets, rotation, fit) and
 every preset and custom shape (fills, transparency, multi-face shading, lines,
-dashes, arrowheads, rotation, flips, text in shapes), and PNG and JPEG images
+dashes, arrowheads, rotation, flips, text in shapes), PNG and JPEG images
 (every sizing mode, rounding, transparency, rotation, flips, alpha channels;
 paths and URLs are resolved to data URIs by `toPdf()` before the renderer sees
-the model). GIF, WebP and SVG images, tables, charts, components, shadows
-and hyperlink annotations are not drawn yet (issue #17).
+the model) and tables (merged cells, fills, per-side solid and dashed borders,
+cell insets and alignment, vertical text, rows grown to fit their text;
+underline styles draw as a single line). GIF, WebP and SVG images, charts,
+components, shadows and hyperlink annotations are not drawn yet
+(issue #17).
 
 **Unsupported content:** by default `toPdf()` throws an error listing
 everything the backend could not draw. Pass `onUnsupported: "warn"` to get the

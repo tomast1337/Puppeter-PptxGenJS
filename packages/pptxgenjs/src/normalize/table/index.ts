@@ -68,11 +68,14 @@ function normalizeTableMargins(margin?: number | FourSideMargin): [number, numbe
 
 function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder {
     const type = border?.type ?? PPTX_DEFAULTS.table.border.type;
+    const width = type === "none" ? 0 : pointsToPixels(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt);
     return {
         visible: type !== "none",
         color: normalizeColor(border?.color ?? PPTX_DEFAULTS.table.border.color),
-        width: type === "none" ? 0 : pointsToPixels(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt),
+        width,
         style: type === "dash" ? "dashed" : "solid",
+        // PptxGenJS 4.0.1 writes a "dash" cell border as <a:prstDash val="sysDash"/>.
+        ...(type === "dash" && width > 0 ? { dashArray: PPTX_DEFAULTS.shape.dashPatterns.sysDash?.map(part => part * width).join(" ") } : {}),
     };
 }
 

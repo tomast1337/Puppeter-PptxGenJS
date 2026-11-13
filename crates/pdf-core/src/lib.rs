@@ -1,4 +1,4 @@
-//! Renders the text, shape and image objects of the normalized model (`getModel()`) straight to PDF.
+//! Renders the text, shape, image and table objects of the normalized model (`getModel()`) straight to PDF.
 //!
 //! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen):
 //! model JSON + font bytes in, PDF bytes out. Units in the model are CSS px at
@@ -9,6 +9,7 @@ mod image;
 mod model;
 mod path;
 mod shape;
+mod table;
 mod text;
 
 use std::collections::{BTreeSet, HashMap};
@@ -26,6 +27,7 @@ use crate::color::{parse_color, unit};
 use crate::image::Decoded;
 use crate::model::{Presentation, SlideObject};
 use crate::path::{fill_path, rect_path};
+use crate::table::TableLayout;
 use crate::text::layout::{BoxLayout, Brush};
 
 /// Model page sizes are in inches; PDF user space is in points.
@@ -46,6 +48,7 @@ pub struct Renderer {
     // Scratch buffers for the per-object, per-paragraph and per-glyph-run paths: each user
     // clear()s one before filling it, so its capacity survives across objects and renders.
     text_layout: BoxLayout,
+    table_layout: TableLayout,
     span_ranges: Vec<Range<usize>>,
     span_families: Vec<String>,
     tab_indices: Vec<usize>,
@@ -76,6 +79,7 @@ impl Renderer {
             warnings: BTreeSet::new(),
             images: HashMap::new(),
             text_layout: BoxLayout::default(),
+            table_layout: TableLayout::default(),
             span_ranges: Vec::new(),
             span_families: Vec::new(),
             tab_indices: Vec::new(),
@@ -138,10 +142,11 @@ impl Renderer {
     }
 
     fn draw_object(&mut self, surface: &mut Surface, object: &SlideObject) -> Result<(), String> {
-        let (style, shape, text, image) = match object {
-            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref(), None),
-            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None),
-            SlideObject::Image(o) => (&o.style, None, None, Some(&o.image)),
+        let (style, shape, text, image, table) = match object {
+            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref(), None, None),
+            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None, None),
+            SlideObject::Image(o) => (&o.style, None, None, Some(&o.image), None),
+            SlideObject::Table(o) => (&o.style, None, None, None, Some(&o.table)),
             SlideObject::Unsupported(kind) => {
                 self.warn(format!("object kind '{kind}' not rendered"));
                 return Ok(());
@@ -151,6 +156,12 @@ impl Renderer {
         let (x, y, w) = (g.x, g.y, g.width.unwrap_or(0.0));
         let mut h = g.height.unwrap_or(0.0);
 
+        // A table is as tall as its rows grow (table.rs), not its model height.
+        let mut cells = std::mem::take(&mut self.table_layout);
+        if let Some(table) = table {
+            self.layout_table(table, &mut cells)?;
+            h = cells.height();
+        }
         let mut layout = std::mem::take(&mut self.text_layout);
         if let Some(t) = text {
             self.fit_text(t, w, h, &mut layout);
@@ -183,7 +194,11 @@ impl Renderer {
         if let Some(text) = text {
             self.draw_text(surface, text, &layout, x, y, w, h);
         }
+        if let Some(table) = table {
+            self.draw_table(surface, table, &cells, x, y);
+        }
         self.text_layout = layout;
+        self.table_layout = cells;
 
         surface.pop();
         surface.pop();
@@ -202,10 +217,10 @@ mod tests {
     #[test]
     fn renders_without_fonts_and_reports_skips() {
         let mut r = Renderer::new();
-        let model = r##"{"pageSize":{"width":10,"height":5.625},"slides":[{"background":"#FFFFFF","objects":[{"kind":"table","style":{}}]}]}"##;
+        let model = r##"{"pageSize":{"width":10,"height":5.625},"slides":[{"background":"#FFFFFF","objects":[{"kind":"chart","style":{}}]}]}"##;
         let pdf = r.render(model).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
-        assert_eq!(r.warnings(), vec!["object kind 'table' not rendered".to_string()]);
+        assert_eq!(r.warnings(), vec!["object kind 'chart' not rendered".to_string()]);
     }
 
     fn slide_with(object: &str) -> String {
@@ -227,9 +242,44 @@ mod tests {
             r#"{"kind":"text","style":{}}"#,
             r#"{"kind":"shape","style":{}}"#,
             r#"{"kind":"image","style":{}}"#,
+            r#"{"kind":"table","style":{}}"#,
         ] {
             assert!(r.render(&slide_with(object)).is_err(), "{object}");
         }
+    }
+
+    #[test]
+    fn draws_tables_and_reports_what_it_skips() {
+        let mut r = Renderer::new();
+        liberation_sans().map(|f| r.add_font(f));
+        let border = |dash: &str| format!(r##"{{"visible":true,"color":"#C00000","width":2.67{dash}}}"##);
+        let cell = |span: &str, fit: &str, direction: &str| {
+            format!(
+                r##"{{"text":{{"paragraphs":[{{"runs":[{{"text":"Cell","fontFace":"Arial","fontSize":17,"color":"#363636","bold":false,"italic":false,
+                "decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"verticalAlign":"baseline","baselineOffset":0,
+                "characterSpacing":0,"softBreakBefore":false}}],"align":"center","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":20.4,"baseline":17}}}}],
+                "margin":[7.68,7.68,7.68,7.68],"verticalAlign":"middle","wrap":true,"fit":"{fit}","direction":"{direction}"}},
+                {span},"fill":{{"visible":true,"color":"#F2F2F2"}},"borders":[{},{},{},{}]}}"##,
+                border(r#","dashArray":"8 2.67""#),
+                border(""),
+                border(""),
+                border("")
+            )
+        };
+        let table = |extra_cell: &str| {
+            slide_with(&format!(
+                r#"{{"kind":"table","style":{{"geometry":{{"x":48,"y":96,"width":200}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}}}},
+                "table":{{"width":200,"columns":[100,100],"rows":[{{"height":40,"cells":[{}]}},{{"cells":[{},{}{extra_cell}]}}]}}}}"#,
+                cell(r#""colspan":2,"rowspan":1"#, "none", "horizontal"),
+                cell(r#""colspan":1,"rowspan":1"#, "none", "vertical"),
+                cell(r#""colspan":1,"rowspan":1"#, "none", "horizontal"),
+            ))
+        };
+        assert!(r.render(&table("")).unwrap().starts_with(b"%PDF"));
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        r.render(&table(&format!(",{}", cell(r#""colspan":1,"rowspan":1"#, "shrink", "horizontal"))))
+            .unwrap();
+        assert_eq!(r.warnings(), vec!["table cells beyond the column grid not rendered".to_string()]);
     }
 
     /// A filled, stroked shape object with `geometry` (a JSON object without its braces) and

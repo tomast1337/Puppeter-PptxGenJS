@@ -1,7 +1,7 @@
 // Scores the WASM backend's PDFs (and, for context, the Puppeteer default's) against the same
 // LibreOffice reference, with the tests/visual/compare.ts machinery (pdftoppm 96dpi, ImageMagick
 // RMSE, crops padded like PARITY_REGIONS). Run in the pinned visual image:
-//   bun run test:visual:wasm:docker [text|emoji|shapes|images ...]
+//   bun run test:visual:wasm:docker [text|emoji|shapes|images|tables ...]
 //
 // Gate (WASM only):
 // - every page <= PAGE_THRESHOLD, the AGENTS.md whole-slide limit.
@@ -18,7 +18,7 @@ import { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../../../packages/pptxgenjs/src/pageLayouts";
 import { createRenderer } from "./backend";
 import baseline from "./baseline.json";
-import { populateShapeDeck, populateTextDeck, SHAPE_PAGES, TEXT_PAGES } from "./deck";
+import { populateShapeDeck, populateTableDeck, populateTextDeck, SHAPE_PAGES, TABLE_PAGES, TEXT_PAGES } from "./deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
 import { IMAGE_PAGES, populateImageDeck } from "./image-deck";
 import { LAYOUT_PAGES, populateLayoutDeck } from "./layout-deck";
@@ -28,8 +28,9 @@ type Populate = <T extends pptxgen | PuppeteerGen>(presentation: T) => T;
 type SlideObject = ReturnType<PuppeteerGen["getModel"]>["slides"][number]["objects"][number];
 const isText = (object: SlideObject) => object.kind === "text";
 // emoji: Noto Color Emoji / Noto Sans CJK fallback (issue #14), installed in the pinned image.
-// `crop` picks the objects that get a crop each: text boxes, or for the shapes deck every shape
-// (with or without text), so labels do not dilute the geometry scores; for the images deck every picture.
+// `crop` picks the objects that get a crop each: text boxes, for the shapes deck every shape
+// (with or without text), so labels do not dilute the geometry scores, for the images deck every
+// picture and for the tables deck every table.
 const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: SlideObject) => boolean }> = {
     text: { populate: populateTextDeck, pages: TEXT_PAGES, crop: isText },
     emoji: { populate: populateEmojiDeck, pages: EMOJI_PAGES, crop: isText },
@@ -38,6 +39,7 @@ const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: 
     // page score only and the Rust test `tabs_end_at_their_stops` pins their positions.
     layout: { populate: populateLayoutDeck, pages: LAYOUT_PAGES, crop: object => object.kind === "text" && object.text.paragraphs.every(p => p.tabStops.length === 0) },
     shapes: { populate: populateShapeDeck, pages: SHAPE_PAGES, crop: object => object.kind === "shape" || (object.kind === "text" && object.shape !== undefined) },
+    tables: { populate: populateTableDeck, pages: TABLE_PAGES, crop: object => object.kind === "table" },
     images: { populate: populateImageDeck, pages: IMAGE_PAGES, crop: object => object.kind === "image" },
 };
 const deckNames = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(DECKS);

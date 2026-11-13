@@ -44,6 +44,8 @@ describe("table normalization", () => {
             [false, "solid", "#666666", 0],
             [true, "solid", "#0000FF", 4],
         ]);
+        // PptxGenJS writes "dash" as prstDash sysDash: 3 line widths on, 1 off.
+        expect(table.rows[0]!.cells[0]!.borders.map(border => border.dashArray)).toEqual([undefined, `${(3 * 96) / 72} ${96 / 72}`, undefined, undefined]);
     });
 
     test("inherits table typography, fill, margins, and direction into cells", () => {
