@@ -218,10 +218,14 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
         lineBox: paragraphLineBox({ runs, lineHeight }),
         spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
         spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
-        tabStops: (first.tabStops ?? []).map(stop => ({
-            position: inchesToPixels(stop.position),
-            alignment: TAB_ALIGNMENT_MAP[stop.alignment!] ?? "left",
-        })),
+        tabStops: (first.tabStops ?? [])
+            .map(stop => ({
+                // PptxGenJS writes `stop.position || 1` and `stop.alignment || "l"`.
+                position: inchesToPixels(stop.position || 1),
+                alignment: TAB_ALIGNMENT_MAP[stop.alignment ?? "l"] ?? "left",
+            }))
+            .toSorted((a, b) => a.position - b.position),
+        defaultTabStop: inchesToPixels(PPTX_DEFAULTS.text.defaultTabStopIn),
         bullet: normalizeBullet(first, numberIndex),
     };
 }

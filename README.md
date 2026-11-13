@@ -114,15 +114,15 @@ works after `bun install`. Once the packages are published, this becomes
 Puppeteer is the default and the complete backend. Use WASM when you cannot run Chromium (a web
 page, a serverless function without a browser) and your slides are text, shapes and raster images.
 
-| Family                | Puppeteer (default)                                                      | WASM (opt-in)                                                                    |
-| --------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Text and rich text    | Partial: 50 of 68 tracked options done, 9 partial                        | Drawn: runs, paragraphs, bullets, insets, rotation, fit; no tab stops or shadows |
-| Shapes                | All 179 presets and custom geometry; 36 of 39 options done               | All presets and custom geometry; no shadows or hyperlinks                        |
-| Images                | Partial: 28 of 29 options done                                           | PNG and JPEG in every sizing mode; no GIF, WebP, SVG, shadows or hyperlinks      |
-| Tables and pagination | Partial: 44 of 47 options done, including `autoPage` and `tableToSlides` | Not drawn yet                                                                    |
-| Charts                | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported    | Not drawn                                                                        |
-| Components            | Implemented ([HTML and React](./docs/COMPONENTS.md))                     | Not drawn                                                                        |
-| Media, slide masters  | Throw `UnsupportedFeatureError`                                          | Same                                                                             |
+| Family                | Puppeteer (default)                                                      | WASM (opt-in)                                                                  |
+| --------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Text and rich text    | Partial: 50 of 68 tracked options done, 9 partial                        | Drawn: runs, paragraphs, bullets, tab stops, insets, rotation, fit; no shadows |
+| Shapes                | All 179 presets and custom geometry; 36 of 39 options done               | All presets and custom geometry; no shadows or hyperlinks                      |
+| Images                | Partial: 28 of 29 options done                                           | PNG and JPEG in every sizing mode; no GIF, WebP, SVG, shadows or hyperlinks    |
+| Tables and pagination | Partial: 44 of 47 options done, including `autoPage` and `tableToSlides` | Not drawn yet                                                                  |
+| Charts                | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported    | Not drawn                                                                      |
+| Components            | Implemented ([HTML and React](./docs/COMPONENTS.md))                     | Not drawn                                                                      |
+| Media, slide masters  | Throw `UnsupportedFeatureError`                                          | Same                                                                           |
 
 The counts come from `COMPATIBILITY`, `CHART_TYPE_COMPATIBILITY` and
 `SHAPE_GEOMETRY_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs` (source:

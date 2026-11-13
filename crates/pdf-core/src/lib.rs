@@ -48,6 +48,7 @@ pub struct Renderer {
     text_layout: BoxLayout,
     span_ranges: Vec<Range<usize>>,
     span_families: Vec<String>,
+    tab_indices: Vec<usize>,
     glyph_ranges: Vec<Range<usize>>,
     positioned: Vec<parley::Glyph>,
     glyphs: Vec<KrillaGlyph>,
@@ -77,6 +78,7 @@ impl Renderer {
             text_layout: BoxLayout::default(),
             span_ranges: Vec::new(),
             span_families: Vec::new(),
+            tab_indices: Vec::new(),
             glyph_ranges: Vec::new(),
             positioned: Vec::new(),
             glyphs: Vec::new(),
@@ -378,7 +380,7 @@ mod tests {
             "style":{{"geometry":{{"x":10,"y":10,"width":300,"height":100}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":0.5}},
             "fill":{{"visible":true,"color":"{color}"}},"line":{{"visible":true,"color":"{color}","width":2}}}},
             "shape":{{"name":"rect","width":300,"height":100,"geometry":{{"kind":"rect","radius":0}}}},
-            "text":{{"paragraphs":[{{"runs":[{run}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"lineBox":{{"height":38.4,"baseline":32}}}}],
+            "text":{{"paragraphs":[{{"runs":[{run}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":38.4,"baseline":32}}}}],
             "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}}}]}}]}}"#
         )
     }
@@ -409,7 +411,7 @@ mod tests {
             .map(|(runs, height, baseline)| {
                 let runs: Vec<String> = runs.iter().enumerate().map(run).collect();
                 format!(
-                    r#"{{"runs":[{}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"lineBox":{{"height":{height},"baseline":{baseline}}}}}"#,
+                    r#"{{"runs":[{}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":{height},"baseline":{baseline}}}}}"#,
                     runs.join(",")
                 )
             })
@@ -439,6 +441,40 @@ mod tests {
         let para = &layout.paras[0];
         assert_eq!(layout.baselines.get(para.baselines.clone()), Some(&[48.0, 102.0][..]));
         assert_eq!(layout.height, 108.0);
+    }
+
+    #[test]
+    fn tabs_end_at_their_stops() {
+        use crate::model::{TabAlign, TabStop};
+        let mut text = text_box(&[(&[r"a\tLeft\tEnd\t12.50\tMid\tx"], 36.0, 30.0)]);
+        let stop = |position, alignment| TabStop { position, alignment };
+        text.paragraphs[0].tab_stops = vec![
+            stop(150.0, TabAlign::Left),
+            stop(300.0, TabAlign::Right),
+            stop(450.0, TabAlign::Decimal),
+            stop(600.0, TabAlign::Center),
+        ];
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: tab stops not checked");
+        };
+        let para = &layout.paras[0];
+        // Left and right x of the ASCII `needle`.
+        let span = |needle: &str| {
+            let start = para.text.find(needle).expect("needle in text");
+            let cluster = |i| parley::Cluster::from_byte_index(&para.layout, i).expect("cluster in text");
+            let last = cluster(start + needle.len() - 1);
+            let left = cluster(start).visual_offset().expect("cluster on a line");
+            (left, last.visual_offset().expect("cluster on a line") + last.advance())
+        };
+        let close = |a: f32, b: f32| assert!((a - b).abs() < 0.01, "{a} != {b}");
+        close(span("Left").0, 150.0);
+        close(span("End").1, 300.0);
+        close(span(".50").0, 450.0);
+        let (left, right) = span("Mid");
+        close((left + right) / 2.0, 600.0);
+        let x = |needle| span(needle).0;
+        // Past the last stop: the next 96px default stop.
+        close(x("x"), 672.0);
     }
 
     #[test]
@@ -496,7 +532,7 @@ mod tests {
         };
         let para = |runs: &str, bullet: &str| {
             format!(
-                r#"{{"runs":[{runs}],"align":"center","rtl":false,"spaceBefore":2,"spaceAfter":4,"tabStops":[],"lineBox":{{"height":44.8,"baseline":37.33}}{bullet}}}"#
+                r#"{{"runs":[{runs}],"align":"center","rtl":false,"spaceBefore":2,"spaceAfter":4,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":44.8,"baseline":37.33}}{bullet}}}"#
             )
         };
         let object = |x: u32, fit: &str, paragraphs: &str| {

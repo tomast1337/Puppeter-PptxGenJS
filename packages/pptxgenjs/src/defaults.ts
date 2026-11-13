@@ -129,6 +129,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         // (oox TextCharacterProperties). Measured on the visual runs slide: 13pt "super" 24 px wide vs
         // 42 px unscaled, "sub" 15 vs 26 px.
         escapementSizeRatio: 0.58,
+        // defTabSz="914400" (1in) on every level of PptxGenJS's master text styles: default tab stops
+        // after the last explicit one.
+        defaultTabStopIn: 1,
     }),
     table: Object.freeze({
         x: 0.5,

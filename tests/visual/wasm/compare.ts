@@ -21,6 +21,7 @@ import baseline from "./baseline.json";
 import { populateShapeDeck, populateTextDeck, SHAPE_PAGES, TEXT_PAGES } from "./deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
 import { IMAGE_PAGES, populateImageDeck } from "./image-deck";
+import { LAYOUT_PAGES, populateLayoutDeck } from "./layout-deck";
 import { BASELINE_EPSILON, CROP_TARGET, PAGE_THRESHOLD } from "../thresholds";
 
 type Populate = <T extends pptxgen | PuppeteerGen>(presentation: T) => T;
@@ -32,6 +33,10 @@ const isText = (object: SlideObject) => object.kind === "text";
 const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: SlideObject) => boolean }> = {
     text: { populate: populateTextDeck, pages: TEXT_PAGES, crop: isText },
     emoji: { populate: populateEmojiDeck, pages: EMOJI_PAGES, crop: isText },
+    // layout: tab stops. LibreOffice drops a <a:tabLst> whose <a:pPr> carries marL/indent, which
+    // PptxGenJS always writes, so its reference never shows explicit stops: those boxes count on the
+    // page score only and the Rust test `tabs_end_at_their_stops` pins their positions.
+    layout: { populate: populateLayoutDeck, pages: LAYOUT_PAGES, crop: object => object.kind === "text" && object.text.paragraphs.every(p => p.tabStops.length === 0) },
     shapes: { populate: populateShapeDeck, pages: SHAPE_PAGES, crop: object => object.kind === "shape" || (object.kind === "text" && object.shape !== undefined) },
     images: { populate: populateImageDeck, pages: IMAGE_PAGES, crop: object => object.kind === "image" },
 };
