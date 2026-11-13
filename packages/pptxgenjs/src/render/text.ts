@@ -73,6 +73,8 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
         element.style.position = "relative";
         element.style.top = `${lineBox.baseline - lineBox.height / 2}px`;
     }
+    // Default stops only: CSS has no explicit tab stops.
+    element.style.tabSize = `${paragraph.defaultTabStop}px`;
     if (paragraph.tabStops.length) {
         element.dataset.tabStops = paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",");
     }

@@ -230,8 +230,26 @@ pub(crate) struct Paragraph {
     pub(crate) line_box: LineBox,
     pub(crate) space_before: f32,
     pub(crate) space_after: f32,
-    pub(crate) tab_stops: Vec<Value>,
+    pub(crate) tab_stops: Vec<TabStop>,
+    /// Spacing of the default stops after the last explicit one, in px.
+    pub(crate) default_tab_stop: f32,
     pub(crate) bullet: Option<Bullet>,
+}
+
+/// `NormalizedTextParagraph.tabStops[]`: `position` in px from the text area's left edge.
+#[derive(Deserialize, Clone, Copy)]
+pub(crate) struct TabStop {
+    pub(crate) position: f32,
+    pub(crate) alignment: TabAlign,
+}
+
+#[derive(Deserialize, Clone, Copy, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum TabAlign {
+    Left,
+    Right,
+    Center,
+    Decimal,
 }
 
 /// `NormalizedTextParagraph.lineBox`: every line is `height` px tall with its baseline `baseline` px below its top.

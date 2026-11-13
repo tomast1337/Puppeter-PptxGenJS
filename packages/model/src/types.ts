@@ -122,7 +122,10 @@ export interface NormalizedTextParagraph {
     lineBox: { height: number; baseline: number };
     spaceBefore: number;
     spaceAfter: number;
+    /** Explicit stops, `position` in px from the text area's left edge, in increasing order. */
     tabStops: ReadonlyArray<{ position: number; alignment: "left" | "right" | "center" | "decimal" }>;
+    /** Spacing of the default stops after the last explicit one, in px. */
+    defaultTabStop: number;
     bullet?: NormalizedTextBullet;
 }
 

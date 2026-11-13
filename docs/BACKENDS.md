@@ -145,13 +145,13 @@ needs no Rust toolchain.
 It implements `ModelRenderer`, so `toPdf()`, `write()`, `stream()` and
 `writeFile()` work unchanged.
 
-**Status:** text boxes (runs, paragraphs, bullets, insets, rotation, fit) and
+**Status:** text boxes (runs, paragraphs, bullets, tab stops, insets, rotation, fit) and
 every preset and custom shape (fills, transparency, multi-face shading, lines,
 dashes, arrowheads, rotation, flips, text in shapes), and PNG and JPEG images
 (every sizing mode, rounding, transparency, rotation, flips, alpha channels;
 paths and URLs are resolved to data URIs by `toPdf()` before the renderer sees
-the model). GIF, WebP and SVG images, tables, charts, components, shadows, tab
-stops and hyperlink annotations are not drawn yet (issue #17).
+the model). GIF, WebP and SVG images, tables, charts, components, shadows
+and hyperlink annotations are not drawn yet (issue #17).
 
 **Unsupported content:** by default `toPdf()` throws an error listing
 everything the backend could not draw. Pass `onUnsupported: "warn"` to get the
