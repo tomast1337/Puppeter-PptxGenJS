@@ -64,6 +64,7 @@ From the maintainer's decisions on #69:
 <html>
     <head>
         <meta name="pdfdeck-profile" content="1" />
+        <meta name="pdfdeck-page-size" content="Screen 16:9 Landscape" />
         <style id="puppeteer-gen-styles">
             /* presentationCSS(pageSize), render/slide.ts:103 */
         </style>
@@ -85,6 +86,8 @@ From the maintainer's decisions on #69:
   the same for every deck of one size.
 - `<meta name="pdfdeck-profile" content="1">` names the profile version this document follows
   (`HTML_PROFILE_VERSION`, `render/slide.ts`).
+- `<meta name="pdfdeck-page-size">` holds the page size's name (`PageSize.name`); the size itself is in
+  the stylesheet.
 - There is no `<title>`, `<script>` or external resource. Every image is a `data:` URI by the time
   `toHtml()` returns (`resolveDocumentImages`, `normalize/image.ts:55`).
 
@@ -251,7 +254,8 @@ Every model field has one row; `tests/htmlProfile.test.ts` reads this table and 
 status is not one of:
 
 - **profile**: the value is recoverable from the HTML, where the row says.
-- **gap**: lossy today; the row says why, with the code. Phase 2 removes every gap.
+- **gap**: lossy today; the row says why, with the code. After phase 2 only chart options and component
+  props remain gaps: they stay an opaque subtree until phase 8.
 - **not drawable**: the value does not change the drawing (already folded into another field, or
   provenance only).
 
@@ -261,17 +265,17 @@ object-valued field covers the field's presence; its own fields have their own r
 
 ### Presentation and slides
 
-| Field                             | Status  | HTML                                                                                         |
-| --------------------------------- | ------- | -------------------------------------------------------------------------------------------- |
-| `NormalizedPresentation.pageSize` | profile | Stylesheet `@page` and `.slide-container` size.                                              |
-| `PageSize.width`                  | profile | `@page { size: <width>in … }`; `.slide-container { width: <width × 96>px }`.                 |
-| `PageSize.height`                 | profile | `@page { size: … <height>in }`; `.slide-container { height }`.                               |
-| `PageSize.name`                   | gap     | Only in the `HtmlPresentationDocument` wrapper, not in the HTML (`render/document.ts:6-11`). |
-| `NormalizedPresentation.slides`   | profile | One `div.slide-container#slide-N` per slide, in order.                                       |
-| `NormalizedSlide.background`      | profile | `.slide-container` `background-color`.                                                       |
-| `NormalizedSlide.color`           | profile | `.slide-container` custom property `--slide-text-color` (verbatim).                          |
-| `NormalizedSlide.hidden`          | profile | `.slide-container` `data-hidden="true\|false"`.                                              |
-| `NormalizedSlide.objects`         | profile | The container's `.slide-element` children, in paint order.                                   |
+| Field                             | Status  | HTML                                                                         |
+| --------------------------------- | ------- | ---------------------------------------------------------------------------- |
+| `NormalizedPresentation.pageSize` | profile | Stylesheet `@page` and `.slide-container` size.                              |
+| `PageSize.width`                  | profile | `@page { size: <width>in … }`; `.slide-container { width: <width × 96>px }`. |
+| `PageSize.height`                 | profile | `@page { size: … <height>in }`; `.slide-container { height }`.               |
+| `PageSize.name`                   | profile | `<meta name="pdfdeck-page-size" content="<name>">` in the head.              |
+| `NormalizedPresentation.slides`   | profile | One `div.slide-container#slide-N` per slide, in order.                       |
+| `NormalizedSlide.background`      | profile | `.slide-container` `background-color`.                                       |
+| `NormalizedSlide.color`           | profile | `.slide-container` custom property `--slide-text-color` (verbatim).          |
+| `NormalizedSlide.hidden`          | profile | `.slide-container` `data-hidden="true\|false"`.                              |
+| `NormalizedSlide.objects`         | profile | The container's `.slide-element` children, in paint order.                   |
 
 ### Slide object variants
 
