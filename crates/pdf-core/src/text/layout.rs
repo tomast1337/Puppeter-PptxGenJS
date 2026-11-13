@@ -32,6 +32,8 @@ pub(crate) struct ParaLayout {
     pub(crate) x: f32,
     pub(crate) y: f32,
     pub(crate) marker: Option<(String, Layout<Brush>, f32)>,
+    /// The paragraph's line height, which draw.rs needs to place baselines as LibreOffice does.
+    pub(crate) line_height: LineHeight,
 }
 
 #[derive(Default)]
@@ -125,6 +127,10 @@ impl Renderer {
             let mut families = std::mem::take(&mut self.span_families);
             families.clear();
             families.extend(paragraph.runs.iter().take(spans.len()).map(|run| family_stack(&run.font_face)));
+            if let (Some(run), Some(family)) = (first, families.first()) {
+                builder.push_default(StyleProperty::FontFamily(family.as_str().into()));
+                builder.push_default(StyleProperty::FontSize(run.font_size * scale));
+            }
             for ((range, run), family) in spans.iter().zip(&paragraph.runs).zip(&families) {
                 let index = paints.len() as u32;
                 let color = parse_color(&run.color).unwrap_or_default();
@@ -235,10 +241,50 @@ impl Renderer {
             y += paragraph.space_before;
             width = width.max(x + layout.width());
             let height = layout.height();
-            out.paras.push(ParaLayout { text: s, layout, x, y, marker });
+            out.paras.push(ParaLayout {
+                text: s,
+                layout,
+                x,
+                y,
+                marker,
+                line_height,
+            });
             y += height + paragraph.space_after;
         }
         out.width = width;
         out.height = y;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_line_is_the_line_height_tall() {
+        let mut r = Renderer::new();
+        let font = [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+        ]
+        .iter()
+        .find_map(|p| std::fs::read(p).ok());
+        let Some(font) = font else {
+            eprintln!("Liberation Sans not installed: line box height not checked");
+            return;
+        };
+        r.add_font(font);
+        let text: TextBox = serde_json::from_str(
+            r##"{"paragraphs":[{"runs":[{"text":"Paginated record 1","fontFace":"Arial","fontSize":16,"color":"#000000","bold":false,"italic":false,
+            "decoration":{"underline":false,"strike":false,"doubleStrike":false},"verticalAlign":"baseline","baselineOffset":0,"characterSpacing":0,
+            "softBreakBefore":false}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[]}],
+            "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horizontal"}"##,
+        )
+        .unwrap();
+        let mut layout = BoxLayout::default();
+        r.fit_text(&text, 400.0, 100.0, &mut layout);
+        // 1.2 x 16 px. The paragraph's root style once used parley's default font and size, whose
+        // strut pushed the line box to 19.95 px.
+        assert!((layout.height - 19.2).abs() < 1e-4, "{}", layout.height);
     }
 }

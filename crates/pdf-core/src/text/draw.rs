@@ -8,13 +8,34 @@ use krilla::geom::{Point, Transform};
 use krilla::paint::Stroke;
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
-use parley::{Layout, PositionedLayoutItem};
+use parley::{Layout, Line, LineHeight, PositionedLayoutItem};
 
 use crate::Renderer;
 use crate::color::{fill_of, unit};
 use crate::model::TextBox;
 use crate::path::{fill_path, rect_path};
 use crate::text::layout::{BoxLayout, Brush, RunPaint};
+
+/// LibreOffice's font-independent line box (PPTX_DEFAULTS.text.lineDescentEm): the baseline sits
+/// this many ems of the line's largest font above the line's bottom, with all extra leading above it.
+const LINE_DESCENT_EM: f32 = 0.2;
+
+/// How far LibreOffice's baseline sits below parley's on `line`. parley splits the leading above
+/// and below the baseline, as CSS does; LibreOffice puts all of it above, so the baseline sits
+/// `LINE_DESCENT_EM` of the line's largest font above the bottom of its nominal line box. The
+/// nominal box comes from the paragraph's line height, not parley's line box, which a raised or
+/// lowered (super/sub) run makes taller in CSS but not in LibreOffice.
+fn baseline_shift(line: &Line<Brush>, line_height: LineHeight) -> f32 {
+    let m = line.metrics();
+    let largest = line.runs().map(|run| run.font_size()).fold(0.0f32, f32::max);
+    let nominal = match line_height {
+        LineHeight::FontSizeRelative(factor) => factor * largest,
+        LineHeight::Absolute(height) => height,
+        // layout_text sets only the two above.
+        _ => m.line_height,
+    };
+    m.block_min_coord + nominal - LINE_DESCENT_EM * largest - m.baseline
+}
 
 impl Renderer {
     #[allow(clippy::too_many_arguments)]
@@ -36,11 +57,16 @@ impl Renderer {
         for para in &layout.paras {
             if let Some((marker, ml, mx)) = &para.marker {
                 // Marker shares the first line's baseline.
-                let first_baseline = para.layout.lines().next().map(|l| l.metrics().baseline).unwrap_or(0.0);
+                let first_baseline = para
+                    .layout
+                    .lines()
+                    .next()
+                    .map(|l| l.metrics().baseline + baseline_shift(&l, para.line_height))
+                    .unwrap_or(0.0);
                 let marker_baseline = ml.lines().next().map(|l| l.metrics().baseline).unwrap_or(0.0);
-                self.draw_layout(surface, ml, marker, &layout.paints, *mx, v0 + para.y + first_baseline - marker_baseline);
+                self.draw_layout(surface, ml, marker, &layout.paints, *mx, v0 + para.y + first_baseline - marker_baseline, None);
             }
-            self.draw_layout(surface, &para.layout, &para.text, &layout.paints, para.x, v0 + para.y);
+            self.draw_layout(surface, &para.layout, &para.text, &layout.paints, para.x, v0 + para.y, Some(para.line_height));
         }
         surface.pop();
     }
@@ -56,11 +82,24 @@ impl Renderer {
         Some(f)
     }
 
-    fn draw_layout(&mut self, surface: &mut Surface, layout: &Layout<Brush>, text: &str, paints: &[RunPaint], ox: f32, oy: f32) {
+    /// Draws `layout` with its top-left at `ox, oy`. With the paragraph's `line_height`, each line's
+    /// baseline moves to LibreOffice's position (`baseline_shift`); a bullet marker passes `None`.
+    #[allow(clippy::too_many_arguments)] // the origin is two plain numbers, as in draw_text
+    fn draw_layout(
+        &mut self,
+        surface: &mut Surface,
+        layout: &Layout<Brush>,
+        text: &str,
+        paints: &[RunPaint],
+        ox: f32,
+        oy: f32,
+        line_height: Option<LineHeight>,
+    ) {
         let mut ranges = std::mem::take(&mut self.glyph_ranges);
         let mut positioned = std::mem::take(&mut self.positioned);
         let mut glyphs = std::mem::take(&mut self.glyphs);
         for line in layout.lines() {
+            let shift = line_height.map_or(0.0, |lh| baseline_shift(&line, lh));
             for item in line.items() {
                 let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
                 let run = glyph_run.run();
@@ -69,7 +108,7 @@ impl Renderer {
                 let paint = paints
                     .get(glyph_run.style().brush.0 as usize)
                     .expect("layout_text sets every brush to the index of the paint it pushes alongside");
-                let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
+                let baseline = oy + glyph_run.baseline() + shift - paint.baseline_offset;
                 let start = ox + glyph_run.offset();
                 let advance = glyph_run.advance();
                 if run.synthesis().embolden() || run.synthesis().skew().is_some() {
