@@ -175,8 +175,8 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         pres.addSlide()
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
             .addChart("bar", [{ name: "Series", labels: ["A"], values: [1] }], { x: 1, y: 2, w: 2, h: 1 })
-            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
-        await expect(pres.toPdf()).rejects.toThrow(/object kind 'chart' not rendered[\s\S]*object shadow not rendered/);
+            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
+        await expect(pres.toPdf()).rejects.toThrow(/inner shadow not rendered[\s\S]*object kind 'chart' not rendered/);
     });
 
     test("makes linked runs, shapes and images clickable", async () => {

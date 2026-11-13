@@ -456,9 +456,9 @@ export const WASM_COMPATIBILITY = Object.freeze({
             // The WASM image deck (tests/visual/wasm/image-deck.ts) covers the same sizing, transform and
             // effect options with PNG and JPEG sources (data and path); paths and URLs are resolved to data URIs before rendering.
             ...COMPATIBILITY.image.options,
-            // Reported through warnings(): no blurred drop shadow, and no GIF, WebP or SVG decoder
-            // (krilla's decoders for them do not fit the wasm size budget, GZIP_BUDGET).
-            shadow: "unsupported",
+            // The shadow is blurred from the picture box (rounded or cropped), not the PNG alpha.
+            shadow: "partial",
+            // No GIF, WebP or SVG decoder: krilla's decoders for them do not fit the wasm size budget (GZIP_BUDGET).
             gifFirstFrame: "unsupported",
             svg: "unsupported",
             webp: "unsupported",
@@ -470,8 +470,8 @@ export const WASM_COMPATIBILITY = Object.freeze({
             ...Object.fromEntries(Object.keys(COMPATIBILITY.shape.options).map(option => [option, "implemented" as const])),
             // As in the Puppeteer renderer.
             align: "unsupported",
-            // Reported through warnings(): no blurred drop shadow yet.
-            shadow: "unsupported",
+            // Outer shadows are blurred rasters (crates/pdf-core/src/effect/); inner ones are reported through warnings().
+            shadow: "partial",
             // Text in shapes uses the WASM text layout and inherits its gaps (right-to-left tab stops, ...).
             text: "partial",
         }),
@@ -496,9 +496,10 @@ export const WASM_COMPATIBILITY = Object.freeze({
         options: Object.freeze({
             // What the Puppeteer renderer verified is drawn the same way, and the text deck gates it.
             ...Object.fromEntries(Object.entries(COMPATIBILITY.text.options).map(([option, status]) => [option, status === "verified" ? "implemented" : status])),
-            // Reported through warnings(): no blurred glow or shadow yet.
-            glow: "unsupported",
-            shadow: "unsupported",
+            // Blurred rasters calibrated against LibreOffice (crates/pdf-core/src/effect/), gated by the effects deck.
+            glow: "implemented",
+            // Outer shadows only; inner ones are reported through warnings().
+            shadow: "partial",
             // Left, right, center and decimal stops plus the 1in default (defTabSz), measured from
             // the left even in right-to-left paragraphs (a warning says so).
             tabStops: "partial",

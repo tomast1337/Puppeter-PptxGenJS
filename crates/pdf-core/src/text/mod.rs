@@ -3,4 +3,5 @@
 pub(crate) mod draw;
 pub(crate) mod font;
 pub(crate) mod layout;
+pub(crate) mod outline;
 pub(crate) mod tabs;

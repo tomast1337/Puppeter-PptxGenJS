@@ -15,7 +15,7 @@ use krilla::surface::Surface;
 use crate::Renderer;
 use crate::color::{parse_color, unit};
 use crate::model::{Table, TableBorder, TableCell, TextBox};
-use crate::path::{fill_path, rect_path};
+use crate::path::rect_path;
 use crate::shape::dash_of;
 use crate::text::layout::BoxLayout;
 
@@ -206,7 +206,7 @@ impl Renderer {
         for placed in &layout.cells {
             if let Some(color) = cell_of(table, placed).fill.as_ref().filter(|f| f.visible).and_then(|f| parse_color(&f.color)) {
                 let (cx, cy, w, h) = rect(placed);
-                fill_path(surface, rect_path(cx, cy, w, h, 0.0), color);
+                self.fill(surface, &rect_path(cx, cy, w, h, 0.0), color);
             }
         }
         for (placed, text_layout) in layout.cells.iter().zip(&layout.texts) {

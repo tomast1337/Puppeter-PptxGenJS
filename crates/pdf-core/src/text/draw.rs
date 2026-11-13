@@ -12,10 +12,12 @@ use parley::{Layout, PositionedLayoutItem};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
+use crate::effect::Effect;
 use crate::link::page_quad;
 use crate::model::TextBox;
-use crate::path::{fill_path, rect_path};
+use crate::path::rect_path;
 use crate::text::layout::{BoxLayout, Brush, RunPaint};
+use crate::text::outline::glyph_outlines;
 
 /// LibreOffice's synthetic styles for a face that lacks them, read from its PDF export of a
 /// regular-only face (Droid Sans Mono, 72pt): bold fills and strokes the glyphs (`2 Tr`) with a line
@@ -54,16 +56,27 @@ impl Renderer {
             "bottom" => block - layout.height,
             _ => 0.0,
         };
-        surface.push_transform(&frame);
-        for para in &layout.paras {
-            if let Some((marker, ml, mx)) = &para.marker {
-                let first = layout.baselines.get(para.baselines.start..para.baselines.start + 1).unwrap_or_default();
-                self.draw_layout(surface, ml, marker, &layout.paints, (*mx, v0 + para.y), first);
+        let mut lines = |r: &mut Self, surface: &mut Surface| {
+            surface.push_transform(&frame);
+            for para in &layout.paras {
+                if let Some((marker, ml, mx)) = &para.marker {
+                    let first = layout.baselines.get(para.baselines.start..para.baselines.start + 1).unwrap_or_default();
+                    r.draw_layout(surface, ml, marker, &layout.paints, (*mx, v0 + para.y), first);
+                }
+                let baselines = layout.baselines.get(para.baselines.clone()).unwrap_or_default();
+                r.draw_layout(surface, &para.layout, &para.text, &layout.paints, (para.x, v0 + para.y), baselines);
             }
-            let baselines = layout.baselines.get(para.baselines.clone()).unwrap_or_default();
-            self.draw_layout(surface, &para.layout, &para.text, &layout.paints, (para.x, v0 + para.y), baselines);
+            surface.pop();
+            Ok(())
+        };
+        // Each distinct glow of the box goes under all of its text, as LibreOffice draws it.
+        let mut glows: Vec<Effect> = Vec::new();
+        for glow in layout.paints.iter().filter_map(|p| p.glow) {
+            if !glows.contains(&glow) {
+                glows.push(glow);
+            }
         }
-        surface.pop();
+        self.under_glows(surface, &glows, &mut lines)?;
         let mut quads = std::mem::take(&mut self.link_quads);
         let linked = quads.drain(..).try_for_each(|(p, r, quad)| {
             let run = text.paragraphs.get(p as usize).and_then(|para| para.runs.get(r as usize));
@@ -74,6 +87,18 @@ impl Renderer {
         });
         self.link_quads = quads;
         linked
+    }
+
+    fn under_glows(
+        &mut self,
+        surface: &mut Surface,
+        glows: &[Effect],
+        draw: &mut dyn FnMut(&mut Self, &mut Surface) -> Result<(), String>,
+    ) -> Result<(), String> {
+        match glows.split_first() {
+            Some((glow, rest)) => self.under_effect(surface, glow, true, |r, surface| r.under_glows(surface, rest, draw)),
+            None => draw(self, surface),
+        }
     }
 
     fn pdf_font(&mut self, font: &parley::FontData) -> Option<Font> {
@@ -113,9 +138,9 @@ impl Renderer {
                     }
                 }
                 if let Some(hl) = paint.highlight {
-                    fill_path(
+                    self.fill(
                         surface,
-                        rect_path(start, baseline - metrics.ascent, advance, metrics.ascent + metrics.descent, 0.0),
+                        &rect_path(start, baseline - metrics.ascent, advance, metrics.ascent + metrics.descent, 0.0),
                         hl,
                     );
                 }
@@ -165,6 +190,12 @@ impl Renderer {
                 surface.set_stroke(synthesis.embolden().then(|| stroke_of(paint.color, size * SYNTHETIC_BOLD_STROKE_EM)));
                 surface.set_fill(Some(fill_of(paint.color)));
                 surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
+                if self.effects.capturing() {
+                    // Pen positions as krilla places them: x from the line start, y from the line's top.
+                    let at = positioned.iter().map(|g| (ox + g.x, oy + g.y - paint.baseline_offset, g.id));
+                    let outline = glyph_outlines(run.font(), size, at);
+                    self.effects.capture(surface.ctm(), &outline, paint.color.3, paint.glow.as_ref());
+                }
                 if let Some((color, width)) = paint.outline {
                     surface.set_fill(None);
                     surface.set_stroke(Some(stroke_of(color, width)));
@@ -177,9 +208,9 @@ impl Renderer {
 
                 let deco = paint.underline_color.unwrap_or(paint.color);
                 if paint.underline {
-                    fill_path(
+                    self.fill(
                         surface,
-                        rect_path(start, baseline - metrics.underline_offset, advance, metrics.underline_size.max(0.5), 0.0),
+                        &rect_path(start, baseline - metrics.underline_offset, advance, metrics.underline_size.max(0.5), 0.0),
                         deco,
                     );
                 }
@@ -187,10 +218,10 @@ impl Renderer {
                     let t = metrics.strikethrough_size.max(0.5);
                     let y = baseline - metrics.strikethrough_offset;
                     if paint.double_strike {
-                        fill_path(surface, rect_path(start, y - t, advance, t, 0.0), paint.color);
-                        fill_path(surface, rect_path(start, y + t, advance, t, 0.0), paint.color);
+                        self.fill(surface, &rect_path(start, y - t, advance, t, 0.0), paint.color);
+                        self.fill(surface, &rect_path(start, y + t, advance, t, 0.0), paint.color);
                     } else {
-                        fill_path(surface, rect_path(start, y, advance, t, 0.0), paint.color);
+                        self.fill(surface, &rect_path(start, y, advance, t, 0.0), paint.color);
                     }
                 }
             }

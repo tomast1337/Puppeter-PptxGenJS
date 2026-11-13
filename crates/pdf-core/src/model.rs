@@ -158,7 +158,7 @@ pub(crate) struct ObjectStyle {
     pub(crate) transform: Transform2,
     pub(crate) fill: Option<FillModel>,
     pub(crate) line: Option<LineModel>,
-    pub(crate) shadow: Option<Visible>,
+    pub(crate) shadow: Option<Shadow>,
     /// Names the object in errors; optional so hand-written models need not carry it.
     pub(crate) object_name: Option<String>,
 }
@@ -190,9 +190,16 @@ pub(crate) struct Link {
     pub(crate) slide: Option<u32>,
 }
 
+/// `NormalizedShadow`: an object's drop shadow, or a run's glow (no offset). Lengths in px.
 #[derive(Deserialize)]
-pub(crate) struct Visible {
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Shadow {
     pub(crate) visible: bool,
+    pub(crate) color: String,
+    pub(crate) blur: f32,
+    pub(crate) offset_x: f32,
+    pub(crate) offset_y: f32,
+    pub(crate) inset: bool,
 }
 
 #[derive(Deserialize)]
@@ -336,8 +343,8 @@ pub(crate) struct Run {
     pub(crate) character_spacing: f32,
     pub(crate) highlight: Option<String>,
     pub(crate) outline: Option<Outline>,
-    pub(crate) glow: Option<Value>,
-    pub(crate) shadow: Option<Visible>,
+    pub(crate) glow: Option<Shadow>,
+    // The run's `shadow` is not read: PptxGenJS writes no run shadow, only the object's (`style.shadow`).
     pub(crate) link: Option<Link>,
     pub(crate) soft_break_before: bool,
 }

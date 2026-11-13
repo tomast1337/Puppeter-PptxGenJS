@@ -134,7 +134,9 @@ describe("compatibility manifest", () => {
         expect(WASM_COMPATIBILITY.shape.status).toBe("partial");
         expect(WASM_COMPATIBILITY.shape.options.presetGeometry).toBe("implemented");
         expect(WASM_COMPATIBILITY.shape.options.lineEndArrow).toBe("implemented");
-        expect(WASM_COMPATIBILITY.shape.options.shadow).toBe("unsupported");
+        expect(WASM_COMPATIBILITY.shape.options.shadow).toBe("partial");
+        expect(WASM_COMPATIBILITY.image.options.shadow).toBe("partial");
+        expect(WASM_COMPATIBILITY.text.options.glow).toBe("implemented");
         expect(WASM_COMPATIBILITY.shape.options.hyperlink).toBe("implemented");
         expect(WASM_COMPATIBILITY.shape.options.text).toBe("partial");
     });

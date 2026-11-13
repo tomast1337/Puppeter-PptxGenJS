@@ -152,8 +152,16 @@ dashes, arrowheads, rotation, flips, text in shapes), PNG and JPEG images
 paths and URLs are resolved to data URIs by `toPdf()` before the renderer sees
 the model) and tables (merged cells, fills, per-side solid and dashed borders,
 cell insets and alignment, vertical text, rows grown to fit their text;
-underline styles draw as a single line). GIF, WebP and SVG images, charts,
-components, shadows and glow are not drawn yet (issue #17).
+underline styles draw as a single line). GIF, WebP and SVG images, charts and
+components are not drawn yet (issue #17).
+
+**Shadows and glow:** outer shadows of shapes, text boxes and images and the
+glow of text runs are drawn as blurred rasters (a soft-masked image under the
+object), calibrated against the LibreOffice rendering rather than CSS: a
+shadow's Gaussian has sigma = 0.46 x blur, a glow spreads 0.45 x its size with
+sigma = 0.18 x size. A shape or text box casts the silhouette of what it draws
+(fill, stroke, glyphs); an image casts its box, not its PNG alpha. Inner
+shadows are reported through `warnings()`.
 
 **Hyperlinks:** linked text runs (also in table cells), shapes and images
 become PDF link annotations, like the `<a>` elements Chromium turns into links.
