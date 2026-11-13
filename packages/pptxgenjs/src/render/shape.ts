@@ -85,6 +85,28 @@ function geometryElement(document: Document, shape: NormalizedShape): SVGElement
     return element;
 }
 
+/**
+ * Chromium paints an SVG root from a whole CSS px: in print it rounds the object's offset on its page
+ * half up (-10.5 -> -10) and moves the drawing by the difference, in page space even under the object's
+ * rotation or flip. Measured from the PDF matrices (issue #42), also on later A4 pages, whose 793.92px
+ * height puts them at fractional document offsets. This returns the translate, in the SVG's own
+ * pre-transform space, that puts the drawing back on the exact offset. slide.ts applies it under
+ * `@media print` only, because on screen the snap step is 1 / devicePixelRatio.
+ */
+export function printSnapOffset({ geometry, transform }: Pick<NormalizedObjectStyle, "geometry" | "transform">): string | undefined {
+    // 1e-4 px is far below Chromium's 1/64 px layout unit; it drops float noise from inch conversions.
+    const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4) / 1e4;
+    const dx = fraction(geometry.x);
+    const dy = fraction(geometry.y);
+    if (!dx && !dy) return undefined;
+    // Undo the object's `rotate() scaleX() scaleY()` (applyTransform) on the page-space offset.
+    const angle = (transform.rotation * Math.PI) / 180;
+    const local = (value: number) => Number(value.toFixed(4)) || 0;
+    const x = local((dx * Math.cos(angle) + dy * Math.sin(angle)) * (transform.flipH ? -1 : 1));
+    const y = local((dy * Math.cos(angle) - dx * Math.sin(angle)) * (transform.flipV ? -1 : 1));
+    return `translate(${x}px, ${y}px)`;
+}
+
 export function renderShapeSvg(document: Document, shape: NormalizedShape, style: NormalizedObjectStyle): SVGSVGElement {
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.classList.add("shape-svg");
@@ -96,6 +118,8 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
     svg.setAttribute("height", shape.height === 0 ? "1" : "100%");
     svg.setAttribute("preserveAspectRatio", "none");
     svg.style.overflow = "visible";
+    const snapOffset = printSnapOffset(style);
+    if (snapOffset) svg.style.setProperty("--print-snap-offset", snapOffset);
     if (style.shadow?.visible) {
         svg.style.filter = `drop-shadow(${style.shadow.offsetX}px ${style.shadow.offsetY}px ${style.shadow.blur}px ${style.shadow.color})`;
     }

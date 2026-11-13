@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
 import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
 import { arrowHeadPath, normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
+import { printSnapOffset } from "../packages/pptxgenjs/src/render/shape";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
@@ -343,6 +344,26 @@ describe("SVG shape rendering", () => {
         const parts = dashed?.getAttribute("stroke-dasharray")?.split(" ").map(Number) ?? [];
         expect(parts.slice(0, 2)).toEqual([12, expect.closeTo(9, 9)]);
         expect(Number(dashed?.getAttribute("stroke-dashoffset"))).toBeCloseTo(parts.reduce((sum, part) => sum + part, 0) - 3.9, 9);
+    });
+
+    test("undoes Chromium's whole-px SVG root snap in print, in the object's pre-transform space (issue #42)", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        const slide = presentation.addSlide();
+        slide.addShape("rect", { x: 1, y: 1, w: 1, h: 1 });
+        // 6.55in, 1.6in -> 628.8px, 153.6px: Chromium draws the SVG from 629, 154.
+        slide.addShape("line", { x: 6.55, y: 1.6, w: 2.6, h: 0, line: { color: "4472C4", width: 2.25 } });
+        slide.addText("Shape text", { x: 6.55, y: 1.6, w: 2, h: 1, shape: "rect" });
+        const offsets = Array.from(presentation.page.querySelectorAll<SVGSVGElement>(".shape-svg"), svg => svg.style.getPropertyValue("--print-snap-offset"));
+        expect(offsets[0]).toBe("");
+        expect(offsets[1]).toBe("translate(-0.2px, -0.4px)");
+        expect(offsets[2]).toBe("translate(-0.2px, -0.4px)");
+        expect(presentation.page.querySelector("style")?.textContent).toContain("transform: var(--print-snap-offset, none);");
+
+        // Chromium applies the page-space difference after the object's rotation and flips.
+        const offset = (rotation: number, flipH = false, flipV = false) => printSnapOffset({ geometry: { x: 628.8, y: 153.6 }, transform: { rotation, flipH, flipV, opacity: 1 } });
+        expect(offset(90)).toBe("translate(-0.4px, 0.2px)");
+        expect(offset(0, true)).toBe("translate(0.2px, -0.4px)");
+        expect(offset(180, true, true)).toBe("translate(-0.2px, -0.4px)");
     });
 
     test("renders custom paths and shape hyperlinks", () => {
