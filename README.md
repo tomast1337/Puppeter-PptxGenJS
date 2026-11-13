@@ -112,14 +112,14 @@ works after `bun install`. Once the packages are published, this becomes
 ## Choosing a backend
 
 Puppeteer is the default and the complete backend. Use WASM when you cannot run Chromium (a web
-page, a serverless function without a browser) and your slides are text and shapes.
+page, a serverless function without a browser) and your slides are text, shapes and tables.
 
 | Family                | Puppeteer (default)                                                      | WASM (opt-in)                                                                    |
 | --------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | Text and rich text    | Partial: 50 of 68 tracked options done, 9 partial                        | Drawn: runs, paragraphs, bullets, insets, rotation, fit; no tab stops or shadows |
 | Shapes                | All 179 presets and custom geometry; 36 of 39 options done               | All presets and custom geometry; no shadows or hyperlinks                        |
 | Images                | Partial: 28 of 29 options done                                           | Not drawn yet                                                                    |
-| Tables and pagination | Partial: 44 of 47 options done, including `autoPage` and `tableToSlides` | Not drawn yet                                                                    |
+| Tables and pagination | Partial: 44 of 47 options done, including `autoPage` and `tableToSlides` | Drawn: merges, fills, borders, rows sized to cell text; single-line underlines   |
 | Charts                | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported    | Not drawn                                                                        |
 | Components            | Implemented ([HTML and React](./docs/COMPONENTS.md))                     | Not drawn                                                                        |
 | Media, slide masters  | Throw `UnsupportedFeatureError`                                          | Same                                                                             |
@@ -127,7 +127,7 @@ page, a serverless function without a browser) and your slides are text and shap
 The counts come from `COMPATIBILITY`, `CHART_TYPE_COMPATIBILITY` and
 `SHAPE_GEOMETRY_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs` (source:
 [`compatibility.ts`](./packages/pptxgenjs/src/compatibility.ts)), which track every option as
-unsupported, partial, implemented or visually verified. WASM coverage for images and tables is
+unsupported, partial, implemented or visually verified. WASM coverage for images is
 [#17](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/17).
 
 The WASM backend never drops content silently: by default `toPdf()` throws and lists what it could

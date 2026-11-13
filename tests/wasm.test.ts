@@ -81,9 +81,9 @@ describe("WasmRenderer failure behavior", () => {
     });
 
     test('onUnsupported: "warn" returns the PDF and surfaces warnings()', async () => {
-        const renderer = new WasmRenderer(new FakeBinding(["object kind 'table' not rendered"]), "warn");
+        const renderer = new WasmRenderer(new FakeBinding(["object kind 'chart' not rendered"]), "warn");
         expect(ascii(await renderer.renderModel({ pageSize: PAGE, slides: [] }))).toBe("%PDF-fake");
-        expect(renderer.warnings()).toEqual(["object kind 'table' not rendered"]);
+        expect(renderer.warnings()).toEqual(["object kind 'chart' not rendered"]);
     });
 
     test("the binding receives the model as JSON", async () => {

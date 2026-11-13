@@ -463,4 +463,19 @@ export const WASM_COMPATIBILITY = Object.freeze({
             text: "partial",
         }),
     }),
+    // Cells, merges, fills, borders and pagination come from the shared normalization; crates/pdf-core
+    // draws them and measures rows from cell text. The tables deck (tests/visual/wasm/deck.ts) checks the
+    // same fixture slides as the Puppeteer crops, except the tableToSlides import.
+    table: Object.freeze<CompatibilityEntry>({
+        status: "partial",
+        options: Object.freeze({
+            ...COMPATIBILITY.table.options,
+            tableToSlides: "implemented",
+            slideMargin: "implemented",
+            addShape: "implemented",
+            addText: "implemented",
+            // The WASM text layout draws every underline style as a single line.
+            underline: "partial",
+        }),
+    }),
 } as const);

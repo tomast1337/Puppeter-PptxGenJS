@@ -136,6 +136,14 @@ describe("compatibility manifest", () => {
         expect(WASM_COMPATIBILITY.shape.options.text).toBe("partial");
     });
 
+    test("tracks the WASM backend's table support on the same option surface", () => {
+        expect(Object.keys(WASM_COMPATIBILITY.table.options).sort()).toEqual(Object.keys(COMPATIBILITY.table.options).sort());
+        expect(WASM_COMPATIBILITY.table.status).toBe("partial");
+        expect(WASM_COMPATIBILITY.table.options.rowspan).toBe("verified");
+        expect(WASM_COMPATIBILITY.table.options.tableToSlides).toBe("implemented");
+        expect(WASM_COMPATIBILITY.table.options.underline).toBe("partial");
+    });
+
     test("tracks every ShapeProps field and classifies every preset", () => {
         for (const option of SHAPE_OPTION_KEYS) {
             expect(COMPATIBILITY.shape.options[option]).toBeDefined();

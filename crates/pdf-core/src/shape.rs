@@ -172,7 +172,7 @@ fn stroke_of(line: &LineModel) -> Option<Stroke> {
 
 /// SVG `stroke-dasharray` (px, space or comma separated). As in SVG, a negative or non-numeric
 /// entry, or an all-zero pattern, draws the line solid.
-fn dash_of(css: &str) -> Option<StrokeDash> {
+pub(crate) fn dash_of(css: &str) -> Option<StrokeDash> {
     let array: Vec<f32> = css
         .split(|c: char| c == ',' || c.is_whitespace())
         .filter(|v| !v.is_empty())
