@@ -12,9 +12,7 @@ krilla = { version = "0.8.2", default-features = false, features = ["raster-imag
 # Already in the tree through krilla's font subsetter (same version): SVG path data and arcs of the model's shape geometry.
 kurbo = { version = "0.13.1", default-features = false, features = ["std"] }
 parley = { version = "0.13.0", default-features = false, features = ["std"] }
-serde = { version = "1", features = ["derive"] }
 # Already in the tree through krilla (same versions and features): glyph outlines and strokes for
 # the silhouettes shadows and glow are blurred from.
 skrifa = "0.42.1"
 tiny-skia-path = "0.12.0"
-serde_json = "1"

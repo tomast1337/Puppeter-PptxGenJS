@@ -88,7 +88,6 @@ pub(crate) fn object(dom: &Dom<'_>, element: &Element<'_>) -> Result<ImageObject
         style: object_style(element, &style, true)?,
         image: ImageModel {
             source: source.into_owned(),
-            source_kind: "data".to_owned(),
             sizing,
             rounding,
             opacity: number(css.require("opacity")?).map_err(|e| format!("img: CSS property 'opacity': {e}"))?,
@@ -124,7 +123,7 @@ mod tests {
         assert!(
             matches!(crop.image.sizing, ImageSizing::Crop { offset_x, offset_y, width, height } if (offset_x, offset_y, width, height) == (20.0, 0.0, 300.0, 150.0))
         );
-        assert!(crop.image.rounding && crop.image.opacity == 0.55 && crop.image.source_kind == "data");
+        assert!(crop.image.rounding && crop.image.opacity == 0.55);
         assert_eq!(crop.image.link.as_ref().map(|l| (l.href.as_str(), l.slide)), Some(("mailto:a@b.test", Some(3))));
         let cover = image(
             "data:,x",

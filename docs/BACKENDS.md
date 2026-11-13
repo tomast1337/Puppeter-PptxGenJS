@@ -158,7 +158,7 @@ default; nothing loads the WASM code unless you import this entry, and the
 `.wasm` binary (~2.5 MB, ~1.0 MB gzip) is only fetched by `createWasmRenderer()`.
 The prebuilt binary ships in the `@pdfdeck/wasm` tarball, so installing it
 needs no Rust toolchain.
-It implements `PresentationRenderer` like the Puppeteer default, so `toPdf()`, `write()`,
+It implements `PresentationRenderer` like the Puppeteer default (it has no model input), so `toPdf()`, `write()`,
 `stream()` and `writeFile()` hand it `toHtml()`, and `renderer.render(await pres.toHtml())` does the
 same directly. It parses the [HTML profile](HTML_PROFILE.md#parsing-wasm) strictly:
 HTML outside the profile throws, naming the slide, object and property, and

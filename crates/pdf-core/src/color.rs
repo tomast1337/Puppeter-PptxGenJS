@@ -37,7 +37,7 @@ pub(crate) fn fill_of(c: Rgba) -> Fill {
     }
 }
 
-/// Clamps to [0, 1]. NaN, which no model value carries (JSON has none and
+/// Clamps to [0, 1]. NaN, which no model value carries (the profile rejects it and
 /// `parse_color` rejects it), becomes transparent rather than a panic.
 pub(crate) fn unit(v: f32) -> NormalizedF32 {
     NormalizedF32::new(v.clamp(0.0, 1.0)).unwrap_or(NormalizedF32::ZERO)

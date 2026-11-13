@@ -1,6 +1,5 @@
 //! wasm-bindgen binding. JS surface:
-//! `new Renderer()`, `addFont(bytes): number`, `render(modelJson): Uint8Array`,
-//! `renderHtml(html): Uint8Array`, `warnings(): string[]`.
+//! `new Renderer()`, `addFont(bytes): number`, `renderHtml(html): Uint8Array`, `warnings(): string[]`.
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -17,10 +16,6 @@ impl Renderer {
     #[wasm_bindgen(js_name = addFont)]
     pub fn add_font(&mut self, data: Vec<u8>) -> u32 {
         self.0.add_font(data)
-    }
-
-    pub fn render(&mut self, model_json: &str) -> Result<Vec<u8>, JsError> {
-        self.0.render(model_json).map_err(|e| JsError::new(&e))
     }
 
     /// Renders a pdfdeck HTML profile document (`toHtml().html`).

@@ -10,7 +10,6 @@ export class Renderer {
      * Renders a pdfdeck HTML profile document (`toHtml().html`).
      */
     renderHtml(html: string): Uint8Array;
-    render(model_json: string): Uint8Array;
     warnings(): string[];
 }
 
@@ -21,7 +20,6 @@ export interface InitOutput {
     readonly __wbg_renderer_free: (a: number, b: number) => void;
     readonly renderer_addFont: (a: number, b: number, c: number) => number;
     readonly renderer_new: () => number;
-    readonly renderer_render: (a: number, b: number, c: number, d: number) => void;
     readonly renderer_renderHtml: (a: number, b: number, c: number, d: number) => void;
     readonly renderer_warnings: (a: number, b: number) => void;
     readonly __wbindgen_externrefs: WebAssembly.Table;

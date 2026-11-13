@@ -4,28 +4,27 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
-import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type ModelRenderer, type NormalizedPresentation, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
+import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
-import { PuppeteerGen, resolveImageSource } from "../packages/pptxgenjs/src/node";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
-import { DECKS } from "./visual/wasm/decks";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
-// incompatible binding, or changing the model the loader serializes, fails `bun run typecheck`.
+// incompatible binding fails `bun run typecheck`.
 type Assert<T extends true> = T;
 type _Binding = Assert<Renderer extends TextPdfBinding ? true : false>;
 type _Source = Assert<WasmSource extends InitInput ? true : false>;
-type _Model = Assert<Parameters<WasmRenderer["renderModel"]>[0] extends NormalizedPresentation ? true : false>;
-type _Renderer = Assert<WasmRenderer extends ModelRenderer & PresentationRenderer ? true : false>;
+type _Renderer = Assert<WasmRenderer extends PresentationRenderer ? true : false>;
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const createDocument = () => new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;
 const ascii = (bytes: Uint8Array) => new TextDecoder("latin1").decode(bytes);
+const EMPTY = { html: "<html></html>", pageSize: PAGE };
 
 afterAll(() => closeBrowser());
 
@@ -35,12 +34,9 @@ class FakeBinding implements TextPdfBinding {
     addFont(): number {
         return 1;
     }
-    render(modelJson: string): Uint8Array {
-        this.rendered.push(modelJson);
-        return new TextEncoder().encode("%PDF-fake");
-    }
     renderHtml(html: string): Uint8Array {
-        return this.render(html);
+        this.rendered.push(html);
+        return new TextEncoder().encode("%PDF-fake");
     }
     warnings(): string[] {
         return this.skipped;
@@ -98,7 +94,7 @@ describe("renderer contract", () => {
 describe("WasmRenderer failure behavior", () => {
     test("throws and lists what the backend skipped by default", async () => {
         const binding = new FakeBinding(["object kind 'image' not rendered", "tab stops ignored"]);
-        const error = await new WasmRenderer(binding).renderModel({ pageSize: PAGE, slides: [] }).catch((e: Error) => e);
+        const error = await new WasmRenderer(binding).render(EMPTY).catch((e: Error) => e);
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toContain("- object kind 'image' not rendered\n- tab stops ignored");
         expect((error as Error).message).toContain('onUnsupported: "warn"');
@@ -106,21 +102,14 @@ describe("WasmRenderer failure behavior", () => {
 
     test('onUnsupported: "warn" returns the PDF and surfaces warnings()', async () => {
         const renderer = new WasmRenderer(new FakeBinding(["object kind 'chart' not rendered"]), "warn");
-        expect(ascii(await renderer.renderModel({ pageSize: PAGE, slides: [] }))).toBe("%PDF-fake");
+        expect(ascii(await renderer.render(EMPTY))).toBe("%PDF-fake");
         expect(renderer.warnings()).toEqual(["object kind 'chart' not rendered"]);
     });
 
-    test("the binding receives the model as JSON", async () => {
+    test("render() passes the HTML to the binding", async () => {
         const binding = new FakeBinding();
-        const model: NormalizedPresentation = { pageSize: PAGE, slides: [] };
-        await new WasmRenderer(binding).renderModel(model);
-        expect(JSON.parse(binding.rendered[0]!)).toEqual(model);
-    });
-
-    test("render() passes the HTML document and applies the same warning check", async () => {
-        const binding = new FakeBinding(["object kind 'chart' not rendered"]);
-        await expect(new WasmRenderer(binding).render({ html: "<html></html>", pageSize: PAGE })).rejects.toThrow("object kind 'chart' not rendered");
-        expect(binding.rendered).toEqual(["<html></html>"]);
+        await new WasmRenderer(binding).render(EMPTY);
+        expect(binding.rendered).toEqual([EMPTY.html]);
     });
 
     test("createWasmRenderer requires fonts before loading the binary", async () => {
@@ -315,26 +304,9 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     }, 60_000);
 });
 
-// The HTML path (render(toHtml())) must draw exactly what the model path draws: same structs, same bytes.
-describe.skipIf(!canRender)("WASM HTML profile path", () => {
-    test.each(Object.keys(DECKS))(
-        "the %s deck gives byte-identical PDFs from toHtml() and getModel()",
-        async name => {
-            const { populate } = DECKS[name]!;
-            const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
-            const deck = populate(new PuppeteerGen(PAGE));
-            // toPdf() reads the HTML now; the model path is called directly, with images inlined as toHtml() does.
-            const model = deck.getModel();
-            for (const slide of model.slides) for (const object of slide.objects) if (object.kind === "image" && object.image.sourceKind !== "data") object.image = { ...object.image, source: await resolveImageSource(object.image.source), sourceKind: "data" };
-            const fromModel = await renderer.renderModel(model);
-            const modelWarnings = renderer.warnings();
-            const fromHtml = await renderer.render(await deck.toHtml());
-            expect(renderer.warnings()).toEqual(modelWarnings);
-            expect(Buffer.from(fromHtml).equals(Buffer.from(fromModel))).toBe(true);
-        },
-        60_000,
-    );
-
+// Byte-for-byte PDF checks of every WASM deck run in the pinned visual image (tests/visual/wasm/compare.ts,
+// pdf-sha256.json), where the fonts are fixed.
+describe.skipIf(!canRender)("WASM HTML profile input", () => {
     test("out-of-profile HTML throws naming the slide, object and property", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE);

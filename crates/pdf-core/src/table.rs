@@ -270,29 +270,34 @@ fn stroke_border(surface: &mut Surface, border: &TableBorder, from: (f32, f32), 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{TableRow, build};
 
     /// A test row: its minimum height and its cells' `(colspan, rowspan)`.
     type RowSpec<'a> = (Option<f32>, &'a [(u32, u32)]);
 
     /// A table model from `columns` and `rows`.
     fn table(columns: &[f32], rows: &[RowSpec]) -> Table {
-        let row = |(height, cells): &RowSpec| {
-            let cells = cells
-                .iter()
-                .map(|(colspan, rowspan)| {
-                    format!(
-                        r##"{{"text":{{"paragraphs":[],"margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horizontal"}},
-                        "colspan":{colspan},"rowspan":{rowspan},"borders":[{b},{b},{b},{b}]}}"##,
-                        b = r##"{"visible":true,"color":"#000000","width":1}"##
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(",");
-            let height = height.map_or("null".to_string(), |h| h.to_string());
-            format!(r#"{{"height":{height},"cells":[{cells}]}}"#)
+        let border = || TableBorder {
+            visible: true,
+            color: "#000000".into(),
+            width: 1.0,
+            dash_array: None,
         };
-        let rows = rows.iter().map(row).collect::<Vec<_>>().join(",");
-        serde_json::from_str(&format!(r#"{{"columns":{columns:?},"rows":[{rows}]}}"#)).unwrap()
+        let cell = |&(colspan, rowspan): &(u32, u32)| TableCell {
+            text: build::text_box(Vec::new()),
+            colspan,
+            rowspan,
+            fill: None,
+            borders: [border(), border(), border(), border()],
+        };
+        let row = |&(height, cells): &RowSpec| TableRow {
+            height,
+            cells: cells.iter().map(cell).collect(),
+        };
+        Table {
+            columns: columns.to_vec(),
+            rows: rows.iter().map(row).collect(),
+        }
     }
 
     fn placed(t: &Table) -> (Vec<(usize, usize, usize, usize)>, usize) {

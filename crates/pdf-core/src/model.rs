@@ -1,23 +1,16 @@
-//! The subset of the normalized model (packages/model/src/types.ts) this renderer reads.
+//! The subset of the normalized model (packages/model/src/types.ts) this renderer reads, filled
+//! from the pdfdeck HTML profile by `crate::profile`.
 
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer};
-use serde_json::Value;
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct Presentation {
     pub(crate) page_size: PageSize,
     pub(crate) slides: Vec<Slide>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct PageSize {
     pub(crate) width: f32,
     pub(crate) height: f32,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct Slide {
     pub(crate) background: String,
     pub(crate) objects: Vec<SlideObject>,
@@ -29,25 +22,21 @@ pub(crate) enum SlideObject {
     Shape(ShapeObject),
     Image(ImageObject),
     Table(TableObject),
-    /// Any other `kind` (chart, media, ...), or `?` when it is missing or not a
-    /// string: reported through `warnings()` instead of failing the model.
+    /// A chart or component subtree: reported through `warnings()` instead of failing the document.
     Unsupported(String),
 }
 
-#[derive(Deserialize)]
 pub(crate) struct TextObject {
     pub(crate) style: ObjectStyle,
     pub(crate) shape: Option<ShapeModel>,
     pub(crate) text: Option<TextBox>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct ShapeObject {
     pub(crate) style: ObjectStyle,
     pub(crate) shape: Option<ShapeModel>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct TableObject {
     pub(crate) style: ObjectStyle,
     pub(crate) table: Table,
@@ -55,14 +44,12 @@ pub(crate) struct TableObject {
 
 /// `NormalizedTable`. Its `width`/`height` are the sums of `columns` and of the row heights
 /// that normalization resolved; rows without one grow to their content, so they are not read.
-#[derive(Deserialize)]
 pub(crate) struct Table {
     /// Grid column widths (px).
     pub(crate) columns: Vec<f32>,
     pub(crate) rows: Vec<TableRow>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct TableRow {
     /// Minimum height (px); the row grows to fit its cells' text.
     pub(crate) height: Option<f32>,
@@ -70,7 +57,6 @@ pub(crate) struct TableRow {
     pub(crate) cells: Vec<TableCell>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct TableCell {
     pub(crate) text: TextBox,
     pub(crate) colspan: u32,
@@ -80,8 +66,6 @@ pub(crate) struct TableCell {
     pub(crate) borders: [TableBorder; 4],
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct TableBorder {
     pub(crate) visible: bool,
     pub(crate) color: String,
@@ -90,18 +74,14 @@ pub(crate) struct TableBorder {
     pub(crate) dash_array: Option<String>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct ImageObject {
     pub(crate) style: ObjectStyle,
     pub(crate) image: ImageModel,
 }
 
-/// `NormalizedImage`. `source` is a data URI once the compatibility layer has resolved paths and URLs.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// `NormalizedImage`. `source` is a data URI: the profile admits no other image source.
 pub(crate) struct ImageModel {
     pub(crate) source: String,
-    pub(crate) source_kind: String,
     pub(crate) sizing: ImageSizing,
     pub(crate) rounding: bool,
     pub(crate) opacity: f32,
@@ -109,50 +89,13 @@ pub(crate) struct ImageModel {
 }
 
 /// `NormalizedImageSizing`: where the picture sits relative to the object box, in px.
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
 pub(crate) enum ImageSizing {
     Stretch,
-    Contain {
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
-    },
-    Cover {
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
-    },
-    #[serde(rename_all = "camelCase")]
-    Crop {
-        offset_x: f32,
-        offset_y: f32,
-        width: f32,
-        height: f32,
-    },
+    Contain { x: f32, y: f32, width: f32, height: f32 },
+    Cover { x: f32, y: f32, width: f32, height: f32 },
+    Crop { offset_x: f32, offset_y: f32, width: f32, height: f32 },
 }
 
-/// Dispatches on `kind` by hand instead of `#[serde(tag = "kind")]`: serde's catch-all
-/// variants either drop the kind name (`other`) or swallow the errors of a malformed
-/// text or shape object (`untagged`). Each object is buffered once and moved, never cloned.
-impl<'de> Deserialize<'de> for SlideObject {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let object = Value::deserialize(deserializer)?;
-        let typed = match object.get("kind").and_then(Value::as_str) {
-            Some("text") => TextObject::deserialize(object).map(SlideObject::Text),
-            Some("shape") => ShapeObject::deserialize(object).map(SlideObject::Shape),
-            Some("image") => ImageObject::deserialize(object).map(SlideObject::Image),
-            Some("table") => TableObject::deserialize(object).map(SlideObject::Table),
-            kind => return Ok(SlideObject::Unsupported(kind.unwrap_or("?").to_owned())),
-        };
-        typed.map_err(D::Error::custom)
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct ObjectStyle {
     pub(crate) geometry: Geometry,
     pub(crate) transform: Transform2,
@@ -163,7 +106,6 @@ pub(crate) struct ObjectStyle {
     pub(crate) object_name: Option<String>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct Geometry {
     pub(crate) x: f32,
     pub(crate) y: f32,
@@ -171,8 +113,6 @@ pub(crate) struct Geometry {
     pub(crate) height: Option<f32>,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct Transform2 {
     pub(crate) rotation: f32,
     pub(crate) flip_h: bool,
@@ -182,7 +122,6 @@ pub(crate) struct Transform2 {
 
 /// `NormalizedTextLink` / `NormalizedShapeLink` / `NormalizedImageLink`: a slide jump when `slide`
 /// is set (its `href` is then `#slide-N`), otherwise the URL in `href`.
-#[derive(Deserialize)]
 pub(crate) struct Link {
     pub(crate) href: String,
     pub(crate) tooltip: Option<String>,
@@ -191,8 +130,6 @@ pub(crate) struct Link {
 }
 
 /// `NormalizedShadow`: an object's drop shadow, or a run's glow (no offset). Lengths in px.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct Shadow {
     pub(crate) visible: bool,
     pub(crate) color: String,
@@ -202,14 +139,11 @@ pub(crate) struct Shadow {
     pub(crate) inset: bool,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct FillModel {
     pub(crate) visible: bool,
     pub(crate) color: String,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct LineModel {
     pub(crate) visible: bool,
     pub(crate) color: String,
@@ -223,7 +157,6 @@ pub(crate) struct LineModel {
     pub(crate) end_head_path: Option<String>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct ShapeModel {
     pub(crate) name: String,
     /// The coordinate space of `geometry` (an SVG viewBox stretched over the object box).
@@ -233,9 +166,7 @@ pub(crate) struct ShapeModel {
     pub(crate) link: Option<Link>,
 }
 
-/// `NormalizedShapeGeometry`. An unknown `kind` fails the model rather than drawing a substitute.
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+/// `NormalizedShapeGeometry`.
 pub(crate) enum ShapeGeometry {
     Rect {
         radius: f32,
@@ -244,7 +175,6 @@ pub(crate) enum ShapeGeometry {
     Line {
         inverse: bool,
     },
-    #[serde(rename_all = "camelCase")]
     Path {
         /// SVG path data.
         data: String,
@@ -255,16 +185,13 @@ pub(crate) enum ShapeGeometry {
     },
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct ShapeFace {
     pub(crate) data: String,
     pub(crate) fill_modifier: Option<FillModifier>,
 }
 
 /// DrawingML path `fill` shading for one face of a multi-face preset (can, cube, bevel, ...).
-#[derive(Deserialize, Clone, Copy)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Copy)]
 pub(crate) enum FillModifier {
     Darken,
     DarkenLess,
@@ -272,8 +199,6 @@ pub(crate) enum FillModifier {
     LightenLess,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct TextBox {
     pub(crate) paragraphs: Vec<Paragraph>,
     pub(crate) margin: [f32; 4],
@@ -283,8 +208,6 @@ pub(crate) struct TextBox {
     pub(crate) direction: String,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct Paragraph {
     pub(crate) runs: Vec<Run>,
     pub(crate) align: String,
@@ -299,14 +222,13 @@ pub(crate) struct Paragraph {
 }
 
 /// `NormalizedTextParagraph.tabStops[]`: `position` in px from the text area's left edge.
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct TabStop {
     pub(crate) position: f32,
     pub(crate) alignment: TabAlign,
 }
 
-#[derive(Deserialize, Clone, Copy, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum TabAlign {
     Left,
     Right,
@@ -315,21 +237,18 @@ pub(crate) enum TabAlign {
 }
 
 /// `NormalizedTextParagraph.lineBox`: every line is `height` px tall with its baseline `baseline` px below its top.
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct LineBox {
     pub(crate) height: f32,
     pub(crate) baseline: f32,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct Bullet {
     pub(crate) marker: String,
     pub(crate) indent: f32,
     pub(crate) level: u32,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct Run {
     pub(crate) text: String,
     pub(crate) font_face: String,
@@ -349,8 +268,6 @@ pub(crate) struct Run {
     pub(crate) soft_break_before: bool,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct Decoration {
     pub(crate) underline: bool,
     pub(crate) underline_color: Option<String>,
@@ -358,8 +275,170 @@ pub(crate) struct Decoration {
     pub(crate) double_strike: bool,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct Outline {
     pub(crate) color: String,
     pub(crate) width: f32,
+}
+
+/// Test builders: plain objects with every optional field off, for tests that set only what they check.
+#[cfg(test)]
+pub(crate) mod build {
+    use super::*;
+
+    /// One 10 x 5.625in white slide holding `objects`.
+    pub(crate) fn deck(objects: Vec<SlideObject>) -> Presentation {
+        Presentation {
+            page_size: PageSize { width: 10.0, height: 5.625 },
+            slides: vec![Slide {
+                background: "#FFFFFF".into(),
+                objects,
+            }],
+        }
+    }
+
+    /// An untransformed box with no fill, line, shadow or name.
+    pub(crate) fn style(x: f32, y: f32, width: f32, height: f32) -> ObjectStyle {
+        ObjectStyle {
+            geometry: Geometry {
+                x,
+                y,
+                width: Some(width),
+                height: Some(height),
+            },
+            transform: Transform2 {
+                rotation: 0.0,
+                flip_h: false,
+                flip_v: false,
+                opacity: 1.0,
+            },
+            fill: None,
+            line: None,
+            shadow: None,
+            object_name: None,
+        }
+    }
+
+    pub(crate) fn fill(color: &str) -> Option<FillModel> {
+        Some(FillModel {
+            visible: true,
+            color: color.into(),
+        })
+    }
+
+    pub(crate) fn line(color: &str, width: f32) -> LineModel {
+        LineModel {
+            visible: true,
+            color: color.into(),
+            width,
+            dash_array: None,
+            begin_arrow: None,
+            end_arrow: None,
+            begin_head_path: None,
+            end_head_path: None,
+        }
+    }
+
+    pub(crate) fn shadow(color: &str, blur: f32, offset: f32, inset: bool) -> Shadow {
+        Shadow {
+            visible: true,
+            color: color.into(),
+            blur,
+            offset_x: offset,
+            offset_y: offset,
+            inset,
+        }
+    }
+
+    pub(crate) fn link(href: &str) -> Option<Link> {
+        Some(Link {
+            href: href.into(),
+            tooltip: None,
+            slide: None,
+        })
+    }
+
+    pub(crate) fn shape(name: &str, width: f32, height: f32, geometry: ShapeGeometry) -> ShapeModel {
+        ShapeModel {
+            name: name.into(),
+            width,
+            height,
+            geometry,
+            link: None,
+        }
+    }
+
+    pub(crate) fn shape_object(style: ObjectStyle, shape: ShapeModel) -> SlideObject {
+        SlideObject::Shape(ShapeObject { style, shape: Some(shape) })
+    }
+
+    pub(crate) fn text_object(style: ObjectStyle, text: TextBox) -> SlideObject {
+        SlideObject::Text(TextObject {
+            style,
+            shape: None,
+            text: Some(text),
+        })
+    }
+
+    /// A stretched picture at full opacity.
+    pub(crate) fn image(source: &str) -> ImageModel {
+        ImageModel {
+            source: source.into(),
+            sizing: ImageSizing::Stretch,
+            rounding: false,
+            opacity: 1.0,
+            link: None,
+        }
+    }
+
+    /// A plain black run.
+    pub(crate) fn run(text: &str, font_face: &str, font_size: f32) -> Run {
+        Run {
+            text: text.into(),
+            font_face: font_face.into(),
+            font_size,
+            color: "#000000".into(),
+            bold: false,
+            italic: false,
+            decoration: Decoration {
+                underline: false,
+                underline_color: None,
+                strike: false,
+                double_strike: false,
+            },
+            baseline_offset: 0.0,
+            character_spacing: 0.0,
+            highlight: None,
+            outline: None,
+            glow: None,
+            link: None,
+            soft_break_before: false,
+        }
+    }
+
+    /// A left-aligned paragraph whose lines are `height` px with the baseline `baseline` px below their top.
+    pub(crate) fn paragraph(runs: Vec<Run>, height: f32, baseline: f32) -> Paragraph {
+        Paragraph {
+            runs,
+            align: "left".into(),
+            rtl: false,
+            line_box: LineBox { height, baseline },
+            space_before: 0.0,
+            space_after: 0.0,
+            tab_stops: Vec::new(),
+            default_tab_stop: 96.0,
+            bullet: None,
+        }
+    }
+
+    /// A top-aligned, wrapping, horizontal box without insets.
+    pub(crate) fn text_box(paragraphs: Vec<Paragraph>) -> TextBox {
+        TextBox {
+            paragraphs,
+            margin: [0.0; 4],
+            vertical_align: "top".into(),
+            wrap: true,
+            fit: "none".into(),
+            direction: "horizontal".into(),
+        }
+    }
 }

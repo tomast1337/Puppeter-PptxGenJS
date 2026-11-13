@@ -1,12 +1,11 @@
 // Browser-safe WASM text renderer ("@pdfdeck/wasm" under the browser/default conditions).
 // Must not load node:* modules, puppeteer or jsdom (enforced by tests/wasm.test.ts and scripts/build.ts).
-import type { HtmlPresentationDocument, ModelRenderer, NormalizedPresentation, PresentationRenderer } from "@pdfdeck/model";
+import type { HtmlPresentationDocument, PresentationRenderer } from "@pdfdeck/model";
 import init, { Renderer } from "./pdf_wasm.js";
 
 /** The wasm-bindgen surface the loader relies on; tests/wasm.test.ts checks the generated class against it. */
 export interface TextPdfBinding {
     addFont(data: Uint8Array): number;
-    render(modelJson: string): Uint8Array;
     renderHtml(html: string): Uint8Array;
     warnings(): string[];
 }
@@ -20,7 +19,7 @@ export interface WasmRendererOptions {
     /** The `pdf_wasm_bg.wasm` module: a URL, bytes, a Response or a compiled module. Defaults to the file next to this module. */
     wasm?: WasmSource | Promise<WasmSource>;
     /**
-     * What to do when the model holds something this backend cannot draw (non-text objects,
+     * What to do when the document holds something this backend cannot draw (non-text objects,
      * preset shapes other than rect/roundRect, shadows, tab stops...). `"error"` (default) throws
      * and lists them; `"warn"` returns the PDF and leaves the list in `warnings()`.
      */
@@ -35,20 +34,16 @@ export interface SystemFontOptions {
 }
 
 /**
- * PDF backend in WebAssembly instead of Chromium: renders `getModel()` (`renderModel`) or the
- * pdfdeck HTML profile document `toHtml()` returns (`render`, docs/HTML_PROFILE.md). Both give the same bytes.
+ * PDF backend in WebAssembly instead of Chromium: renders the pdfdeck HTML profile document
+ * `toHtml()` returns (docs/HTML_PROFILE.md).
  */
-export class WasmRenderer implements ModelRenderer, PresentationRenderer {
+export class WasmRenderer implements PresentationRenderer {
     readonly #binding: TextPdfBinding;
     readonly #onUnsupported: "error" | "warn";
 
     constructor(binding: TextPdfBinding, onUnsupported: "error" | "warn" = "error") {
         this.#binding = binding;
         this.#onUnsupported = onUnsupported;
-    }
-
-    async renderModel(model: NormalizedPresentation): Promise<Uint8Array> {
-        return this.#checked(this.#binding.render(JSON.stringify(model)));
     }
 
     /** Parses the profile HTML in WebAssembly; out-of-profile or malformed HTML throws, naming slide, object and property. Images must be data URIs. */
