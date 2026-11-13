@@ -107,6 +107,18 @@ describe("table normalization", () => {
 });
 
 describe("table rendering", () => {
+    test("keeps a dashed border's DrawingML pattern, which CSS can only draw as dashed", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addTable([[{ text: "a", options: { border: [{ type: "dash", pt: 2, color: "70AD47" }, { type: "none" }, { type: "solid", pt: 1 }, { type: "none" }] } }]], { x: 1, y: 1, w: 2 });
+
+        const cell = renderedPage(presentation).querySelector("td");
+        const borders = presentation.getModel().slides[0]?.objects[0];
+        const top = borders?.kind === "table" ? borders.table.rows[0]?.cells[0]?.borders[0] : undefined;
+        expect(top?.dashArray).toBeDefined();
+        expect(cell?.getAttribute("data-border-top-dash-array")).toBe(top?.dashArray ?? "");
+        expect(cell?.hasAttribute("data-border-bottom-dash-array")).toBe(false);
+    });
+
     test("renders colgroups, merged cells, rich runs, and inherited styling", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();

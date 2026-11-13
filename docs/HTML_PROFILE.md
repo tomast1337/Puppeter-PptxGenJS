@@ -96,7 +96,7 @@ size from the stylesheet. Children are the slide's objects in model order, which
 ## Slide objects
 
 Every object is one absolutely positioned element with class `slide-element` plus a kind class, and
-`data-object-name`. The common box comes from `applyObjectStyle` (`render/style.ts:37`):
+`data-object-name`. The common box comes from `applyObjectStyle` (`render/style.ts:52`):
 
 | CSS / attribute    | Value                                                                     |
 | ------------------ | ------------------------------------------------------------------------- |
@@ -234,13 +234,13 @@ them.
 
 | Workaround     | Where in the HTML                                                                                                | Code                                                |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:39,83-94`                           |
-| Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:97-123`, `render/slide.ts:212-214` |
-| Dash rewrite   | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap                                   | `render/shape.ts:143-151`                           |
-| Table offset   | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                                    | `render/table.ts:17-24`                             |
+| Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:40,85-96`                           |
+| Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:97-128`, `render/slide.ts:212-214` |
+| Dash rewrite   | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap                                   | `render/shape.ts:148-156`                           |
+| Table offset   | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                                    | `render/table.ts:19-26`                             |
 
 Other Chromium-specific details that phase 2 or 6 revisits: the font fallback list in `font-family`
-(`render/text.ts:9-16`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
+(`render/text.ts:10-17`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
 `height="1"` for zero-height lines (`render/shape.ts:117-119`), U+200B for empty runs
 (`render/text.ts:70`).
 
@@ -306,39 +306,39 @@ object-valued field covers the field's presence; its own fields have their own r
 
 ### Object style
 
-| Field                              | Status  | HTML                                                                                                                                                    |
-| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NormalizedObjectStyle.geometry`   | profile | `left`, `top`, `width`, `height` on the `.slide-element`.                                                                                               |
-| `NormalizedGeometry.x`             | profile | `left: <x>px`.                                                                                                                                          |
-| `NormalizedGeometry.y`             | profile | `top: <y>px`.                                                                                                                                           |
-| `NormalizedGeometry.width`         | profile | `width: <w>px`; omitted when undefined.                                                                                                                 |
-| `NormalizedGeometry.height`        | profile | `height: <h>px`; `min-height` with `height: auto` for text with `fit: resize`.                                                                          |
-| `NormalizedObjectStyle.transform`  | profile | `transform`, `opacity` (`transform-origin: center` always).                                                                                             |
-| `NormalizedTransform.rotation`     | profile | `transform: rotate(<deg>deg)`, omitted at 0.                                                                                                            |
-| `NormalizedTransform.flipH`        | profile | `scaleX(-1)` in `transform`.                                                                                                                            |
-| `NormalizedTransform.flipV`        | profile | `scaleY(-1)` in `transform`.                                                                                                                            |
-| `NormalizedTransform.opacity`      | profile | `opacity`, omitted at 1.                                                                                                                                |
-| `NormalizedObjectStyle.fill`       | profile | `background-color` on the box; SVG `fill` on the geometry for shapes and text with a shape.                                                             |
-| `NormalizedFill.visible`           | profile | `background-color: transparent` or SVG `fill="none"` when false.                                                                                        |
-| `NormalizedFill.color`             | profile | `background-color`, SVG `fill`; a table cell's `td` `background-color`.                                                                                 |
-| `NormalizedObjectStyle.line`       | profile | SVG `stroke*` for shapes; `border-color`, `border-width`, `border-style` on other boxes.                                                                |
-| `NormalizedLine.visible`           | profile | SVG `stroke="none"`, `stroke-width="0"`; `border-style: none`.                                                                                          |
-| `NormalizedLine.color`             | profile | SVG `stroke`; `border-color`; arrow marker `fill`.                                                                                                      |
-| `NormalizedLine.width`             | profile | SVG `stroke-width` (px, `vector-effect="non-scaling-stroke"`); `border-width`.                                                                          |
-| `NormalizedLine.style`             | profile | `border-style` on boxes; on SVG implied by `stroke-dasharray`.                                                                                          |
-| `NormalizedLine.dashArray`         | gap     | SVG pattern rewritten with `stroke-dashoffset` when it starts with a gap (`render/shape.ts:143-151`); dropped on CSS borders (`render/style.ts:21-29`). |
-| `NormalizedLine.beginArrow`        | gap     | Only the resolved head path in a `<marker>` (`render/shape.ts:153-156`).                                                                                |
-| `NormalizedLine.endArrow`          | gap     | Only the resolved head path in a `<marker>` (`render/shape.ts:153-156`).                                                                                |
-| `NormalizedLine.beginHeadPath`     | profile | `marker-start="url(#line-head-…)"`; the marker's `path d`.                                                                                              |
-| `NormalizedLine.endHeadPath`       | profile | `marker-end="url(#line-head-…)"`; the marker's `path d`.                                                                                                |
-| `NormalizedObjectStyle.shadow`     | profile | `box-shadow` on boxes; `filter: drop-shadow(…)` on `svg.shape-svg`.                                                                                     |
-| `NormalizedShadow.visible`         | profile | Presence of the `box-shadow`, `drop-shadow` or `text-shadow` entry.                                                                                     |
-| `NormalizedShadow.color`           | profile | Last part of the shadow value (`rgba()`, as in the model).                                                                                              |
-| `NormalizedShadow.blur`            | profile | Third length of the shadow value, px.                                                                                                                   |
-| `NormalizedShadow.offsetX`         | profile | First length of the shadow value, px.                                                                                                                   |
-| `NormalizedShadow.offsetY`         | profile | Second length of the shadow value, px.                                                                                                                  |
-| `NormalizedShadow.inset`           | gap     | `inset` keyword in `box-shadow` only; `drop-shadow()` and `text-shadow` have none (`render/shape.ts:124-126`, `render/text.ts:4-7`).                    |
-| `NormalizedObjectStyle.objectName` | profile | `data-object-name`.                                                                                                                                     |
+| Field                              | Status  | HTML                                                                                                                                                                        |
+| ---------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NormalizedObjectStyle.geometry`   | profile | `left`, `top`, `width`, `height` on the `.slide-element`.                                                                                                                   |
+| `NormalizedGeometry.x`             | profile | `left: <x>px`.                                                                                                                                                              |
+| `NormalizedGeometry.y`             | profile | `top: <y>px`.                                                                                                                                                               |
+| `NormalizedGeometry.width`         | profile | `width: <w>px`; omitted when undefined.                                                                                                                                     |
+| `NormalizedGeometry.height`        | profile | `height: <h>px`; `min-height` with `height: auto` for text with `fit: resize`.                                                                                              |
+| `NormalizedObjectStyle.transform`  | profile | `transform`, `opacity` (`transform-origin: center` always).                                                                                                                 |
+| `NormalizedTransform.rotation`     | profile | `transform: rotate(<deg>deg)`, omitted at 0.                                                                                                                                |
+| `NormalizedTransform.flipH`        | profile | `scaleX(-1)` in `transform`.                                                                                                                                                |
+| `NormalizedTransform.flipV`        | profile | `scaleY(-1)` in `transform`.                                                                                                                                                |
+| `NormalizedTransform.opacity`      | profile | `opacity`, omitted at 1.                                                                                                                                                    |
+| `NormalizedObjectStyle.fill`       | profile | `background-color` on the box; SVG `fill` on the geometry for shapes and text with a shape.                                                                                 |
+| `NormalizedFill.visible`           | profile | `background-color: transparent` or SVG `fill="none"` when false.                                                                                                            |
+| `NormalizedFill.color`             | profile | `background-color`, SVG `fill`; a table cell's `td` `background-color`.                                                                                                     |
+| `NormalizedObjectStyle.line`       | profile | SVG `stroke*` for shapes; `border-color`, `border-width`, `border-style` on other boxes.                                                                                    |
+| `NormalizedLine.visible`           | profile | SVG `stroke="none"`, `stroke-width="0"`; `border-style: none`.                                                                                                              |
+| `NormalizedLine.color`             | profile | SVG `stroke`; `border-color`; arrow marker `fill`.                                                                                                                          |
+| `NormalizedLine.width`             | profile | SVG `stroke-width` (px, `vector-effect="non-scaling-stroke"`); `border-width`.                                                                                              |
+| `NormalizedLine.style`             | profile | `border-style` on boxes; on SVG implied by `stroke-dasharray`.                                                                                                              |
+| `NormalizedLine.dashArray`         | profile | `data-line-dash-array` on the element that carries the line (`svg.shape-svg` or the box), verbatim; the drawn `stroke-dasharray` may be [rewritten](#renderer-workarounds). |
+| `NormalizedLine.beginArrow`        | profile | `data-line-begin-arrow` on the element that carries the line.                                                                                                               |
+| `NormalizedLine.endArrow`          | profile | `data-line-end-arrow` on the element that carries the line.                                                                                                                 |
+| `NormalizedLine.beginHeadPath`     | profile | `marker-start="url(#line-head-…)"`; the marker's `path d`.                                                                                                                  |
+| `NormalizedLine.endHeadPath`       | profile | `marker-end="url(#line-head-…)"`; the marker's `path d`.                                                                                                                    |
+| `NormalizedObjectStyle.shadow`     | profile | `box-shadow` on boxes; `filter: drop-shadow(…)` on `svg.shape-svg`.                                                                                                         |
+| `NormalizedShadow.visible`         | profile | Presence of the `box-shadow`, `drop-shadow` or `text-shadow` entry.                                                                                                         |
+| `NormalizedShadow.color`           | profile | Last part of the shadow value (`rgba()`, as in the model).                                                                                                                  |
+| `NormalizedShadow.blur`            | profile | Third length of the shadow value, px.                                                                                                                                       |
+| `NormalizedShadow.offsetX`         | profile | First length of the shadow value, px.                                                                                                                                       |
+| `NormalizedShadow.offsetY`         | profile | Second length of the shadow value, px.                                                                                                                                      |
+| `NormalizedShadow.inset`           | profile | `inset` keyword in `box-shadow`; `data-shadow-inset` on `svg.shape-svg` or the run, whose `drop-shadow()` / `text-shadow` cannot say it.                                    |
+| `NormalizedObjectStyle.objectName` | profile | `data-object-name`.                                                                                                                                                         |
 
 ### Text
 
@@ -402,29 +402,29 @@ object-valued field covers the field's presence; its own fields have their own r
 
 ### Shapes
 
-| Field                                                | Status       | HTML                                                                                                 |
-| ---------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `NormalizedShape.name`                               | profile      | `data-shape`.                                                                                        |
-| `NormalizedShape.width`                              | gap          | SVG `viewBox` width, clamped to at least 0.001 (`render/shape.ts:117`); `rect`/`ellipse` attributes. |
-| `NormalizedShape.height`                             | gap          | SVG `viewBox` height, 1 when 0, with `height="1"` (`render/shape.ts:117-119`).                       |
-| `NormalizedShape.geometry`                           | profile      | `.shape-geometry` element.                                                                           |
-| `NormalizedShapeGeometry<rect>.kind`                 | profile      | `rect.shape-geometry`.                                                                               |
-| `NormalizedShapeGeometry<rect>.radius`               | profile      | `rx` and `ry`.                                                                                       |
-| `NormalizedShapeGeometry<ellipse>.kind`              | profile      | `ellipse.shape-geometry` (`cx`, `cy`, `rx`, `ry` from the size).                                     |
-| `NormalizedShapeGeometry<line>.kind`                 | profile      | `path.shape-geometry` with a single `M … L …` segment and `fill="none"`.                             |
-| `NormalizedShapeGeometry<line>.inverse`              | profile      | `d="M 0 H L W 0"` instead of `M 0 0 L W H`.                                                          |
-| `NormalizedShapeGeometry<path>.kind`                 | profile      | `path.shape-geometry`, or `g.shape-geometry` with faces.                                             |
-| `NormalizedShapeGeometry<path>.data`                 | profile      | `d` of `path.shape-geometry`.                                                                        |
-| `NormalizedShapeGeometry<path>.transform`            | profile      | `transform` attribute of the path or group.                                                          |
-| `NormalizedShapeGeometry<path>.faces`                | profile      | `path.shape-face` children of `g.shape-geometry`.                                                    |
-| `NormalizedShapeGeometry<path>.faces[].data`         | profile      | `d` of the face.                                                                                     |
-| `NormalizedShapeGeometry<path>.faces[].fillModifier` | profile      | `data-fill-modifier`; the face `fill` already applies it (#43).                                      |
-| `NormalizedShapeGeometry<path>.outlineData`          | profile      | `d` of `path.shape-outline`, which carries the stroke.                                               |
-| `NormalizedShape.textInsets`                         | not drawable | Folded into the text box `margin` during normalization (`normalize/shape.ts:2253-2255`).             |
-| `NormalizedShape.link`                               | profile      | The `.slide-shape` is an `a`.                                                                        |
-| `NormalizedShapeLink.href`                           | profile      | `href`.                                                                                              |
-| `NormalizedShapeLink.tooltip`                        | profile      | `title`.                                                                                             |
-| `NormalizedShapeLink.slide`                          | profile      | `data-slide`.                                                                                        |
+| Field                                                | Status       | HTML                                                                                      |
+| ---------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `NormalizedShape.name`                               | profile      | `data-shape`.                                                                             |
+| `NormalizedShape.width`                              | profile      | SVG `viewBox` width; `data-shape-width` on the `svg` when the viewBox clamps it to 0.001. |
+| `NormalizedShape.height`                             | profile      | SVG `viewBox` height; `data-shape-height` on the `svg` when it is 0 (the viewBox uses 1). |
+| `NormalizedShape.geometry`                           | profile      | `.shape-geometry` element.                                                                |
+| `NormalizedShapeGeometry<rect>.kind`                 | profile      | `rect.shape-geometry`.                                                                    |
+| `NormalizedShapeGeometry<rect>.radius`               | profile      | `rx` and `ry`.                                                                            |
+| `NormalizedShapeGeometry<ellipse>.kind`              | profile      | `ellipse.shape-geometry` (`cx`, `cy`, `rx`, `ry` from the size).                          |
+| `NormalizedShapeGeometry<line>.kind`                 | profile      | `path.shape-geometry` with a single `M … L …` segment and `fill="none"`.                  |
+| `NormalizedShapeGeometry<line>.inverse`              | profile      | `d="M 0 H L W 0"` instead of `M 0 0 L W H`.                                               |
+| `NormalizedShapeGeometry<path>.kind`                 | profile      | `path.shape-geometry`, or `g.shape-geometry` with faces.                                  |
+| `NormalizedShapeGeometry<path>.data`                 | profile      | `d` of `path.shape-geometry`.                                                             |
+| `NormalizedShapeGeometry<path>.transform`            | profile      | `transform` attribute of the path or group.                                               |
+| `NormalizedShapeGeometry<path>.faces`                | profile      | `path.shape-face` children of `g.shape-geometry`.                                         |
+| `NormalizedShapeGeometry<path>.faces[].data`         | profile      | `d` of the face.                                                                          |
+| `NormalizedShapeGeometry<path>.faces[].fillModifier` | profile      | `data-fill-modifier`; the face `fill` already applies it (#43).                           |
+| `NormalizedShapeGeometry<path>.outlineData`          | profile      | `d` of `path.shape-outline`, which carries the stroke.                                    |
+| `NormalizedShape.textInsets`                         | not drawable | Folded into the text box `margin` during normalization (`normalize/shape.ts:2253-2255`).  |
+| `NormalizedShape.link`                               | profile      | The `.slide-shape` is an `a`.                                                             |
+| `NormalizedShapeLink.href`                           | profile      | `href`.                                                                                   |
+| `NormalizedShapeLink.tooltip`                        | profile      | `title`.                                                                                  |
+| `NormalizedShapeLink.slide`                          | profile      | `data-slide`.                                                                             |
 
 ### Images
 
@@ -471,7 +471,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTableBorder.color`     | profile | Color of the side's `border-*`.                                                                |
 | `NormalizedTableBorder.width`     | profile | Width of the side's `border-*`, px.                                                            |
 | `NormalizedTableBorder.style`     | profile | `solid\|dashed` in the side's `border-*`.                                                      |
-| `NormalizedTableBorder.dashArray` | gap     | Only `dashed`; the DrawingML dash pattern is gone (`render/table.ts:5-7`).                     |
+| `NormalizedTableBorder.dashArray` | profile | `data-border-<side>-dash-array` on the `td`, verbatim (the CSS border is only `dashed`).       |
 
 ### Charts
 
