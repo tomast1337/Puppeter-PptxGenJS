@@ -199,6 +199,8 @@ pdfdeck reproduces.
 - [docs/QUICK_REFERENCE.md](./docs/QUICK_REFERENCE.md): one-page cheat sheet and common layouts
 - [docs/BACKENDS.md](./docs/BACKENDS.md): `toHtml()`/`toPdf()`, `write()`/`stream()` output types,
   the shared browser, custom renderers, the `/html` entry, the WASM backend
+- [docs/HTML_PROFILE.md](./docs/HTML_PROFILE.md): the HTML that `toHtml()` emits, field by field from the
+  model, with the values it loses today
 - [docs/COMPONENTS.md](./docs/COMPONENTS.md): custom HTML components and the React adapter
 - [docs/DEFAULTS.md](./docs/DEFAULTS.md): measured PptxGenJS and PowerPoint defaults
 - [docs/IMPLEMENTATION_SUMMARY.md](./docs/IMPLEMENTATION_SUMMARY.md): implementation notes and
