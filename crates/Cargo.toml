@@ -3,7 +3,7 @@ resolver = "2"
 members = ["pdf-core", "pdf-wasm"]
 
 [workspace.dependencies]
-text-pdf-core = { path = "pdf-core" }
+pdf-core = { path = "pdf-core" }
 
 [profile.release]
 opt-level = "z"

@@ -64,13 +64,13 @@ jobs:
       # different path. Both must match the committed hash, so the released binary is reproducible.
       - name: Rebuild WASM in Docker and compare hashes
         run: |
-          (cd packages/wasm/src && sha256sum -c text_pdf_wasm_bg.wasm.sha256)
-          mv packages/wasm/src/text_pdf_wasm_bg.wasm "$RUNNER_TEMP/ci.wasm"
+          (cd packages/wasm/src && sha256sum -c pdf_wasm_bg.wasm.sha256)
+          mv packages/wasm/src/pdf_wasm_bg.wasm "$RUNNER_TEMP/ci.wasm"
           rm -rf crates/target
           bun run build:wasm:docker
-          cmp "$RUNNER_TEMP/ci.wasm" packages/wasm/src/text_pdf_wasm_bg.wasm
+          cmp "$RUNNER_TEMP/ci.wasm" packages/wasm/src/pdf_wasm_bg.wasm
           git diff --exit-code -- packages/wasm/src
-          echo "WASM sha256 $(cut -d' ' -f1 packages/wasm/src/text_pdf_wasm_bg.wasm.sha256) reproduced in Docker" >> "$GITHUB_STEP_SUMMARY"
+          echo "WASM sha256 $(cut -d' ' -f1 packages/wasm/src/pdf_wasm_bg.wasm.sha256) reproduced in Docker" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build packages
         run: bun run build
@@ -88,8 +88,8 @@ jobs:
       - name: Verify the @pdfdeck/wasm tarball ships the built binary
         run: |
           tarball=$(ls release/pdfdeck-wasm-*.tgz)
-          tar -xzOf "$tarball" package/dist/text_pdf_wasm_bg.wasm > "$RUNNER_TEMP/packed.wasm"
-          expected=$(cut -d' ' -f1 packages/wasm/src/text_pdf_wasm_bg.wasm.sha256)
+          tar -xzOf "$tarball" package/dist/pdf_wasm_bg.wasm > "$RUNNER_TEMP/packed.wasm"
+          expected=$(cut -d' ' -f1 packages/wasm/src/pdf_wasm_bg.wasm.sha256)
           actual=$(sha256sum "$RUNNER_TEMP/packed.wasm" | cut -d' ' -f1)
           echo "packed sha256=$actual raw=$(wc -c < "$RUNNER_TEMP/packed.wasm") gzip=$(gzip -9cn "$RUNNER_TEMP/packed.wasm" | wc -c)"
           test "$actual" = "$expected"

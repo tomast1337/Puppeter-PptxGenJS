@@ -349,7 +349,7 @@ import PuppeteerGen from "@pdfdeck/pptxgenjs/html";
 import { createWasmRenderer } from "@pdfdeck/wasm";
 
 const font = new Uint8Array(await (await fetch("/fonts/Carlito-Regular.ttf")).arrayBuffer());
-// `wasm` defaults to text_pdf_wasm_bg.wasm next to the module; pass a URL or bytes if your bundler moves it.
+// `wasm` defaults to pdf_wasm_bg.wasm next to the module; pass a URL or bytes if your bundler moves it.
 const renderer = await createWasmRenderer({ fonts: [font], onUnsupported: "warn" });
 const pres = new PuppeteerGen(undefined, { renderer });
 pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });

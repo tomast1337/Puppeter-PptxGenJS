@@ -2,7 +2,7 @@
 # Build the WASM text renderer (crates/pdf-wasm) and copy it next to its TS loader in packages/wasm/src/.
 #
 # Committed outputs: the wasm-bindgen glue (.js/.d.ts), so the TS side typechecks without Rust, and
-# text_pdf_wasm_bg.wasm.sha256. CI rebuilds and fails on any diff, so a stale glue or a
+# pdf_wasm_bg.wasm.sha256. CI rebuilds and fails on any diff, so a stale glue or a
 # non-reproducible .wasm cannot merge. The .wasm itself is gitignored; CI ships it in @pdfdeck/wasm.
 #
 # Toolchain: rustc from rust-toolchain.toml; wasm-pack, wasm-bindgen and wasm-opt from
@@ -68,12 +68,12 @@ RUSTFLAGS="--remap-path-prefix=$root=/pdfdeck --remap-path-prefix=${CARGO_HOME:-
 export PATH RUSTFLAGS
 echo "$(rustc --version), wasm-pack $WASM_PACK_VERSION, wasm-bindgen $WASM_BINDGEN_VERSION, wasm-opt $BINARYEN_VERSION"
 wasm-pack build crates/pdf-wasm --release --target web --no-pack --out-dir pkg
-for f in text_pdf_wasm.js text_pdf_wasm.d.ts text_pdf_wasm_bg.wasm; do
+for f in pdf_wasm.js pdf_wasm.d.ts pdf_wasm_bg.wasm; do
     cp "crates/pdf-wasm/pkg/$f" "packages/wasm/src/$f"
 done
 
-f=packages/wasm/src/text_pdf_wasm_bg.wasm
-(cd packages/wasm/src && sha256sum text_pdf_wasm_bg.wasm > text_pdf_wasm_bg.wasm.sha256)
+f=packages/wasm/src/pdf_wasm_bg.wasm
+(cd packages/wasm/src && sha256sum pdf_wasm_bg.wasm > pdf_wasm_bg.wasm.sha256)
 raw=$(wc -c < "$f" | tr -d ' ')
 gzip=$(gzip -9cn "$f" | wc -c | tr -d ' ')
 echo "$f sha256=$(cut -d' ' -f1 "$f.sha256") raw=$raw gzip=$gzip gzip-budget=$GZIP_BUDGET"

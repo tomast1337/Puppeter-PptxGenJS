@@ -12,7 +12,7 @@ export { WasmRenderer } from "./browser";
 export async function createWasmRenderer(options: WasmRendererOptions): Promise<WasmRenderer> {
     // Without fonts, let the shared loader report that before touching the filesystem.
     if (options.wasm !== undefined || !options.fonts?.length) return createBrowserWasmRenderer(options);
-    const path = fileURLToPath(new URL("./text_pdf_wasm_bg.wasm", import.meta.url));
+    const path = fileURLToPath(new URL("./pdf_wasm_bg.wasm", import.meta.url));
     const wasm = await readFile(path).catch((error: unknown) => {
         throw new Error(`WASM renderer binary not found at ${path}; build it with \`bun run build:wasm\` or pass { wasm }`, { cause: error });
     });

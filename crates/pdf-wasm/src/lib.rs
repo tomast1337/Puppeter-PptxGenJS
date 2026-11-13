@@ -3,14 +3,14 @@
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub struct Renderer(text_pdf_core::Renderer);
+pub struct Renderer(pdf_core::Renderer);
 
 #[wasm_bindgen]
 impl Renderer {
     #[wasm_bindgen(constructor)]
     #[allow(clippy::new_without_default)]
     pub fn new() -> Renderer {
-        Renderer(text_pdf_core::Renderer::new())
+        Renderer(pdf_core::Renderer::new())
     }
 
     #[wasm_bindgen(js_name = addFont)]

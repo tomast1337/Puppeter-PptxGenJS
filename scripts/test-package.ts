@@ -286,7 +286,7 @@ try {
         const files = (await output(["tar", "-tzf", tarball], temporaryRoot)).split("\n");
         if (!files.some(file => file.startsWith("package/dist/") && file.endsWith(".d.ts"))) throw new Error(`${manifest.name} was packed without its dist`);
         // Consumers never build Rust: the tarball must carry the prebuilt binary (bun run build:wasm, or CI's "WASM build" job).
-        if (manifest.name === "@pdfdeck/wasm" && !files.includes("package/dist/text_pdf_wasm_bg.wasm")) throw new Error("@pdfdeck/wasm was packed without dist/text_pdf_wasm_bg.wasm (run bun run build:wasm first)");
+        if (manifest.name === "@pdfdeck/wasm" && !files.includes("package/dist/pdf_wasm_bg.wasm")) throw new Error("@pdfdeck/wasm was packed without dist/pdf_wasm_bg.wasm (run bun run build:wasm first)");
         if (manifest.name === "@pdfdeck/pptxgenjs" && !files.includes("package/dist/pptxgenjs.d.ts")) throw new Error("@pdfdeck/pptxgenjs was packed without the vendored pptxgenjs types");
         console.log(`packed ${manifest.name}@${manifest.version} (${workspaceDependencies.map(entry => entry.join("@")).join(", ") || "no workspace dependencies"})`);
     }

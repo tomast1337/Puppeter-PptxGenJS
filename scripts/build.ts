@@ -139,9 +139,9 @@ for (const browserSafe of BROWSER_SAFE) {
     }
 }
 // The WASM loaders resolve the binary next to themselves (dist/). scripts/test-package.ts fails a tarball without it.
-const wasmBinary = resolve(packagesDirectory, "wasm/src/text_pdf_wasm_bg.wasm");
-if (await Bun.file(wasmBinary).exists()) await copyFile(wasmBinary, resolve(packagesDirectory, "wasm/dist/text_pdf_wasm_bg.wasm"));
-else console.warn("packages/wasm/src/text_pdf_wasm_bg.wasm is not built (bun run build:wasm); @pdfdeck/wasm will not work");
+const wasmBinary = resolve(packagesDirectory, "wasm/src/pdf_wasm_bg.wasm");
+if (await Bun.file(wasmBinary).exists()) await copyFile(wasmBinary, resolve(packagesDirectory, "wasm/dist/pdf_wasm_bg.wasm"));
+else console.warn("packages/wasm/src/pdf_wasm_bg.wasm is not built (bun run build:wasm); @pdfdeck/wasm will not work");
 for (const { name } of PACKAGES) {
     for (const declarationFile of await declarationFiles(resolve(packagesDirectory, name, "dist"))) {
         const source = await readFile(declarationFile, "utf8");

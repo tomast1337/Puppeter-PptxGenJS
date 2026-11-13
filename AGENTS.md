@@ -203,7 +203,7 @@ hash changes only when Rust code or its pins change.
 
 ## Generated, vendored and pinned files
 
-- `packages/wasm/src/text_pdf_wasm.js`, `.d.ts` and `text_pdf_wasm_bg.wasm.sha256` are written by
+- `packages/wasm/src/pdf_wasm.js`, `.d.ts` and `pdf_wasm_bg.wasm.sha256` are written by
   `bun run build:wasm`. Never edit them by hand; commit them whenever the build changes them. CI's "WASM
   build" job rebuilds and fails on any difference.
 - `packages/pptxgenjs/src/generatedPresetShapes.ts` is written by `scripts/generate-preset-shapes.ts`;

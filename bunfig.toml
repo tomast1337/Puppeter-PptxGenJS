@@ -8,8 +8,8 @@ arrowParens = "avoid"
 # (dist/, node_modules/, .visual-parity/, crates/target/) are skipped already.
 ignorePatterns = [
     # wasm-bindgen output: CI checks it equals a fresh build byte for byte.
-    "packages/wasm/src/text_pdf_wasm.js",
-    "packages/wasm/src/text_pdf_wasm.d.ts",
+    "packages/wasm/src/pdf_wasm.js",
+    "packages/wasm/src/pdf_wasm.d.ts",
     # Written by scripts/generate-preset-shapes.ts.
     "packages/pptxgenjs/src/generatedPresetShapes.ts",
     # Rust and Cargo files: formatted by rustfmt (bun run fmt:rust).

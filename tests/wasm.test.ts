@@ -11,7 +11,7 @@ import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
-import type { InitInput, Renderer } from "../packages/wasm/src/text_pdf_wasm.js";
+import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
 // incompatible binding, or changing the model the loader serializes, fails `bun run typecheck`.
@@ -131,11 +131,11 @@ test("the browser WASM entry bundles without puppeteer, jsdom or node:* modules"
 
 // These need the binary from `bun run build:wasm` and real fonts. CI downloads the binary from its
 // "WASM build" job, so there a missing binary or font set fails instead of skipping.
-const wasmBuilt = await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/text_pdf_wasm_bg.wasm")).exists();
+const wasmBuilt = await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/pdf_wasm_bg.wasm")).exists();
 const systemFonts = wasmBuilt ? await loadSystemFonts().catch(() => []) : [];
 const canRender = wasmBuilt && systemFonts.length > 0;
 if (!canRender) {
-    const reason = wasmBuilt ? "no system fonts found" : "packages/wasm/src/text_pdf_wasm_bg.wasm is not built (bun run build:wasm)";
+    const reason = wasmBuilt ? "no system fonts found" : "packages/wasm/src/pdf_wasm_bg.wasm is not built (bun run build:wasm)";
     if (process.env.CI === "true") throw new Error(`WASM render tests cannot run in CI: ${reason}`);
     console.warn(`Skipping WASM render tests: ${reason}`);
 }
@@ -198,7 +198,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         };
         const [html, wasm] = await Promise.all([bundle("pptxgenjs/src/html"), bundle("wasm/src/browser")]);
         const files: Record<string, { body: Uint8Array; contentType: string }> = {
-            "https://assets.test/text_pdf_wasm_bg.wasm": { body: await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/text_pdf_wasm_bg.wasm")).bytes(), contentType: "application/wasm" },
+            "https://assets.test/pdf_wasm_bg.wasm": { body: await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/pdf_wasm_bg.wasm")).bytes(), contentType: "application/wasm" },
             "https://assets.test/font.ttf": { body: systemFonts[0]!, contentType: "font/ttf" },
         };
         const result = await withBrowser(async browser => {
@@ -220,7 +220,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
                         const load = (source: string) => import(URL.createObjectURL(new Blob([source], { type: "text/javascript" })));
                         const [{ default: PuppeteerGen }, { createWasmRenderer }] = await Promise.all([load(htmlSource), load(wasmSource)]);
                         const font = new Uint8Array(await (await fetch("https://assets.test/font.ttf")).arrayBuffer());
-                        const renderer = await createWasmRenderer({ fonts: [font], wasm: "https://assets.test/text_pdf_wasm_bg.wasm" });
+                        const renderer = await createWasmRenderer({ fonts: [font], wasm: "https://assets.test/pdf_wasm_bg.wasm" });
                         const pres = new PuppeteerGen(undefined, { renderer });
                         pres.addSlide().addText("Browser WASM", { x: 1, y: 1, w: 4, h: 1 });
                         pres.addSlide().addText("Second", { x: 1, y: 1, w: 4, h: 1 });
