@@ -154,11 +154,15 @@ jsdom), pass `createDocument`.
 An experimental renderer that draws `getModel()` straight to PDF in
 WebAssembly (Rust, `crates/`), without HTML or Chromium. Puppeteer stays the
 default; nothing loads the WASM code unless you import this entry, and the
-`.wasm` binary (~2.4 MB, ~971 KB gzip) is only fetched by `createWasmRenderer()`.
+`.wasm` binary (~2.5 MB, ~1.0 MB gzip) is only fetched by `createWasmRenderer()`.
 The prebuilt binary ships in the `@pdfdeck/wasm` tarball, so installing it
 needs no Rust toolchain.
 It implements `ModelRenderer`, so `toPdf()`, `write()`, `stream()` and
-`writeFile()` work unchanged.
+`writeFile()` work unchanged. It also implements `PresentationRenderer`:
+`renderer.render(await pres.toHtml())` parses the [HTML profile](HTML_PROFILE.md#parsing-wasm)
+in WebAssembly and gives the same PDF bytes as the model path. It is strict:
+HTML outside the profile throws, naming the slide, object and property, and
+images must already be `data:` URIs.
 
 **Status:** text boxes (runs, paragraphs, bullets, tab stops, insets, rotation, fit) and
 every preset and custom shape (fills, transparency, multi-face shading, lines,

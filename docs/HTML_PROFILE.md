@@ -23,8 +23,10 @@ both backends read only the HTML.
   caller's `createDocument`, inlines images through `resolveImage`, and renders components with the
   caller's registry. `pres.page` is only the input document of `tableToSlides(tableId)`; slides are not
   written into it, so editing it changes neither the HTML nor the PDF.
-- **WASM still reads the model**, as JSON (`packages/wasm/src/browser.ts:46-47`). Phases 3 and 4 switch
-  it to this profile.
+- **WASM reads either.** `WasmRenderer.renderModel(getModel())` reads the model as JSON;
+  `WasmRenderer.render(await toHtml())` parses this profile in Rust (`crates/pdf-core/src/profile/`,
+  [Parsing (WASM)](#parsing-wasm)) into the same structs, so both give the same PDF bytes. `toPdf()` still
+  takes the model path; phase 4 switches it.
 
 ## Decisions
 
@@ -246,6 +248,45 @@ Other Chromium-specific details that phase 2 or 6 revisits: the font fallback li
 (`render/text.ts:10-17`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
 `height="1"` for zero-height lines (`render/shape.ts:117-119`), U+200B for empty runs
 (`render/text.ts:70`).
+
+## Parsing (WASM)
+
+`Renderer::render_html` (`renderHtml` in `crates/pdf-wasm`, `WasmRenderer.render(document)` in
+`@pdfdeck/wasm`) reads version 1 with a hand-written tokenizer, not a general HTML parser
+(`crates/pdf-core/src/profile/`: `dom.rs` tokenizes, `style.rs` reads inline CSS, one file per object kind
+maps the elements onto the model structs the JSON path fills).
+
+- **Version.** `<meta name="pdfdeck-profile" content="1">` is required; a missing tag or another version
+  is an error.
+- **Markup is what the serializer writes.** Every element is closed by its own end tag, `/>` only ends void
+  and SVG elements, attributes are not repeated, character references are `&amp; &lt; &gt; &quot; &apos;
+&nbsp;` and numeric ones. HTML a browser would repair (a stray end tag, `<td>` outside `<tr>`, text
+  between objects) is an error. Nesting depth does not recurse, so deep input cannot overflow the stack.
+- **Only the profile.** Each element accepts the attributes and inline CSS properties this document lists
+  for it (including the [renderer workarounds](#renderer-workarounds), which are accepted and ignored) and
+  reads each value from its one place. Any other attribute, property, element, enumerated value or a
+  repeated property is an error. Numbers are JSON numbers with their unit (`px`, `deg`, `in`); `NaN`,
+  infinities and values outside `f32` are errors.
+- **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
+  always inlines images). The data URI is decoded like the model path decodes it.
+- **Charts and components are opaque.** `.slide-chart` and `.slide-component` subtrees are only checked for
+  well-formed markup and reported through `warnings()` as `object kind 'chart'` / `'component'` not
+  rendered, as the model path does. `addChartExtension()` objects are `.slide-chart` too, so they are
+  reported as `'chart'` rather than `'chartExtension'`.
+- **Errors name the place.** Every error is prefixed `invalid pdfdeck HTML:` and names the slide, the object
+  (its `data-object-name`, else `#<index>` on the slide) and the attribute or property; malformed markup
+  names its byte offset. For example:
+
+    ```text
+    invalid pdfdeck HTML: slide 1: object 'Title': CSS property 'filter' on <div> is not in profile v1
+    invalid pdfdeck HTML: pdfdeck profile version '2' is not supported (this renderer reads version 1)
+    invalid pdfdeck HTML: slide 2: object 'Table 0': row 1: cell 1: attribute 'rowspan' is missing
+    invalid pdfdeck HTML: malformed HTML at byte 6488: </body> closes <p>
+    ```
+
+- **No PptxGenJS rules.** A value missing from the HTML is an error, never a default. Multi-face presets keep
+  the base fill only on their unshaded face; a hand-written preset whose every face is shaded has no base
+  fill and is rejected (#43).
 
 ## Field mapping
 
