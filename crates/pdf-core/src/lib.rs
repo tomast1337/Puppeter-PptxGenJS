@@ -6,6 +6,7 @@
 
 mod color;
 mod image;
+mod link;
 mod model;
 mod path;
 mod shape;
@@ -16,7 +17,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
 
 use krilla::Document;
-use krilla::geom::{Size, Transform};
+use krilla::annotation::Annotation;
+use krilla::geom::{Quadrilateral, Size, Transform};
 use krilla::page::PageSettings;
 use krilla::surface::Surface;
 use krilla::text::{Font, KrillaGlyph};
@@ -25,6 +27,7 @@ use parley::{FontContext, LayoutContext};
 
 use crate::color::{parse_color, unit};
 use crate::image::Decoded;
+use crate::link::page_quad;
 use crate::model::{Presentation, SlideObject};
 use crate::path::{fill_path, rect_path};
 use crate::table::TableLayout;
@@ -45,6 +48,12 @@ pub struct Renderer {
     /// Images of the current render by data URI: each distinct picture is decoded once per
     /// document however often it repeats. Cleared per render so a renderer does not pin old images.
     images: HashMap<String, Decoded>,
+    /// Slides in the model being rendered: slide links past it are reported, not emitted.
+    page_count: usize,
+    /// Link annotations of the page being drawn, attached to it once its surface is finished.
+    links: Vec<Annotation>,
+    /// Text links of the box being drawn: (paragraph, run) index and its clickable area per glyph run.
+    link_quads: Vec<(u32, u32, Quadrilateral)>,
     // Scratch buffers for the per-object, per-paragraph and per-glyph-run paths: each user
     // clear()s one before filling it, so its capacity survives across objects and renders.
     text_layout: BoxLayout,
@@ -78,6 +87,9 @@ impl Renderer {
             pdf_fonts: HashMap::new(),
             warnings: BTreeSet::new(),
             images: HashMap::new(),
+            page_count: 0,
+            links: Vec::new(),
+            link_quads: Vec::new(),
             text_layout: BoxLayout::default(),
             table_layout: TableLayout::default(),
             span_ranges: Vec::new(),
@@ -116,10 +128,12 @@ impl Renderer {
     pub fn render(&mut self, model_json: &str) -> Result<Vec<u8>, String> {
         self.warnings.clear();
         self.images.clear();
+        self.links.clear();
         let model: Presentation = serde_json::from_str(model_json).map_err(|e| format!("invalid model: {e}"))?;
         let mut document = Document::new();
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
         let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
+        self.page_count = model.slides.len();
         for slide in &model.slides {
             let mut page = document.start_page_with(PageSettings::new(page_size));
             let mut surface = page.surface();
@@ -131,6 +145,9 @@ impl Renderer {
             let drawn = slide.objects.iter().try_for_each(|object| self.draw_object(&mut surface, object));
             surface.pop();
             surface.finish();
+            for link in self.links.drain(..) {
+                page.add_annotation(link);
+            }
             page.finish();
             drawn?;
         }
@@ -186,16 +203,31 @@ impl Renderer {
             // shortcut: krilla has no blur filter for the drop shadow; draw it when the backend gains one.
             self.warn("object shadow not rendered");
         }
+        let name = style.object_name.as_deref().unwrap_or("?");
         let drawn = match image {
-            Some(image) => self.draw_image(surface, image, style.object_name.as_deref().unwrap_or("?"), x, y, w, h),
+            Some(image) => self.draw_image(surface, image, name, x, y, w, h),
             None => self.draw_geometry(surface, shape, style, x, y, w, h),
         };
+        // The whole object box is clickable, as the Puppeteer renderer's <a> wrapper is. A straight
+        // line's box is flat: it gets the stroke's thickness (Chromium's is the SVG's 1px-high box).
+        let link = shape.and_then(|s| s.link.as_ref()).or(image.and_then(|i| i.link.as_ref()));
+        let stroke = style.line.as_ref().filter(|l| l.visible).map_or(0.0, |l| l.width).max(1.0);
+        let thick = |at: f32, size: f32| if size > 0.0 { (at, size) } else { (at - stroke / 2.0, stroke) };
+        let ((lx, lw), (ly, lh)) = (thick(x, w), thick(y, h));
+        let mut drawn = drawn.and_then(|()| match link.map(|link| (link, page_quad(surface, lx, ly, lw, lh))) {
+            Some((link, Some(quad))) => self.add_link(link, quad).map_err(|e| format!("'{name}': {e}")),
+            Some((_, None)) => {
+                self.warn("link on an object without a finite box not emitted");
+                Ok(())
+            }
+            None => Ok(()),
+        });
 
         if let Some(text) = text {
-            self.draw_text(surface, text, &layout, x, y, w, h);
+            drawn = drawn.and_then(|()| self.draw_text(surface, text, &layout, x, y, w, h));
         }
         if let Some(table) = table {
-            self.draw_table(surface, table, &cells, x, y);
+            drawn = drawn.and_then(|()| self.draw_table(surface, table, &cells, x, y));
         }
         self.text_layout = layout;
         self.table_layout = cells;
@@ -329,17 +361,9 @@ mod tests {
     fn reports_shape_features_it_does_not_draw() {
         let mut r = Renderer::new();
         let shadow = r##","shadow":{"visible":true,"color":"rgba(0, 0, 0, 0.3)","blur":4,"offsetX":3,"offsetY":3,"inset":false}"##;
-        let link = r#","link":{"href":"https://example.com"}"#;
-        r.render(&shape_with(r#""kind":"line","inverse":false"#, r#","endArrow":"hook""#, shadow, link))
+        r.render(&shape_with(r#""kind":"line","inverse":false"#, r#","endArrow":"hook""#, shadow, ""))
             .unwrap();
-        assert_eq!(
-            r.warnings(),
-            vec![
-                "line arrowhead 'hook' not rendered",
-                "object shadow not rendered",
-                "shape hyperlink annotations not emitted"
-            ]
-        );
+        assert_eq!(r.warnings(), vec!["line arrowhead 'hook' not rendered", "object shadow not rendered"]);
     }
 
     /// An image object over the box (10, 20, 200, 100), rotated and flipped, with `fields`
@@ -393,20 +417,128 @@ mod tests {
     fn reports_images_it_does_not_draw() {
         let mut r = Renderer::new();
         let svg = "data:image/svg+xml;base64,PHN2Zy8+";
-        let objects = [
-            image_with(svg, r#"{"link":{"href":"https://example.com"}}"#),
-            image_with("logo.png", r#"{"sourceKind":"path"}"#),
-        ]
-        .join(",");
+        let objects = [image_with(svg, "{}"), image_with("logo.png", r#"{"sourceKind":"path"}"#)].join(",");
         r.render(&slide_with(&objects)).unwrap();
         assert_eq!(
             r.warnings(),
             vec![
                 "SVG images not rendered",
-                "image hyperlink annotations not emitted",
                 "image source kind 'path' not rendered (resolve it to a data URI first)"
             ]
         );
+    }
+
+    /// The PDF's annotations, the PDF syntax of one object each.
+    fn annotations(pdf: &[u8]) -> Vec<String> {
+        let pdf = String::from_utf8_lossy(pdf);
+        pdf.split("/Type/Annot")
+            .skip(1)
+            .map(|a| a.split("endobj").next().unwrap_or_default().to_owned())
+            .collect()
+    }
+
+    /// The numbers of the array after `key` in a PDF dictionary, e.g. `/Rect[1 2 3 4]`.
+    fn numbers_after(annotation: &str, key: &str) -> Vec<f32> {
+        let rest = annotation.split(key).nth(1).unwrap_or_default();
+        let list = rest.trim_start().trim_start_matches('[').split(']').next().unwrap_or_default();
+        list.split_whitespace().filter_map(|n| n.parse().ok()).collect()
+    }
+
+    fn assert_close(got: &[f32], want: &[f32]) {
+        assert_eq!(got.len(), want.len(), "{got:?} != {want:?}");
+        assert!(got.iter().zip(want).all(|(g, w)| (g - w).abs() < 0.01), "{got:?} != {want:?}");
+    }
+
+    #[test]
+    fn links_objects_to_urls_and_slides_over_their_transformed_box() {
+        let mut r = Renderer::new();
+        let shape = |link: &str, transform: &str| {
+            format!(
+                r#"{{"kind":"shape","style":{{"geometry":{{"x":10,"y":20,"width":200,"height":100}},"transform":{transform}}},
+                "shape":{{"name":"rect","width":200,"height":100,"geometry":{{"kind":"rect","radius":0}},"link":{link}}}}}"#
+            )
+        };
+        let objects = [
+            shape(
+                r#"{"href":"https://example.com/a","tooltip":"Open A"}"#,
+                r#"{"rotation":0,"flipH":false,"flipV":false,"opacity":1}"#,
+            ),
+            shape(
+                r##"{"href":"#slide-1","slide":1}"##,
+                r#"{"rotation":90,"flipH":true,"flipV":false,"opacity":1}"#,
+            ),
+            image_with(PNG_DATA, r#"{"link":{"href":"mailto:a@example.com"}}"#),
+        ];
+        let pdf = r.render(&slide_with(&objects.join(","))).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        let links = annotations(&pdf);
+        let [url, slide, mail] = links.as_slice() else {
+            panic!("expected 3 annotations: {links:?}")
+        };
+        assert!(url.contains("/Subtype/Link") && url.contains("/URI(https://example.com/a)"), "{url}");
+        assert!(url.contains("/Contents(Open A)"), "the tooltip: {url}");
+        assert!(slide.contains("/Dest ") && !slide.contains("/Contents"), "{slide}");
+        assert!(mail.contains("/URI(mailto:a@example.com)"), "{mail}");
+        // px -> pt (x 0.75), y up from the bottom of the 405pt-high page.
+        assert_close(&numbers_after(url, "/QuadPoints"), &[7.5, 315.0, 157.5, 315.0, 157.5, 390.0, 7.5, 390.0]);
+        // A quarter turn about the centre (82.5, 352.5) makes the 150 x 75pt box 75 x 150pt; /Rect is its bounding box.
+        assert_close(&numbers_after(slide, "/QuadPoints"), &[45.0, 277.5, 45.0, 427.5, 120.0, 427.5, 120.0, 277.5]);
+        // The destination is the top-left corner of page 1.
+        assert!(String::from_utf8_lossy(&pdf).contains("/XYZ 0 405 0]"));
+    }
+
+    #[test]
+    fn links_each_line_of_a_wrapped_run() {
+        let mut r = Renderer::new();
+        let Some(font) = liberation_sans() else {
+            return eprintln!("Liberation Sans not installed: text links not checked");
+        };
+        r.add_font(font);
+        let object = r##"{"kind":"text","style":{"geometry":{"x":10,"y":20,"width":120,"height":200},
+            "transform":{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},
+            "text":{"paragraphs":[{"runs":[{"text":"linked words that wrap","fontFace":"Liberation Sans","fontSize":20,"color":"#0563C1",
+            "bold":false,"italic":false,"decoration":{"underline":true,"strike":false,"doubleStrike":false},"verticalAlign":"baseline",
+            "baselineOffset":0,"characterSpacing":0,"softBreakBefore":false,"link":{"href":"https://example.com"}}],
+            "align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{"height":24,"baseline":20}}],
+            "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}"##;
+        let pdf = r.render(&slide_with(object)).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        let links = annotations(&pdf);
+        assert!(links.len() > 1, "one annotation per line: {links:?}");
+        assert!(links.iter().all(|l| l.contains("/URI(https://example.com)")));
+    }
+
+    #[test]
+    fn links_a_flat_line_over_its_stroke() {
+        let mut r = Renderer::new();
+        let model = slide_with(
+            r##"{"kind":"shape","style":{"geometry":{"x":96,"y":192,"width":288,"height":0},
+            "transform":{"rotation":0,"flipH":false,"flipV":false,"opacity":1},"line":{"visible":true,"color":"#4472C4","width":3}},
+            "shape":{"name":"line","width":288,"height":0,"geometry":{"kind":"line","inverse":false},"link":{"href":"https://example.com"}}}"##,
+        );
+        let pdf = r.render(&model).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        let links = annotations(&pdf);
+        let [link] = links.as_slice() else { panic!("{links:?}") };
+        // 3px (2.25pt) thick about y 192px (261pt from the bottom).
+        assert_close(
+            &numbers_after(link, "/QuadPoints"),
+            &[72.0, 259.875, 288.0, 259.875, 288.0, 262.125, 72.0, 262.125],
+        );
+    }
+
+    #[test]
+    fn rejects_unsafe_link_schemes_and_reports_missing_slides() {
+        let mut r = Renderer::new();
+        let error = r
+            .render(&slide_with(&image_with(PNG_DATA, r#"{"link":{"href":"javascript:alert(1)"}}"#)))
+            .unwrap_err();
+        assert_eq!(error, "'Picture 1': link 'javascript:alert(1)' is not an http, https or mailto URL");
+        let pdf = r
+            .render(&slide_with(&image_with(PNG_DATA, r##"{"link":{"href":"#slide-3","slide":3}}"##)))
+            .unwrap();
+        assert_eq!(r.warnings(), vec!["link to slide 3 not emitted: the deck has 1 slides"]);
+        assert!(annotations(&pdf).is_empty());
     }
 
     #[test]

@@ -193,7 +193,7 @@ impl Renderer {
 
     /// Draws a table laid out by `layout_table` with its top-left corner at `x, y` (px): every cell
     /// fill, then every cell's text, then every border, so a neighbour's fill never covers a border.
-    pub(crate) fn draw_table(&mut self, surface: &mut Surface, table: &Table, layout: &TableLayout, x: f32, y: f32) {
+    pub(crate) fn draw_table(&mut self, surface: &mut Surface, table: &Table, layout: &TableLayout, x: f32, y: f32) -> Result<(), String> {
         let rect = |placed: &PlacedCell| {
             let (x0, y0) = (x + offset(&layout.col_x, placed.col), y + offset(&layout.row_y, placed.row));
             (
@@ -211,7 +211,7 @@ impl Renderer {
         }
         for (placed, text_layout) in layout.cells.iter().zip(&layout.texts) {
             let (cx, cy, w, h) = rect(placed);
-            self.draw_text(surface, &cell_of(table, placed).text, text_layout, cx, cy, w, h);
+            self.draw_text(surface, &cell_of(table, placed).text, text_layout, cx, cy, w, h)?;
         }
         for placed in &layout.cells {
             let (x0, y0, w, h) = rect(placed);
@@ -222,6 +222,7 @@ impl Renderer {
             stroke_border(surface, bottom, (x0, y1), (x1, y1));
             stroke_border(surface, left, (x0, y0), (x0, y1));
         }
+        Ok(())
     }
 }
 

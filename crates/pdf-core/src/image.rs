@@ -79,9 +79,6 @@ impl Renderer {
     /// Draws the picture over the box `x, y, w, h` (px). `name` labels decode errors.
     #[allow(clippy::too_many_arguments)] // the box is four plain numbers, as in draw_geometry
     pub(crate) fn draw_image(&mut self, surface: &mut Surface, image: &ImageModel, name: &str, x: f32, y: f32, w: f32, h: f32) -> Result<(), String> {
-        if image.link.is_some() {
-            self.warn("image hyperlink annotations not emitted");
-        }
         if image.source_kind != "data" {
             self.warn(format!(
                 "image source kind '{}' not rendered (resolve it to a data URI first)",

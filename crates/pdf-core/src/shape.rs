@@ -42,9 +42,6 @@ impl Renderer {
             self.fill_and_stroke(surface, rect_path(x, y, w, h, 0.0), fill, line);
             return Ok(());
         };
-        if shape.link.is_some() {
-            self.warn("shape hyperlink annotations not emitted");
-        }
         // The SVG renderer's viewBox: a zero-height line keeps a unit-high box, so it is not scaled.
         let scale = |size: f32, model: f32| f64::from(if model > 0.0 { size / model } else { 1.0 });
         let to_box = Affine::new([scale(w, shape.width), 0.0, 0.0, scale(h, shape.height), f64::from(x), f64::from(y)]);

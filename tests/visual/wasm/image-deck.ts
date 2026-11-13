@@ -43,7 +43,8 @@ export function populateImageDeck<T extends PptxGenJS | PuppeteerGen>(presentati
     effects.addImage({ path: SAMPLE_JPG, x: 0.75, y: 1.25, w: 1.7, h: 1.7, rounding: true, altText: "Rounded JPEG" });
     effects.addImage({ data: SAMPLE_PNG, x: 3.1, y: 1.35, w: 2.5, h: 1.25, rotate: -12, flipH: true, altText: "Rotated and flipped PNG" });
     // No shadow here (the fixture has one): the WASM backend does not draw shadows yet, which would hide the opacity score.
-    effects.addImage({ data: SAMPLE_PNG, x: 6.25, y: 1.35, w: 2.5, h: 1.25, transparency: 45, altText: "Transparent PNG" });
+    // Links are invisible to the reference raster; the link keeps the WASM path that emits them in the deck.
+    effects.addImage({ data: SAMPLE_PNG, x: 6.25, y: 1.35, w: 2.5, h: 1.25, transparency: 45, altText: "Transparent PNG", hyperlink: { url: "https://example.com", tooltip: "Open image link" } });
     effects.addText("Rounded", { ...label, x: 0.75, y: 3.35, w: 1.7, h: 0.4 });
     effects.addText("Rotate + flip", { ...label, x: 3.1, y: 3.35, w: 2.5, h: 0.4 });
     effects.addText("Transparency", { ...label, x: 6.1, y: 3.35, w: 2.8, h: 0.4 });

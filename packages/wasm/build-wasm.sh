@@ -21,7 +21,8 @@ root=$PWD
 # +4,404 B: tab stops (parley inline boxes), measured on top of the line-box fix (958,384 B).
 # +6,510 B: table drawing (#57), 962,788 -> 970,914 B measured on top of tab stops; budget = that size.
 # +38 B: Liberation Sans before the CJK fallback face, measured on top of tables and synthetic styles.
-GZIP_BUDGET=970952
+# +1,120 B: PDF link annotations (krilla's annotation, URI action and page destination writers), 970,586 -> 972,072 B measured; budget = that size.
+GZIP_BUDGET=972072
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

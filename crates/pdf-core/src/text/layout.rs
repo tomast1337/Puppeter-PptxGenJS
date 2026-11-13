@@ -24,6 +24,8 @@ pub(crate) struct RunPaint {
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
     pub(crate) baseline_offset: f32,
+    /// (paragraph, run) of the run's `link` in its `TextBox`.
+    pub(crate) link: Option<(u32, u32)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -82,7 +84,7 @@ impl Renderer {
         let paints = &mut out.paints;
         let (mut y, mut width) = (0.0f32, 0.0f32);
         let stacked = text.direction == "stacked";
-        for paragraph in &text.paragraphs {
+        for (p, paragraph) in (0u32..).zip(&text.paragraphs) {
             let (indent, marker_x) = match &paragraph.bullet {
                 Some(b) => (b.indent, b.indent / (b.level as f32 + 1.0) * b.level as f32),
                 None => (0.0, 0.0),
@@ -139,7 +141,7 @@ impl Renderer {
             let mut families = std::mem::take(&mut self.span_families);
             families.clear();
             families.extend(paragraph.runs.iter().take(spans.len()).map(|run| family_stack(&run.font_face)));
-            for ((range, run), family) in spans.iter().zip(&paragraph.runs).zip(&families) {
+            for (r, ((range, run), family)) in (0u32..).zip(spans.iter().zip(&paragraph.runs).zip(&families)) {
                 let index = paints.len() as u32;
                 let color = parse_color(&run.color).unwrap_or_default();
                 paints.push(RunPaint {
@@ -151,6 +153,7 @@ impl Renderer {
                     strike: run.decoration.strike,
                     double_strike: run.decoration.double_strike,
                     baseline_offset: run.baseline_offset,
+                    link: run.link.is_some().then_some((p, r)),
                 });
                 let r = range.clone();
                 builder.push(StyleProperty::FontFamily(family.as_str().into()), r.clone());
@@ -185,9 +188,6 @@ impl Renderer {
             for run in &paragraph.runs {
                 if run.glow.is_some() || run.shadow.as_ref().is_some_and(|s| s.visible) {
                     self.warn("text glow/shadow not rendered");
-                }
-                if run.link.is_some() {
-                    self.warn("hyperlink annotations not emitted (styling only)");
                 }
             }
             let alignment = match paragraph.align.as_str() {
@@ -240,6 +240,7 @@ impl Renderer {
                         strike: false,
                         double_strike: false,
                         baseline_offset: 0.0,
+                        link: None,
                     });
                     mb.push_default(StyleProperty::FontFamily(family_stack(&run.font_face).as_str().into()));
                     mb.push_default(StyleProperty::FontSize(run.font_size * scale));
