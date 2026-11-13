@@ -113,6 +113,14 @@ export const PPTX_DEFAULTS = Object.freeze({
         // PowerPoint's Normal text-box inset: top, right, bottom, left.
         marginIn: Object.freeze([0.05, 0.1, 0.05, 0.1] as const),
         glowWhenEnabled: Object.freeze({ sizePt: 8, color: "FFFFFF", opacity: 0.75 }),
+        // Font-independent line box of LibreOffice's PPTX import (editeng fixed cell height,
+        // ImplCalculateFontIndependentLineSpacing): a single line is 1.2x the font size, the baseline
+        // sits 1.0x the font size below its top, so 0.2x below it. Spacing multiples scale the 1.2;
+        // the extra (or missing) height is above the baseline. Measured at 384 dpi for Arial, Carlito
+        // and Liberation Serif at 10/18/40pt: first baseline within 0.25 px of 1.0em, pitch 1.2em,
+        // 1.5x spacing puts it at 1.6em with a 1.8em pitch, exact spacing H at H - 0.2em.
+        singleLineEm: 1.2,
+        lineDescentEm: 0.2,
     }),
     table: Object.freeze({
         x: 0.5,

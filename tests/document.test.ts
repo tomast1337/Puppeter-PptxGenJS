@@ -11,7 +11,7 @@ describe("HTML presentation serialization", () => {
         const result = serializeHtmlPresentation(dom.window.document, pageSize);
 
         expect(result).toEqual({
-            html: dom.window.document.documentElement.outerHTML,
+            html: `<!DOCTYPE html>${dom.window.document.documentElement.outerHTML}`,
             pageSize,
         });
     });

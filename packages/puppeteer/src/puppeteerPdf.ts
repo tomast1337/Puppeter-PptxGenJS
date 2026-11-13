@@ -97,6 +97,8 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
                 content.querySelectorAll<HTMLElement>(".text-paragraph").forEach(paragraph => {
                     const lineHeight = paragraph.style.lineHeight;
                     if (lineHeight.endsWith("px")) paragraph.style.lineHeight = `${parseFloat(lineHeight) * 0.95}px`;
+                    // The baseline shift is a fraction of the line box and font size, so it shrinks with them.
+                    if (paragraph.style.top.endsWith("px")) paragraph.style.top = `${parseFloat(paragraph.style.top) * 0.95}px`;
                 });
             }
         });

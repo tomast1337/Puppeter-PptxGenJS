@@ -201,7 +201,9 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
 
 function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number): NormalizedTextParagraph {
     const first = inheritedOptions(parent, pieces[0]?.options);
-    const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : first.lineSpacingMultiple;
+    // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
+    const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
+    const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : multiple;
 
     return {
         runs: pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options))),
@@ -302,4 +304,17 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
         rtl: options.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         borderRadius: options.shape === "roundRect" ? clamp(options.rectRadius ?? 0.1, 0, 1) * 50 : 0,
     };
+}
+
+/**
+ * LibreOffice's font-independent line box for a paragraph (PPTX_DEFAULTS.text.singleLineEm), in px:
+ * `height` is each line's height and `baseline` its baseline's distance below the line top, both set
+ * by the paragraph's largest run. Chromium's own line box depends on each font's ascent and descent.
+ */
+export function paragraphLineBox(paragraph: NormalizedTextParagraph): { height: number; baseline: number } {
+    const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
+    const { lineHeight } = paragraph;
+    // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
+    const height = lineHeight === undefined ? PPTX_DEFAULTS.text.singleLineEm * fontSize : lineHeight < 10 ? lineHeight * fontSize : lineHeight;
+    return { height, baseline: height - PPTX_DEFAULTS.text.lineDescentEm * fontSize };
 }
