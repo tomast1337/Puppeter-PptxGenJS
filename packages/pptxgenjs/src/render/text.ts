@@ -1,4 +1,5 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
+import { type InlineStyle, writeStyle } from "./css";
 
 function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     if (!shadow?.visible) return undefined;
@@ -15,30 +16,33 @@ function fontFamilyCSS(fontFace: string): string {
 }
 
 function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
-    element.style.fontFamily = fontFamilyCSS(run.fontFace);
-    element.style.fontSize = `${run.fontSize}px`;
-    element.style.color = run.color;
-    element.style.fontWeight = run.bold ? "bold" : "normal";
-    element.style.fontStyle = run.italic ? "italic" : "normal";
+    const css: InlineStyle = new Map([
+        ["font-family", fontFamilyCSS(run.fontFace)],
+        ["font-size", `${run.fontSize}px`],
+        ["color", run.color],
+        ["font-weight", run.bold ? "bold" : "normal"],
+        ["font-style", run.italic ? "italic" : "normal"],
+    ]);
     const lines: string[] = [];
     if (run.decoration.underline) lines.push("underline");
     if (run.decoration.strike) lines.push("line-through");
-    if (lines.length) element.style.textDecorationLine = lines.join(" ");
-    element.style.textDecorationStyle = run.decoration.underlineStyle;
-    if (run.decoration.underlineColor) element.style.textDecorationColor = run.decoration.underlineColor;
-    if (run.decoration.doubleStrike) element.style.textDecorationStyle = "double";
+    if (lines.length) css.set("text-decoration-line", lines.join(" "));
+    css.set("text-decoration-style", run.decoration.underlineStyle);
+    if (run.decoration.underlineColor) css.set("text-decoration-color", run.decoration.underlineColor);
+    if (run.decoration.doubleStrike) css.set("text-decoration-style", "double");
     // Glyphs must not size the line box; the paragraph's strut does (applyParagraphStyle).
-    element.style.lineHeight = "0";
+    css.set("line-height", "0");
     if (run.baselineOffset) {
-        element.style.position = "relative";
-        element.style.top = `${-run.baselineOffset}px`;
+        css.set("position", "relative");
+        css.set("top", `${-run.baselineOffset}px`);
     }
-    if (run.characterSpacing) element.style.letterSpacing = `${run.characterSpacing}px`;
-    if (run.highlight) element.style.backgroundColor = run.highlight;
-    if (run.outline) element.style.setProperty("-webkit-text-stroke", `${run.outline.width}px ${run.outline.color}`);
+    if (run.characterSpacing) css.set("letter-spacing", `${run.characterSpacing}px`);
+    if (run.highlight) css.set("background-color", run.highlight);
+    if (run.outline) css.set("-webkit-text-stroke", `${run.outline.width}px ${run.outline.color}`);
     const glow = shadowCSS(run.glow);
     const shadow = shadowCSS(run.shadow);
-    if (glow || shadow) element.style.textShadow = [glow, shadow].filter(Boolean).join(", ");
+    if (glow || shadow) css.set("text-shadow", [glow, shadow].filter(Boolean).join(", "));
+    writeStyle(element, css);
     element.lang = run.language;
 }
 
@@ -53,69 +57,74 @@ function renderRun(document: Document, run: NormalizedTextRun): HTMLElement {
     }
     applyRunStyle(element, run);
     // An empty PowerPoint paragraph still owns a line box.
-    element.textContent = run.text || "\u200b";
+    element.textContent = run.text || "​";
     return element;
 }
 
 function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextParagraph, horizontal: boolean): void {
-    element.style.textAlign = paragraph.align;
-    element.style.direction = paragraph.rtl ? "rtl" : "ltr";
-    element.style.marginTop = `${paragraph.spaceBefore}px`;
-    element.style.marginBottom = `${paragraph.spaceAfter}px`;
+    const css: InlineStyle = new Map([
+        ["text-align", paragraph.align],
+        ["direction", paragraph.rtl ? "rtl" : "ltr"],
+        ["margin-top", `${paragraph.spaceBefore}px`],
+        ["margin-bottom", `${paragraph.spaceAfter}px`],
+    ]);
     // A 0px font makes each line's strut exactly `height` tall with its baseline in the middle, whatever
     // the fonts' ascent and descent; runs have line-height 0, so the strut alone sizes the line. Moving
     // the paragraph then puts every baseline where LibreOffice puts it.
     const { lineBox } = paragraph;
-    element.style.fontSize = "0px";
-    element.style.lineHeight = `${lineBox.height}px`;
+    css.set("font-size", "0px");
+    css.set("line-height", `${lineBox.height}px`);
     // shortcut: vertical text keeps the centred baseline; shift along the block axis once it is measured.
     if (horizontal) {
-        element.style.position = "relative";
-        element.style.top = `${lineBox.baseline - lineBox.height / 2}px`;
+        css.set("position", "relative");
+        css.set("top", `${lineBox.baseline - lineBox.height / 2}px`);
     }
     // Default stops only: CSS has no explicit tab stops.
-    element.style.tabSize = `${paragraph.defaultTabStop}px`;
+    css.set("tab-size", `${paragraph.defaultTabStop}px`);
     if (paragraph.tabStops.length) {
         element.dataset.tabStops = paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",");
     }
     if (paragraph.bullet) {
         const levelIndent = paragraph.bullet.indent / (paragraph.bullet.level + 1);
-        element.style.paddingLeft = `${levelIndent * paragraph.bullet.level}px`;
-        element.style.textIndent = "0px";
+        css.set("padding-left", `${levelIndent * paragraph.bullet.level}px`);
+        css.set("text-indent", "0px");
         element.dataset.bulletLevel = String(paragraph.bullet.level);
         element.dataset.bulletType = paragraph.bullet.kind;
     }
+    writeStyle(element, css);
 }
 
-export function renderText(document: Document, element: HTMLElement, text: NormalizedTextBox): void {
+/** Adds the text box's declarations to `css`, which the caller writes onto `element`, and appends its content. */
+export function renderText(document: Document, element: HTMLElement, css: InlineStyle, text: NormalizedTextBox): void {
     const [top, right, bottom, left] = text.margin;
-    element.style.padding = `${top}px ${right}px ${bottom}px ${left}px`;
-    element.style.alignItems = text.verticalAlign === "top" ? "flex-start" : text.verticalAlign === "bottom" ? "flex-end" : "center";
-    element.style.whiteSpace = text.wrap ? "pre-wrap" : "pre";
-    element.style.overflowWrap = text.wrap ? "break-word" : "normal";
-    element.style.direction = text.rtl ? "rtl" : "ltr";
-    element.style.borderRadius = `${text.borderRadius}%`;
+    css.set("padding", `${top}px ${right}px ${bottom}px ${left}px`);
+    css.set("align-items", text.verticalAlign === "top" ? "flex-start" : text.verticalAlign === "bottom" ? "flex-end" : "center");
+    css.set("white-space", text.wrap ? "pre-wrap" : "pre");
+    css.set("overflow-wrap", text.wrap ? "break-word" : "normal");
+    css.set("direction", text.rtl ? "rtl" : "ltr");
+    css.set("border-radius", `${text.borderRadius}%`);
     element.dataset.textFit = text.fit;
     element.dataset.textDirection = text.direction;
     if (text.fit === "resize") {
-        const minimumHeight = element.style.height;
-        element.style.height = "auto";
-        element.style.minHeight = minimumHeight;
-        element.style.overflow = "visible";
+        const minimumHeight = css.get("height");
+        css.set("height", "auto");
+        if (minimumHeight !== undefined) css.set("min-height", minimumHeight);
+        css.set("overflow", "visible");
     } else if (!text.wrap) {
         // PptxGenJS emits `wrap="none"`, which allows a single line to paint
         // outside the text-box bounds while the slide itself remains clipped.
-        element.style.overflow = "visible";
+        css.set("overflow", "visible");
     }
 
     const content = document.createElement("div");
     content.className = "text-content";
-    content.style.width = "100%";
+    const contentCss: InlineStyle = new Map([["width", "100%"]]);
     if (text.direction !== "horizontal") {
-        content.style.writingMode = text.direction === "vertical270" ? "vertical-rl" : "vertical-lr";
-        content.style.textOrientation = text.direction === "stacked" ? "upright" : "mixed";
-        content.style.height = "100%";
+        contentCss.set("writing-mode", text.direction === "vertical270" ? "vertical-rl" : "vertical-lr");
+        contentCss.set("text-orientation", text.direction === "stacked" ? "upright" : "mixed");
+        contentCss.set("height", "100%");
     }
+    writeStyle(content, contentCss);
 
     text.paragraphs.forEach(paragraph => {
         const paragraphElement = document.createElement("div");
@@ -124,16 +133,19 @@ export function renderText(document: Document, element: HTMLElement, text: Norma
         if (paragraph.bullet) {
             const marker = document.createElement("span");
             marker.className = "text-bullet";
-            marker.textContent = `${paragraph.bullet.marker}\u00a0`;
-            marker.style.display = "inline-block";
-            marker.style.width = `${paragraph.bullet.indent / (paragraph.bullet.level + 1)}px`;
+            marker.textContent = `${paragraph.bullet.marker} `;
+            const markerCss: InlineStyle = new Map([
+                ["display", "inline-block"],
+                ["width", `${paragraph.bullet.indent / (paragraph.bullet.level + 1)}px`],
+            ]);
             const firstRun = paragraph.runs[0];
             if (firstRun) {
-                marker.style.fontFamily = fontFamilyCSS(firstRun.fontFace);
-                marker.style.fontSize = `${firstRun.fontSize}px`;
-                marker.style.color = firstRun.color;
-                marker.style.lineHeight = "0";
+                markerCss.set("font-family", fontFamilyCSS(firstRun.fontFace));
+                markerCss.set("font-size", `${firstRun.fontSize}px`);
+                markerCss.set("color", firstRun.color);
+                markerCss.set("line-height", "0");
             }
+            writeStyle(marker, markerCss);
             paragraphElement.appendChild(marker);
         }
         paragraph.runs.forEach(run => {

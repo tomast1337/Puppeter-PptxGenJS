@@ -6,11 +6,15 @@ import type { PageSize } from "../pageLayouts";
 import { inchesToPixels, pointsToPixels } from "../units";
 import { renderChart, renderChartExtension } from "./chart";
 import { renderComponent } from "./component";
+import { type InlineStyle, writeStyle } from "./css";
 import { renderImage } from "./image";
 import { renderShape, renderShapeSvg } from "./shape";
 import { applyObjectStyle } from "./style";
 import { renderTable } from "./table";
 import { renderText } from "./text";
+
+/** The pdfdeck HTML profile version (docs/HTML_PROFILE.md) the document follows, in `<meta name="pdfdeck-profile">`. */
+export const HTML_PROFILE_VERSION = 1;
 
 /** Prefix for ids inside one object; taken from its position so the same deck always gives the same ids. */
 export function objectIdScope(slideIndex: number, objectIndex: number): string {
@@ -25,12 +29,14 @@ export function renderSlideObject(document: Document, object: NormalizedSlideObj
         case "text": {
             const element = document.createElement("div");
             element.className = "slide-element slide-text";
+            const css: InlineStyle = new Map();
             if (object.shape) {
-                applyObjectStyle(element, { ...object.style, fill: undefined, line: undefined, shadow: undefined });
+                applyObjectStyle(element, css, { ...object.style, fill: undefined, line: undefined, shadow: undefined });
                 element.dataset.shape = object.shape.name;
                 element.appendChild(renderShapeSvg(document, object.shape, object.style));
-            } else applyObjectStyle(element, object.style);
-            renderText(document, element, object.text);
+            } else applyObjectStyle(element, css, object.style);
+            renderText(document, element, css, object.text);
+            writeStyle(element, css);
             return element;
         }
         case "shape":
@@ -40,7 +46,9 @@ export function renderSlideObject(document: Document, object: NormalizedSlideObj
         case "table": {
             const element = document.createElement("div");
             element.className = "slide-element slide-table-container";
-            applyObjectStyle(element, object.style);
+            const css: InlineStyle = new Map();
+            applyObjectStyle(element, css, object.style);
+            writeStyle(element, css);
             element.appendChild(renderTable(document, object.table));
             return element;
         }
@@ -58,8 +66,13 @@ export function renderSlide(document: Document, slide: NormalizedSlide, index: n
     const element = document.createElement("div");
     element.className = "slide-container";
     element.id = `slide-${index + 1}`;
-    element.style.backgroundColor = slide.background;
-    element.style.setProperty("--slide-text-color", slide.color);
+    writeStyle(
+        element,
+        new Map([
+            ["background-color", slide.background],
+            ["--slide-text-color", slide.color],
+        ]),
+    );
     element.dataset.hidden = String(slide.hidden);
     slide.objects.forEach((object, objectIndex) => element.appendChild(renderSlideObject(document, object, objectIdScope(index, objectIndex), components)));
     return element;
@@ -75,6 +88,10 @@ export function createBrowserDocument(): Document {
 /** Pure HTML render pass: the normalized model is the only input besides component definitions. */
 export function renderPresentationDocument(presentation: NormalizedPresentation, components?: ComponentLookup, createDocument: () => Document = createBrowserDocument): Document {
     const document = createDocument();
+    const profile = document.createElement("meta");
+    profile.name = "pdfdeck-profile";
+    profile.content = String(HTML_PROFILE_VERSION);
+    document.head.appendChild(profile);
     const style = document.createElement("style");
     style.id = "puppeteer-gen-styles";
     style.textContent = presentationCSS(presentation.pageSize);
