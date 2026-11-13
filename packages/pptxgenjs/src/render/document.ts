@@ -5,7 +5,8 @@ export type { HtmlPresentationDocument, ModelRenderer, PresentationRenderer } fr
 
 export function serializeHtmlPresentation(document: Document, pageSize: PageSize): HtmlPresentationDocument {
     return {
-        html: document.documentElement.outerHTML,
+        // Standards mode: quirks mode drops the line-box strut that text.ts sizes lines with.
+        html: `<!DOCTYPE html>${document.documentElement.outerHTML}`,
         pageSize,
     };
 }

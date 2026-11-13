@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
+import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/normalize/text";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
 describe("text normalization", () => {
@@ -9,6 +9,26 @@ describe("text normalization", () => {
         const text = normalizeText("first\n\nthird");
         expect(text.paragraphs).toHaveLength(3);
         expect(text.paragraphs.map(paragraph => paragraph.runs[0]?.text)).toEqual(["first", "", "third"]);
+    });
+
+    // LibreOffice's PPTX line box is font-independent: 1.2em per line, baseline 0.2em above the line
+    // bottom, measured for Arial, Carlito and Liberation Serif at 10/18/40pt (defaults.ts).
+    test("places lines and baselines on LibreOffice's font-independent line box", () => {
+        const box = (options: Parameters<typeof normalizeText>[1], input: Parameters<typeof normalizeText>[0] = "Text") => paragraphLineBox(normalizeText(input, options).paragraphs[0]!);
+        const close = (actual: { height: number; baseline: number }, height: number, baseline: number) => {
+            expect(actual.height).toBeCloseTo(height);
+            expect(actual.baseline).toBeCloseTo(baseline);
+        };
+        // 18pt default = 24px: 28.8px line, baseline 1.0em below its top.
+        close(box({}), 28.8, 24);
+        // lineSpacingMultiple scales the 1.2em line; the extra height goes above the baseline.
+        expect(normalizeText("Text", { lineSpacingMultiple: 1.5 }).paragraphs[0]?.lineHeight).toBeCloseTo(1.8);
+        close(box({ fontSize: 30, lineSpacingMultiple: 1.5 }), 72, 64);
+        close(box({ fontSize: 30, lineSpacingMultiple: 0.8 }), 38.4, 30.4);
+        // lineSpacing is the exact line height (36pt = 48px); the baseline stays 0.2em above its bottom.
+        close(box({ fontSize: 30, lineSpacing: 36 }), 48, 40);
+        // Mixed sizes: the largest run sets the line box.
+        close(box({ fontSize: 12 }, [{ text: "small" }, { text: "LARGE", options: { fontSize: 24 } }]), 38.4, 32);
     });
 
     test("groups rich runs using PptxGenJS break and alignment behavior", () => {
@@ -103,7 +123,12 @@ describe("text DOM rendering", () => {
         const runs = box?.querySelectorAll<HTMLElement>(".text-run");
         const link = box?.querySelector<HTMLAnchorElement>("a.text-run");
         expect(paragraph?.dataset.bulletType).toBe("bullet");
-        expect(paragraph?.style.lineHeight).toBe("1.2");
+        // 18pt (24px) default: a 28.8px line box, the 0px strut's baseline moved from 14.4px to 24px.
+        expect(paragraph?.style.fontSize).toBe("0px");
+        expect(parseFloat(paragraph?.style.lineHeight ?? "")).toBeCloseTo(28.8);
+        expect(parseFloat(paragraph?.style.top ?? "")).toBeCloseTo(9.6);
+        expect(runs?.[0]?.style.lineHeight).toBe("0");
+        expect(paragraph?.querySelector<HTMLElement>(".text-bullet")?.style.lineHeight).toBe("0");
         expect(paragraph?.querySelector(".text-bullet")?.textContent).toContain("●");
         expect(paragraph?.querySelectorAll("br")).toHaveLength(1);
         expect(runs?.[0]?.style.fontWeight).toBe("bold");

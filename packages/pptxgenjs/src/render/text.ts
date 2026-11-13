@@ -1,4 +1,5 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
+import { paragraphLineBox } from "../normalize/text";
 
 function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     if (!shadow?.visible) return undefined;
@@ -28,6 +29,8 @@ function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
     if (run.decoration.underlineColor) element.style.textDecorationColor = run.decoration.underlineColor;
     if (run.decoration.doubleStrike) element.style.textDecorationStyle = "double";
     element.style.verticalAlign = run.verticalAlign;
+    // Glyphs must not size the line box; the paragraph's strut does (applyParagraphStyle).
+    element.style.lineHeight = "0";
     if (run.baselineOffset) {
         element.style.position = "relative";
         element.style.top = `${-run.baselineOffset}px`;
@@ -56,14 +59,22 @@ function renderRun(document: Document, run: NormalizedTextRun): HTMLElement {
     return element;
 }
 
-function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextParagraph): void {
+function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextParagraph, horizontal: boolean): void {
     element.style.textAlign = paragraph.align;
     element.style.direction = paragraph.rtl ? "rtl" : "ltr";
     element.style.marginTop = `${paragraph.spaceBefore}px`;
     element.style.marginBottom = `${paragraph.spaceAfter}px`;
-    if (paragraph.lineHeight !== undefined) {
-        element.style.lineHeight = paragraph.lineHeight < 10 ? String(paragraph.lineHeight) : `${paragraph.lineHeight}px`;
-    } else element.style.lineHeight = "1.2";
+    // A 0px font makes each line's strut exactly `height` tall with its baseline in the middle, whatever
+    // the fonts' ascent and descent; runs have line-height 0, so the strut alone sizes the line. Moving
+    // the paragraph then puts every baseline where LibreOffice puts it.
+    const lineBox = paragraphLineBox(paragraph);
+    element.style.fontSize = "0px";
+    element.style.lineHeight = `${lineBox.height}px`;
+    // shortcut: vertical text keeps the centred baseline; shift along the block axis once it is measured.
+    if (horizontal) {
+        element.style.position = "relative";
+        element.style.top = `${lineBox.baseline - lineBox.height / 2}px`;
+    }
     if (paragraph.tabStops.length) {
         element.dataset.tabStops = paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",");
     }
@@ -109,7 +120,7 @@ export function renderText(document: Document, element: HTMLElement, text: Norma
     text.paragraphs.forEach(paragraph => {
         const paragraphElement = document.createElement("div");
         paragraphElement.className = "text-paragraph";
-        applyParagraphStyle(paragraphElement, paragraph);
+        applyParagraphStyle(paragraphElement, paragraph, text.direction === "horizontal");
         if (paragraph.bullet) {
             const marker = document.createElement("span");
             marker.className = "text-bullet";
@@ -121,6 +132,7 @@ export function renderText(document: Document, element: HTMLElement, text: Norma
                 marker.style.fontFamily = fontFamilyCSS(firstRun.fontFace);
                 marker.style.fontSize = `${firstRun.fontSize}px`;
                 marker.style.color = firstRun.color;
+                marker.style.lineHeight = "0";
             }
             paragraphElement.appendChild(marker);
         }

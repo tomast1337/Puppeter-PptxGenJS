@@ -225,6 +225,12 @@ const SHAPED_TEXT_CASES = [
     { page: 53, name: "text-right-arrow", shape: "rightArrow", text: "Next", x: 5.35, y: 1.2, w: 1.8, h: 1.4 },
     { page: 53, name: "text-cloud", shape: "cloud", text: "Idea", x: 7.7, y: 1.2, w: 1.8, h: 1.4 },
 ] as const;
+// Baseline placement and line pitch of plain text boxes (#49): the paragraph slide's title and its
+// single and exact line spacing paragraphs with paragraph spacing.
+const TEXT_CASES = [
+    { page: 4, name: "text-title", x: 0.5, y: 0.2, w: 9, h: 0.5 },
+    { page: 4, name: "text-paragraph-spacing", x: 0.75, y: 1, w: 8.5, h: 2.1 },
+] as const;
 // Every line head type at both ends of a 45 degree line, from a 1pt line (below LibreOffice's 0.7 mm sizing
 // floor) and a 4.5pt one. The diagonal keeps triangle-like heads inside the box, so the WASM deck's
 // per-object crops see them whole; these regions pad the box for the centred oval and diamond.
@@ -256,6 +262,7 @@ export const PARITY_REGIONS = [
     ...PAGINATION_CASES,
     ...HTML_TABLE_CASES,
     ...SHAPED_TEXT_CASES,
+    ...TEXT_CASES,
     { page: 59, name: "html-react-component-bars", x: 1, y: 1, w: 6, h: 2 },
     ...ARROW_HEAD_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.1, y: y - 0.1, w: w + 0.2, h: h + 0.2 })),
 ].map(({ page, name, x, y, w, h }) => ({
