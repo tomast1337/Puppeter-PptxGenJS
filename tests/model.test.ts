@@ -82,6 +82,15 @@ describe("normalized slide-object model", () => {
         expect(JSON.stringify(model)).toBe(json);
     });
 
+    test("names the page size in the HTML head, next to the profile version", async () => {
+        const presentation = new PuppeteerGen();
+        presentation.defineLayout({ name: "Poster", width: 8.5, height: 11 });
+        presentation.addSlide();
+        const { html } = await modelToHtml(presentation.getModel(), { createDocument: createNodeDocument });
+        expect(presentation.getModel().pageSize.name).toBe("Poster");
+        expect(html).toContain('<meta name="pdfdeck-profile" content="1"><meta name="pdfdeck-page-size" content="Poster">');
+    });
+
     test("records slide properties and returns a detached copy", () => {
         const pres = representativeDeck();
         const [first, second] = pres.getModel().slides;

@@ -91,7 +91,11 @@ export function renderPresentationDocument(presentation: NormalizedPresentation,
     const profile = document.createElement("meta");
     profile.name = "pdfdeck-profile";
     profile.content = String(HTML_PROFILE_VERSION);
-    document.head.appendChild(profile);
+    // The size itself is in the stylesheet; its name ("Screen 16:9 Landscape", a defineLayout() name) is not.
+    const pageSize = document.createElement("meta");
+    pageSize.name = "pdfdeck-page-size";
+    pageSize.content = presentation.pageSize.name;
+    document.head.append(profile, pageSize);
     const style = document.createElement("style");
     style.id = "puppeteer-gen-styles";
     style.textContent = presentationCSS(presentation.pageSize);
