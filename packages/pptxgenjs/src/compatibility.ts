@@ -450,6 +450,21 @@ export const COMPATIBILITY = Object.freeze({
  * them through `warnings()` (and throws unless `onUnsupported: "warn"`).
  */
 export const WASM_COMPATIBILITY = Object.freeze({
+    image: Object.freeze<CompatibilityEntry>({
+        status: "partial",
+        options: Object.freeze({
+            // The WASM image deck (tests/visual/wasm/image-deck.ts) covers the same sizing, transform and
+            // effect options with PNG and JPEG sources (data and path); paths and URLs are resolved to data URIs before rendering.
+            ...COMPATIBILITY.image.options,
+            // Reported through warnings(): no link annotations, no blurred drop shadow, and no GIF, WebP
+            // or SVG decoder (krilla's decoders for them do not fit the wasm size budget, GZIP_BUDGET).
+            hyperlink: "unsupported",
+            shadow: "unsupported",
+            gifFirstFrame: "unsupported",
+            svg: "unsupported",
+            webp: "unsupported",
+        }),
+    }),
     shape: Object.freeze<CompatibilityEntry>({
         status: "partial",
         options: Object.freeze({

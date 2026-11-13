@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
-import type { NormalizedImage, NormalizedImageSizing } from "@pdfdeck/model";
+import type { NormalizedImage, NormalizedImageSizing, NormalizedPresentation } from "@pdfdeck/model";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../units";
 
@@ -62,6 +62,24 @@ export async function resolveDocumentImages(document: Document, resolveImage: (s
             delete image.dataset.sourceUrl;
         }),
     );
+}
+
+/**
+ * Replaces path and URL image sources in `model` (a detached copy such as getModel()) with data URIs,
+ * resolving each distinct source once, so a model renderer never reads files or fetches.
+ */
+export async function resolveModelImages(model: NormalizedPresentation, resolveImage: (source: string) => Promise<string>): Promise<NormalizedPresentation> {
+    const resolved = new Map<string, Promise<string>>();
+    const images = model.slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "image" && object.image.sourceKind !== "data" ? [object.image] : [])));
+    await Promise.all(
+        images.map(async image => {
+            const pending = resolved.get(image.source) ?? resolveImage(image.source);
+            resolved.set(image.source, pending);
+            image.source = await pending;
+            image.sourceKind = "data";
+        }),
+    );
+    return model;
 }
 
 function normalizeSizing(sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | undefined, sourceWidth: number, sourceHeight: number, boxWidth: number, boxHeight: number, pageWidth: number, pageHeight: number): NormalizedImageSizing {
