@@ -5,6 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
+# Already in the tree through krilla (same version): image data-URI payloads.
+base64 = "0.22.1"
 # raster-images: needed to draw CBDT bitmap glyphs (Noto Color Emoji) in colour.
 krilla = { version = "0.8.2", default-features = false, features = ["raster-images"] }
 # Already in the tree through krilla's font subsetter (same version): SVG path data and arcs of the model's shape geometry.

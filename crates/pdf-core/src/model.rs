@@ -27,7 +27,8 @@ pub(crate) struct Slide {
 pub(crate) enum SlideObject {
     Text(TextObject),
     Shape(ShapeObject),
-    /// Any other `kind` (image, table, chart, ...), or `?` when it is missing or not a
+    Image(ImageObject),
+    /// Any other `kind` (table, chart, ...), or `?` when it is missing or not a
     /// string: reported through `warnings()` instead of failing the model.
     Unsupported(String),
 }
@@ -45,6 +46,50 @@ pub(crate) struct ShapeObject {
     pub(crate) shape: Option<ShapeModel>,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct ImageObject {
+    pub(crate) style: ObjectStyle,
+    pub(crate) image: ImageModel,
+}
+
+/// `NormalizedImage`. `source` is a data URI once the compatibility layer has resolved paths and URLs.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ImageModel {
+    pub(crate) source: String,
+    pub(crate) source_kind: String,
+    pub(crate) sizing: ImageSizing,
+    pub(crate) rounding: bool,
+    pub(crate) opacity: f32,
+    pub(crate) link: Option<Value>,
+}
+
+/// `NormalizedImageSizing`: where the picture sits relative to the object box, in px.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub(crate) enum ImageSizing {
+    Stretch,
+    Contain {
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    },
+    Cover {
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    },
+    #[serde(rename_all = "camelCase")]
+    Crop {
+        offset_x: f32,
+        offset_y: f32,
+        width: f32,
+        height: f32,
+    },
+}
+
 /// Dispatches on `kind` by hand instead of `#[serde(tag = "kind")]`: serde's catch-all
 /// variants either drop the kind name (`other`) or swallow the errors of a malformed
 /// text or shape object (`untagged`). Each object is buffered once and moved, never cloned.
@@ -54,6 +99,7 @@ impl<'de> Deserialize<'de> for SlideObject {
         let typed = match object.get("kind").and_then(Value::as_str) {
             Some("text") => TextObject::deserialize(object).map(SlideObject::Text),
             Some("shape") => ShapeObject::deserialize(object).map(SlideObject::Shape),
+            Some("image") => ImageObject::deserialize(object).map(SlideObject::Image),
             kind => return Ok(SlideObject::Unsupported(kind.unwrap_or("?").to_owned())),
         };
         typed.map_err(D::Error::custom)
@@ -68,6 +114,8 @@ pub(crate) struct ObjectStyle {
     pub(crate) fill: Option<FillModel>,
     pub(crate) line: Option<LineModel>,
     pub(crate) shadow: Option<Visible>,
+    /// Names the object in errors; optional so hand-written models need not carry it.
+    pub(crate) object_name: Option<String>,
 }
 
 #[derive(Deserialize)]

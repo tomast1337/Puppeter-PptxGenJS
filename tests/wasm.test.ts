@@ -56,6 +56,22 @@ describe("model renderer contract", () => {
         expect(models[0]).toEqual(pres.getModel());
     });
 
+    test("resolves path and URL images to data URIs once per source before a ModelRenderer sees them", async () => {
+        const models: NormalizedPresentation[] = [];
+        const renderer: ModelRenderer = { renderModel: async model => (models.push(model), new TextEncoder().encode("%PDF-model")) };
+        const requested: string[] = [];
+        const resolveImage = async (source: string) => (requested.push(source), PNG);
+        const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer, resolveImage });
+        pres.addSlide().addImage({ path: "logo.png", x: 1, y: 1, w: 1, h: 1 }).addImage({ path: "logo.png", x: 3, y: 1, w: 1, h: 1 });
+        pres.addSlide().addImage({ path: "https://example.com/a.png", x: 1, y: 1, w: 1, h: 1 }).addImage({ data: PNG, x: 3, y: 1, w: 1, h: 1 });
+        await pres.toPdf();
+        expect(requested).toEqual(["logo.png", "https://example.com/a.png"]);
+        const images = models[0]?.slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "image" ? [object.image] : []))) ?? [];
+        expect(images.map(image => [image.sourceKind, image.source])).toEqual(Array.from({ length: 4 }, () => ["data", PNG]));
+        // getModel() itself keeps the sources the caller passed.
+        expect(pres.getModel().slides[0]?.objects[0]).toMatchObject({ image: { source: "logo.png", sourceKind: "path" } });
+    });
+
     test("the Node entry accepts a ModelRenderer for writeFile()", async () => {
         const directory = await mkdtemp(join(tmpdir(), "wasm-model-"));
         try {
@@ -158,9 +174,9 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
         pres.addSlide()
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
-            .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 })
+            .addTable([[{ text: "Cell" }]], { x: 1, y: 2, w: 2 })
             .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
-        await expect(pres.toPdf()).rejects.toThrow(/object kind 'image' not rendered[\s\S]*object shadow not rendered/);
+        await expect(pres.toPdf()).rejects.toThrow(/object kind 'table' not rendered[\s\S]*object shadow not rendered/);
     });
 
     test("draws every preset shape the model emits, with dashed lines and arrowheads, without warnings", async () => {
@@ -181,9 +197,37 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test('onUnsupported: "warn" renders and reports skipped objects', async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
         const pres = new PuppeteerGen(PAGE, { renderer });
-        pres.addSlide().addText("Text", { x: 1, y: 1, w: 3, h: 1 }).addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 });
+        pres.addSlide()
+            .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
+            .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1, hyperlink: { url: "https://example.com" } })
+            .addImage({ data: `data:image/svg+xml;base64,${btoa("<svg xmlns='http://www.w3.org/2000/svg'/>")}`, x: 3, y: 2, w: 1, h: 1 });
         expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
-        expect(renderer.warnings()).toEqual(["object kind 'image' not rendered"]);
+        expect(renderer.warnings()).toEqual(["SVG images not rendered", "image hyperlink annotations not emitted"]);
+    });
+
+    test("draws data, path and repeated images in every sizing mode without warnings", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "wasm-image-"));
+        try {
+            const path = join(directory, "pixel.png");
+            await writeFile(path, Buffer.from(PNG.split(",")[1] ?? "", "base64"));
+            const renderer = await createWasmRenderer({ fonts: systemFonts });
+            const pres = new PuppeteerGen(PAGE, { renderer });
+            pres.addSlide()
+                .addImage({ path, x: 0.5, y: 0.5, w: 1, h: 1, rotate: 20, flipV: true, transparency: 40 })
+                .addImage({ data: PNG, x: 2, y: 0.5, w: 2, h: 1, sizing: { type: "contain", w: 1, h: 1 }, rounding: true })
+                .addImage({ data: PNG, x: 4, y: 0.5, w: 2, h: 1, sizing: { type: "cover", w: 1, h: 1 } })
+                .addImage({ path, x: 6, y: 0.5, w: 2, h: 1, sizing: { type: "crop", x: 0.5, y: 0.25, w: 1, h: 0.5 } });
+            expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
+            expect(renderer.warnings()).toEqual([]);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test("names the image whose data cannot be decoded", async () => {
+        const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
+        pres.addSlide().addImage({ data: "data:image/png;base64,iVBORw0KGgoAAAA=", x: 1, y: 1, w: 1, h: 1, objectName: "Logo" });
+        await expect(pres.toPdf()).rejects.toThrow("image 'Logo': cannot decode image/png data");
     });
 
     test("rejects bytes that are not a font", async () => {

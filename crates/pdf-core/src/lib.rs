@@ -1,10 +1,11 @@
-//! Renders the text and shape objects of the normalized model (`getModel()`) straight to PDF.
+//! Renders the text, shape and image objects of the normalized model (`getModel()`) straight to PDF.
 //!
 //! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen):
 //! model JSON + font bytes in, PDF bytes out. Units in the model are CSS px at
 //! 96 dpi (`PX_PER_IN`); the PDF page is drawn in px under a `PT_PER_PX` (0.75) scale.
 
 mod color;
+mod image;
 mod model;
 mod path;
 mod shape;
@@ -22,6 +23,7 @@ use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, Sourc
 use parley::{FontContext, LayoutContext};
 
 use crate::color::{parse_color, unit};
+use crate::image::Decoded;
 use crate::model::{Presentation, SlideObject};
 use crate::path::{fill_path, rect_path};
 use crate::text::layout::{BoxLayout, Brush};
@@ -38,6 +40,9 @@ pub struct Renderer {
     layout_cx: LayoutContext<Brush>,
     pdf_fonts: HashMap<(u64, u32), Font>,
     warnings: BTreeSet<String>,
+    /// Images of the current render by data URI: each distinct picture is decoded once per
+    /// document however often it repeats. Cleared per render so a renderer does not pin old images.
+    images: HashMap<String, Decoded>,
     // Scratch buffers for the per-object, per-paragraph and per-glyph-run paths: each user
     // clear()s one before filling it, so its capacity survives across objects and renders.
     text_layout: BoxLayout,
@@ -68,6 +73,7 @@ impl Renderer {
             layout_cx: LayoutContext::new(),
             pdf_fonts: HashMap::new(),
             warnings: BTreeSet::new(),
+            images: HashMap::new(),
             text_layout: BoxLayout::default(),
             span_ranges: Vec::new(),
             span_families: Vec::new(),
@@ -103,6 +109,7 @@ impl Renderer {
 
     pub fn render(&mut self, model_json: &str) -> Result<Vec<u8>, String> {
         self.warnings.clear();
+        self.images.clear();
         let model: Presentation = serde_json::from_str(model_json).map_err(|e| format!("invalid model: {e}"))?;
         let mut document = Document::new();
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
@@ -129,9 +136,10 @@ impl Renderer {
     }
 
     fn draw_object(&mut self, surface: &mut Surface, object: &SlideObject) -> Result<(), String> {
-        let (style, shape, text) = match object {
-            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref()),
-            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None),
+        let (style, shape, text, image) = match object {
+            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref(), None),
+            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None),
+            SlideObject::Image(o) => (&o.style, None, None, Some(&o.image)),
             SlideObject::Unsupported(kind) => {
                 self.warn(format!("object kind '{kind}' not rendered"));
                 return Ok(());
@@ -165,7 +173,10 @@ impl Renderer {
             // shortcut: krilla has no blur filter for the drop shadow; draw it when the backend gains one.
             self.warn("object shadow not rendered");
         }
-        let drawn = self.draw_geometry(surface, shape, style, x, y, w, h);
+        let drawn = match image {
+            Some(image) => self.draw_image(surface, image, style.object_name.as_deref().unwrap_or("?"), x, y, w, h),
+            None => self.draw_geometry(surface, shape, style, x, y, w, h),
+        };
 
         if let Some(text) = text {
             self.draw_text(surface, text, &layout, x, y, w, h);
@@ -184,14 +195,15 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
 
     #[test]
     fn renders_without_fonts_and_reports_skips() {
         let mut r = Renderer::new();
-        let model = r##"{"pageSize":{"width":10,"height":5.625},"slides":[{"background":"#FFFFFF","objects":[{"kind":"image","style":{}}]}]}"##;
+        let model = r##"{"pageSize":{"width":10,"height":5.625},"slides":[{"background":"#FFFFFF","objects":[{"kind":"table","style":{}}]}]}"##;
         let pdf = r.render(model).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
-        assert_eq!(r.warnings(), vec!["object kind 'image' not rendered".to_string()]);
+        assert_eq!(r.warnings(), vec!["object kind 'table' not rendered".to_string()]);
     }
 
     fn slide_with(object: &str) -> String {
@@ -209,7 +221,11 @@ mod tests {
     fn rejects_malformed_drawn_objects_instead_of_skipping_them() {
         let mut r = Renderer::new();
         // A known kind with a bad payload must not fall through to the unsupported-kind warning.
-        for object in [r#"{"kind":"text","style":{}}"#, r#"{"kind":"shape","style":{}}"#] {
+        for object in [
+            r#"{"kind":"text","style":{}}"#,
+            r#"{"kind":"shape","style":{}}"#,
+            r#"{"kind":"image","style":{}}"#,
+        ] {
             assert!(r.render(&slide_with(object)).is_err(), "{object}");
         }
     }
@@ -272,6 +288,80 @@ mod tests {
                 "shape hyperlink annotations not emitted"
             ]
         );
+    }
+
+    /// An image object over the box (10, 20, 200, 100), rotated and flipped, with `fields`
+    /// (a JSON object) replacing the defaults of its `image`.
+    fn image_with(source: &str, fields: &str) -> String {
+        let mut object = serde_json::json!({
+            "kind": "image",
+            "style": {
+                "geometry": { "x": 10, "y": 20, "width": 200, "height": 100 },
+                "transform": { "rotation": -12, "flipH": true, "flipV": false, "opacity": 1 },
+                "objectName": "Picture 1"
+            },
+            "image": { "source": source, "sourceKind": "data", "sizing": { "type": "stretch" }, "rounding": false, "opacity": 1, "altText": "" }
+        });
+        let fields: serde_json::Map<String, Value> = serde_json::from_str(fields).unwrap();
+        if let Some(image) = object.get_mut("image").and_then(Value::as_object_mut) {
+            image.extend(fields);
+        }
+        object.to_string()
+    }
+
+    const PNG_DATA: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+    #[test]
+    fn draws_every_image_option_and_decodes_each_source_once() {
+        let mut r = Renderer::new();
+        let objects = [
+            image_with(PNG_DATA, "{}"),
+            image_with(PNG_DATA, r#"{"sizing":{"type":"contain","x":50,"y":0,"width":100,"height":100}}"#),
+            image_with(
+                PNG_DATA,
+                r#"{"sizing":{"type":"cover","x":0,"y":-50,"width":200,"height":200},"rounding":true}"#,
+            ),
+            image_with(
+                PNG_DATA,
+                r#"{"sizing":{"type":"crop","offsetX":20,"offsetY":10,"width":300,"height":150},"opacity":0.55}"#,
+            ),
+        ]
+        .join(",");
+        let pdf = r.render(&slide_with(&objects)).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        assert_eq!(r.images.len(), 1, "one distinct source, decoded once");
+        // The RGBA picture and its alpha soft mask, written once for four draws.
+        assert_eq!(pdf.windows(14).filter(|w| w == b"/Subtype/Image").count(), 2);
+        // A second render starts with an empty cache, so old pictures are not kept alive.
+        r.render(&slide_with("")).unwrap();
+        assert!(r.images.is_empty());
+    }
+
+    #[test]
+    fn reports_images_it_does_not_draw() {
+        let mut r = Renderer::new();
+        let svg = "data:image/svg+xml;base64,PHN2Zy8+";
+        let objects = [
+            image_with(svg, r#"{"link":{"href":"https://example.com"}}"#),
+            image_with("logo.png", r#"{"sourceKind":"path"}"#),
+        ]
+        .join(",");
+        r.render(&slide_with(&objects)).unwrap();
+        assert_eq!(
+            r.warnings(),
+            vec![
+                "SVG images not rendered",
+                "image hyperlink annotations not emitted",
+                "image source kind 'path' not rendered (resolve it to a data URI first)"
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_undecodable_image_data_by_object_name() {
+        let mut r = Renderer::new();
+        let error = r.render(&slide_with(&image_with("data:image/png;base64,iVBORw0KGgoAAAA=", "{}"))).unwrap_err();
+        assert!(error.starts_with("image 'Picture 1': cannot decode image/png data"), "{error}");
     }
 
     /// A text-in-shape object whose fill, line, run, outline, highlight and

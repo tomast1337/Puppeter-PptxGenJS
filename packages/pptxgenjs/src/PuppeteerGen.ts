@@ -7,7 +7,7 @@ import { PPTX_DEFAULTS } from "./defaults";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/table/html";
-import { normalizeImage, resolveDocumentImages, resolveRemoteImageSource } from "./normalize/image";
+import { normalizeImage, resolveDocumentImages, resolveModelImages, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, straightLineLength } from "./normalize/shape";
 import { normalizeColor, normalizeLine } from "./normalize/style";
@@ -313,8 +313,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     /** PDF bytes from the configured renderer; nothing is written to disk. */
     async toPdf(): Promise<Uint8Array> {
         if (!this.renderer) throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("puppeteer-pptxgenjs") for the Puppeteer default');
-        // shortcut: model renderers get getModel() as-is (image sources unresolved); resolve them once the WASM backend draws images (#17).
-        if ("renderModel" in this.renderer) return this.renderer.renderModel(this.getModel());
+        if ("renderModel" in this.renderer) return this.renderer.renderModel(await resolveModelImages(this.getModel(), this.resolveImage));
         return this.renderer.render(await this.toHtml());
     }
 
