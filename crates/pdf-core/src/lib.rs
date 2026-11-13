@@ -1,7 +1,7 @@
 //! Renders the text, shape, image and table objects of the normalized model (`getModel()`) straight to PDF.
 //!
 //! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen):
-//! model JSON + font bytes in, PDF bytes out. Units in the model are CSS px at
+//! model JSON or a pdfdeck HTML profile document (`profile`) + font bytes in, PDF bytes out. Units in the model are CSS px at
 //! 96 dpi (`PX_PER_IN`); the PDF page is drawn in px under a `PT_PER_PX` (0.75) scale.
 
 mod color;
@@ -10,6 +10,7 @@ mod image;
 mod link;
 mod model;
 mod path;
+mod profile;
 mod shape;
 mod table;
 mod text;
@@ -130,11 +131,29 @@ impl Renderer {
         self.warnings.iter().cloned().collect()
     }
 
+    /// Renders the normalized model as JSON (`getModel()`).
     pub fn render(&mut self, model_json: &str) -> Result<Vec<u8>, String> {
+        self.reset();
+        let model: Presentation = serde_json::from_str(model_json).map_err(|e| format!("invalid model: {e}"))?;
+        self.draw_presentation(&model)
+    }
+
+    /// Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md). It draws the
+    /// same structs as `render`, so the same deck gives the same PDF bytes.
+    pub fn render_html(&mut self, html: &str) -> Result<Vec<u8>, String> {
+        self.reset();
+        let model = profile::parse(html).map_err(|e| format!("invalid pdfdeck HTML: {e}"))?;
+        self.draw_presentation(&model)
+    }
+
+    /// Forgets the previous render's warnings, images and links.
+    fn reset(&mut self) {
         self.warnings.clear();
         self.images.clear();
         self.links.clear();
-        let model: Presentation = serde_json::from_str(model_json).map_err(|e| format!("invalid model: {e}"))?;
+    }
+
+    fn draw_presentation(&mut self, model: &Presentation) -> Result<Vec<u8>, String> {
         let mut document = Document::new();
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
         let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
@@ -290,6 +309,34 @@ mod tests {
         let pdf = r.render(model).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
         assert_eq!(r.warnings(), vec!["object kind 'chart' not rendered".to_string()]);
+    }
+
+    #[test]
+    fn renders_profile_html_to_the_same_pdf_as_its_model() {
+        let mut r = Renderer::new();
+        if let Some(font) = liberation_sans() {
+            r.add_font(font);
+        }
+        let image = format!(
+            r#"<div class="slide-element slide-image" data-object-name="P" style="left: 0px; top: 0px; width: 96px; height: 96px; transform-origin: center; border-style: none;"><div class="slide-image-frame" style="width: 100%; height: 100%; overflow: hidden; position: relative;"><img class="slide-image-content" data-image-sizing="stretch" alt="" src="{PNG_DATA}" style="display: block; opacity: 1; width: 100%; height: 100%; object-fit: fill;"></div></div>"#
+        );
+        let html = profile::tests::document(&format!("{}{image}", profile::tests::TEXT));
+        let json = slide_with(&format!(
+            r##"{{"kind":"text","style":{{"geometry":{{"x":96,"y":96,"width":288,"height":96}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},"fill":{{"visible":false,"color":"transparent"}},"objectName":"Title"}},
+            "text":{{"paragraphs":[{{"runs":[{{"text":"Hi & bye","fontFace":"Arial","fontSize":24,"color":"#000000","bold":false,"italic":false,"decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"baselineOffset":0,"characterSpacing":0,"softBreakBefore":false}}],
+            "align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":28.799999999999997,"baseline":23.999999999999996}}}}],
+            "margin":[4.800000000000001,9.600000000000001,4.800000000000001,9.600000000000001],"verticalAlign":"middle","wrap":true,"fit":"none","direction":"horizontal"}}}},
+            {{"kind":"image","style":{{"geometry":{{"x":0,"y":0,"width":96,"height":96}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},"objectName":"P"}},"image":{{"source":"{PNG_DATA}","sourceKind":"data","sizing":{{"type":"stretch"}},"rounding":false,"opacity":1}}}}"##
+        ));
+        let from_html = r.render_html(&html).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        assert_eq!(from_html, r.render(&json).unwrap());
+
+        // A data URI that is not base64 (here not even ASCII) is the decoder's error, as on the model path.
+        let broken = html.replace(PNG_DATA, "data:image/png;base64,\u{e9}\u{fffd}==");
+        assert!(r.render_html(&broken).is_err());
+        let error = r.render_html("<html></html>").unwrap_err();
+        assert!(error.starts_with("invalid pdfdeck HTML: "), "{error}");
     }
 
     fn slide_with(object: &str) -> String {
