@@ -6,7 +6,7 @@ import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/g
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
-import { CROP_TARGET, FLOWCHART_DIVIDER_CROP_THRESHOLD, TABLE_CROP_THRESHOLD, TABLE_LAYOUT_CROP_THRESHOLD } from "./thresholds";
+import { CROP_TARGET, FLOWCHART_DIVIDER_CROP_THRESHOLD, TABLE_CROP_THRESHOLD, TABLE_TEXT_OFFSET_CROP_THRESHOLDS } from "./thresholds";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -229,7 +229,8 @@ const SHAPED_TEXT_CASES = [
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
 function cropThreshold(name: string): number {
-    if (name === "table-inheritance" || name.startsWith("table-pagination-") || name.startsWith("table-html-")) return TABLE_LAYOUT_CROP_THRESHOLD;
+    const tableTextOffset = TABLE_TEXT_OFFSET_CROP_THRESHOLDS[name];
+    if (tableTextOffset !== undefined) return tableTextOffset;
     if (name.startsWith("table-")) return TABLE_CROP_THRESHOLD;
     if (FLOWCHART_DIVIDER_CROPS.includes(name)) return FLOWCHART_DIVIDER_CROP_THRESHOLD;
     return CROP_TARGET;
