@@ -474,7 +474,7 @@ export const WASM_COMPATIBILITY = Object.freeze({
             // Reported through warnings(): no link annotations and no blurred drop shadow yet.
             hyperlink: "unsupported",
             shadow: "unsupported",
-            // Text in shapes uses the WASM text layout and inherits its gaps (stacked text, right-to-left tab stops, ...).
+            // Text in shapes uses the WASM text layout and inherits its gaps (right-to-left tab stops, ...).
             text: "partial",
         }),
     }),
@@ -505,8 +505,6 @@ export const WASM_COMPATIBILITY = Object.freeze({
             // Left, right, center and decimal stops plus the 1in default (defTabSz), measured from
             // the left even in right-to-left paragraphs (a warning says so).
             tabStops: "partial",
-            // Not drawn yet: stacked (wordArtVert) text is reported through warnings().
-            vert: "partial",
         }),
     }),
 } as const);

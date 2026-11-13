@@ -483,6 +483,18 @@ mod tests {
     }
 
     #[test]
+    fn stacked_text_puts_every_character_on_its_own_line() {
+        let mut text = text_box(&[(&["Ab c", "d"], 36.0, 30.0)]);
+        text.direction = "stacked".into();
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: stacked text not checked");
+        };
+        // A, b, the space (an empty line, as in LibreOffice), c, then the soft-broken d.
+        assert_eq!(layout.baselines, [30.0, 66.0, 102.0, 138.0, 174.0]);
+        assert_eq!(layout.paras[0].text, "A\nb\n \nc\nd");
+    }
+
+    #[test]
     fn latin_text_in_a_missing_office_face_falls_back_to_liberation_sans_before_cjk() {
         let cjk = [
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
