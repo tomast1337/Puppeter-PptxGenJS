@@ -36,6 +36,9 @@ export interface NormalizedLine {
     dashArray?: string;
     beginArrow?: "none" | "arrow" | "diamond" | "oval" | "stealth" | "triangle";
     endArrow?: "none" | "arrow" | "diamond" | "oval" | "stealth" | "triangle";
+    /** Resolved head outlines: closed SVG path data (px) with the line end at the origin and +x pointing out of the line, filled in the line color. */
+    beginHeadPath?: string;
+    endHeadPath?: string;
 }
 
 export interface NormalizedShadow {

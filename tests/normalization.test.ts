@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { normalizeGeometry, normalizeTransform } from "../packages/pptxgenjs/src/normalize/geometry";
 import { resolveImageSource } from "../packages/pptxgenjs/src/node";
-import { arrowShaftStart, normalizeColor, normalizeFill, normalizeLine, normalizeShadow, startDashAt } from "../packages/pptxgenjs/src/normalize/style";
+import { arrowHeadPath, arrowShaftStart, normalizeColor, normalizeFill, normalizeLine, normalizeShadow, shaftDashes, startDashAt } from "../packages/pptxgenjs/src/normalize/style";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("shared object normalization", () => {
@@ -55,6 +55,59 @@ describe("shared object normalization", () => {
         [0, 3.9, 12, 5.1].forEach((value, index) => expect(parts[index]).toBeCloseTo(value, 9));
         // The end arrowhead does not move the phase.
         expect(normalizeLine({ width: 2.25, dashType: "dash", endArrowType: "triangle" }).dashArray).toBe("12 9");
+    });
+
+    test("resolves line heads to LibreOffice's medium outlines, pointing out of the line", () => {
+        const points = (path: string | undefined) => [...(path ?? "").matchAll(/[ML] (\S+) (\S+)/g)].map(([, x, y]) => [Number(x), Number(y)]);
+        // 3px line: 9px heads; the tip sits on the line end and the base 9px back along the line.
+        expect(points(arrowHeadPath("triangle", 3))).toEqual([
+            [0, 0],
+            [-9, 4.5],
+            [-9, -4.5],
+        ]);
+        expect(points(arrowHeadPath("stealth", 3))).toEqual([
+            [0, 0],
+            [-9, 4.5],
+            [-5.4, 0],
+            [-9, -4.5],
+        ]);
+        // The diamond and oval are centred on the line end.
+        expect(points(arrowHeadPath("diamond", 3))).toEqual([
+            [4.5, 0],
+            [0, 4.5],
+            [-4.5, 0],
+            [0, -4.5],
+        ]);
+        expect(arrowHeadPath("oval", 3)).toBe("M 4.5 0 A 4.5 4.5 0 1 0 -4.5 0 A 4.5 4.5 0 1 0 4.5 0 Z");
+        // The open arrow is 3.5 widths; its arms and stem are one line width (3px) thick and its tip points out (issue #41).
+        const arrow = points(arrowHeadPath("arrow", 3));
+        expect(arrow[0]).toEqual([0, 0]);
+        expect(Math.max(...arrow.map(([x]) => x!))).toBe(0);
+        expect(Math.min(...arrow.map(([x]) => x!))).toBeCloseTo(-10.5, 9);
+        expect(arrow[4]![1]! - arrow[5]![1]!).toBeCloseTo(3, 9);
+        // Thin lines size heads from a 0.7mm line.
+        expect(points(arrowHeadPath("triangle", 1))[1]![0]).toBeCloseTo((-3 * 0.7 * 96) / 25.4, 9);
+        expect(arrowHeadPath("none", 3)).toBeUndefined();
+        expect(() => arrowHeadPath("hook", 3)).toThrow("Unknown line arrow type 'hook'");
+        const line = normalizeLine({ width: 2.25, beginArrowType: "oval", endArrowType: "triangle" });
+        expect(line.beginHeadPath).toBe(String(arrowHeadPath("oval", 3)));
+        expect(line.endHeadPath).toBe(String(arrowHeadPath("triangle", 3)));
+        expect(normalizeLine({ width: 2.25 }).endHeadPath).toBeUndefined();
+    });
+
+    test("strokes a straight line only between its heads, as LibreOffice does", () => {
+        // 3px line, 100px long: the shaft runs from 3.9px (oval) to 100 - 8.4px (triangle).
+        const solid = normalizeLine({ width: 2.25, beginArrowType: "oval", endArrowType: "triangle" }, 100).dashArray!.split(" ").map(Number);
+        [0, 3.9, 87.7, 100].forEach((value, index) => expect(solid[index]).toBeCloseTo(value, 9));
+        expect(solid).toHaveLength(4);
+        // Dashes start at the shaft and the last one is cut where the shaft ends.
+        expect(shaftDashes([12, 9], 3.9, 30, 50)).toEqual([0, 3.9, 12, 9, expect.closeTo(5.1, 9), 50]);
+        expect(shaftDashes([12, 9], 0, 30, 30)).toEqual([0, 0, 12, 9, 9, 30]);
+        // A line shorter than its heads draws no shaft.
+        expect(shaftDashes([12, 9], 8, 5, 10)).toEqual([0, 18]);
+        // Without heads, or without a straight length, nothing is trimmed.
+        expect(normalizeLine({ width: 2.25 }, 100).dashArray).toBeUndefined();
+        expect(normalizeLine({ width: 2.25, endArrowType: "triangle" }).dashArray).toBeUndefined();
     });
 
     test("rotates a dash pattern without breaking dash/gap parity", () => {

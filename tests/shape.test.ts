@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
 import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
-import { normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
+import { arrowHeadPath, normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
@@ -323,16 +323,26 @@ describe("SVG shape rendering", () => {
         expect(shapes[0]?.querySelector(".shape-geometry")?.getAttribute("stroke-dasharray")).toBe(`${(4 * 2 * 96) / 72} ${(3 * 2 * 96) / 72}`);
         expect(shapes[1]?.querySelector("ellipse")).not.toBeNull();
         expect(shapes[2]?.querySelector("svg")?.getAttribute("height")).toBe("1");
-        expect(shapes[2]?.querySelector("svg")?.getAttribute("viewBox")).toBe(`0 -0.5 ${4 * 96} 1`);
-        expect(shapes[2]?.querySelector(".shape-geometry")?.getAttribute("marker-start")).toContain("-begin");
-        expect(shapes[2]?.querySelector(".shape-geometry")?.getAttribute("marker-end")).toContain("-end");
-        expect(shapes[2]?.querySelector('marker[id$="-begin"]')?.getAttribute("markerWidth")).toBe("4");
-        expect(shapes[2]?.querySelector('marker[id$="-end"]')?.getAttribute("markerWidth")).toBe("3");
-        expect(shapes[2]?.querySelector('marker[id$="-end"]')?.getAttribute("refX")).toBe("9");
-        // The model's gap-first pattern "0 3.9 12 5.1" is drawn without its zero-length dash.
+        expect(shapes[2]?.querySelector("svg")?.getAttribute("viewBox")).toBe(`0 0 ${4 * 96} 1`);
+        // Markers draw the model's head outlines in user space; orient reverses the begin head.
+        const marker = (end: "start" | "end") => presentation.page.getElementById(shapes[2]?.querySelector(".shape-geometry")?.getAttribute(`marker-${end}`)?.slice(5, -1) ?? "");
+        expect(marker("end")?.getAttribute("markerUnits")).toBe("userSpaceOnUse");
+        expect(marker("end")?.getAttribute("orient")).toBe("auto-start-reverse");
+        expect(marker("end")?.querySelector("path")?.getAttribute("d")).toBe(String(arrowHeadPath("triangle", (2 * 96) / 72)));
+        expect(marker("start")?.querySelector("path")?.getAttribute("d")).toBe(String(arrowHeadPath("oval", (2 * 96) / 72)));
+        // Ids come from the outline, not the object name, which repeats across slides: url(#id) takes the first match.
+        const objectName = shapes[2]?.dataset.objectName;
+        presentation.addSlide().addShape("line", { x: 1, y: 3, w: 4, h: 0, objectName, line: { color: "ED7D31", width: 2, endArrowType: "diamond" } });
+        const repeated = presentation.page.querySelectorAll<HTMLElement>(".slide-shape")[4];
+        expect(repeated?.dataset.objectName).toBe(String(objectName));
+        const repeatedEnd = repeated?.querySelector(".shape-geometry")?.getAttribute("marker-end")?.slice(5, -1) ?? "";
+        expect(presentation.page.getElementById(repeatedEnd)?.querySelector("path")?.getAttribute("d")).toBe(String(arrowHeadPath("diamond", (2 * 96) / 72)));
+        // The model's gap-first pattern "0 3.9 12 9 ..." is drawn without its zero-length dash: the offset
+        // leaves the first 3.9px blank.
         const dashed = shapes[3]?.querySelector(".shape-geometry");
-        expect(dashed?.getAttribute("stroke-dasharray")?.split(" ").map(Number)).toEqual([12, expect.closeTo(9, 9)]);
-        expect(Number(dashed?.getAttribute("stroke-dashoffset"))).toBeCloseTo(21 - 3.9, 9);
+        const parts = dashed?.getAttribute("stroke-dasharray")?.split(" ").map(Number) ?? [];
+        expect(parts.slice(0, 2)).toEqual([12, expect.closeTo(9, 9)]);
+        expect(Number(dashed?.getAttribute("stroke-dashoffset"))).toBeCloseTo(parts.reduce((sum, part) => sum + part, 0) - 3.9, 9);
     });
 
     test("renders custom paths and shape hyperlinks", () => {
