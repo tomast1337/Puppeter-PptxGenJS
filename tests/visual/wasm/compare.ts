@@ -1,7 +1,7 @@
 // Scores the WASM backend's PDFs (and, for context, the Puppeteer default's) against the same
 // LibreOffice reference, with the tests/visual/compare.ts machinery (pdftoppm 96dpi, ImageMagick
 // RMSE, crops padded like PARITY_REGIONS). Run in the pinned visual image:
-//   bun run test:visual:wasm:docker [text|emoji|shapes ...]
+//   bun run test:visual:wasm:docker [text|emoji|shapes|images ...]
 //
 // Gate (WASM only):
 // - every page <= PAGE_THRESHOLD, the AGENTS.md whole-slide limit.
@@ -20,6 +20,7 @@ import { createRenderer } from "./backend";
 import baseline from "./baseline.json";
 import { populateShapeDeck, populateTextDeck, SHAPE_PAGES, TEXT_PAGES } from "./deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
+import { IMAGE_PAGES, populateImageDeck } from "./image-deck";
 import { BASELINE_EPSILON, CROP_TARGET, PAGE_THRESHOLD } from "../thresholds";
 
 type Populate = <T extends pptxgen | PuppeteerGen>(presentation: T) => T;
@@ -27,11 +28,12 @@ type SlideObject = ReturnType<PuppeteerGen["getModel"]>["slides"][number]["objec
 const isText = (object: SlideObject) => object.kind === "text";
 // emoji: Noto Color Emoji / Noto Sans CJK fallback (issue #14), installed in the pinned image.
 // `crop` picks the objects that get a crop each: text boxes, or for the shapes deck every shape
-// (with or without text), so labels do not dilute the geometry scores.
+// (with or without text), so labels do not dilute the geometry scores; for the images deck every picture.
 const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: SlideObject) => boolean }> = {
     text: { populate: populateTextDeck, pages: TEXT_PAGES, crop: isText },
     emoji: { populate: populateEmojiDeck, pages: EMOJI_PAGES, crop: isText },
     shapes: { populate: populateShapeDeck, pages: SHAPE_PAGES, crop: object => object.kind === "shape" || (object.kind === "text" && object.shape !== undefined) },
+    images: { populate: populateImageDeck, pages: IMAGE_PAGES, crop: object => object.kind === "image" },
 };
 const deckNames = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(DECKS);
 const root = join(tmpdir(), "wasm-parity");
