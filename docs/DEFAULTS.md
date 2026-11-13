@@ -92,17 +92,18 @@ values of 1 or greater are points.
 
 ## Shapes
 
-| Property                        |           Observed default | PuppeteerGen behavior |
-| ------------------------------- | -------------------------: | --------------------- |
-| Position and size               | x=1in, y=1in, w=1in, h=1in | Implemented           |
-| Line when omitted               |                       None | Implemented           |
-| Supplied line color             |                   `333333` | Implemented           |
-| Supplied line width             |                        1pt | Implemented           |
-| Supplied line dash              |                      Solid | Implemented           |
-| Supplied fill type/transparency |                 Solid / 0% | Mapped                |
-| Alignment                       |                       Left | Mapped                |
-| Rotation/flips                  |                  0 / false | Mapped                |
-| Arc angle/thickness             |           `[270, 0]` / 0.5 | Mapped                |
+| Property                        |                                             Observed default | PuppeteerGen behavior |
+| ------------------------------- | -----------------------------------------------------------: | --------------------- |
+| Position and size               |                                   x=1in, y=1in, w=1in, h=1in | Implemented           |
+| Line when omitted               |                                                         None | Implemented           |
+| Supplied line color             |                                                     `333333` | Implemented           |
+| Supplied line width             |                                                          1pt | Implemented           |
+| Supplied line dash              |                                                        Solid | Implemented           |
+| Line head size (no `w`/`len`)   | Medium: 3 line widths (3.5 for `arrow`), from at least 0.7mm | Implemented           |
+| Supplied fill type/transparency |                                                   Solid / 0% | Mapped                |
+| Alignment                       |                                                         Left | Mapped                |
+| Rotation/flips                  |                                                    0 / false | Mapped                |
+| Arc angle/thickness             |                                             `[270, 0]` / 0.5 | Mapped                |
 
 ## Images and media
 

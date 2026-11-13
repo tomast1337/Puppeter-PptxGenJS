@@ -225,6 +225,11 @@ const SHAPED_TEXT_CASES = [
     { page: 53, name: "text-right-arrow", shape: "rightArrow", text: "Next", x: 5.35, y: 1.2, w: 1.8, h: 1.4 },
     { page: 53, name: "text-cloud", shape: "cloud", text: "Idea", x: 7.7, y: 1.2, w: 1.8, h: 1.4 },
 ] as const;
+// Every line head type at both ends of a 45 degree line, from a 1pt line (below LibreOffice's 0.7 mm sizing
+// floor) and a 4.5pt one. The diagonal keeps triangle-like heads inside the box, so the WASM deck's
+// per-object crops see them whole; these regions pad the box for the centred oval and diamond.
+const ARROW_HEAD_TYPES = ["none", "triangle", "stealth", "diamond", "oval", "arrow"] as const;
+const ARROW_HEAD_CASES = [1, 4.5].flatMap((widthPt, row) => ARROW_HEAD_TYPES.map((type, index) => ({ page: 60, name: `arrowhead-${type}-${widthPt}pt`, type, widthPt, x: 1 + index * 1.5, y: 1.5 + row * 2, w: 0.5, h: 0.5 })));
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
@@ -252,6 +257,7 @@ export const PARITY_REGIONS = [
     ...HTML_TABLE_CASES,
     ...SHAPED_TEXT_CASES,
     { page: 59, name: "html-react-component-bars", x: 1, y: 1, w: 6, h: 2 },
+    ...ARROW_HEAD_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.1, y: y - 0.1, w: w + 0.2, h: h + 0.2 })),
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -921,11 +927,12 @@ export function populateParityFixture(presentation: Presentation): void {
         y: 1.6,
         w: 2.6,
         h: 0,
-        // Crop stays above CROP_TARGET (issue #42; WASM 0.098): LibreOffice stores the width in whole 1/100 mm
+        // Crop stays above CROP_TARGET (issue #42; WASM 0.092): LibreOffice stores the width in whole 1/100 mm
         // (2.25pt -> 0.79 mm, 2.986px), so its 7-width dash period is 20.9px, not 21px; measured dash starts
-        // 28.65, 49.35, ... 238 against our 28.7 ... 239, a 1px drift by the end. The heads also differ: LibreOffice
-        // draws a 3-width oval and triangle, the renderers' markers are 3.2x2.4 widths (oval) and 3x3 (triangle).
-        // Puppeteer (0.206) also paints this zero-height line 1px below LibreOffice and WASM.
+        // 28.65, 49.35, ... 238 against our 28.7 ... 239, a 1px drift by the end. The heads now match (the
+        // arrowhead slide scores them alone). Puppeteer (0.103) also paints this line about 0.5px low: the
+        // 2.986px stroke should cover y=152.1-155.1 (LibreOffice and WASM fill rows 152-154), Puppeteer's covers
+        // about 152.6-155.6, consistent with Chromium painting the SVG root (top 153.6px) from a whole pixel.
         line: { color: "4472C4", width: 2.25, dashType: "dash", beginArrowType: "oval", endArrowType: "triangle" },
         hyperlink: { url: "https://example.com", tooltip: "Shape link" },
     });
@@ -1825,6 +1832,16 @@ export function populateParityFixture(presentation: Presentation): void {
         },
     );
     populateComponentFixture(presentation);
+    populateArrowHeadFixture(presentation);
+}
+
+function populateArrowHeadFixture(presentation: Presentation): void {
+    const slide = presentation.addSlide();
+    slide.addText("Line heads (begin and end)", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+    for (const { type, widthPt, x, y, w, h } of ARROW_HEAD_CASES) {
+        slide.addShape("line", { x, y, w, h, line: { color: "4472C4", width: widthPt, beginArrowType: type, endArrowType: type } });
+        slide.addText(`${type} ${widthPt}pt`, { x: x - 0.25, y: y + h + 0.3, w: w + 0.5, h: 0.3, fontFace: "Arial", fontSize: 12, align: "center", margin: 0 });
+    }
 }
 
 function populateComponentFixture(presentation: Presentation): void {

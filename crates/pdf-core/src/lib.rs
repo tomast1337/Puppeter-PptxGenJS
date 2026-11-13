@@ -228,7 +228,8 @@ mod tests {
 
     #[test]
     fn draws_every_geometry_kind_without_warnings() {
-        let arrows = r#","beginArrow":"oval","endArrow":"triangle""#;
+        let arrows =
+            r#","beginArrow":"oval","endArrow":"triangle","beginHeadPath":"M 4 0 A 4 4 0 1 0 -4 0 A 4 4 0 1 0 4 0 Z","endHeadPath":"M 0 0 L -8 4 L -8 -4 Z""#;
         for geometry in [
             r#""kind":"rect","radius":8"#,
             r#""kind":"ellipse""#,

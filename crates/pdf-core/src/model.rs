@@ -107,6 +107,10 @@ pub(crate) struct LineModel {
     pub(crate) dash_array: Option<String>,
     pub(crate) begin_arrow: Option<String>,
     pub(crate) end_arrow: Option<String>,
+    /// Resolved head outlines (`NormalizedLine.beginHeadPath`/`endHeadPath`): closed SVG path data
+    /// in px, with the line end at the origin and +x pointing out of the line.
+    pub(crate) begin_head_path: Option<String>,
+    pub(crate) end_head_path: Option<String>,
 }
 
 #[derive(Deserialize)]

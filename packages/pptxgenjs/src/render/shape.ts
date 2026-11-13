@@ -1,4 +1,4 @@
-import type { NormalizedLine, NormalizedObjectStyle, NormalizedShape } from "@pdfdeck/model";
+import type { NormalizedObjectStyle, NormalizedShape } from "@pdfdeck/model";
 import { applyGeometry, applyTransform } from "./style";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -16,42 +16,23 @@ function modifyColor(color: string, modifier: "darken" | "darkenLess" | "lighten
     return rgb[4] === undefined ? `rgb(${channels.join(", ")})` : `rgba(${channels.join(", ")}, ${rgb[4]})`;
 }
 
-function markerPath(type: NonNullable<NormalizedLine["beginArrow"]>): { tag: "path" | "ellipse" | "polygon"; value: string } | undefined {
-    if (type === "none") return undefined;
-    if (type === "oval") return { tag: "ellipse", value: "5,5,4,3" };
-    if (type === "diamond") return { tag: "polygon", value: "0,5 5,1 10,5 5,9" };
-    if (type === "arrow") return { tag: "path", value: "M 10 1 L 2 5 L 10 9" };
-    if (type === "stealth") return { tag: "path", value: "M 0 0 L 10 5 L 0 10 L 3 5 Z" };
-    return { tag: "path", value: "M 0 0 L 10 5 L 0 10 Z" };
-}
-
-function addMarker(document: Document, defs: SVGDefsElement, id: string, type: NonNullable<NormalizedLine["beginArrow"]>, color: string): boolean {
-    const shape = markerPath(type);
-    if (!shape) return false;
+/**
+ * A marker that fills the model's head outline: drawn in user space, its origin on the line end and +x along
+ * the path. Its id spells out the outline and color, because object names repeat across slides and url(#id)
+ * resolves to the first match in the document; equal ids then always mean equal markers. Returns the url.
+ */
+function addMarker(document: Document, defs: SVGDefsElement, path: string, color: string): string {
     const marker = document.createElementNS(SVG_NS, "marker");
-    marker.id = id;
-    marker.setAttribute("viewBox", "0 0 10 10");
-    marker.setAttribute("refX", type === "triangle" ? "9" : "5");
-    marker.setAttribute("refY", "5");
-    marker.setAttribute("markerWidth", type === "triangle" ? "3" : "4");
-    marker.setAttribute("markerHeight", type === "triangle" ? "3" : "4");
+    marker.id = `line-head-${`${color}_${path}`.replace(/\./g, "p").replace(/-/g, "m").replace(/\W/g, "_")}`;
+    marker.setAttribute("markerUnits", "userSpaceOnUse");
     marker.setAttribute("orient", "auto-start-reverse");
-    marker.setAttribute("markerUnits", "strokeWidth");
-    const element = document.createElementNS(SVG_NS, shape.tag);
-    if (shape.tag === "ellipse") {
-        const [cx, cy, rx, ry] = shape.value.split(",");
-        element.setAttribute("cx", cx!);
-        element.setAttribute("cy", cy!);
-        element.setAttribute("rx", rx!);
-        element.setAttribute("ry", ry!);
-    } else if (shape.tag === "polygon") element.setAttribute("points", shape.value);
-    else element.setAttribute("d", shape.value);
-    element.setAttribute("fill", type === "arrow" ? "none" : color);
-    element.setAttribute("stroke", color);
-    element.setAttribute("stroke-width", type === "arrow" ? "1.5" : "0");
-    marker.appendChild(element);
+    marker.setAttribute("overflow", "visible");
+    const head = document.createElementNS(SVG_NS, "path");
+    head.setAttribute("d", path);
+    head.setAttribute("fill", color);
+    marker.appendChild(head);
     defs.appendChild(marker);
-    return true;
+    return `url(#${marker.id})`;
 }
 
 function geometryElement(document: Document, shape: NormalizedShape): SVGElement {
@@ -109,8 +90,8 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
     svg.classList.add("shape-svg");
     // A near-zero viewBox height gives horizontal lines an extreme vertical
     // transform. Chromium still paints their non-scaling stroke, but drops
-    // stroke-scaled SVG markers such as oval tails and triangle heads.
-    svg.setAttribute("viewBox", shape.height === 0 ? `0 -0.5 ${Math.max(shape.width, 0.001)} 1` : `0 0 ${Math.max(shape.width, 0.001)} ${shape.height}`);
+    // its SVG markers. The unit-high box keeps the line on its top edge, at the object's y.
+    svg.setAttribute("viewBox", `0 0 ${Math.max(shape.width, 0.001)} ${shape.height || 1}`);
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", shape.height === 0 ? "1" : "100%");
     svg.setAttribute("preserveAspectRatio", "none");
@@ -144,9 +125,8 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
         } else strokeTarget.setAttribute("stroke-dasharray", style.line.dashArray);
     }
     if (style.line?.visible) {
-        const base = `shape-${style.objectName.replace(/[^a-z\d]/gi, "-")}`;
-        if (addMarker(document, defs, `${base}-begin`, style.line.beginArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-start", `url(#${base}-begin)`);
-        if (addMarker(document, defs, `${base}-end`, style.line.endArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-end", `url(#${base}-end)`);
+        if (style.line.beginHeadPath) strokeTarget.setAttribute("marker-start", addMarker(document, defs, style.line.beginHeadPath, style.line.color));
+        if (style.line.endHeadPath) strokeTarget.setAttribute("marker-end", addMarker(document, defs, style.line.endHeadPath, style.line.color));
     }
     svg.append(defs, geometry);
     return svg;

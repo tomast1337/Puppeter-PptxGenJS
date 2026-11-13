@@ -2268,6 +2268,11 @@ export function normalizeShapeTextBox(text: NormalizedTextBox, shape: Normalized
     };
 }
 
+/** Length (px) of the straight line presets, whose stroke normalizeLine trims behind its heads; undefined for other shapes. */
+export function straightLineLength(shapeName: string, width: number, height: number): number | undefined {
+    return shapeName === "line" || shapeName === "lineInv" ? Math.hypot(width, height) : undefined;
+}
+
 export function normalizeShapeLine(options: PptxGenJS.ShapeProps, normalize: (line?: PptxGenJS.ShapeLineProps) => NormalizedLine): NormalizedLine {
     const hasDeprecatedLine = options.lineSize !== undefined || options.lineDash !== undefined || options.lineHead !== undefined || options.lineTail !== undefined;
     if (!options.line && !hasDeprecatedLine) return normalize(undefined);

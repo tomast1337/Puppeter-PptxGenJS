@@ -6,20 +6,20 @@
 //! data: the box mapping scales the points, never the stroke (`vector-effect: non-scaling-stroke`).
 
 use krilla::color::rgb;
-use krilla::geom::{Path, PathBuilder, Rect, Transform};
-use krilla::paint::{FillRule, Stroke, StrokeDash};
+use krilla::geom::{Path, PathBuilder};
+use krilla::paint::{Stroke, StrokeDash};
 use krilla::surface::Surface;
 use kurbo::{Affine, BezPath, ParamCurve, PathEl, PathSeg, Point, Shape, Vec2};
 
 use crate::Renderer;
-use crate::color::{Rgba, fill_of, parse_color, unit};
+use crate::color::{Rgba, parse_color, unit};
 use crate::model::{FillModifier, LineModel, ObjectStyle, ShapeGeometry, ShapeModel};
 use crate::path::{fill as fill_shape, fill_path, rect_path};
 
 /// SVG's `stroke-miterlimit` initial value, which the Puppeteer renderer's shape strokes use
 /// (krilla defaults to 10).
 const SVG_MITER_LIMIT: f32 = 4.0;
-/// kurbo's tolerance when it turns an ellipse into Béziers (px; marker units for the oval head).
+/// kurbo's tolerance when it turns an ellipse into Béziers (px).
 const CURVE_TOLERANCE: f64 = 0.01;
 
 impl Renderer {
@@ -123,7 +123,7 @@ impl Renderer {
         }
     }
 
-    /// Strokes `path` (object space) and puts the line's arrowheads on its first and last vertex.
+    /// Strokes `path` (object space) and fills the line's head outlines on its first and last vertex.
     fn stroke_with_arrows(&mut self, surface: &mut Surface, path: &BezPath, line: &LineModel) {
         self.fill_and_stroke(surface, to_path(path), None, Some(line));
         let Some(color) = parse_color(&line.color).filter(|c| c.3 > 0.0) else {
@@ -133,14 +133,25 @@ impl Renderer {
             return;
         };
         let ends = [
-            (line.begin_arrow.as_deref(), first.start(), -direction(first, false)),
-            (line.end_arrow.as_deref(), last.end(), direction(last, true)),
+            (
+                line.begin_arrow.as_deref(),
+                line.begin_head_path.as_deref(),
+                first.start(),
+                -direction(first, false),
+            ),
+            (line.end_arrow.as_deref(), line.end_head_path.as_deref(), last.end(), direction(last, true)),
         ];
-        for (kind, at, toward) in ends {
-            match kind.map(arrowhead) {
-                None | Some(Ok(None)) => {}
-                Some(Ok(Some(head))) => draw_arrowhead(surface, &head, at, toward, line.width, color),
-                Some(Err(kind)) => self.warn(format!("line arrowhead '{kind}' not rendered")),
+        for (kind, head, at, toward) in ends {
+            match (kind, head) {
+                (_, Some(data)) => match BezPath::from_svg(data) {
+                    Ok(mut head) => {
+                        head.apply_affine(Affine::translate(at.to_vec2()) * Affine::rotate(toward.y.atan2(toward.x)));
+                        fill_path(surface, to_path(&head), color);
+                    }
+                    Err(e) => self.warn(format!("line head path '{data}' not rendered: {e}")),
+                },
+                (None | Some("none"), None) => {}
+                (Some(kind), None) => self.warn(format!("line arrowhead '{kind}' not rendered")),
             }
         }
     }
@@ -230,66 +241,6 @@ fn direction(segment: PathSeg, at_end: bool) -> Vec2 {
     if at_end { -delta } else { delta }
 }
 
-/// An SVG marker from the renderer's `markerPath` (packages/pptxgenjs/src/render/shape.ts): drawn
-/// in a 10x10 viewBox anchored at (`ref_x`, 5), `size` stroke widths wide, its +x axis along the path.
-struct Arrowhead {
-    path: BezPath,
-    /// `arrow` is an open chevron stroked 1.5 marker units wide; the others are filled.
-    stroked: bool,
-    ref_x: f64,
-    size: f64,
-}
-
-/// Marker units of the stroked `arrow` chevron.
-const ARROW_STROKE: f32 = 1.5;
-
-fn arrowhead(kind: &str) -> Result<Option<Arrowhead>, &str> {
-    let svg = |d: &str| BezPath::from_svg(d).expect("constant marker path data parses");
-    let head = |path, stroked, ref_x, size| Some(Arrowhead { path, stroked, ref_x, size });
-    Ok(match kind {
-        "none" => None,
-        "oval" => head(kurbo::Ellipse::new((5.0, 5.0), (4.0, 3.0), 0.0).to_path(CURVE_TOLERANCE), false, 5.0, 4.0),
-        "diamond" => head(svg("M 0 5 L 5 1 L 10 5 L 5 9 Z"), false, 5.0, 4.0),
-        "arrow" => head(svg("M 10 1 L 2 5 L 10 9"), true, 5.0, 4.0),
-        "stealth" => head(svg("M 0 0 L 10 5 L 0 10 L 3 5 Z"), false, 5.0, 4.0),
-        "triangle" => head(svg("M 0 0 L 10 5 L 0 10 Z"), false, 9.0, 3.0),
-        other => return Err(other),
-    })
-}
-
-fn draw_arrowhead(surface: &mut Surface, head: &Arrowhead, at: Point, toward: Vec2, line_width: f32, color: Rgba) {
-    let scale = head.size * f64::from(line_width) / 10.0;
-    let marker = Affine::translate(at.to_vec2()) * Affine::rotate(toward.y.atan2(toward.x)) * Affine::scale(scale) * Affine::translate((-head.ref_x, -5.0));
-    let [a, b, c, d, e, f] = marker.as_coeffs().map(|v| v as f32);
-    surface.push_transform(&Transform::from_row(a, b, c, d, e, f));
-    // Markers clip to their viewBox (SVG `overflow: hidden` on <marker>).
-    let mut clip = PathBuilder::new();
-    if let Some(viewbox) = Rect::from_xywh(0.0, 0.0, 10.0, 10.0) {
-        clip.push_rect(viewbox);
-    }
-    let clip = clip.finish().expect("the marker viewBox is a finite rectangle");
-    surface.push_clip_path(&clip, &FillRule::NonZero);
-    if let Some(path) = to_path(&head.path) {
-        if head.stroked {
-            surface.set_fill(None);
-            surface.set_stroke(Some(Stroke {
-                paint: rgb::Color::new(color.0, color.1, color.2).into(),
-                width: ARROW_STROKE,
-                opacity: unit(color.3),
-                miter_limit: SVG_MITER_LIMIT,
-                ..Stroke::default()
-            }));
-        } else {
-            surface.set_stroke(None);
-            surface.set_fill(Some(fill_of(color)));
-        }
-        surface.draw_path(&path);
-        surface.set_stroke(None);
-    }
-    surface.pop();
-    surface.pop();
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,16 +283,6 @@ mod tests {
         assert_eq!(direction(last, true), Vec2::new(10.0, 0.0));
         let line = PathSeg::Line(kurbo::Line::new((0.0, 0.0), (0.0, 0.0)));
         assert_eq!(direction(line, true), Vec2::ZERO);
-    }
-
-    #[test]
-    fn knows_every_model_arrowhead() {
-        for kind in ["oval", "diamond", "arrow", "stealth", "triangle"] {
-            let head = arrowhead(kind).unwrap().unwrap();
-            assert!(to_path(&head.path).is_some(), "{kind}");
-        }
-        assert!(arrowhead("none").unwrap().is_none());
-        assert_eq!(arrowhead("hook").err(), Some("hook"));
     }
 
     #[test]

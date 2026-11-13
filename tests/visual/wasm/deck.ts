@@ -2,7 +2,8 @@
 // - text: the first nine slides (title, defaults, primitives, paragraphs, runs, lists, effects,
 //   direction, overflow).
 // - shapes: every preset-shape slide (core, polygon, arrow, callout, curved, circular, flowchart,
-//   brace, ribbon, action button, symbol, generated preset and aspect slides) plus text in shapes.
+//   brace, ribbon, action button, symbol, generated preset and aspect slides) plus text in shapes and
+//   line heads.
 // Other slides are swallowed.
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
@@ -11,8 +12,8 @@ import { populateParityFixture } from "../fixture";
 
 export const TEXT_PAGES = 9;
 
-/** `addSlide` calls of the fixture (1-based) that make the shapes deck: pages 12-45 and the text-in-shapes slide. */
-const SHAPE_SLIDE_CALLS = new Set([...Array.from({ length: 34 }, (_, index) => 12 + index), 49]);
+/** `addSlide` calls of the fixture (1-based) that make the shapes deck: pages 12-45, the text-in-shapes slide and the line-head slide. */
+const SHAPE_SLIDE_CALLS = new Set([...Array.from({ length: 34 }, (_, index) => 12 + index), 49, 56]);
 export const SHAPE_PAGES = SHAPE_SLIDE_CALLS.size;
 
 // installTableToSlidesFixture reads a global document for the PptxGenJS reference.

@@ -9,7 +9,7 @@ import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/table/html";
 import { normalizeImage, resolveDocumentImages, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
-import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox } from "./normalize/shape";
+import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, straightLineLength } from "./normalize/shape";
 import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
 import { paginateTableRows } from "./normalize/table/pagination";
@@ -182,7 +182,7 @@ export class PuppeteerSlide implements PptxSlide {
     addShape(shapeName: PptxGenJS.SHAPE_NAME | "custGeom", options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
         const shapeOptions = options ?? {};
         const style = normalizeObjectStyle(shapeOptions, PPTX_DEFAULTS.shape, this.pageSize, this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName), { fill: true, shadow: true });
-        style.line = normalizeShapeLine(shapeOptions, normalizeLine);
+        style.line = normalizeShapeLine(shapeOptions, line => normalizeLine(line, straightLineLength(shapeName, style.geometry.width ?? 0, style.geometry.height ?? 0)));
         const shape = normalizeShape(shapeName, shapeOptions, style.geometry.width ?? 0, style.geometry.height ?? 0, this.pageSize);
         return this.addObject({ kind: "shape", style, shape });
     }
@@ -236,7 +236,7 @@ export class PuppeteerSlide implements PptxSlide {
         const normalizedText = normalizeText(text, { color: this.color, ...textOptions });
         if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: normalizedText });
         const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
-        textStyle.line = normalizeShapeLine(shapeOptions, normalizeLine);
+        textStyle.line = normalizeShapeLine(shapeOptions, line => normalizeLine(line, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0)));
         const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0, this.pageSize);
         return this.addObject({ kind: "text", style: textStyle, text: normalizeShapeTextBox(normalizedText, shape), shape });
     }
