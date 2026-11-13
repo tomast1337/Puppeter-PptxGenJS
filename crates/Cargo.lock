@@ -556,6 +556,8 @@ dependencies = [
  "parley",
  "serde",
  "serde_json",
+ "skrifa 0.42.1",
+ "tiny-skia-path",
 ]
 
 [[package]]

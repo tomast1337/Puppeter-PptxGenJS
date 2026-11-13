@@ -17,7 +17,7 @@ use krilla::surface::Surface;
 use crate::Renderer;
 use crate::color::unit;
 use crate::model::{ImageModel, ImageSizing};
-use crate::path::{ellipse_path, rect_path};
+use crate::path::{ellipse_path, rect_path, to_path};
 
 /// The data-URI payload as the compatibility layer validates it: standard alphabet, padding optional.
 const BASE64: GeneralPurpose = GeneralPurpose::new(
@@ -104,12 +104,21 @@ impl Renderer {
         let (px, py, pw, ph) = placement(&image.sizing, w, h);
         let Some(size) = Size::from_wh(pw, ph) else { return Ok(()) };
         // The HTML frame clips to the box (`overflow: hidden`, `border-radius: 50%` when rounded).
-        let clip = if image.rounding {
+        let frame = if image.rounding {
             ellipse_path(x, y, w, h)
         } else {
             rect_path(x, y, w, h, 0.0)
         };
-        let Some(clip) = clip else { return Ok(()) };
+        let Some(clip) = to_path(&frame) else { return Ok(()) };
+        if self.effects.capturing() {
+            // Contained and cropped pictures may not fill the box: the silhouette is what is drawn.
+            // shortcut: the shadow is cast by the picture rectangle, not by transparent pixels
+            // (LibreOffice follows the alpha channel); decode the alpha for it when a deck shadows a cut-out picture.
+            let (l, t) = (x.max(x + px), y.max(y + py));
+            let (r, b) = ((x + w).min(x + px + pw), (y + h).min(y + py + ph));
+            let silhouette = if image.rounding { frame } else { rect_path(l, t, r - l, b - t, 0.0) };
+            self.effects.capture(surface.ctm(), &silhouette, image.opacity, None);
+        }
         surface.push_clip_path(&clip, &FillRule::NonZero);
         let faded = image.opacity < 1.0;
         if faded {

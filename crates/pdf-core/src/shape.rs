@@ -6,15 +6,14 @@
 //! data: the box mapping scales the points, never the stroke (`vector-effect: non-scaling-stroke`).
 
 use krilla::color::rgb;
-use krilla::geom::{Path, PathBuilder};
 use krilla::paint::{Stroke, StrokeDash};
 use krilla::surface::Surface;
-use kurbo::{Affine, BezPath, ParamCurve, PathEl, PathSeg, Point, Shape, Vec2};
+use kurbo::{Affine, BezPath, ParamCurve, PathSeg, Shape, Vec2};
 
 use crate::Renderer;
 use crate::color::{Rgba, parse_color, unit};
 use crate::model::{FillModifier, LineModel, ObjectStyle, ShapeGeometry, ShapeModel};
-use crate::path::{fill as fill_shape, fill_path, rect_path};
+use crate::path::{rect_path, to_path};
 
 /// SVG's `stroke-miterlimit` initial value, which the Puppeteer renderer's shape strokes use
 /// (krilla defaults to 10).
@@ -39,7 +38,7 @@ impl Renderer {
         let fill = style.fill.as_ref().filter(|f| f.visible).and_then(|f| parse_color(&f.color));
         let line = style.line.as_ref().filter(|l| l.visible && l.width > 0.0);
         let Some(shape) = shape else {
-            self.fill_and_stroke(surface, rect_path(x, y, w, h, 0.0), fill, line);
+            self.fill_and_stroke(surface, &rect_path(x, y, w, h, 0.0), fill, line);
             return Ok(());
         };
         // The SVG renderer's viewBox: a zero-height line keeps a unit-high box, so it is not scaled.
@@ -47,10 +46,10 @@ impl Renderer {
         let to_box = Affine::new([scale(w, shape.width), 0.0, 0.0, scale(h, shape.height), f64::from(x), f64::from(y)]);
         match &shape.geometry {
             // SVG draws no markers on <rect> or <ellipse>.
-            ShapeGeometry::Rect { radius } => self.fill_and_stroke(surface, rect_path(x, y, w, h, *radius), fill, line),
+            ShapeGeometry::Rect { radius } => self.fill_and_stroke(surface, &rect_path(x, y, w, h, *radius), fill, line),
             ShapeGeometry::Ellipse => {
                 let ellipse = kurbo::Ellipse::from_rect(kurbo::Rect::new(f64::from(x), f64::from(y), f64::from(x + w), f64::from(y + h)));
-                self.fill_and_stroke(surface, to_path(&ellipse.to_path(CURVE_TOLERANCE)), fill, line);
+                self.fill_and_stroke(surface, &ellipse.to_path(CURVE_TOLERANCE), fill, line);
             }
             ShapeGeometry::Line { inverse } => {
                 let (y0, y1) = if *inverse { (shape.height, 0.0) } else { (0.0, shape.height) };
@@ -83,7 +82,7 @@ impl Renderer {
                         for face in faces {
                             let color = fill.map(|c| face.fill_modifier.map_or(c, |m| modify(c, m)));
                             if let Some(color) = color {
-                                fill_path(surface, to_path(&parse(&face.data)?), color);
+                                self.fill(surface, &parse(&face.data)?, color);
                             }
                         }
                         if let (Some(data), Some(line)) = (outline_data, line) {
@@ -93,7 +92,7 @@ impl Renderer {
                     None => {
                         let path = parse(data)?;
                         if let Some(color) = fill {
-                            fill_path(surface, to_path(&path), color);
+                            self.fill(surface, &path, color);
                         }
                         if let Some(line) = line {
                             self.stroke_with_arrows(surface, &path, line);
@@ -105,24 +104,25 @@ impl Renderer {
         Ok(())
     }
 
-    fn fill_and_stroke(&mut self, surface: &mut Surface, path: Option<Path>, fill: Option<Rgba>, line: Option<&LineModel>) {
-        let Some(path) = path else { return };
+    fn fill_and_stroke(&mut self, surface: &mut Surface, path: &BezPath, fill: Option<Rgba>, line: Option<&LineModel>) {
         if let Some(color) = fill {
-            fill_shape(surface, &path, color);
+            self.fill(surface, path, color);
         }
         if let Some(line) = line
             && let Some(stroke) = stroke_of(line)
+            && let Some(pdf) = to_path(path)
         {
+            self.effects.capture_stroke(surface.ctm(), path, &stroke);
             surface.set_fill(None);
             surface.set_stroke(Some(stroke));
-            surface.draw_path(&path);
+            surface.draw_path(&pdf);
             surface.set_stroke(None);
         }
     }
 
     /// Strokes `path` (object space) and fills the line's head outlines on its first and last vertex.
     fn stroke_with_arrows(&mut self, surface: &mut Surface, path: &BezPath, line: &LineModel) {
-        self.fill_and_stroke(surface, to_path(path), None, Some(line));
+        self.fill_and_stroke(surface, path, None, Some(line));
         let Some(color) = parse_color(&line.color).filter(|c| c.3 > 0.0) else {
             return;
         };
@@ -143,7 +143,7 @@ impl Renderer {
                 (_, Some(data)) => match BezPath::from_svg(data) {
                     Ok(mut head) => {
                         head.apply_affine(Affine::translate(at.to_vec2()) * Affine::rotate(toward.y.atan2(toward.x)));
-                        fill_path(surface, to_path(&head), color);
+                        self.fill(surface, &head, color);
                     }
                     Err(e) => self.warn(format!("line head path '{data}' not rendered: {e}")),
                 },
@@ -204,22 +204,6 @@ fn parse_matrix(css: &str) -> Option<Affine> {
         .collect::<Option<_>>()?;
     let coefficients: [f64; 6] = values.try_into().ok()?;
     Some(Affine::new(coefficients))
-}
-
-/// A kurbo path as a krilla path; `None` when it is empty or not finite.
-fn to_path(path: &BezPath) -> Option<Path> {
-    let mut pb = PathBuilder::new();
-    let p = |p: Point| (p.x as f32, p.y as f32);
-    for element in path.iter() {
-        match element {
-            PathEl::MoveTo(a) => pb.move_to(p(a).0, p(a).1),
-            PathEl::LineTo(a) => pb.line_to(p(a).0, p(a).1),
-            PathEl::QuadTo(a, b) => pb.quad_to(p(a).0, p(a).1, p(b).0, p(b).1),
-            PathEl::CurveTo(a, b, c) => pb.cubic_to(p(a).0, p(a).1, p(b).0, p(b).1, p(c).0, p(c).1),
-            PathEl::ClosePath => pb.close(),
-        }
-    }
-    pb.finish()
 }
 
 /// Path direction leaving the segment's start (`at_end == false`) or entering its end, from

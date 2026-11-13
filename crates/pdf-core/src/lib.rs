@@ -5,6 +5,7 @@
 //! 96 dpi (`PX_PER_IN`); the PDF page is drawn in px under a `PT_PER_PX` (0.75) scale.
 
 mod color;
+mod effect;
 mod image;
 mod link;
 mod model;
@@ -26,10 +27,11 @@ use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, Sourc
 use parley::{FontContext, LayoutContext};
 
 use crate::color::{parse_color, unit};
+use crate::effect::{Effect, Effects};
 use crate::image::Decoded;
 use crate::link::page_quad;
 use crate::model::{Presentation, SlideObject};
-use crate::path::{fill_path, rect_path};
+use crate::path::rect_path;
 use crate::table::TableLayout;
 use crate::text::layout::{BoxLayout, Brush};
 
@@ -54,6 +56,8 @@ pub struct Renderer {
     links: Vec<Annotation>,
     /// Text links of the box being drawn: (paragraph, run) index and its clickable area per glyph run.
     link_quads: Vec<(u32, u32, Quadrilateral)>,
+    /// Shadow and glow silhouettes being captured, and the buffers their masks are made in.
+    effects: Effects,
     // Scratch buffers for the per-object, per-paragraph and per-glyph-run paths: each user
     // clear()s one before filling it, so its capacity survives across objects and renders.
     text_layout: BoxLayout,
@@ -90,6 +94,7 @@ impl Renderer {
             page_count: 0,
             links: Vec::new(),
             link_quads: Vec::new(),
+            effects: Effects::default(),
             text_layout: BoxLayout::default(),
             table_layout: TableLayout::default(),
             span_ranges: Vec::new(),
@@ -139,7 +144,7 @@ impl Renderer {
             let mut surface = page.surface();
             surface.push_transform(&Transform::from_scale(PT_PER_PX, PT_PER_PX));
             if let Some(bg) = parse_color(&slide.background) {
-                fill_path(&mut surface, rect_path(0.0, 0.0, page_w, page_h, 0.0), bg);
+                self.fill(&mut surface, &rect_path(0.0, 0.0, page_w, page_h, 0.0), bg);
             }
             // Close the surface before returning an error: krilla asserts balanced push/pop on finish.
             let drawn = slide.objects.iter().try_for_each(|object| self.draw_object(&mut surface, object));
@@ -159,11 +164,11 @@ impl Renderer {
     }
 
     fn draw_object(&mut self, surface: &mut Surface, object: &SlideObject) -> Result<(), String> {
-        let (style, shape, text, image, table) = match object {
-            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref(), None, None),
-            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None, None),
-            SlideObject::Image(o) => (&o.style, None, None, Some(&o.image), None),
-            SlideObject::Table(o) => (&o.style, None, None, None, Some(&o.table)),
+        let (style, text, table) = match object {
+            SlideObject::Text(o) => (&o.style, o.text.as_ref(), None),
+            SlideObject::Shape(o) => (&o.style, None, None),
+            SlideObject::Image(o) => (&o.style, None, None),
+            SlideObject::Table(o) => (&o.style, None, Some(&o.table)),
             SlideObject::Unsupported(kind) => {
                 self.warn(format!("object kind '{kind}' not rendered"));
                 return Ok(());
@@ -187,11 +192,53 @@ impl Renderer {
             }
         }
 
-        let t = &style.transform;
-        let opacity = t.opacity < 1.0;
+        let opacity = style.transform.opacity < 1.0;
         if opacity {
-            surface.push_opacity(unit(t.opacity));
+            surface.push_opacity(unit(style.transform.opacity));
         }
+        let shadow = match style.shadow.as_ref().and_then(Effect::shadow) {
+            Some(Ok(effect)) => Some(effect),
+            Some(Err(skipped)) => {
+                self.warn(skipped);
+                None
+            }
+            None => None,
+        };
+        // The shadow is cast in slide space: PptxGenJS writes rotWithShape="0".
+        let body = |r: &mut Self, surface: &mut Surface| r.draw_body(surface, object, &layout, &cells, x, y, w, h);
+        let drawn = match shadow {
+            Some(effect) => self.under_effect(surface, &effect, false, body),
+            None => body(self, surface),
+        };
+        self.text_layout = layout;
+        self.table_layout = cells;
+        if opacity {
+            surface.pop();
+        }
+        drawn
+    }
+
+    /// Draws the object over its box `x, y, w, h` (px), rotated and flipped about its centre.
+    #[allow(clippy::too_many_arguments)] // the box is four plain numbers, as in draw_geometry
+    fn draw_body(
+        &mut self,
+        surface: &mut Surface,
+        object: &SlideObject,
+        layout: &BoxLayout,
+        cells: &TableLayout,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+    ) -> Result<(), String> {
+        let (style, shape, text, image, table) = match object {
+            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref(), None, None),
+            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None, None),
+            SlideObject::Image(o) => (&o.style, None, None, Some(&o.image), None),
+            SlideObject::Table(o) => (&o.style, None, None, None, Some(&o.table)),
+            SlideObject::Unsupported(_) => return Ok(()),
+        };
+        let t = &style.transform;
         let (cx, cy) = (x + w / 2.0, y + h / 2.0);
         let (fx, fy) = (if t.flip_h { -1.0 } else { 1.0 }, if t.flip_v { -1.0 } else { 1.0 });
         let rotation = Transform::from_rotate_at(t.rotation, cx, cy);
@@ -199,10 +246,6 @@ impl Renderer {
         surface.push_transform(&rotation);
         surface.push_transform(&flip);
 
-        if style.shadow.as_ref().is_some_and(|s| s.visible) {
-            // shortcut: krilla has no blur filter for the drop shadow; draw it when the backend gains one.
-            self.warn("object shadow not rendered");
-        }
         let name = style.object_name.as_deref().unwrap_or("?");
         let drawn = match image {
             Some(image) => self.draw_image(surface, image, name, x, y, w, h),
@@ -224,19 +267,13 @@ impl Renderer {
         });
 
         if let Some(text) = text {
-            drawn = drawn.and_then(|()| self.draw_text(surface, text, &layout, x, y, w, h));
+            drawn = drawn.and_then(|()| self.draw_text(surface, text, layout, x, y, w, h));
         }
         if let Some(table) = table {
-            drawn = drawn.and_then(|()| self.draw_table(surface, table, &cells, x, y));
+            drawn = drawn.and_then(|()| self.draw_table(surface, table, cells, x, y));
         }
-        self.text_layout = layout;
-        self.table_layout = cells;
-
         surface.pop();
         surface.pop();
-        if opacity {
-            surface.pop();
-        }
         drawn
     }
 }
@@ -363,7 +400,7 @@ mod tests {
         let shadow = r##","shadow":{"visible":true,"color":"rgba(0, 0, 0, 0.3)","blur":4,"offsetX":3,"offsetY":3,"inset":false}"##;
         r.render(&shape_with(r#""kind":"line","inverse":false"#, r#","endArrow":"hook""#, shadow, ""))
             .unwrap();
-        assert_eq!(r.warnings(), vec!["line arrowhead 'hook' not rendered", "object shadow not rendered"]);
+        assert_eq!(r.warnings(), vec!["line arrowhead 'hook' not rendered"]);
     }
 
     /// An image object over the box (10, 20, 200, 100), rotated and flipped, with `fields`
@@ -487,6 +524,67 @@ mod tests {
         assert!(String::from_utf8_lossy(&pdf).contains("/XYZ 0 405 0]"));
     }
 
+    /// A linked rect at (10, 20) 200 x 100 px with `shadow` (JSON, or empty for none).
+    fn linked_rect_with_shadow(shadow: &str) -> String {
+        let shadow = if shadow.is_empty() { String::new() } else { format!(r#","shadow":{shadow}"#) };
+        slide_with(&format!(
+            r##"{{"kind":"shape","style":{{"geometry":{{"x":10,"y":20,"width":200,"height":100}},
+            "transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},"fill":{{"visible":true,"color":"#4472C4"}}{shadow}}},
+            "shape":{{"name":"rect","width":200,"height":100,"geometry":{{"kind":"rect","radius":0}},"link":{{"href":"https://example.com"}}}}}}"##
+        ))
+    }
+
+    #[test]
+    fn draws_shadows_as_soft_masked_images_under_the_object() {
+        let mut r = Renderer::new();
+        let plain = r.render(&linked_rect_with_shadow("")).unwrap();
+        assert!(!String::from_utf8_lossy(&plain).contains("/SMask"));
+        let shadow = r##"{"visible":true,"color":"rgba(0, 0, 0, 0.75)","blur":10.67,"offsetX":4,"offsetY":4,"inset":false}"##;
+        let pdf = r.render(&linked_rect_with_shadow(shadow)).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the shadow is an image with a soft mask");
+        // The object moves into a sub-stream; its link must stay on the page where it was.
+        let links = annotations(&pdf);
+        let [link] = links.as_slice() else { panic!("{links:?}") };
+        assert_close(&numbers_after(link, "/QuadPoints"), &[7.5, 315.0, 157.5, 315.0, 157.5, 390.0, 7.5, 390.0]);
+    }
+
+    #[test]
+    fn reports_inner_shadows_and_draws_the_object() {
+        let mut r = Renderer::new();
+        let inset = r##"{"visible":true,"color":"#000000","blur":4,"offsetX":2,"offsetY":2,"inset":true}"##;
+        let pdf = r.render(&linked_rect_with_shadow(inset)).unwrap();
+        assert_eq!(r.warnings(), vec!["inner shadow not rendered".to_string()]);
+        assert!(!String::from_utf8_lossy(&pdf).contains("/SMask"));
+        assert_eq!(annotations(&pdf).len(), 1);
+    }
+
+    #[test]
+    fn draws_text_glow_as_a_soft_masked_image() {
+        let mut r = Renderer::new();
+        let Some(font) = liberation_sans() else {
+            return eprintln!("Liberation Sans not installed: text glow not checked");
+        };
+        r.add_font(font);
+        let text = |glow: &str| {
+            slide_with(&format!(
+                r##"{{"kind":"text","style":{{"geometry":{{"x":10,"y":20,"width":300,"height":60}},
+                "transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}}}},
+                "text":{{"paragraphs":[{{"runs":[{{"text":"Glow","fontFace":"Liberation Sans","fontSize":30,"color":"#17365D",
+                "bold":false,"italic":false,"decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"verticalAlign":"baseline",
+                "baselineOffset":0,"characterSpacing":0,"softBreakBefore":false{glow}}}],
+                "align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":36,"baseline":30}}}}],
+                "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}}}"##
+            ))
+        };
+        let plain = r.render(&text("")).unwrap();
+        assert!(!String::from_utf8_lossy(&plain).contains("/SMask"));
+        let glow = r#","glow":{"visible":true,"color":"rgba(255, 192, 0, 0.6)","blur":10.67,"offsetX":0,"offsetY":0,"inset":false}"#;
+        let pdf = r.render(&text(glow)).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the glow is an image with a soft mask");
+    }
+
     #[test]
     fn links_each_line_of_a_wrapped_run() {
         let mut r = Renderer::new();
@@ -568,7 +666,7 @@ mod tests {
     }
 
     /// Glyph paths (outlines, decorations, glyph buffers) only run for shaped glyphs, which need a font.
-    fn liberation_sans() -> Option<Vec<u8>> {
+    pub(crate) fn liberation_sans() -> Option<Vec<u8>> {
         [
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",

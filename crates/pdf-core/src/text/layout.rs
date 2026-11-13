@@ -9,6 +9,7 @@ use parley::{
 
 use crate::Renderer;
 use crate::color::{Rgba, parse_color};
+use crate::effect::Effect;
 use crate::model::{LineBox, TextBox};
 use crate::text::font::family_stack;
 use crate::text::tabs::{TAB_PLACEHOLDER, place_tabs, tab_box};
@@ -26,6 +27,8 @@ pub(crate) struct RunPaint {
     pub(crate) baseline_offset: f32,
     /// (paragraph, run) of the run's `link` in its `TextBox`.
     pub(crate) link: Option<(u32, u32)>,
+    /// The glow drawn under the run's glyphs.
+    pub(crate) glow: Option<Effect>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -154,6 +157,7 @@ impl Renderer {
                     double_strike: run.decoration.double_strike,
                     baseline_offset: run.baseline_offset,
                     link: run.link.is_some().then_some((p, r)),
+                    glow: run.glow.as_ref().and_then(Effect::glow),
                 });
                 let r = range.clone();
                 builder.push(StyleProperty::FontFamily(family.as_str().into()), r.clone());
@@ -185,11 +189,6 @@ impl Renderer {
             let mut layout: Layout<Brush> = builder.build(&s);
             self.span_ranges = spans;
             self.span_families = families;
-            for run in &paragraph.runs {
-                if run.glow.is_some() || run.shadow.as_ref().is_some_and(|s| s.visible) {
-                    self.warn("text glow/shadow not rendered");
-                }
-            }
             let alignment = match paragraph.align.as_str() {
                 "center" => Alignment::Center,
                 "right" => Alignment::Right,
@@ -241,6 +240,7 @@ impl Renderer {
                         double_strike: false,
                         baseline_offset: 0.0,
                         link: None,
+                        glow: None,
                     });
                     mb.push_default(StyleProperty::FontFamily(family_stack(&run.font_face).as_str().into()));
                     mb.push_default(StyleProperty::FontSize(run.font_size * scale));

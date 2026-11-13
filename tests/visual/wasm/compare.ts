@@ -1,7 +1,7 @@
 // Scores the WASM backend's PDFs (and, for context, the Puppeteer default's) against the same
 // LibreOffice reference, with the tests/visual/compare.ts machinery (pdftoppm 96dpi, ImageMagick
 // RMSE, crops padded like PARITY_REGIONS). Run in the pinned visual image:
-//   bun run test:visual:wasm:docker [text|emoji|shapes|images|tables ...]
+//   bun run test:visual:wasm:docker [text|emoji|shapes|images|tables|effects ...]
 //
 // Gate (WASM only):
 // - every page <= PAGE_THRESHOLD, the AGENTS.md whole-slide limit.
@@ -19,6 +19,7 @@ import { PAGE_SIZES } from "../../../packages/pptxgenjs/src/pageLayouts";
 import { createRenderer } from "./backend";
 import baseline from "./baseline.json";
 import { populateShapeDeck, populateTableDeck, populateTextDeck, SHAPE_PAGES, TABLE_PAGES, TEXT_PAGES } from "./deck";
+import { EFFECT_PAGES, populateEffectDeck } from "./effect-deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
 import { IMAGE_PAGES, populateImageDeck } from "./image-deck";
 import { LAYOUT_PAGES, populateLayoutDeck } from "./layout-deck";
@@ -41,6 +42,8 @@ const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: 
     shapes: { populate: populateShapeDeck, pages: SHAPE_PAGES, crop: object => object.kind === "shape" || (object.kind === "text" && object.shape !== undefined) },
     tables: { populate: populateTableDeck, pages: TABLE_PAGES, crop: object => object.kind === "table" },
     images: { populate: populateImageDeck, pages: IMAGE_PAGES, crop: object => object.kind === "image" },
+    // effects: every shadowed or glowing object; the slide titles sit above y = 0.5in (48px).
+    effects: { populate: populateEffectDeck, pages: EFFECT_PAGES, crop: object => object.style.geometry.y > 48 },
 };
 const deckNames = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(DECKS);
 const root = join(tmpdir(), "wasm-parity");
