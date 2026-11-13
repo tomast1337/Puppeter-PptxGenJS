@@ -29,9 +29,15 @@ function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
     if (lines.length) css.set("text-decoration-line", lines.join(" "));
     css.set("text-decoration-style", run.decoration.underlineStyle);
     if (run.decoration.underlineColor) css.set("text-decoration-color", run.decoration.underlineColor);
-    if (run.decoration.doubleStrike) css.set("text-decoration-style", "double");
+    if (run.decoration.doubleStrike) {
+        // CSS has one decoration style per box, so the underline style the double strike replaces is kept here.
+        css.set("text-decoration-style", "double");
+        element.dataset.doubleStrike = "";
+        element.dataset.underlineStyle = run.decoration.underlineStyle;
+    }
     // Glyphs must not size the line box; the paragraph's strut does (applyParagraphStyle).
     css.set("line-height", "0");
+    if (run.verticalAlign !== "baseline") element.dataset.verticalAlign = run.verticalAlign;
     if (run.baselineOffset) {
         css.set("position", "relative");
         css.set("top", `${-run.baselineOffset}px`);
@@ -41,7 +47,11 @@ function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
     if (run.outline) css.set("-webkit-text-stroke", `${run.outline.width}px ${run.outline.color}`);
     const glow = shadowCSS(run.glow);
     const shadow = shadowCSS(run.shadow);
-    if (glow || shadow) css.set("text-shadow", [glow, shadow].filter(Boolean).join(", "));
+    if (glow || shadow) {
+        css.set("text-shadow", [glow, shadow].filter(Boolean).join(", "));
+        // Names the text-shadow entries in order, so one entry still says whether it is the glow or the shadow.
+        element.dataset.textShadow = [glow && "glow", shadow && "shadow"].filter(Boolean).join(" ");
+    }
     writeStyle(element, css);
     element.lang = run.language;
 }
@@ -56,8 +66,10 @@ function renderRun(document: Document, run: NormalizedTextRun): HTMLElement {
         if (run.link.slide) anchor.dataset.slide = String(run.link.slide);
     }
     applyRunStyle(element, run);
-    // An empty PowerPoint paragraph still owns a line box.
+    // An empty PowerPoint paragraph still owns a line box; data-empty tells it from a real U+200B.
     element.textContent = run.text || "​";
+    if (!run.text) element.dataset.empty = "";
+    if (run.softBreakBefore) element.dataset.softBreakBefore = "";
     return element;
 }
 
@@ -74,6 +86,7 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
     const { lineBox } = paragraph;
     css.set("font-size", "0px");
     css.set("line-height", `${lineBox.height}px`);
+    element.dataset.lineBaseline = String(lineBox.baseline);
     // shortcut: vertical text keeps the centred baseline; shift along the block axis once it is measured.
     if (horizontal) {
         css.set("position", "relative");
