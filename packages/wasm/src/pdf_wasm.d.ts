@@ -6,6 +6,10 @@ export class Renderer {
     [Symbol.dispose](): void;
     addFont(data: Uint8Array | number[]): number;
     constructor();
+    /**
+     * Renders a pdfdeck HTML profile document (`toHtml().html`).
+     */
+    renderHtml(html: string): Uint8Array;
     render(model_json: string): Uint8Array;
     warnings(): string[];
 }
@@ -18,6 +22,7 @@ export interface InitOutput {
     readonly renderer_addFont: (a: number, b: number, c: number) => number;
     readonly renderer_new: () => number;
     readonly renderer_render: (a: number, b: number, c: number, d: number) => void;
+    readonly renderer_renderHtml: (a: number, b: number, c: number, d: number) => void;
     readonly renderer_warnings: (a: number, b: number) => void;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_export: (a: number, b: number) => number;

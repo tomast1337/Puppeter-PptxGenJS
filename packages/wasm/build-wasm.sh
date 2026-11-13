@@ -23,7 +23,8 @@ root=$PWD
 # +38 B: Liberation Sans before the CJK fallback face, measured on top of tables and synthetic styles.
 # +1,120 B: PDF link annotations (krilla's annotation, URI action and page destination writers), 970,586 -> 972,072 B measured; budget = that size.
 # +12,462 B: shadows and text glow (capture, flattening, stroker, coverage raster, EDT dilation, box blur, soft-masked image), 972,072 -> 984,534 B measured; budget = that size.
-GZIP_BUDGET=984534
+# +30,024 B: the HTML profile reader (#69: strict tokenizer, profile-to-model mapping, renderHtml binding), 984,534 -> 1,014,558 B measured; budget = that size.
+GZIP_BUDGET=1014558
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
