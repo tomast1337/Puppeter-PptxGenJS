@@ -547,6 +547,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdf-core"
+version = "0.0.0"
+dependencies = [
+ "krilla",
+ "kurbo",
+ "parley",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "pdf-wasm"
+version = "0.0.0"
+dependencies = [
+ "pdf-core",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "pdf-writer"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -785,25 +804,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "text-pdf-core"
-version = "0.0.0"
-dependencies = [
- "krilla",
- "kurbo",
- "parley",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "text-pdf-wasm"
-version = "0.0.0"
-dependencies = [
- "text-pdf-core",
- "wasm-bindgen",
 ]
 
 [[package]]

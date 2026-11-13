@@ -141,8 +141,8 @@ Pins, in one place each:
 Without Docker, a host build needs rustup and curl on linux-x86_64. The build
 remaps source paths, so host, Docker and CI builds produce the same bytes.
 
-It writes the wasm-bindgen glue (`text_pdf_wasm.js`/`.d.ts`) and
-`text_pdf_wasm_bg.wasm.sha256` into `packages/wasm/src/`; commit both whenever
+It writes the wasm-bindgen glue (`pdf_wasm.js`/`.d.ts`) and
+`pdf_wasm_bg.wasm.sha256` into `packages/wasm/src/`; commit both whenever
 they change. The "WASM build" CI job rebuilds from scratch and fails when either
 differs, so a stale glue file or a non-reproducible binary cannot merge. The
 build also fails when the binary's gzip size exceeds `GZIP_BUDGET` in
@@ -154,7 +154,7 @@ Rust checks, as CI runs them:
 bun run fmt:rust:check   # cargo fmt --all --check with the pinned toolchain
 cd crates
 cargo clippy --all-targets -- -D warnings
-cargo clippy -p text-pdf-wasm --target wasm32-unknown-unknown -- -D warnings
+cargo clippy -p pdf-wasm --target wasm32-unknown-unknown -- -D warnings
 cargo test
 ```
 

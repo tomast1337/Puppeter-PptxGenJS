@@ -10,7 +10,7 @@ visual image now carries the emoji and CJK fonts. The benchmark moved to `script
 (`bun run bench:wasm`); this script still runs it in the pinned image:
 
 ```sh
-bun run build:wasm                         # packages/wasm/src/text_pdf_wasm_bg.wasm
+bun run build:wasm                         # packages/wasm/src/pdf_wasm_bg.wasm
 sh spike/wasm-text/scripts/docker.sh bench # cold/warm timings: Puppeteer vs WASM
 bun spike/wasm-text/harness/render.ts out.pdf
 ```

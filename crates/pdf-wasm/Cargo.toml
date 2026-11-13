@@ -1,5 +1,5 @@
 [package]
-name = "text-pdf-wasm"
+name = "pdf-wasm"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-text-pdf-core = { workspace = true }
+pdf-core = { workspace = true }
 wasm-bindgen = "0.2.130"
 
 # Rust >=1.87 emits bulk-memory/nontrapping-fptoint by default; tell wasm-opt.
