@@ -8,14 +8,16 @@ issue tracks it; do not copy a violation because it already exists.
 
 PuppeteerGen (published as `@pdfdeck/*`) exposes the PptxGenJS API and produces PDF instead of PPTX.
 The compatibility baseline is the exact `pptxgenjs` version pinned in `package.json`. Two backends turn
-the normalized model into PDF: Chromium through Puppeteer (`@pdfdeck/puppeteer`, the default) and a
-Rust renderer compiled to WebAssembly (`@pdfdeck/wasm`, from `crates/`).
+the HTML document, derived from the model, into PDF: Chromium through Puppeteer (`@pdfdeck/puppeteer`,
+the default) and a Rust renderer compiled to WebAssembly (`@pdfdeck/wasm`, from `crates/`).
 
 **HTML is a first-class output, whichever backend draws the PDF.** `toHtml()` returns the deck as one
-self-contained HTML document built from the same model the renderers draw, so a user can read it, check
+self-contained HTML document, the one the renderers draw, so a user can read it, check
 that the text is what they expect, and diff two versions of a deck without touching a PDF. Keep it that
 way:
 
+- The HTML is the only input of every renderer. It is generated from the model by `modelToHtml` and
+  specified in `docs/HTML_PROFILE.md`.
 - Everything a renderer draws is in the HTML as well. A feature never exists only in the WASM backend.
 - The output is deterministic: the same deck gives byte-identical HTML (no random ids, timestamps or
   absolute paths), so a diff shows only real changes. Chart SVG class names break this today (#66).
@@ -54,13 +56,14 @@ depend on them being in a fresh checkout and do not link them from committed doc
 ```text
 PptxGenJS-compatible API        @pdfdeck/pptxgenjs  (PuppeteerGen)
   -> pure option normalization  @pdfdeck/pptxgenjs  src/normalize/
-  -> normalized slide model     @pdfdeck/model      (plain, serializable data)
-  -> renderer                   HTML + @pdfdeck/puppeteer, or @pdfdeck/wasm (crates/)
+  -> normalized slide model     @pdfdeck/model      (plain, serializable data: the public JSON IR)
+  -> modelToHtml                @pdfdeck/pptxgenjs  (HTML profile, docs/HTML_PROFILE.md)
+  -> renderer                   @pdfdeck/puppeteer, or @pdfdeck/wasm (crates/), reading only the HTML
   -> PDF bytes
 ```
 
 - Keep unit conversion, defaults, inheritance, and compatibility quirks out of DOM-building and
-  PDF-drawing code. Renderers draw what the model says; they do not decide PptxGenJS behavior.
+  PDF-drawing code. Renderers draw what the HTML says; they do not decide PptxGenJS behavior.
 - Render preset shapes with SVG. Do not silently substitute unsupported shapes with rectangles.
 - Reuse the text renderer for text in shapes and rich-text table cells.
 - Resolve images before PDF generation; output must not depend on an accidental browser base URL or
@@ -84,13 +87,13 @@ condition (`node`, `bun`, `browser`).
 
 **Data first, objects where they fit.** The normalized model (`packages/model/src/types.ts`) is plain,
 serializable data: no classes, methods, functions or DOM nodes in it, so `getModel()` round-trips
-through JSON and any producer can feed any renderer. Normalization is free functions that take options
+through JSON and any producer can feed any renderer through `modelToHtml`. Normalization is free functions that take options
 and everything else they need (page size, defaults, inherited style) and return model values; they
 must be testable without Chromium. A class is fine when something has identity, a lifetime or large
 mutable state: the `PuppeteerGen` presentation, `WasmRenderer` (owns a wasm instance and its fonts),
 `ComponentRegistry`, the Rust `Renderer` (font collection and caches). Use inheritance only for real
 polymorphism. Add an interface when two implementations exist or when it is a published contract for
-third parties: `PresentationRenderer` and `ModelRenderer` in `@pdfdeck/model` qualify.
+third parties: `PresentationRenderer` in `@pdfdeck/model` qualifies.
 
 **Explicit state by default.** Prefer state that is created by the caller and passed down, so a
 function's inputs are visible at its call site. Module-level mutable state (`let` at module scope, a
@@ -110,7 +113,7 @@ dependency comes from.
 
 **Structured flow.** Short functions that read top to bottom, explicit branches and loops, `async`/
 `await` over promise chains, no webs of callbacks or event emitters. A pipeline is a function that
-calls its stages in order: `toPdf()` normalizes, builds the model, renders, returns bytes.
+calls its stages in order: `toPdf()` builds the HTML from the model, renders it, returns bytes.
 
 **One topic per file, and the path says what it is.** Folder = domain, file name = what the code
 does. Glance test: from the path alone you can tell what is inside without opening it, so no
@@ -153,8 +156,8 @@ instantiation). Data loaded once stays loaded; do not micro-optimize code that r
    round-trip through `JSON.stringify`/`JSON.parse` or `structuredClone` per object; clone once at the
    API boundary when a defensive copy is required (`getModel()`).
 3. **Rust: reuse buffers on per-run and per-glyph paths.** Keep scratch `Vec`s in their owner
-   (`Renderer`), `clear()` them each time, which keeps their memory, and fill them again. Deserialize
-   into typed structs once instead of cloning `serde_json::Value` subtrees per object. No `clone()` of
+   (`Renderer`), `clear()` them each time, which keeps their memory, and fill them again. Parse the
+   HTML into typed structs once instead of re-reading attributes or styles per use. No `clone()` of
    font data, layouts or strings on a hot path when a borrow or `Arc` works. Prefer iterators over
    collect-then-filter.
 4. **Keep only what is used.** If the code needs the first match, stop at it; do not collect and sort
@@ -196,7 +199,7 @@ hash changes only when Rust code or its pins change.
 
 ## Code style: Rust
 
-- **Parsing untrusted bytes is bounds-checked and returns `Result`.** Untrusted: model JSON, font files,
+- **Parsing untrusted bytes is bounds-checked and returns `Result`.** Untrusted: profile HTML, font files,
   image bytes, color strings. Never `unwrap()`, `expect()`, index with `[]` or slice with `[a..b]` on
   values derived from that data; use `get`, `?`, `checked_*` and explicit errors. `expect("...")` is
   allowed only for internal invariants, with a message that says why it holds. A panic in wasm aborts

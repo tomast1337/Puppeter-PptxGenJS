@@ -1,5 +1,5 @@
-// The WASM visual decks: compare.ts scores them against LibreOffice through toPdf() (the HTML path),
-// tests/wasm.test.ts checks that the HTML and model paths give the same PDF bytes for each.
+// The WASM visual decks: compare.ts scores them against LibreOffice through toPdf() and pins each
+// PDF's bytes (pdf-sha256.json); tests/htmlBytes.test.ts pins their toHtml() bytes.
 import type pptxgen from "pptxgenjs";
 import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 import { populateShapeDeck, populateTableDeck, populateTextDeck, SHAPE_PAGES, TABLE_PAGES, TEXT_PAGES } from "./deck";

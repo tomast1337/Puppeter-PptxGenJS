@@ -26,16 +26,16 @@ both backends read only the HTML.
   so editing it changes neither the HTML nor the PDF.
 - **Every renderer reads the HTML.** `toPdf()` hands `toHtml()` to the renderer, whichever it is.
   `WasmRenderer.render(document)` parses this profile in Rust (`crates/pdf-core/src/profile/`,
-  [Parsing (WASM)](#parsing-wasm)). `WasmRenderer.renderModel(getModel())` still reads the model as JSON
-  into the same structs, with the same PDF bytes; phase 5 removes it.
+  [Parsing (WASM)](#parsing-wasm)). The renderers have no model input: the model reaches them only
+  through `modelToHtml`.
 
 ## Decisions
 
 From the maintainer's decisions on #69:
 
 - **Numbers keep full float precision** (`110.39999999999999px`) during the migration, so PDFs from the
-  HTML path can be compared byte for byte with the model path. Rounding for readable diffs is revisited
-  after phase 5.
+  HTML path could be compared byte for byte with the model path (phases 3 and 4; the model input is gone
+  since phase 5). Rounding for readable diffs is revisited next.
 - **Missing values are completed in TypeScript.** HTML written by hand may omit LibreOffice-specific
   values such as the line box. A browser-safe completion step fills them from
   `packages/pptxgenjs/src/defaults.ts` before either backend renders; Rust gets no PptxGenJS rules.
@@ -256,7 +256,8 @@ Other Chromium-specific details that phase 2 or 6 revisits: the font fallback li
 `Renderer::render_html` (`renderHtml` in `crates/pdf-wasm`, `WasmRenderer.render(document)` in
 `@pdfdeck/wasm`) reads version 1 with a hand-written tokenizer, not a general HTML parser
 (`crates/pdf-core/src/profile/`: `dom.rs` tokenizes, `style.rs` reads inline CSS, one file per object kind
-maps the elements onto the model structs the JSON path fills).
+maps the elements onto the `model.rs` structs the drawing code reads). It is the only input of the WASM
+backend.
 
 - **Version.** `<meta name="pdfdeck-profile" content="1">` is required; a missing tag or another version
   is an error.
@@ -270,10 +271,10 @@ maps the elements onto the model structs the JSON path fills).
   repeated property is an error. Numbers are JSON numbers with their unit (`px`, `deg`, `in`); `NaN`,
   infinities and values outside `f32` are errors.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
-  always inlines images). The data URI is decoded like the model path decodes it.
+  always inlines images).
 - **Charts and components are opaque.** `.slide-chart` and `.slide-component` subtrees are only checked for
   well-formed markup and reported through `warnings()` as `object kind 'chart'` / `'component'` not
-  rendered, as the model path does. `addChartExtension()` objects are `.slide-chart` too, so they are
+  rendered. `addChartExtension()` objects are `.slide-chart` too, so they are
   reported as `'chart'` rather than `'chartExtension'`.
 - **Errors name the place.** Every error is prefixed `invalid pdfdeck HTML:` and names the slide, the object
   (its `data-object-name`, else `#<index>` on the slide) and the attribute or property; malformed markup

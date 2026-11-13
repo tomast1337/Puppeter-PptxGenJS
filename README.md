@@ -25,7 +25,7 @@ layout code you already have keeps working. You choose the backend that draws th
 | Package               | What it is                                                                                                    | Entries                                |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | `@pdfdeck/pptxgenjs`  | The PptxGenJS-compatible API (class `PuppeteerGen`), defaults, normalization, HTML renderers                  | `.` (Node), `./html` (browser-safe)    |
-| `@pdfdeck/model`      | The normalized presentation model and the renderer interfaces (`PresentationRenderer`, `ModelRenderer`)       | `.` (types only)                       |
+| `@pdfdeck/model`      | The normalized presentation model and the renderer interface (`PresentationRenderer`)                         | `.` (types only)                       |
 | `@pdfdeck/puppeteer`  | `PuppeteerPdfRenderer`, the default backend, and the shared Chromium (`closeBrowser`)                         | `.` (Node)                             |
 | `@pdfdeck/wasm`       | `createWasmRenderer`, the opt-in WebAssembly backend                                                          | `.` (browser, Node and Bun conditions) |
 | `@pdfdeck/react`      | `registerReactComponent`, for React components on slides                                                      | `.`                                    |

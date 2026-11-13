@@ -1,11 +1,11 @@
 //! Reads a pdfdeck HTML profile document (docs/HTML_PROFILE.md, version 1), the output of
-//! `toHtml()`, into the same structs the JSON model fills (`crate::model`).
+//! `toHtml()`, into the `crate::model` structs the drawing code reads.
 //!
 //! Every value comes from the one place the profile puts it, verbatim; nothing is defaulted here
 //! beyond what the profile itself says ("omitted at 0", "omitted at 1"). An element, attribute,
 //! CSS property or value outside the profile is an error naming the slide, the object and the
 //! property, and malformed markup is an error, never a guess. Charts and components are opaque
-//! subtrees: they become `SlideObject::Unsupported`, reported through `warnings()` as from JSON.
+//! subtrees: they become `SlideObject::Unsupported`, reported through `warnings()`.
 
 mod dom;
 mod image;

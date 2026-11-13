@@ -118,21 +118,57 @@ pub(crate) fn split_top_level(text: &str, separator: char) -> Vec<&str> {
     parts
 }
 
-/// A number as JavaScript's `String(number)` writes it, at full precision. Parsed as the JSON
-/// model's numbers are (serde_json to f64, then to the field's type), so both inputs give the
-/// same bits. Non-finite results are an error.
-// shortcut: serde_json's float parser keeps HTML and JSON bit-identical; switch to str::parse when phase 5 drops the JSON input (#69).
+/// A number as JavaScript's `String(number)` writes it, at full precision, in JSON number syntax.
+/// Parsed to the f64 JavaScript held, then rounded to f32, as the removed JSON model reader did
+/// (#69), so PDFs keep their bytes. Non-finite results are an error.
 pub(crate) fn number(text: &str) -> Result<f32, String> {
-    let invalid = || format!("'{text}' is not a number");
-    if text.is_empty() || text.starts_with(|c: char| c.is_ascii_whitespace()) || text.ends_with(|c: char| c.is_ascii_whitespace()) {
-        return Err(invalid());
+    if !is_json_number(text) {
+        return Err(format!("'{text}' is not a number"));
     }
-    let value: f32 = serde_json::from_str(text).map_err(|_| invalid())?;
+    let value = text.parse::<f64>().map_err(|_| format!("'{text}' is not a number"))? as f32;
     if value.is_finite() {
         Ok(value)
     } else {
         Err(format!("'{text}' is out of range"))
     }
+}
+
+/// `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`: what `str::parse` accepts beyond it (`+1`,
+/// `.5`, `1.`, `01`, `inf`, `NaN`) is not something `String(number)` writes.
+fn is_json_number(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut at = 0;
+    let digits = |at: &mut usize| {
+        let start = *at;
+        while bytes.get(*at).is_some_and(u8::is_ascii_digit) {
+            *at += 1;
+        }
+        *at > start
+    };
+    if bytes.get(at) == Some(&b'-') {
+        at += 1;
+    }
+    if bytes.get(at) == Some(&b'0') {
+        at += 1;
+    } else if !digits(&mut at) {
+        return false;
+    }
+    if bytes.get(at) == Some(&b'.') {
+        at += 1;
+        if !digits(&mut at) {
+            return false;
+        }
+    }
+    if matches!(bytes.get(at), Some(b'e' | b'E')) {
+        at += 1;
+        if matches!(bytes.get(at), Some(b'+' | b'-')) {
+            at += 1;
+        }
+        if !digits(&mut at) {
+            return false;
+        }
+    }
+    at == bytes.len()
 }
 
 /// A non-negative integer (spans, slide numbers, levels).
@@ -224,11 +260,13 @@ mod tests {
 
     #[test]
     fn parses_numbers_exactly_and_rejects_non_numbers() {
-        // As the JSON model reads it: to f64, then to f32.
+        // As JavaScript holds it: to f64, then to f32.
         assert_eq!(px("110.39999999999999px").unwrap(), 110.399_999_999_999_99_f64 as f32);
         assert_eq!(number("1e-7").unwrap(), 1e-7);
         assert_eq!(number("-0").unwrap(), 0.0);
-        for bad in ["NaN", "Infinity", "1e999", "1e39", " 1", "1 ", "", ".5", "1.", "0x10", "1px", "--1"] {
+        for bad in [
+            "NaN", "Infinity", "inf", "1e999", "1e39", " 1", "1 ", "", ".5", "1.", "0x10", "1px", "--1", "+1", "01", "1e", "1e+", "-",
+        ] {
             assert!(number(bad).is_err(), "{bad}");
         }
         assert!(px("12").is_err() && px("12em").is_err());

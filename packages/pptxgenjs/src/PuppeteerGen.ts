@@ -314,8 +314,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     /** PDF bytes from the configured renderer; nothing is written to disk. */
     async toPdf(): Promise<Uint8Array> {
         if (!this.renderer) throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("puppeteer-pptxgenjs") for the Puppeteer default');
-        // A renderer with only renderModel() (the removed model path) would otherwise fail as "render is not a function".
-        if (typeof this.renderer.render !== "function") throw new Error("toPdf() renderer must implement render(document: HtmlPresentationDocument): every renderer reads the toHtml() document, renderModel(model) is no longer called (#69)");
+        // A renderer with only renderModel() (the model input, removed in #69) would otherwise fail as "render is not a function".
+        if (typeof this.renderer.render !== "function") throw new Error("toPdf() renderer must implement render(document: HtmlPresentationDocument): every renderer reads the toHtml() document, renderModel(model) was removed (#69)");
         return this.renderer.render(await this.toHtml());
     }
 

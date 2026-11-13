@@ -1,8 +1,10 @@
-//! Renders the text, shape, image and table objects of the normalized model (`getModel()`) straight to PDF.
+//! Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md) straight to PDF: text,
+//! shape, image and table objects.
 //!
-//! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen):
-//! model JSON or a pdfdeck HTML profile document (`profile`) + font bytes in, PDF bytes out. Units in the model are CSS px at
-//! 96 dpi (`PX_PER_IN`); the PDF page is drawn in px under a `PT_PER_PX` (0.75) scale.
+//! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen): HTML +
+//! font bytes in, PDF bytes out. `profile` parses the document into the `model` structs (the subset of
+//! the normalized model this renderer reads). Units are CSS px at 96 dpi (`PX_PER_IN`); the PDF page is
+//! drawn in px under a `PT_PER_PX` (0.75) scale.
 
 mod color;
 mod effect;
@@ -124,22 +126,15 @@ impl Renderer {
         families.iter().map(|(_, faces)| faces.len() as u32).sum()
     }
 
-    /// Features of the last rendered model that were not drawn (unsupported object kinds,
+    /// Features of the last rendered document that were not drawn (unsupported object kinds,
     /// effects, options), deduplicated and sorted. `@pdfdeck/wasm` throws on them unless the caller passes
     /// `onUnsupported: "warn"`.
     pub fn warnings(&self) -> Vec<String> {
         self.warnings.iter().cloned().collect()
     }
 
-    /// Renders the normalized model as JSON (`getModel()`).
-    pub fn render(&mut self, model_json: &str) -> Result<Vec<u8>, String> {
-        self.reset();
-        let model: Presentation = serde_json::from_str(model_json).map_err(|e| format!("invalid model: {e}"))?;
-        self.draw_presentation(&model)
-    }
-
-    /// Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md). It draws the
-    /// same structs as `render`, so the same deck gives the same PDF bytes.
+    /// Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md): parses it into
+    /// the `model` structs once, then draws them.
     pub fn render_html(&mut self, html: &str) -> Result<Vec<u8>, String> {
         self.reset();
         let model = profile::parse(html).map_err(|e| format!("invalid pdfdeck HTML: {e}"))?;
@@ -300,19 +295,28 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
+    use crate::model::{
+        Bullet, FillModifier, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Table,
+        TableBorder, TableCell, TableObject, TableRow, TextObject, Transform2, build,
+    };
+
+    /// Draws an already parsed presentation, as `render_html` does after parsing.
+    fn render(r: &mut Renderer, model: &Presentation) -> Result<Vec<u8>, String> {
+        r.reset();
+        r.draw_presentation(model)
+    }
 
     #[test]
     fn renders_without_fonts_and_reports_skips() {
         let mut r = Renderer::new();
-        let model = r##"{"pageSize":{"width":10,"height":5.625},"slides":[{"background":"#FFFFFF","objects":[{"kind":"chart","style":{}}]}]}"##;
-        let pdf = r.render(model).unwrap();
+        let html = profile::tests::document(r#"<div class="slide-element slide-chart" data-object-name="Chart 1"></div>"#);
+        let pdf = r.render_html(&html).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
         assert_eq!(r.warnings(), vec!["object kind 'chart' not rendered".to_string()]);
     }
 
     #[test]
-    fn renders_profile_html_to_the_same_pdf_as_its_model() {
+    fn renders_profile_html_and_prefixes_its_errors() {
         let mut r = Renderer::new();
         if let Some(font) = liberation_sans() {
             r.add_font(font);
@@ -321,46 +325,44 @@ mod tests {
             r#"<div class="slide-element slide-image" data-object-name="P" style="left: 0px; top: 0px; width: 96px; height: 96px; transform-origin: center; border-style: none;"><div class="slide-image-frame" style="width: 100%; height: 100%; overflow: hidden; position: relative;"><img class="slide-image-content" data-image-sizing="stretch" alt="" src="{PNG_DATA}" style="display: block; opacity: 1; width: 100%; height: 100%; object-fit: fill;"></div></div>"#
         );
         let html = profile::tests::document(&format!("{}{image}", profile::tests::TEXT));
-        let json = slide_with(&format!(
-            r##"{{"kind":"text","style":{{"geometry":{{"x":96,"y":96,"width":288,"height":96}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},"fill":{{"visible":false,"color":"transparent"}},"objectName":"Title"}},
-            "text":{{"paragraphs":[{{"runs":[{{"text":"Hi & bye","fontFace":"Arial","fontSize":24,"color":"#000000","bold":false,"italic":false,"decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"baselineOffset":0,"characterSpacing":0,"softBreakBefore":false}}],
-            "align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":28.799999999999997,"baseline":23.999999999999996}}}}],
-            "margin":[4.800000000000001,9.600000000000001,4.800000000000001,9.600000000000001],"verticalAlign":"middle","wrap":true,"fit":"none","direction":"horizontal"}}}},
-            {{"kind":"image","style":{{"geometry":{{"x":0,"y":0,"width":96,"height":96}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},"objectName":"P"}},"image":{{"source":"{PNG_DATA}","sourceKind":"data","sizing":{{"type":"stretch"}},"rounding":false,"opacity":1}}}}"##
-        ));
-        let from_html = r.render_html(&html).unwrap();
+        assert!(r.render_html(&html).unwrap().starts_with(b"%PDF"));
         assert_eq!(r.warnings(), Vec::<String>::new());
-        assert_eq!(from_html, r.render(&json).unwrap());
 
-        // A data URI that is not base64 (here not even ASCII) is the decoder's error, as on the model path.
+        // A data URI that is not base64 (here not even ASCII) is the decoder's error.
         let broken = html.replace(PNG_DATA, "data:image/png;base64,\u{e9}\u{fffd}==");
         assert!(r.render_html(&broken).is_err());
         let error = r.render_html("<html></html>").unwrap_err();
         assert!(error.starts_with("invalid pdfdeck HTML: "), "{error}");
     }
 
-    fn slide_with(object: &str) -> String {
-        format!(r##"{{"pageSize":{{"width":10,"height":5.625}},"slides":[{{"background":"#FFFFFF","objects":[{object}]}}]}}"##)
-    }
-
-    #[test]
-    fn reports_objects_without_a_string_kind() {
-        let mut r = Renderer::new();
-        r.render(&slide_with(r#"{"style":{}},{"kind":7}"#)).unwrap();
-        assert_eq!(r.warnings(), vec!["object kind '?' not rendered".to_string()]);
-    }
-
-    #[test]
-    fn rejects_malformed_drawn_objects_instead_of_skipping_them() {
-        let mut r = Renderer::new();
-        // A known kind with a bad payload must not fall through to the unsupported-kind warning.
-        for object in [
-            r#"{"kind":"text","style":{}}"#,
-            r#"{"kind":"shape","style":{}}"#,
-            r#"{"kind":"image","style":{}}"#,
-            r#"{"kind":"table","style":{}}"#,
-        ] {
-            assert!(r.render(&slide_with(object)).is_err(), "{object}");
+    /// A centred 17px cell over `colspan` x `rowspan` slots, with a dashed top border.
+    fn cell(colspan: u32, rowspan: u32, fit: &str, direction: &str) -> TableCell {
+        let border = |dash_array: Option<&str>| TableBorder {
+            visible: true,
+            color: "#C00000".into(),
+            width: 2.67,
+            dash_array: dash_array.map(Into::into),
+        };
+        let run = model::Run {
+            color: "#363636".into(),
+            ..build::run("Cell", "Arial", 17.0)
+        };
+        let paragraph = model::Paragraph {
+            align: "center".into(),
+            ..build::paragraph(vec![run], 20.4, 17.0)
+        };
+        TableCell {
+            text: model::TextBox {
+                margin: [7.68; 4],
+                vertical_align: "middle".into(),
+                fit: fit.into(),
+                direction: direction.into(),
+                ..build::text_box(vec![paragraph])
+            },
+            colspan,
+            rowspan,
+            fill: build::fill("#F2F2F2"),
+            borders: [border(Some("8 2.67")), border(None), border(None), border(None)],
         }
     }
 
@@ -368,105 +370,133 @@ mod tests {
     fn draws_tables_and_reports_what_it_skips() {
         let mut r = Renderer::new();
         liberation_sans().map(|f| r.add_font(f));
-        let border = |dash: &str| format!(r##"{{"visible":true,"color":"#C00000","width":2.67{dash}}}"##);
-        let cell = |span: &str, fit: &str, direction: &str| {
-            format!(
-                r##"{{"text":{{"paragraphs":[{{"runs":[{{"text":"Cell","fontFace":"Arial","fontSize":17,"color":"#363636","bold":false,"italic":false,
-                "decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"verticalAlign":"baseline","baselineOffset":0,
-                "characterSpacing":0,"softBreakBefore":false}}],"align":"center","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":20.4,"baseline":17}}}}],
-                "margin":[7.68,7.68,7.68,7.68],"verticalAlign":"middle","wrap":true,"fit":"{fit}","direction":"{direction}"}},
-                {span},"fill":{{"visible":true,"color":"#F2F2F2"}},"borders":[{},{},{},{}]}}"##,
-                border(r#","dashArray":"8 2.67""#),
-                border(""),
-                border(""),
-                border("")
-            )
+        let table = |extra_cell: Option<TableCell>| {
+            let mut style = build::style(48.0, 96.0, 200.0, 0.0);
+            style.geometry.height = None;
+            let mut second = vec![cell(1, 1, "none", "vertical"), cell(1, 1, "none", "horizontal")];
+            second.extend(extra_cell);
+            let rows = vec![
+                TableRow {
+                    height: Some(40.0),
+                    cells: vec![cell(2, 1, "none", "horizontal")],
+                },
+                TableRow { height: None, cells: second },
+            ];
+            build::deck(vec![SlideObject::Table(TableObject {
+                style,
+                table: Table {
+                    columns: vec![100.0, 100.0],
+                    rows,
+                },
+            })])
         };
-        let table = |extra_cell: &str| {
-            slide_with(&format!(
-                r#"{{"kind":"table","style":{{"geometry":{{"x":48,"y":96,"width":200}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}}}},
-                "table":{{"width":200,"columns":[100,100],"rows":[{{"height":40,"cells":[{}]}},{{"cells":[{},{}{extra_cell}]}}]}}}}"#,
-                cell(r#""colspan":2,"rowspan":1"#, "none", "horizontal"),
-                cell(r#""colspan":1,"rowspan":1"#, "none", "vertical"),
-                cell(r#""colspan":1,"rowspan":1"#, "none", "horizontal"),
-            ))
-        };
-        assert!(r.render(&table("")).unwrap().starts_with(b"%PDF"));
+        assert!(render(&mut r, &table(None)).unwrap().starts_with(b"%PDF"));
         assert_eq!(r.warnings(), Vec::<String>::new());
-        r.render(&table(&format!(",{}", cell(r#""colspan":1,"rowspan":1"#, "shrink", "horizontal"))))
-            .unwrap();
+        render(&mut r, &table(Some(cell(1, 1, "shrink", "horizontal")))).unwrap();
         assert_eq!(r.warnings(), vec!["table cells beyond the column grid not rendered".to_string()]);
     }
 
-    /// A filled, stroked shape object with `geometry` (a JSON object without its braces) and
-    /// extra `ObjectStyle`/`NormalizedShape` fields.
-    fn shape_with(geometry: &str, line: &str, extra_style: &str, extra_shape: &str) -> String {
-        slide_with(&format!(
-            r##"{{"kind":"shape","style":{{"geometry":{{"x":10,"y":20,"width":200,"height":100}},
-            "transform":{{"rotation":30,"flipH":true,"flipV":false,"opacity":0.8}},
-            "fill":{{"visible":true,"color":"rgba(68, 114, 196, 0.5)"}},
-            "line":{{"visible":true,"color":"#17365D","width":2,"style":"dashed","dashArray":"8 6"{line}}}{extra_style}}},
-            "shape":{{"name":"test","width":100,"height":50,"geometry":{{{geometry}}}{extra_shape}}}}}"##
-        ))
+    /// A filled shape with a dashed line, rotated and flipped, over the box (10, 20, 200, 100)
+    /// drawn from `geometry` in a 100 x 50 space.
+    fn dashed_shape(geometry: ShapeGeometry) -> (ObjectStyle, ShapeModel) {
+        let mut style = build::style(10.0, 20.0, 200.0, 100.0);
+        style.transform = Transform2 {
+            rotation: 30.0,
+            flip_h: true,
+            flip_v: false,
+            opacity: 0.8,
+        };
+        style.fill = build::fill("rgba(68, 114, 196, 0.5)");
+        style.line = Some(LineModel {
+            dash_array: Some("8 6".into()),
+            ..build::line("#17365D", 2.0)
+        });
+        (style, build::shape("test", 100.0, 50.0, geometry))
+    }
+
+    fn path(data: &str, transform: Option<&str>) -> ShapeGeometry {
+        ShapeGeometry::Path {
+            data: data.into(),
+            transform: transform.map(Into::into),
+            faces: None,
+            outline_data: None,
+        }
     }
 
     #[test]
     fn draws_every_geometry_kind_without_warnings() {
-        let arrows =
-            r#","beginArrow":"oval","endArrow":"triangle","beginHeadPath":"M 4 0 A 4 4 0 1 0 -4 0 A 4 4 0 1 0 4 0 Z","endHeadPath":"M 0 0 L -8 4 L -8 -4 Z""#;
-        for geometry in [
-            r#""kind":"rect","radius":8"#,
-            r#""kind":"ellipse""#,
-            r#""kind":"line","inverse":true"#,
-            r#""kind":"path","data":"M 0 0 L 100 0 A 50 25 0 0 1 0 50 Q 10 10 0 0 Z","transform":"matrix(1 0 0 -1 0 50)""#,
-            r#""kind":"path","data":"M 0 0","faces":[{"data":"M 0 0 L 100 0 L 0 50 Z","fillModifier":"darken"},{"data":"M 0 50 L 100 0 L 100 50 Z"}],"outlineData":"M 0 0 L 100 0 L 100 50 L 0 50 Z""#,
-        ] {
+        let faces = ShapeGeometry::Path {
+            data: "M 0 0".into(),
+            transform: None,
+            faces: Some(vec![
+                ShapeFace {
+                    data: "M 0 0 L 100 0 L 0 50 Z".into(),
+                    fill_modifier: Some(FillModifier::Darken),
+                },
+                ShapeFace {
+                    data: "M 0 50 L 100 0 L 100 50 Z".into(),
+                    fill_modifier: None,
+                },
+            ]),
+            outline_data: Some("M 0 0 L 100 0 L 100 50 L 0 50 Z".into()),
+        };
+        for (index, geometry) in [
+            ShapeGeometry::Rect { radius: 8.0 },
+            ShapeGeometry::Ellipse,
+            ShapeGeometry::Line { inverse: true },
+            path("M 0 0 L 100 0 A 50 25 0 0 1 0 50 Q 10 10 0 0 Z", Some("matrix(1 0 0 -1 0 50)")),
+            faces,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (mut style, shape) = dashed_shape(geometry);
+            if let Some(line) = style.line.as_mut() {
+                line.begin_arrow = Some("oval".into());
+                line.end_arrow = Some("triangle".into());
+                line.begin_head_path = Some("M 4 0 A 4 4 0 1 0 -4 0 A 4 4 0 1 0 4 0 Z".into());
+                line.end_head_path = Some("M 0 0 L -8 4 L -8 -4 Z".into());
+            }
             let mut r = Renderer::new();
-            assert!(r.render(&shape_with(geometry, arrows, "", "")).unwrap().starts_with(b"%PDF"), "{geometry}");
-            assert_eq!(r.warnings(), Vec::<String>::new(), "{geometry}");
+            let pdf = render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap();
+            assert!(pdf.starts_with(b"%PDF"), "geometry {index}");
+            assert_eq!(r.warnings(), Vec::<String>::new(), "geometry {index}");
         }
     }
 
     #[test]
     fn rejects_invalid_shape_geometry() {
         let mut r = Renderer::new();
-        for geometry in [
-            r#""kind":"path","data":"M 0 0 X 5 5""#,
-            r#""kind":"path","data":"M 0 0 L 5 5","transform":"rotate(90)""#,
-            r#""kind":"path","data":"M 0 0","faces":[{"data":"M 0 0 L 1 1","fillModifier":"shade"}]"#,
-            r#""kind":"star","points":5"#,
-        ] {
-            let error = r.render(&shape_with(geometry, "", "", "")).unwrap_err();
-            assert!(error.contains("shape") || error.contains("invalid model"), "{geometry}: {error}");
+        for geometry in [path("M 0 0 X 5 5", None), path("M 0 0 L 5 5", Some("rotate(90)"))] {
+            let (style, shape) = dashed_shape(geometry);
+            let error = render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap_err();
+            assert!(error.contains("shape"), "{error}");
         }
     }
 
     #[test]
     fn reports_shape_features_it_does_not_draw() {
         let mut r = Renderer::new();
-        let shadow = r##","shadow":{"visible":true,"color":"rgba(0, 0, 0, 0.3)","blur":4,"offsetX":3,"offsetY":3,"inset":false}"##;
-        r.render(&shape_with(r#""kind":"line","inverse":false"#, r#","endArrow":"hook""#, shadow, ""))
-            .unwrap();
+        let (mut style, shape) = dashed_shape(ShapeGeometry::Line { inverse: false });
+        if let Some(line) = style.line.as_mut() {
+            line.end_arrow = Some("hook".into());
+        }
+        style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.3)", 4.0, 3.0, false));
+        render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap();
         assert_eq!(r.warnings(), vec!["line arrowhead 'hook' not rendered"]);
     }
 
-    /// An image object over the box (10, 20, 200, 100), rotated and flipped, with `fields`
-    /// (a JSON object) replacing the defaults of its `image`.
-    fn image_with(source: &str, fields: &str) -> String {
-        let mut object = serde_json::json!({
-            "kind": "image",
-            "style": {
-                "geometry": { "x": 10, "y": 20, "width": 200, "height": 100 },
-                "transform": { "rotation": -12, "flipH": true, "flipV": false, "opacity": 1 },
-                "objectName": "Picture 1"
-            },
-            "image": { "source": source, "sourceKind": "data", "sizing": { "type": "stretch" }, "rounding": false, "opacity": 1, "altText": "" }
-        });
-        let fields: serde_json::Map<String, Value> = serde_json::from_str(fields).unwrap();
-        if let Some(image) = object.get_mut("image").and_then(Value::as_object_mut) {
-            image.extend(fields);
-        }
-        object.to_string()
+    /// `image` over the box (10, 20, 200, 100), rotated and flipped, named 'Picture 1'.
+    fn picture(image: ImageModel) -> SlideObject {
+        let mut style = build::style(10.0, 20.0, 200.0, 100.0);
+        style.transform = Transform2 {
+            rotation: -12.0,
+            flip_h: true,
+            flip_v: false,
+            opacity: 1.0,
+        };
+        style.object_name = Some("Picture 1".into());
+        SlideObject::Image(ImageObject { style, image })
     }
 
     const PNG_DATA: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -474,42 +504,52 @@ mod tests {
     #[test]
     fn draws_every_image_option_and_decodes_each_source_once() {
         let mut r = Renderer::new();
-        let objects = [
-            image_with(PNG_DATA, "{}"),
-            image_with(PNG_DATA, r#"{"sizing":{"type":"contain","x":50,"y":0,"width":100,"height":100}}"#),
-            image_with(
-                PNG_DATA,
-                r#"{"sizing":{"type":"cover","x":0,"y":-50,"width":200,"height":200},"rounding":true}"#,
-            ),
-            image_with(
-                PNG_DATA,
-                r#"{"sizing":{"type":"crop","offsetX":20,"offsetY":10,"width":300,"height":150},"opacity":0.55}"#,
-            ),
-        ]
-        .join(",");
-        let pdf = r.render(&slide_with(&objects)).unwrap();
+        let sized = |sizing| ImageModel {
+            sizing,
+            ..build::image(PNG_DATA)
+        };
+        let objects = vec![
+            picture(build::image(PNG_DATA)),
+            picture(sized(ImageSizing::Contain {
+                x: 50.0,
+                y: 0.0,
+                width: 100.0,
+                height: 100.0,
+            })),
+            picture(ImageModel {
+                rounding: true,
+                ..sized(ImageSizing::Cover {
+                    x: 0.0,
+                    y: -50.0,
+                    width: 200.0,
+                    height: 200.0,
+                })
+            }),
+            picture(ImageModel {
+                opacity: 0.55,
+                ..sized(ImageSizing::Crop {
+                    offset_x: 20.0,
+                    offset_y: 10.0,
+                    width: 300.0,
+                    height: 150.0,
+                })
+            }),
+        ];
+        let pdf = render(&mut r, &build::deck(objects)).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         assert_eq!(r.images.len(), 1, "one distinct source, decoded once");
         // The RGBA picture and its alpha soft mask, written once for four draws.
         assert_eq!(pdf.windows(14).filter(|w| w == b"/Subtype/Image").count(), 2);
         // A second render starts with an empty cache, so old pictures are not kept alive.
-        r.render(&slide_with("")).unwrap();
+        render(&mut r, &build::deck(Vec::new())).unwrap();
         assert!(r.images.is_empty());
     }
 
     #[test]
     fn reports_images_it_does_not_draw() {
         let mut r = Renderer::new();
-        let svg = "data:image/svg+xml;base64,PHN2Zy8+";
-        let objects = [image_with(svg, "{}"), image_with("logo.png", r#"{"sourceKind":"path"}"#)].join(",");
-        r.render(&slide_with(&objects)).unwrap();
-        assert_eq!(
-            r.warnings(),
-            vec![
-                "SVG images not rendered",
-                "image source kind 'path' not rendered (resolve it to a data URI first)"
-            ]
-        );
+        render(&mut r, &build::deck(vec![picture(build::image("data:image/svg+xml;base64,PHN2Zy8+"))])).unwrap();
+        assert_eq!(r.warnings(), vec!["SVG images not rendered"]);
     }
 
     /// The PDF's annotations, the PDF syntax of one object each.
@@ -533,27 +573,45 @@ mod tests {
         assert!(got.iter().zip(want).all(|(g, w)| (g - w).abs() < 0.01), "{got:?} != {want:?}");
     }
 
+    /// An unfilled rect over (10, 20, 200, 100) linked to `link`.
+    fn linked_rect(link: Link, transform: Transform2) -> SlideObject {
+        let mut style = build::style(10.0, 20.0, 200.0, 100.0);
+        style.transform = transform;
+        let shape = ShapeModel {
+            link: Some(link),
+            ..build::shape("rect", 200.0, 100.0, ShapeGeometry::Rect { radius: 0.0 })
+        };
+        build::shape_object(style, shape)
+    }
+
     #[test]
     fn links_objects_to_urls_and_slides_over_their_transformed_box() {
         let mut r = Renderer::new();
-        let shape = |link: &str, transform: &str| {
-            format!(
-                r#"{{"kind":"shape","style":{{"geometry":{{"x":10,"y":20,"width":200,"height":100}},"transform":{transform}}},
-                "shape":{{"name":"rect","width":200,"height":100,"geometry":{{"kind":"rect","radius":0}},"link":{link}}}}}"#
-            )
+        let upright = build::style(0.0, 0.0, 0.0, 0.0).transform;
+        let turned = Transform2 {
+            rotation: 90.0,
+            flip_h: true,
+            ..build::style(0.0, 0.0, 0.0, 0.0).transform
         };
-        let objects = [
-            shape(
-                r#"{"href":"https://example.com/a","tooltip":"Open A"}"#,
-                r#"{"rotation":0,"flipH":false,"flipV":false,"opacity":1}"#,
-            ),
-            shape(
-                r##"{"href":"#slide-1","slide":1}"##,
-                r#"{"rotation":90,"flipH":true,"flipV":false,"opacity":1}"#,
-            ),
-            image_with(PNG_DATA, r#"{"link":{"href":"mailto:a@example.com"}}"#),
+        let url = Link {
+            href: "https://example.com/a".into(),
+            tooltip: Some("Open A".into()),
+            slide: None,
+        };
+        let slide = Link {
+            href: "#slide-1".into(),
+            tooltip: None,
+            slide: Some(1),
+        };
+        let objects = vec![
+            linked_rect(url, upright),
+            linked_rect(slide, turned),
+            picture(ImageModel {
+                link: build::link("mailto:a@example.com"),
+                ..build::image(PNG_DATA)
+            }),
         ];
-        let pdf = r.render(&slide_with(&objects.join(","))).unwrap();
+        let pdf = render(&mut r, &build::deck(objects)).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         let links = annotations(&pdf);
         let [url, slide, mail] = links.as_slice() else {
@@ -571,23 +629,25 @@ mod tests {
         assert!(String::from_utf8_lossy(&pdf).contains("/XYZ 0 405 0]"));
     }
 
-    /// A linked rect at (10, 20) 200 x 100 px with `shadow` (JSON, or empty for none).
-    fn linked_rect_with_shadow(shadow: &str) -> String {
-        let shadow = if shadow.is_empty() { String::new() } else { format!(r#","shadow":{shadow}"#) };
-        slide_with(&format!(
-            r##"{{"kind":"shape","style":{{"geometry":{{"x":10,"y":20,"width":200,"height":100}},
-            "transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},"fill":{{"visible":true,"color":"#4472C4"}}{shadow}}},
-            "shape":{{"name":"rect","width":200,"height":100,"geometry":{{"kind":"rect","radius":0}},"link":{{"href":"https://example.com"}}}}}}"##
-        ))
+    /// A filled rect at (10, 20) 200 x 100 px linked to https://example.com, with `shadow`.
+    fn linked_rect_with_shadow(shadow: Option<Shadow>) -> Presentation {
+        let mut style = build::style(10.0, 20.0, 200.0, 100.0);
+        style.fill = build::fill("#4472C4");
+        style.shadow = shadow;
+        let shape = ShapeModel {
+            link: build::link("https://example.com"),
+            ..build::shape("rect", 200.0, 100.0, ShapeGeometry::Rect { radius: 0.0 })
+        };
+        build::deck(vec![build::shape_object(style, shape)])
     }
 
     #[test]
     fn draws_shadows_as_soft_masked_images_under_the_object() {
         let mut r = Renderer::new();
-        let plain = r.render(&linked_rect_with_shadow("")).unwrap();
+        let plain = render(&mut r, &linked_rect_with_shadow(None)).unwrap();
         assert!(!String::from_utf8_lossy(&plain).contains("/SMask"));
-        let shadow = r##"{"visible":true,"color":"rgba(0, 0, 0, 0.75)","blur":10.67,"offsetX":4,"offsetY":4,"inset":false}"##;
-        let pdf = r.render(&linked_rect_with_shadow(shadow)).unwrap();
+        let shadow = build::shadow("rgba(0, 0, 0, 0.75)", 10.67, 4.0, false);
+        let pdf = render(&mut r, &linked_rect_with_shadow(Some(shadow))).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the shadow is an image with a soft mask");
         // The object moves into a sub-stream; its link must stay on the page where it was.
@@ -599,8 +659,8 @@ mod tests {
     #[test]
     fn reports_inner_shadows_and_draws_the_object() {
         let mut r = Renderer::new();
-        let inset = r##"{"visible":true,"color":"#000000","blur":4,"offsetX":2,"offsetY":2,"inset":true}"##;
-        let pdf = r.render(&linked_rect_with_shadow(inset)).unwrap();
+        let inset = build::shadow("#000000", 4.0, 2.0, true);
+        let pdf = render(&mut r, &linked_rect_with_shadow(Some(inset))).unwrap();
         assert_eq!(r.warnings(), vec!["inner shadow not rendered".to_string()]);
         assert!(!String::from_utf8_lossy(&pdf).contains("/SMask"));
         assert_eq!(annotations(&pdf).len(), 1);
@@ -613,21 +673,19 @@ mod tests {
             return eprintln!("Liberation Sans not installed: text glow not checked");
         };
         r.add_font(font);
-        let text = |glow: &str| {
-            slide_with(&format!(
-                r##"{{"kind":"text","style":{{"geometry":{{"x":10,"y":20,"width":300,"height":60}},
-                "transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}}}},
-                "text":{{"paragraphs":[{{"runs":[{{"text":"Glow","fontFace":"Liberation Sans","fontSize":30,"color":"#17365D",
-                "bold":false,"italic":false,"decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"verticalAlign":"baseline",
-                "baselineOffset":0,"characterSpacing":0,"softBreakBefore":false{glow}}}],
-                "align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":36,"baseline":30}}}}],
-                "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}}}"##
-            ))
+        let text = |glow: Option<Shadow>| {
+            let run = model::Run {
+                color: "#17365D".into(),
+                glow,
+                ..build::run("Glow", "Liberation Sans", 30.0)
+            };
+            let text = build::text_box(vec![build::paragraph(vec![run], 36.0, 30.0)]);
+            build::deck(vec![build::text_object(build::style(10.0, 20.0, 300.0, 60.0), text)])
         };
-        let plain = r.render(&text("")).unwrap();
+        let plain = render(&mut r, &text(None)).unwrap();
         assert!(!String::from_utf8_lossy(&plain).contains("/SMask"));
-        let glow = r#","glow":{"visible":true,"color":"rgba(255, 192, 0, 0.6)","blur":10.67,"offsetX":0,"offsetY":0,"inset":false}"#;
-        let pdf = r.render(&text(glow)).unwrap();
+        let glow = build::shadow("rgba(255, 192, 0, 0.6)", 10.67, 0.0, false);
+        let pdf = render(&mut r, &text(Some(glow))).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the glow is an image with a soft mask");
     }
@@ -639,14 +697,14 @@ mod tests {
             return eprintln!("Liberation Sans not installed: text links not checked");
         };
         r.add_font(font);
-        let object = r##"{"kind":"text","style":{"geometry":{"x":10,"y":20,"width":120,"height":200},
-            "transform":{"rotation":0,"flipH":false,"flipV":false,"opacity":1}},
-            "text":{"paragraphs":[{"runs":[{"text":"linked words that wrap","fontFace":"Liberation Sans","fontSize":20,"color":"#0563C1",
-            "bold":false,"italic":false,"decoration":{"underline":true,"strike":false,"doubleStrike":false},"verticalAlign":"baseline",
-            "baselineOffset":0,"characterSpacing":0,"softBreakBefore":false,"link":{"href":"https://example.com"}}],
-            "align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{"height":24,"baseline":20}}],
-            "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}"##;
-        let pdf = r.render(&slide_with(object)).unwrap();
+        let mut run = model::Run {
+            color: "#0563C1".into(),
+            link: build::link("https://example.com"),
+            ..build::run("linked words that wrap", "Liberation Sans", 20.0)
+        };
+        run.decoration.underline = true;
+        let text = build::text_box(vec![build::paragraph(vec![run], 24.0, 20.0)]);
+        let pdf = render(&mut r, &build::deck(vec![build::text_object(build::style(10.0, 20.0, 120.0, 200.0), text)])).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         let links = annotations(&pdf);
         assert!(links.len() > 1, "one annotation per line: {links:?}");
@@ -656,12 +714,13 @@ mod tests {
     #[test]
     fn links_a_flat_line_over_its_stroke() {
         let mut r = Renderer::new();
-        let model = slide_with(
-            r##"{"kind":"shape","style":{"geometry":{"x":96,"y":192,"width":288,"height":0},
-            "transform":{"rotation":0,"flipH":false,"flipV":false,"opacity":1},"line":{"visible":true,"color":"#4472C4","width":3}},
-            "shape":{"name":"line","width":288,"height":0,"geometry":{"kind":"line","inverse":false},"link":{"href":"https://example.com"}}}"##,
-        );
-        let pdf = r.render(&model).unwrap();
+        let mut style = build::style(96.0, 192.0, 288.0, 0.0);
+        style.line = Some(build::line("#4472C4", 3.0));
+        let shape = ShapeModel {
+            link: build::link("https://example.com"),
+            ..build::shape("line", 288.0, 0.0, ShapeGeometry::Line { inverse: false })
+        };
+        let pdf = render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         let links = annotations(&pdf);
         let [link] = links.as_slice() else { panic!("{links:?}") };
@@ -675,13 +734,25 @@ mod tests {
     #[test]
     fn rejects_unsafe_link_schemes_and_reports_missing_slides() {
         let mut r = Renderer::new();
-        let error = r
-            .render(&slide_with(&image_with(PNG_DATA, r#"{"link":{"href":"javascript:alert(1)"}}"#)))
-            .unwrap_err();
+        let linked = |link| {
+            build::deck(vec![picture(ImageModel {
+                link: Some(link),
+                ..build::image(PNG_DATA)
+            })])
+        };
+        let script = Link {
+            href: "javascript:alert(1)".into(),
+            tooltip: None,
+            slide: None,
+        };
+        let error = render(&mut r, &linked(script)).unwrap_err();
         assert_eq!(error, "'Picture 1': link 'javascript:alert(1)' is not an http, https or mailto URL");
-        let pdf = r
-            .render(&slide_with(&image_with(PNG_DATA, r##"{"link":{"href":"#slide-3","slide":3}}"##)))
-            .unwrap();
+        let missing = Link {
+            href: "#slide-3".into(),
+            tooltip: None,
+            slide: Some(3),
+        };
+        let pdf = render(&mut r, &linked(missing)).unwrap();
         assert_eq!(r.warnings(), vec!["link to slide 3 not emitted: the deck has 1 slides"]);
         assert!(annotations(&pdf).is_empty());
     }
@@ -689,27 +760,38 @@ mod tests {
     #[test]
     fn rejects_undecodable_image_data_by_object_name() {
         let mut r = Renderer::new();
-        let error = r.render(&slide_with(&image_with("data:image/png;base64,iVBORw0KGgoAAAA=", "{}"))).unwrap_err();
+        let error = render(&mut r, &build::deck(vec![picture(build::image("data:image/png;base64,iVBORw0KGgoAAAA="))])).unwrap_err();
         assert!(error.starts_with("image 'Picture 1': cannot decode image/png data"), "{error}");
     }
 
     /// A text-in-shape object whose fill, line, run, outline, highlight and
-    /// underline all use `color`.
-    fn model_with_color(color: &str) -> String {
-        let run = format!(
-            r#"{{"text":"Ag","fontFace":"Liberation Sans","fontSize":24,"color":"{color}","bold":false,"italic":false,
-            "decoration":{{"underline":true,"underlineColor":"{color}","strike":false,"doubleStrike":false}},
-            "verticalAlign":"baseline","baselineOffset":0,"characterSpacing":0,"highlight":"{color}",
-            "outline":{{"color":"{color}","width":1}},"softBreakBefore":false}}"#
-        );
-        format!(
-            r#"{{"pageSize":{{"width":10,"height":5.625}},"slides":[{{"background":"{color}","objects":[{{"kind":"text",
-            "style":{{"geometry":{{"x":10,"y":10,"width":300,"height":100}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":0.5}},
-            "fill":{{"visible":true,"color":"{color}"}},"line":{{"visible":true,"color":"{color}","width":2}}}},
-            "shape":{{"name":"rect","width":300,"height":100,"geometry":{{"kind":"rect","radius":0}}}},
-            "text":{{"paragraphs":[{{"runs":[{run}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":38.4,"baseline":32}}}}],
-            "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}}}]}}]}}"#
-        )
+    /// underline all use `color`, on a slide of that colour.
+    fn model_with_color(color: &str) -> Presentation {
+        let mut run = model::Run {
+            color: color.into(),
+            highlight: Some(color.into()),
+            outline: Some(Outline {
+                color: color.into(),
+                width: 1.0,
+            }),
+            ..build::run("Ag", "Liberation Sans", 24.0)
+        };
+        run.decoration.underline = true;
+        run.decoration.underline_color = Some(color.into());
+        let mut style = build::style(10.0, 10.0, 300.0, 100.0);
+        style.transform.opacity = 0.5;
+        style.fill = build::fill(color);
+        style.line = Some(build::line(color, 2.0));
+        let object = SlideObject::Text(TextObject {
+            style,
+            shape: Some(build::shape("rect", 300.0, 100.0, ShapeGeometry::Rect { radius: 0.0 })),
+            text: Some(build::text_box(vec![build::paragraph(vec![run], 38.4, 32.0)])),
+        });
+        let mut deck = build::deck(vec![object]);
+        if let Some(slide) = deck.slides.first_mut() {
+            slide.background = color.into();
+        }
+        deck
     }
 
     /// Glyph paths (outlines, decorations, glyph buffers) only run for shaped glyphs, which need a font.
@@ -725,29 +807,18 @@ mod tests {
     /// A text box of 30px Liberation Sans paragraphs, each a list of runs (every run after the first
     /// starts a new line) and its `lineBox` height and baseline.
     fn text_box(paragraphs: &[(&[&str], f32, f32)]) -> model::TextBox {
-        let run = |(i, text): (usize, &&str)| {
-            format!(
-                r##"{{"text":"{text}","fontFace":"Liberation Sans","fontSize":30,"color":"#000000","bold":false,"italic":false,
-                "decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"verticalAlign":"baseline",
-                "baselineOffset":0,"characterSpacing":0,"softBreakBefore":{}}}"##,
-                i > 0
-            )
+        let paragraph = |&(runs, height, baseline): &(&[&str], f32, f32)| {
+            let runs = runs
+                .iter()
+                .enumerate()
+                .map(|(i, text)| model::Run {
+                    soft_break_before: i > 0,
+                    ..build::run(text, "Liberation Sans", 30.0)
+                })
+                .collect();
+            build::paragraph(runs, height, baseline)
         };
-        let paragraphs: Vec<String> = paragraphs
-            .iter()
-            .map(|(runs, height, baseline)| {
-                let runs: Vec<String> = runs.iter().enumerate().map(run).collect();
-                format!(
-                    r#"{{"runs":[{}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":{height},"baseline":{baseline}}}}}"#,
-                    runs.join(",")
-                )
-            })
-            .collect();
-        serde_json::from_str(&format!(
-            r#"{{"paragraphs":[{}],"margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}"#,
-            paragraphs.join(",")
-        ))
-        .expect("test text box is valid model JSON")
+        build::text_box(paragraphs.iter().map(paragraph).collect())
     }
 
     /// `text` laid out in an 800x400 box with Liberation Sans, or None when it is not installed.
@@ -814,7 +885,7 @@ mod tests {
     #[test]
     fn tabs_end_at_their_stops() {
         use crate::model::{TabAlign, TabStop};
-        let mut text = text_box(&[(&[r"a\tLeft\tEnd\t12.50\tMid\tx"], 36.0, 30.0)]);
+        let mut text = text_box(&[(&["a\tLeft\tEnd\t12.50\tMid\tx"], 36.0, 30.0)]);
         let stop = |position, alignment| TabStop { position, alignment };
         text.paragraphs[0].tab_stops = vec![
             stop(150.0, TabAlign::Left),
@@ -895,7 +966,7 @@ mod tests {
             eprintln!("Liberation Sans not installed: glyph outline paths not exercised");
         }
         for alpha in ["2", "-1", "NaN", "inf"] {
-            let pdf = r.render(&model_with_color(&format!("rgba(10, 20, 30, {alpha})"))).unwrap();
+            let pdf = render(&mut r, &model_with_color(&format!("rgba(10, 20, 30, {alpha})"))).unwrap();
             assert!(pdf.starts_with(b"%PDF"), "alpha {alpha}");
             assert_eq!(
                 has_font,
@@ -907,38 +978,42 @@ mod tests {
 
     /// A shrink-to-fit box (re-laid out several times) holding a bulleted paragraph and an
     /// empty one, beside a plain text box.
-    fn shrink_model() -> String {
+    fn shrink_model() -> Presentation {
         let run = |text: &str| {
-            format!(
-                r#"{{"text":"{text}","fontFace":"Arial","fontSize":28,"color":"rgb(17, 34, 51)","bold":false,"italic":false,
-                "decoration":{{"underline":false,"strike":true,"doubleStrike":false}},"verticalAlign":"baseline",
-                "baselineOffset":0,"characterSpacing":0,"softBreakBefore":false}}"#
-            )
+            let mut run = model::Run {
+                color: "rgb(17, 34, 51)".into(),
+                ..build::run(text, "Arial", 28.0)
+            };
+            run.decoration.strike = true;
+            run
         };
-        let para = |runs: &str, bullet: &str| {
-            format!(
-                r#"{{"runs":[{runs}],"align":"center","rtl":false,"spaceBefore":2,"spaceAfter":4,"tabStops":[],"defaultTabStop":96,"lineBox":{{"height":44.8,"baseline":37.33}}{bullet}}}"#
-            )
+        let para = |runs: Vec<model::Run>, bullet: Option<Bullet>| model::Paragraph {
+            align: "center".into(),
+            space_before: 2.0,
+            space_after: 4.0,
+            bullet,
+            ..build::paragraph(runs, 44.8, 37.33)
         };
-        let object = |x: u32, fit: &str, paragraphs: &str| {
-            format!(
-                r#"{{"kind":"text","style":{{"geometry":{{"x":{x},"y":10,"width":200,"height":60}},
-                "transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":1}}}},
-                "text":{{"paragraphs":[{paragraphs}],"margin":[4,4,4,4],"verticalAlign":"middle","wrap":true,"fit":"{fit}","direction":"horz"}}}}"#
-            )
+        let object = |x: f32, fit: &str, paragraphs: Vec<model::Paragraph>| {
+            let text = model::TextBox {
+                margin: [4.0; 4],
+                vertical_align: "middle".into(),
+                fit: fit.into(),
+                ..build::text_box(paragraphs)
+            };
+            build::text_object(build::style(x, 10.0, 200.0, 60.0), text)
         };
-        let long = format!("{},{}", run("Shrink this oversized text until it fits "), run("within the fixed box"));
-        let shrink = [
-            para(&long, r#","bullet":{"marker":"•","indent":20,"level":1}"#),
-            para(&run(""), ""),
-            para(&run("Tail"), ""),
-        ]
-        .join(",");
-        let plain = object(300, "none", &para(&run("Plain"), ""));
-        format!(
-            r##"{{"pageSize":{{"width":10,"height":5.625}},"slides":[{{"background":"#FFFFFF","objects":[{},{plain}]}}]}}"##,
-            object(10, "shrink", &shrink)
-        )
+        let bullet = Bullet {
+            marker: "•".into(),
+            indent: 20.0,
+            level: 1,
+        };
+        let long = vec![run("Shrink this oversized text until it fits "), run("within the fixed box")];
+        let shrink = vec![para(long, Some(bullet)), para(vec![run("")], None), para(vec![run("Tail")], None)];
+        build::deck(vec![
+            object(10.0, "shrink", shrink),
+            object(300.0, "none", vec![para(vec![run("Plain")], None)]),
+        ])
     }
 
     #[test]
@@ -951,12 +1026,12 @@ mod tests {
             }
             r
         };
-        let fresh = renderer().render(&shrink_model()).unwrap();
+        let fresh = render(&mut renderer(), &shrink_model()).unwrap();
         let mut reused = renderer();
-        reused.render(&model_with_color("#336699")).unwrap();
+        render(&mut reused, &model_with_color("#336699")).unwrap();
         for pass in 0..2 {
             assert!(
-                reused.render(&shrink_model()).unwrap() == fresh,
+                render(&mut reused, &shrink_model()).unwrap() == fresh,
                 "pass {pass}: output depends on earlier renders"
             );
         }

@@ -79,13 +79,6 @@ impl Renderer {
     /// Draws the picture over the box `x, y, w, h` (px). `name` labels decode errors.
     #[allow(clippy::too_many_arguments)] // the box is four plain numbers, as in draw_geometry
     pub(crate) fn draw_image(&mut self, surface: &mut Surface, image: &ImageModel, name: &str, x: f32, y: f32, w: f32, h: f32) -> Result<(), String> {
-        if image.source_kind != "data" {
-            self.warn(format!(
-                "image source kind '{}' not rendered (resolve it to a data URI first)",
-                image.source_kind
-            ));
-            return Ok(());
-        }
         let picture = match self.images.get(&image.source) {
             Some(decoded) => decoded.clone(),
             None => {
@@ -172,11 +165,16 @@ mod tests {
 
     #[test]
     fn places_each_sizing_mode() {
-        let fit = |kind: &str| serde_json::from_str::<ImageSizing>(&format!(r#"{{"type":"{kind}","x":5,"y":-10,"width":100,"height":120}}"#)).unwrap();
+        let (x, y, width, height) = (5.0, -10.0, 100.0, 120.0);
         assert_eq!(placement(&ImageSizing::Stretch, 80.0, 60.0), (0.0, 0.0, 80.0, 60.0));
-        assert_eq!(placement(&fit("contain"), 80.0, 60.0), (5.0, -10.0, 100.0, 120.0));
-        assert_eq!(placement(&fit("cover"), 80.0, 60.0), (5.0, -10.0, 100.0, 120.0));
-        let crop = serde_json::from_str::<ImageSizing>(r#"{"type":"crop","offsetX":96,"offsetY":24,"width":384,"height":192}"#).unwrap();
+        assert_eq!(placement(&ImageSizing::Contain { x, y, width, height }, 80.0, 60.0), (x, y, width, height));
+        assert_eq!(placement(&ImageSizing::Cover { x, y, width, height }, 80.0, 60.0), (x, y, width, height));
+        let crop = ImageSizing::Crop {
+            offset_x: 96.0,
+            offset_y: 24.0,
+            width: 384.0,
+            height: 192.0,
+        };
         assert_eq!(placement(&crop, 80.0, 60.0), (-96.0, -24.0, 384.0, 192.0));
     }
 }

@@ -49,6 +49,6 @@ export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } f
 export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeteerGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
 export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";
-export type { HtmlPresentationDocument, ModelRenderer, ModelToHtmlOptions, PresentationRenderer } from "./render/document";
+export type { HtmlPresentationDocument, ModelToHtmlOptions, PresentationRenderer } from "./render/document";
 export type { ComponentLookup } from "./render/slide";
 export type { ColorProps } from "./color";
