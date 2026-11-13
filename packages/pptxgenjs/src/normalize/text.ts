@@ -2,6 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
 import { inchesToPixels, pointsToPixels } from "../units";
+import { normalizeHyperlink } from "./link";
 import { normalizeColor, normalizeShadow } from "./style";
 
 export type TextInput = string | number | PptxGenJS.TextProps[];
@@ -61,13 +62,6 @@ function textShadow(options: PptxGenJS.TextPropsOptions): NormalizedShadow | und
     };
 }
 
-function getHyperlinkData(options: PptxGenJS.TextPropsOptions) {
-    if (!options.hyperlink) return undefined;
-    if (options.hyperlink.url) return { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip };
-    if (options.hyperlink.slide) return { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide };
-    return undefined;
-}
-
 function getVerticalAlign(options: PptxGenJS.TextPropsOptions): "sub" | "super" | "baseline" {
     if (options.subscript) return "sub";
     if (options.superscript) return "super";
@@ -75,10 +69,6 @@ function getVerticalAlign(options: PptxGenJS.TextPropsOptions): "sub" | "super" 
 }
 
 export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions): NormalizedTextRun {
-    if (options.hyperlink && !options.hyperlink.url && !options.hyperlink.slide) {
-        throw new Error("hyperlink requires either url or slide");
-    }
-
     const underline = typeof options.underline === "object" ? options.underline : undefined;
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const baseline = options.baseline ?? 0;
@@ -86,7 +76,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     // A custom baseline wins over super/subscript, as in PptxGenJS's run XML.
     // shortcut: custom baselines keep their full size and the point-based offset; check them against LibreOffice's 58% when a fixture uses one.
     const escapement = options.baseline ? undefined : options.subscript ? PPTX_DEFAULTS.text.subscriptBaseline : options.superscript ? PPTX_DEFAULTS.text.superscriptBaseline : undefined;
-    const link = getHyperlinkData(options);
+    const link = normalizeHyperlink(options.hyperlink);
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
     const hasUnderline = Boolean(link) || Boolean(underline && underline.style !== "none");
 

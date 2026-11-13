@@ -3,6 +3,7 @@ import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedImage, NormalizedImageSizing, NormalizedPresentation } from "@pdfdeck/model";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../units";
+import { normalizeHyperlink } from "./link";
 
 export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
     ".gif": "image/gif",
@@ -105,9 +106,6 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     if (typeof source !== "string") throw new Error("Image source must be a string");
     const sourceKind = options.data !== undefined ? "data" : /^https?:\/\//i.test(source) ? "remote" : "path";
     if (sourceKind === "data") validateDataUri(source);
-    if (options.hyperlink && !options.hyperlink.url && !options.hyperlink.slide) {
-        throw new Error("hyperlink requires either url or slide");
-    }
     const sizing = options.sizing;
     const pageWidth = inchesToPixels(pageSize.width);
     const pageHeight = inchesToPixels(pageSize.height);
@@ -117,7 +115,7 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     const boxHeight = sizing ? convertToPixels(sizing.h || options.h || PPTX_DEFAULTS.image.h, pageHeight) : sourceHeight;
     const normalizedSizing = normalizeSizing(sizing, sourceWidth, sourceHeight, boxWidth, boxHeight, pageWidth, pageHeight);
     const transparency = Math.max(0, Math.min(100, options.transparency ?? PPTX_DEFAULTS.image.transparency));
-    const link = options.hyperlink?.url ? { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip } : options.hyperlink?.slide ? { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide } : undefined;
+    const link = normalizeHyperlink(options.hyperlink);
     return {
         source,
         sourceKind,
