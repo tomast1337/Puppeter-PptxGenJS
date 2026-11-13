@@ -6,7 +6,7 @@ import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/g
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
-import { CROP_TARGET, FLOWCHART_DIVIDER_CROP_THRESHOLD, TABLE_CROP_THRESHOLD, TABLE_TEXT_OFFSET_CROP_THRESHOLDS } from "./thresholds";
+import { CROP_TARGET, TABLE_CROP_THRESHOLD, TABLE_TEXT_OFFSET_CROP_THRESHOLDS } from "./thresholds";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -243,10 +243,8 @@ function cropThreshold(name: string): number {
     const tableTextOffset = TABLE_TEXT_OFFSET_CROP_THRESHOLDS[name];
     if (tableTextOffset !== undefined) return tableTextOffset;
     if (name.startsWith("table-")) return TABLE_CROP_THRESHOLD;
-    if (FLOWCHART_DIVIDER_CROPS.includes(name)) return FLOWCHART_DIVIDER_CROP_THRESHOLD;
     return CROP_TARGET;
 }
-const FLOWCHART_DIVIDER_CROPS = ["flowChartInternalStorage", "flowChartPredefinedProcess"];
 
 export const PARITY_REGIONS = [
     ...CURVED_CASES,
@@ -264,6 +262,7 @@ export const PARITY_REGIONS = [
     ...SHAPED_TEXT_CASES,
     ...TEXT_CASES,
     { page: 59, name: "html-react-component-bars", x: 1, y: 1, w: 6, h: 2 },
+    { page: 12, name: "dashed-arrow-line", x: 6.55, y: 1.6, w: 2.6, h: 0 },
     ...ARROW_HEAD_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.1, y: y - 0.1, w: w + 0.2, h: h + 0.2 })),
 ].map(({ page, name, x, y, w, h }) => ({
     page,
@@ -934,12 +933,14 @@ export function populateParityFixture(presentation: Presentation): void {
         y: 1.6,
         w: 2.6,
         h: 0,
-        // Crop stays above CROP_TARGET (issue #42; WASM 0.092): LibreOffice stores the width in whole 1/100 mm
-        // (2.25pt -> 0.79 mm, 2.986px), so its 7-width dash period is 20.9px, not 21px; measured dash starts
-        // 28.65, 49.35, ... 238 against our 28.7 ... 239, a 1px drift by the end. The heads now match (the
-        // arrowhead slide scores them alone). Puppeteer (0.103) also paints this line about 0.5px low: the
-        // 2.986px stroke should cover y=152.1-155.1 (LibreOffice and WASM fill rows 152-154), Puppeteer's covers
-        // about 152.6-155.6, consistent with Chromium painting the SVG root (top 153.6px) from a whole pixel.
+        // Crop "dashed-arrow-line" (issue #42), measured in the pinned image: Puppeteer 0.0571, WASM 0.0916.
+        // - Both: LibreOffice stores the width in whole 1/100 mm (2.25pt -> 0.79 mm, 2.986px), so its 7-width
+        //   dash period is 20.9px, not 21px: a 1px drift by the line end. Not copied, the OOXML says 28575 EMU.
+        //   Emulating the rounding in a scratch build scored Puppeteer 0.0038, WASM 0.0343.
+        // - WASM only: poppler's stroke adjustment snaps the dashes of an exactly horizontal stroke to whole
+        //   pixels (every dash edge on .0). LibreOffice writes this line from y 289.814pt to 289.786pt, slightly
+        //   sloped, which escapes the snap. Sloping the WASM PDF's line by the same 0.037px gives 0.0571, the
+        //   Puppeteer score. Gated by tests/visual/wasm/baseline.json.
         line: { color: "4472C4", width: 2.25, dashType: "dash", beginArrowType: "oval", endArrowType: "triangle" },
         hyperlink: { url: "https://example.com", tooltip: "Shape link" },
     });

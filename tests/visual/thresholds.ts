@@ -17,15 +17,7 @@ export const BASELINE_EPSILON = 0.002;
 // Crop exceptions above CROP_TARGET (tests/visual/fixture.ts). Do not raise one to pass a regression.
 
 /**
- * flowChartInternalStorage, flowChartPredefinedProcess (dbd52e3). LibreOffice rasterizes multiple
- * coincident 1.15pt divider strokes with fewer fully opaque pixels than Chromium; geometry and divider
- * positions match (tests/shape.test.ts "renders flowchart dividers as strokes over one filled face").
- * No scores were recorded when it was set.
- */
-export const FLOWCHART_DIVIDER_CROP_THRESHOLD = 0.11;
-
-/**
- * table-* crops (d9dbab6): dense table grids hit the same divider-stroke rasterization difference; the
+ * table-* crops (d9dbab6): dense table grids hit a divider-stroke rasterization difference; the
  * table pages stay below 0.09 whole-slide RMSE. No per-crop scores were recorded when it was set.
  */
 export const TABLE_CROP_THRESHOLD = 0.09;
