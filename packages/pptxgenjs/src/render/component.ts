@@ -3,10 +3,11 @@ import type { ComponentDefinition } from "../components/types";
 import { COMPONENT_DEFAULTS } from "../defaults";
 import { applyObjectStyle } from "./style";
 
-export function renderComponent(document: Document, component: ReturnType<typeof normalizeComponent>, definition: ComponentDefinition): HTMLElement {
+/** `idScope` is the object's position in the deck (`objectIdScope`), so ids the component derives from it are unique and stable. */
+export function renderComponent(document: Document, component: ReturnType<typeof normalizeComponent>, definition: ComponentDefinition, idScope: string): HTMLElement {
     const { input, style } = component;
     definition.validate?.(input.props);
-    const content = definition.render(input.props, { document, width: style.geometry.width!, height: style.geometry.height! });
+    const content = definition.render(input.props, { document, width: style.geometry.width!, height: style.geometry.height!, idPrefix: idScope });
     const host = document.createElement("div");
     host.className = "slide-element slide-component";
     host.dataset.componentType = input.type;

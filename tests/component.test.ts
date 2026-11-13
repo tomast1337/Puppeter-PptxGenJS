@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { renderedPage, renderedSlide } from "./renderedPage";
 import { z } from "zod";
 import { normalizeComponent } from "../packages/pptxgenjs/src/components/normalize";
 import { COMPONENT_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
@@ -19,10 +20,10 @@ test("Zod infers HTML props, applies defaults and validates before changing the 
     });
     const slide = p.addSlide();
     expect(() => slide.addComponent({ type: "schema/card", version: 1, props: { value: "invalid" } }, options)).toThrow();
-    expect(slide.slideElm.children.length).toBe(0);
+    expect(renderedSlide(p).children.length).toBe(0);
     const props = { value: 4 };
     slide.addComponent({ type: "schema/card", version: 1, props }, options);
-    expect(slide.slideElm.textContent).toBe("Total:4.0");
+    expect(renderedSlide(p).textContent).toBe("Total:4.0");
     expect(props).toEqual({ value: 4 });
 });
 
@@ -34,13 +35,13 @@ test("Zod transforms run once for each render and must produce JSON-compatible p
     });
     const slide = p.addSlide();
     slide.addComponent({ type: "schema/transform", version: 1, props: { value: "4" } }, options);
-    expect(slide.slideElm.textContent).toBe("5");
+    expect(renderedSlide(p).textContent).toBe("5");
     p.registerComponent("schema/date", 1, {
         schema: z.object({ value: z.string().transform(() => new Date()) }),
         render: () => "never",
     });
     expect(() => slide.addComponent({ type: "schema/date", version: 1, props: { value: "today" } }, options)).toThrow("plain objects");
-    expect(slide.slideElm.children.length).toBe(1);
+    expect(renderedSlide(p).children.length).toBe(1);
 });
 
 test("normalizes inches and snapshots props without materializing renderer code", () => {
@@ -58,7 +59,7 @@ test("registered HTML components render in insertion order, clip and remain chai
     slide.addText("Before");
     expect(slide.addComponent(input, options)).toBe(slide);
     slide.addText("After");
-    const element = slide.slideElm.children[1] as HTMLElement;
+    const element = renderedSlide(p).children[1] as HTMLElement;
     expect(element.className).toBe("slide-element slide-component");
     expect(element.dataset.componentType).toBe(input.type);
     expect(element.dataset.componentVersion).toBe("1");
@@ -69,22 +70,28 @@ test("registered HTML components render in insertion order, clip and remain chai
     expect(element.querySelector("strong")?.textContent).toBe("Revenue");
 });
 
-test("context supports DOM renderers, pixel bounds and safe text assignment", () => {
+test("context supports DOM renderers, pixel bounds, stable id prefixes and safe text assignment", () => {
     const p = new PuppeteerGen();
-    const original = p.page.createElement("span");
+    const returned: HTMLElement[] = [];
+    const prefixes: string[] = [];
     p.registerComponent("text", 1, {
         render: (props, ctx) => {
-            expect(ctx.document).toBe(p.page);
             expect([ctx.width, ctx.height]).toEqual([288, 96]);
-            original.textContent = String(props.text);
-            return original;
+            prefixes.push(ctx.idPrefix);
+            const span = ctx.document.createElement("span");
+            span.textContent = String(props.text);
+            returned.push(span);
+            return span;
         },
     });
     const slide = p.addSlide();
+    slide.addText("Before");
     slide.addComponent({ type: "text", version: 1, props: { text: "<b>literal</b>" } }, { ...options, objectName: "custom" });
-    expect(original.parentNode).toBeNull();
-    expect(slide.slideElm.querySelector("span")?.textContent).toBe("<b>literal</b>");
-    expect(slide.slideElm.querySelector("b")).toBeNull();
+    expect(returned.every(element => element.parentNode === null)).toBe(true);
+    expect(renderedSlide(p).querySelector(".slide-component span")?.textContent).toBe("<b>literal</b>");
+    expect(renderedSlide(p).querySelector("b")).toBeNull();
+    // addComponent's check render and every later render see the object's position.
+    expect(prefixes).toEqual(["slide-1-object-1", "slide-1-object-1", "slide-1-object-1"]);
 });
 
 test("registry is per presentation, supports multiple exact versions and late registration", () => {
@@ -94,7 +101,7 @@ test("registry is per presentation, supports multiple exact versions and late re
     a.registerComponent(input.type, 1, { render: () => "v1" });
     a.registerComponent(input.type, 2, { render: () => "v2" });
     slide.addComponent({ ...input, version: 2 }, options);
-    expect(slide.slideElm.textContent).toBe("v2");
+    expect(renderedSlide(a).textContent).toBe("v2");
     expect(() => a.registerComponent(input.type, 1, { render: () => "" })).toThrow("already registered");
     expect(() => b.addSlide().addComponent(input, options)).toThrow("Unknown component");
     expect(() => slide.addComponent({ ...input, version: 3 }, options)).toThrow("Unknown component");
@@ -112,7 +119,7 @@ test("validation and renderer failures leave no partial slide objects", () => {
     expect(() => slide.addComponent(input, options)).toThrow("Invalid metric");
     p.registerComponent("bad-result", 1, { render: (() => Promise.resolve("later")) as never });
     expect(() => slide.addComponent({ ...input, type: "bad-result" }, options)).toThrow("must return HTML");
-    expect(slide.slideElm.children.length).toBe(0);
+    expect(renderedSlide(p).children.length).toBe(0);
 });
 
 test("rejects nonserializable props, invalid identity and unsupported geometry", () => {
@@ -138,7 +145,7 @@ test("HTML images enter the existing image-resolution pipeline", () => {
     p.registerComponent("images", 1, { render: () => '<img src="./logo.png"><img src="https://example.com/logo.png">' });
     const slide = p.addSlide();
     slide.addComponent({ type: "images", version: 1, props: {} }, options);
-    const images = slide.slideElm.querySelectorAll("img");
+    const images = renderedSlide(p).querySelectorAll("img");
     expect(images[0]!.dataset.sourcePath).toBe("./logo.png");
     expect(images[1]!.dataset.sourceUrl).toBe("https://example.com/logo.png");
     expect(images[0]!.hasAttribute("src")).toBe(false);

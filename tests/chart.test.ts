@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
 import { UnsupportedChartError } from "../packages/pptxgenjs/src/chart/errors";
 import { formatChartNumber } from "../packages/pptxgenjs/src/chart/format";
@@ -53,7 +54,7 @@ describe("chart normalization and rendering", () => {
         });
 
         expect(result).toBe(slide);
-        const element = presentation.page.querySelector<HTMLElement>(".slide-chart");
+        const element = renderedPage(presentation).querySelector<HTMLElement>(".slide-chart");
         const svg = element?.querySelector("svg");
         expect(element?.dataset.objectName).toBe("Sales chart");
         expect(element?.getAttribute("aria-label")).toBe("Quarterly sales");
@@ -79,8 +80,8 @@ describe("chart normalization and rendering", () => {
         slide.addChart("scatter", xyData, { x: 6, y: 2, w: 3, h: 2 });
         slide.addChart("bubble", xyData, { x: 0, y: 4, w: 3, h: 1.5 });
 
-        expect(presentation.page.querySelectorAll(".slide-chart")).toHaveLength(7);
-        expect(presentation.page.querySelectorAll(".slide-chart svg")).toHaveLength(7);
+        expect(renderedPage(presentation).querySelectorAll(".slide-chart")).toHaveLength(7);
+        expect(renderedPage(presentation).querySelectorAll(".slide-chart svg")).toHaveLength(7);
     });
 
     test("reports unsupported types and options with structured details", () => {
@@ -128,7 +129,7 @@ describe("chart normalization and rendering", () => {
                 bar3DShape: shape,
                 showLegend: true,
             });
-            const svg = presentation.page.querySelector(`svg[data-bar3d-shape="${shape}"]`);
+            const svg = renderedPage(presentation).querySelector(`svg[data-bar3d-shape="${shape}"]`);
             expect(svg).not.toBeNull();
             expect(svg?.querySelectorAll(".bar3d-mark")).toHaveLength(6);
             expect(svg?.textContent).toContain("First");
@@ -157,7 +158,7 @@ describe("chart normalization and rendering", () => {
                 chartColors: ["4472C4", "ED7D31", "70AD47"],
             }),
         ).toBe(slide);
-        const svg = presentation.page.querySelector(".slide-chart svg");
+        const svg = renderedPage(presentation).querySelector(".slide-chart svg");
         expect(svg?.textContent).toContain("First");
         expect(svg?.textContent).toContain("Second");
         expect(svg?.textContent).toContain("Third");
@@ -188,7 +189,7 @@ describe("chart normalization and rendering", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
         (slide.addChart as Function)(mixed, { ...options, x: 1, y: 1, w: 6, h: 3 });
-        const svg = presentation.page.querySelector(".slide-chart svg");
+        const svg = renderedPage(presentation).querySelector(".slide-chart svg");
         expect(svg?.textContent).toContain("Units");
         expect(svg?.textContent).toContain("Revenue");
         expect(svg?.textContent).toContain("500");
@@ -254,7 +255,7 @@ describe("chart normalization and rendering", () => {
 
         const presentation = new PuppeteerGen();
         presentation.addSlide().addChart("bar", categoricalData, { ...options, x: 1, y: 1, w: 6, h: 3 });
-        const svg = presentation.page.querySelector(".slide-chart svg");
+        const svg = renderedPage(presentation).querySelector(".slide-chart svg");
         expect(svg?.textContent).toContain("Revenue");
         expect(svg?.textContent).toContain("$8.0");
         expect(formatChartNumber(1234.5, "$#,##0.00")).toBe("$1,234.50");
@@ -329,8 +330,8 @@ describe("chart normalization and rendering", () => {
             { x: 3, y: 0, w: 1, h: 1, objectName: "Raw SVG" },
         );
 
-        expect(presentation.page.querySelectorAll(".slide-chart svg")).toHaveLength(2);
-        expect(presentation.page.querySelector("#slide-1-object-1-face")).not.toBeNull();
+        expect(renderedPage(presentation).querySelectorAll(".slide-chart svg")).toHaveLength(2);
+        expect(renderedPage(presentation).querySelector("#slide-1-object-1-face")).not.toBeNull();
     });
 
     test("rejects external resources in extension SVG", () => {

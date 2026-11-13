@@ -36,7 +36,7 @@ describe("html entry in Chromium", () => {
                 const output = await page.evaluate(
                     async (source: string, png: string) => {
                         const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-                        const { default: PuppeteerGen, PAGE_SIZES } = await import(url);
+                        const { default: PuppeteerGen, modelToHtml, PAGE_SIZES } = await import(url);
                         const page = PAGE_SIZES.SCREEN_16X9.landscape;
                         const received: unknown[] = [];
                         const renderer = {
@@ -81,6 +81,10 @@ describe("html entry in Chromium", () => {
                         filePath.addSlide().addImage({ path: "images/logo.png", x: 1, y: 1, w: 1, h: 1 });
                         const noRenderer = new PuppeteerGen(page);
                         noRenderer.addSlide();
+                        // The exported model step with its browser defaults gives toHtml()'s bytes.
+                        const modelOnly = new PuppeteerGen(page);
+                        modelOnly.addSlide().addText("Model only", { x: 1, y: 1, w: 3, h: 1 }).addImage({ data: png, x: 5, y: 1, w: 1, h: 1 });
+                        const fromModel = (await modelToHtml(modelOnly.getModel())).html === (await modelOnly.toHtml()).html;
 
                         // Render the serialized document to check the slides lay out in a real engine.
                         const frame = window.document.createElement("iframe");
@@ -96,6 +100,7 @@ describe("html entry in Chromium", () => {
                             expectedPageSize: page,
                             pdf,
                             sameDocument: JSON.stringify(received[0]) === JSON.stringify(document),
+                            fromModel,
                             filePathError: await failure(() => filePath.toHtml()),
                             noRendererError: await failure(() => noRenderer.toPdf()),
                             slideSizes: Array.from(rendered.querySelectorAll(".slide-container"), element => {
@@ -136,6 +141,7 @@ describe("html entry in Chromium", () => {
         expect(result.chartSvgs).toBeGreaterThan(0);
         expect(result.pdf).toBe("%PDF-fake");
         expect(result.sameDocument).toBe(true);
+        expect(result.fromModel).toBe(true);
         expect(result.filePathError).toStartWith("Cannot resolve image path 'images/logo.png' without filesystem access");
         expect(result.noRendererError).toStartWith("toPdf() requires a renderer");
     }, 60_000);

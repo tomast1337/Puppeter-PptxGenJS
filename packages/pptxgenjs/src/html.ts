@@ -9,6 +9,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
 import { alignToCSS, valignToCSS } from "./alignment";
 import { colorToCSS } from "./color";
 import { generatePageCSS } from "./pageCss";
+import { modelToHtml } from "./render/document";
 import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "./units";
 
 export {
@@ -20,6 +21,8 @@ export {
     DEFAULT_PAGE_SIZE,
     generatePageCSS,
     inchesToPixels,
+    // The model -> HTML step for producers that build the JSON model themselves (#69).
+    modelToHtml,
     PAGE_SIZES,
     // For @pdfdeck/react, which applies component schemas the same way as the registry.
     parseComponentProps,
@@ -46,5 +49,6 @@ export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } f
 export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeteerGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
 export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";
-export type { HtmlPresentationDocument, ModelRenderer, PresentationRenderer } from "./render/document";
+export type { HtmlPresentationDocument, ModelRenderer, ModelToHtmlOptions, PresentationRenderer } from "./render/document";
+export type { ComponentLookup } from "./render/slide";
 export type { ColorProps } from "./color";

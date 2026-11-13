@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { renderedPage } from "./renderedPage";
 import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -105,7 +106,7 @@ describe("image DOM rendering", () => {
             transparency: 30,
         });
 
-        const outer = presentation.page.querySelector<HTMLElement>(".slide-image");
+        const outer = renderedPage(presentation).querySelector<HTMLElement>(".slide-image");
         const frame = outer?.querySelector<HTMLElement>(".slide-image-frame");
         const image = outer?.querySelector<HTMLImageElement>("img");
         expect(outer?.style.width).toBe("192px");
@@ -130,7 +131,7 @@ describe("image DOM rendering", () => {
         });
         slide.addImage({ data: PNG_DATA, x: 4, y: 1, sizing: { type: "contain", w: 2, h: 2 } });
 
-        const objects = presentation.page.querySelectorAll<HTMLElement>(".slide-image");
+        const objects = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-image");
         const link = objects[0] as HTMLAnchorElement;
         expect(link.tagName).toBe("A");
         expect(link.href).toBe("https://example.com/");

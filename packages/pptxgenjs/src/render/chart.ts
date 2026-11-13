@@ -384,19 +384,23 @@ function chartContainer(document: Document, svgSource: string, style: Normalized
     return container;
 }
 
-export function renderChart(document: Document, chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): HTMLDivElement {
+/** The chart box; addChart() calls it too, so a zero-sized chart fails there rather than at toHtml(). */
+export function chartSize(style: NormalizedObjectStyle): { width: number; height: number } {
     const width = style.geometry.width ?? 0;
     const height = style.geometry.height ?? 0;
     if (width <= 0 || height <= 0) throw new RangeError("Chart width and height must be greater than zero");
+    return { width, height };
+}
+
+export function renderChart(document: Document, chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): HTMLDivElement {
+    const { width, height } = chartSize(style);
     const source = chart.type === "bar3D" ? renderBar3DSvg(width, height, chart) : renderEChartsSvg(width, height, chartOption(chart));
     return chartContainer(document, source, style, chart.altText, idScope);
 }
 
 /** Resolves caller renderer input to SVG source so the slide model stores only data. */
 export function renderChartExtensionSvg(input: ChartExtensionInput, style: NormalizedObjectStyle): string {
-    const width = style.geometry.width ?? 0;
-    const height = style.geometry.height ?? 0;
-    if (width <= 0 || height <= 0) throw new RangeError("Chart width and height must be greater than zero");
+    const { width, height } = chartSize(style);
     return input.renderer === "svg" ? input.svg : renderEChartsSvg(width, height, input.option as EChartsCoreOption);
 }
 

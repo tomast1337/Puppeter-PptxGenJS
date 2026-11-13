@@ -7,7 +7,7 @@ import { PPTX_DEFAULTS } from "./defaults";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/table/html";
-import { normalizeImage, resolveDocumentImages, resolveModelImages, resolveRemoteImageSource } from "./normalize/image";
+import { normalizeImage, resolveModelImages, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, straightLineLength } from "./normalize/shape";
 import { normalizeColor, normalizeLine } from "./normalize/style";
@@ -17,24 +17,23 @@ import { normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
-import { renderChartExtensionSvg } from "./render/chart";
+import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
-import { type HtmlPresentationDocument, type ModelRenderer, type PresentationRenderer, serializeHtmlPresentation } from "./render/document";
+import { type HtmlPresentationDocument, type ModelRenderer, modelToHtml, type PresentationRenderer } from "./render/document";
 import { convertPdfOutput, resolveOutputType } from "./output";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { pixelsToInches } from "./units";
-import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, objectIdScope, renderSlideObject } from "./render/slide";
+import { createBrowserDocument, objectIdScope } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
+    /** `document` only hosts the renders that check charts and components when they are added; toHtml() builds its own. */
     constructor(
-        slideElm: HTMLDivElement,
         pageSize: PageSize,
         document: Document,
         private readonly slideIndex: number,
         getContinuationSlide: (offset: number) => PuppeteerSlide,
         private readonly components = new ComponentRegistry(),
     ) {
-        this.slideElm = slideElm;
         this.pageSize = pageSize;
         this.document = document;
         this.getContinuationSlide = getContinuationSlide;
@@ -50,7 +49,6 @@ export class PuppeteerSlide implements PptxSlide {
         this.newAutoPagedSlides = [];
         this.bkgd = PPTX_DEFAULTS.slide.backgroundColor;
     }
-    slideElm: HTMLDivElement;
     pageSize: PageSize;
     document: Document;
     private _background: PptxGenJS.BackgroundProps = { color: PPTX_DEFAULTS.slide.backgroundColor };
@@ -61,7 +59,7 @@ export class PuppeteerSlide implements PptxSlide {
     slideNumber: PptxGenJS.SlideNumberProps;
     newAutoPagedSlides: PptxGenJS.PresSlide[];
     private objectCounts: Record<string, number> = {};
-    /** Normalized, JSON-serializable record of this slide; the DOM above is rendered from it. */
+    /** Normalized, JSON-serializable record of this slide; toHtml() renders the slide from it alone. */
     readonly model: NormalizedSlide = {
         background: normalizeColor(PPTX_DEFAULTS.slide.backgroundColor),
         color: normalizeColor(PPTX_DEFAULTS.slide.color),
@@ -77,7 +75,6 @@ export class PuppeteerSlide implements PptxSlide {
         this._background = value;
         if (!value?.color) return;
         this.model.background = normalizeColor(value);
-        applySlideBackground(this.slideElm, this.model);
     }
 
     get bkgd(): string {
@@ -87,7 +84,6 @@ export class PuppeteerSlide implements PptxSlide {
     set bkgd(value: string) {
         this._bkgd = value;
         this.model.background = normalizeColor(value);
-        applySlideBackground(this.slideElm, this.model);
     }
 
     get color(): string {
@@ -97,7 +93,6 @@ export class PuppeteerSlide implements PptxSlide {
     set color(value: string) {
         this._color = value;
         this.model.color = normalizeColor(value);
-        applySlideColor(this.slideElm, this.model);
     }
 
     get hidden(): boolean {
@@ -107,7 +102,6 @@ export class PuppeteerSlide implements PptxSlide {
     set hidden(value: boolean) {
         this._hidden = value;
         this.model.hidden = value;
-        applySlideHidden(this.slideElm, this.model);
     }
 
     private nextObjectName(kind: string, explicit?: string): string {
@@ -116,23 +110,24 @@ export class PuppeteerSlide implements PptxSlide {
         return explicit ?? `${kind} ${index}`;
     }
 
-    /** Renders before recording, so render-time errors still throw from addX and leave the slide unchanged. */
     private addObject(object: NormalizedSlideObject): this {
-        this.slideElm.appendChild(renderSlideObject(this.document, object, objectIdScope(this.slideIndex, this.model.objects.length), this.components));
         this.model.objects.push(object);
         return this;
+    }
+
+    private nextIdScope(): string {
+        return objectIdScope(this.slideIndex, this.model.objects.length);
     }
 
     addComponent(input: ComponentInput, options: ComponentOptions): this {
         const normalized = normalizeComponent(input, options, this.pageSize, options?.objectName ?? "Component");
         const definition = this.components.get(normalized.input.type, normalized.input.version);
-        const element = renderComponent(this.document, normalized, definition);
+        // Application code: render it once here so its validation and render errors throw from addComponent
+        // and leave the slide unchanged. The element is dropped; toHtml() renders the model again.
+        renderComponent(this.document, normalized, definition, this.nextIdScope());
         // The default name is only consumed after a successful render.
         const objectName = this.nextObjectName("Component", options.objectName);
-        element.dataset.objectName = objectName;
-        this.slideElm.appendChild(element);
-        this.model.objects.push({ kind: "component", style: { ...normalized.style, objectName }, component: normalized.input });
-        return this;
+        return this.addObject({ kind: "component", style: { ...normalized.style, objectName }, component: normalized.input });
     }
 
     // PptxGenJS declares `data: any[]`; `unknown[]` accepts every argument that does and is narrowed below.
@@ -153,12 +148,17 @@ export class PuppeteerSlide implements PptxSlide {
             this.nextObjectName("Chart", chartOptions.objectName),
         );
         const chart = normalizeChart(type, Array.isArray(data) ? (data as PptxGenJS.OptsChartData[]) : [], chartOptions);
+        chartSize(style);
         return this.addObject({ kind: "chart", style, chart });
     }
 
     addChartEx(input: ChartExtensionInput, options: ChartExtensionOptions): PuppeteerSlide {
         const style = normalizeObjectStyle(options, PPTX_DEFAULTS.chart, this.pageSize, this.nextObjectName("Chart", options.objectName));
-        return this.addObject({ kind: "chartExtension", style, svg: renderChartExtensionSvg(input, style), altText: options.altText ?? "" });
+        const svg = renderChartExtensionSvg(input, style);
+        const altText = options.altText ?? "";
+        // Parses the caller's SVG so a non-SVG root or an external reference throws here; the element is dropped.
+        renderChartExtension(this.document, svg, style, altText, this.nextIdScope());
+        return this.addObject({ kind: "chartExtension", style, svg, altText });
     }
 
     addImage(options: PptxGenJS.ImageProps): PptxGenJS.Slide {
@@ -255,18 +255,24 @@ export interface PuppeteerGenOptions {
 
 export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout" | "AlignH" | "AlignV" | "ChartType" | "OutputType" | "SchemeColor" | "ShapeType" | "PlaceholderType" | "layout" | "rtlMode" | "author" | "company" | "revision" | "subject" | "theme" | "title"> {
     private pageSize: PageSize;
+    /**
+     * Input document for tableToSlides(tableId) only: put the source <table> here. Slides are not written
+     * into it, so editing it does not change toHtml() or the PDF (#69). #72 tracks option (b): tableToSlides
+     * takes an element or HTML string and `page` is deprecated.
+     */
     page: Document;
-    private slideCount = 0;
     private readonly components = new ComponentRegistry();
     private slides: PuppeteerSlide[] = [];
     private readonly renderer: PresentationRenderer | ModelRenderer | undefined;
     private readonly resolveImage: (source: string) => Promise<string>;
+    private readonly createDocument: () => Document;
 
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE, options: PuppeteerGenOptions = {}) {
         this.pageSize = pageSize;
         this.renderer = options.renderer;
         this.resolveImage = options.resolveImage ?? resolveRemoteImageSource;
-        this.page = createPresentationDocument(pageSize, options.createDocument);
+        this.createDocument = options.createDocument ?? createBrowserDocument;
+        this.page = this.createDocument();
     }
 
     registerComponent<Props extends object = ComponentProps>(type: string, version: number, definition: ComponentDefinition<Props>): this {
@@ -279,15 +285,10 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
      */
     setPageSize(pageSize: PageSize): void {
         this.pageSize = pageSize;
-        this.injectCSS();
-    }
-
-    private injectCSS(): void {
-        applyPresentationStyles(this.page, this.pageSize);
     }
 
     /**
-     * The normalized slide-object model behind `page`, as a detached JSON-serializable copy.
+     * The normalized slide-object model that toHtml() and toPdf() render, as a detached JSON-serializable copy.
      * `component` objects keep only type, version and props; rendering them needs the registered definitions.
      */
     getModel(): NormalizedPresentation {
@@ -307,8 +308,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
 
     /** The complete self-contained HTML document (images inlined as data URIs). Does not launch a browser. */
     async toHtml(): Promise<HtmlPresentationDocument> {
-        await resolveDocumentImages(this.page, this.resolveImage);
-        return serializeHtmlPresentation(this.page, this.pageSize);
+        return modelToHtml(this.getModel(), { components: this.components, resolveImage: this.resolveImage, createDocument: this.createDocument });
     }
 
     /** PDF bytes from the configured renderer; nothing is written to disk. */
@@ -331,13 +331,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     addSlide(props?: PptxAddSlideProps | undefined): PuppeteerSlide;
     addSlide(masterName?: string | undefined): PuppeteerSlide;
     addSlide(masterName?: unknown): PuppeteerSlide {
-        const slideElm = this.page.createElement("div");
-        slideElm.className = "slide-container";
-        slideElm.id = `slide-${++this.slideCount}`;
-        this.page.body.appendChild(slideElm);
         const slideIndex = this.slides.length;
         const slide = new PuppeteerSlide(
-            slideElm,
             this.pageSize,
             this.page,
             slideIndex,
@@ -367,7 +362,6 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
                 height: layout.height,
                 name: layout.name || "Custom",
             };
-            this.injectCSS();
         }
     }
 

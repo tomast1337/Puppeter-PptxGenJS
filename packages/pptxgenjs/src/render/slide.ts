@@ -17,7 +17,10 @@ export function objectIdScope(slideIndex: number, objectIndex: number): string {
     return `slide-${slideIndex + 1}-object-${objectIndex}`;
 }
 
-export function renderSlideObject(document: Document, object: NormalizedSlideObject, idScope: string, components?: ComponentRegistry): HTMLElement {
+/** What rendering needs from a component registry: the definition for a saved type and version. */
+export type ComponentLookup = Pick<ComponentRegistry, "get">;
+
+export function renderSlideObject(document: Document, object: NormalizedSlideObject, idScope: string, components?: ComponentLookup): HTMLElement {
     switch (object.kind) {
         case "text": {
             const element = document.createElement("div");
@@ -47,29 +50,17 @@ export function renderSlideObject(document: Document, object: NormalizedSlideObj
             return renderChartExtension(document, object.svg, object.style, object.altText, idScope);
         case "component":
             if (!components) throw new Error(`Rendering component ${object.component.type}@${object.component.version} requires its component registry`);
-            return renderComponent(document, { input: object.component, style: object.style }, components.get(object.component.type, object.component.version));
+            return renderComponent(document, { input: object.component, style: object.style }, components.get(object.component.type, object.component.version), idScope);
     }
 }
 
-export function applySlideBackground(element: HTMLElement, slide: NormalizedSlide): void {
-    element.style.backgroundColor = slide.background;
-}
-
-export function applySlideColor(element: HTMLElement, slide: NormalizedSlide): void {
-    element.style.setProperty("--slide-text-color", slide.color);
-}
-
-export function applySlideHidden(element: HTMLElement, slide: NormalizedSlide): void {
-    element.dataset.hidden = String(slide.hidden);
-}
-
-export function renderSlide(document: Document, slide: NormalizedSlide, index: number, components?: ComponentRegistry): HTMLDivElement {
+export function renderSlide(document: Document, slide: NormalizedSlide, index: number, components?: ComponentLookup): HTMLDivElement {
     const element = document.createElement("div");
     element.className = "slide-container";
     element.id = `slide-${index + 1}`;
-    applySlideBackground(element, slide);
-    applySlideColor(element, slide);
-    applySlideHidden(element, slide);
+    element.style.backgroundColor = slide.background;
+    element.style.setProperty("--slide-text-color", slide.color);
+    element.dataset.hidden = String(slide.hidden);
     slide.objects.forEach((object, objectIndex) => element.appendChild(renderSlideObject(document, object, objectIdScope(index, objectIndex), components)));
     return element;
 }
@@ -81,23 +72,13 @@ export function createBrowserDocument(): Document {
     return document.implementation.createHTMLDocument();
 }
 
-export function createPresentationDocument(pageSize: PageSize, createDocument: () => Document = createBrowserDocument): Document {
+/** Pure HTML render pass: the normalized model is the only input besides component definitions. */
+export function renderPresentationDocument(presentation: NormalizedPresentation, components?: ComponentLookup, createDocument: () => Document = createBrowserDocument): Document {
     const document = createDocument();
-    applyPresentationStyles(document, pageSize);
-    return document;
-}
-
-export function applyPresentationStyles(document: Document, pageSize: PageSize): void {
-    document.querySelector("style#puppeteer-gen-styles")?.remove();
     const style = document.createElement("style");
     style.id = "puppeteer-gen-styles";
-    style.textContent = presentationCSS(pageSize);
+    style.textContent = presentationCSS(presentation.pageSize);
     document.head.appendChild(style);
-}
-
-/** Pure HTML render pass: the normalized model is the only input besides component definitions. */
-export function renderPresentationDocument(presentation: NormalizedPresentation, components?: ComponentRegistry, createDocument?: () => Document): Document {
-    const document = createPresentationDocument(presentation.pageSize, createDocument);
     presentation.slides.forEach((slide, index) => document.body.appendChild(renderSlide(document, slide, index, components)));
     return document;
 }

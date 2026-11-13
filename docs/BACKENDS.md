@@ -15,6 +15,18 @@ without touching the filesystem; `writeFile()` is `toPdf()` plus a file write.
 [HTML_PROFILE.md](./HTML_PROFILE.md) specifies that document: where each model field lives in it, and
 which values it loses today.
 
+The HTML is derived from the model alone: `toHtml()` is `modelToHtml(pres.getModel(), ...)`, and
+`modelToHtml` is exported for producers that build the model JSON themselves. `pres.page` is only the
+input document for `tableToSlides(tableId)`: slides are not written into it, so editing it does not
+change `toHtml()` or the PDF.
+
+```typescript
+import { modelToHtml } from "@pdfdeck/pptxgenjs/html";
+
+// Optional dependencies: { components, resolveImage, createDocument }, with the /html defaults below.
+const { html } = await modelToHtml(model);
+```
+
 ```typescript
 import PuppeteerGen from "@pdfdeck/pptxgenjs";
 

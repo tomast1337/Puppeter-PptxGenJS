@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { renderedPage } from "./renderedPage";
 import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/normalize/text";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
@@ -148,7 +149,7 @@ describe("text DOM rendering", () => {
             { x: 1, y: 1, w: 4, h: 1, bullet: { characterCode: "25CF" } },
         );
 
-        const box = presentation.page.querySelector<HTMLElement>(".slide-text");
+        const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
         const paragraph = box?.querySelector<HTMLElement>(".text-paragraph");
         const runs = box?.querySelectorAll<HTMLElement>(".text-run");
         const link = box?.querySelector<HTMLAnchorElement>("a.text-run");
@@ -184,7 +185,7 @@ describe("text DOM rendering", () => {
             shape: "roundRect",
         });
 
-        const box = presentation.page.querySelector<HTMLElement>(".slide-text");
+        const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
         const content = box?.querySelector<HTMLElement>(".text-content");
         const run = box?.querySelector<HTMLElement>(".text-run");
         expect(box?.style.opacity).toBe("");
@@ -199,7 +200,7 @@ describe("text DOM rendering", () => {
         const presentation = new PuppeteerGen();
         presentation.addSlide().addText("This line is wider than its box", { x: 1, y: 1, w: 1, h: 1, wrap: false });
 
-        const box = presentation.page.querySelector<HTMLElement>(".slide-text");
+        const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
         expect(box?.style.whiteSpace).toBe("pre");
         expect(box?.style.overflowWrap).toBe("normal");
         expect(box?.style.overflow).toBe("visible");
@@ -221,10 +222,10 @@ describe("text DOM rendering", () => {
             align: "center",
         });
 
-        const box = presentation.page.querySelector<HTMLElement>(".slide-text");
+        const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
         const svg = box?.querySelector<SVGSVGElement>(":scope > .shape-svg");
         const geometry = svg?.querySelector<SVGPathElement>(".shape-geometry");
-        expect(presentation.page.querySelectorAll(".slide-element")).toHaveLength(1);
+        expect(renderedPage(presentation).querySelectorAll(".slide-element")).toHaveLength(1);
         expect(box?.dataset.shape).toBe("diamond");
         expect(box?.style.width).toBe("192px");
         expect(box?.style.height).toBe("144px");
@@ -253,8 +254,8 @@ describe("text DOM rendering", () => {
         presentation.addSlide();
         first.addText([{ text: "Next", options: { hyperlink: { slide: 2 } } }]);
 
-        expect(presentation.page.querySelectorAll(".slide-container")[1]?.id).toBe("slide-2");
-        expect(presentation.page.querySelector<HTMLAnchorElement>("a")?.getAttribute("href")).toBe("#slide-2");
+        expect(renderedPage(presentation).querySelectorAll(".slide-container")[1]?.id).toBe("slide-2");
+        expect(renderedPage(presentation).querySelector<HTMLAnchorElement>("a")?.getAttribute("href")).toBe("#slide-2");
         expect(() => normalizeText([{ text: "bad", options: { hyperlink: {} } }])).toThrow("hyperlink requires either url or slide");
     });
 });
