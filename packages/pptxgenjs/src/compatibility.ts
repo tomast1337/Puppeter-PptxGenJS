@@ -478,4 +478,18 @@ export const WASM_COMPATIBILITY = Object.freeze({
             text: "partial",
         }),
     }),
+    text: Object.freeze<CompatibilityEntry>({
+        status: "partial",
+        options: Object.freeze({
+            // What the Puppeteer renderer verified is drawn the same way, and the text deck gates it.
+            ...Object.fromEntries(Object.entries(COMPATIBILITY.text.options).map(([option, status]) => [option, status === "verified" ? "implemented" : status])),
+            // Reported through warnings(): no link annotations and no blurred glow or shadow yet.
+            glow: "unsupported",
+            hyperlink: "unsupported",
+            shadow: "unsupported",
+            // Not drawn yet: tab stops and stacked (wordArtVert) text are reported through warnings().
+            tabStops: "unsupported",
+            vert: "partial",
+        }),
+    }),
 } as const);

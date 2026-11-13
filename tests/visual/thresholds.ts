@@ -49,3 +49,14 @@ export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>>
     "table-html-first": 0.095,
     "table-html-second": 0.085,
 };
+
+/**
+ * Text crops off by Chromium's whole-px line snapping (#49), limits set as above (score plus at least
+ * BASELINE_EPSILON). text-line-spacing-multiple, 0.0999: 12pt Arial at 1.5x line spacing. LibreOffice
+ * keeps its baselines at 500.8 and 529.6 px; Chromium paints both lines 1 px higher (glyph rows 15-29
+ * and 44-58 of the crop against LibreOffice's 16-30 and 45-59). The WASM backend matches LibreOffice's
+ * rows exactly (0.0456).
+ */
+export const TEXT_LINE_SNAP_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
+    "text-line-spacing-multiple": 0.102,
+};

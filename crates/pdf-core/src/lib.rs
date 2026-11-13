@@ -378,7 +378,7 @@ mod tests {
             "style":{{"geometry":{{"x":10,"y":10,"width":300,"height":100}},"transform":{{"rotation":0,"flipH":false,"flipV":false,"opacity":0.5}},
             "fill":{{"visible":true,"color":"{color}"}},"line":{{"visible":true,"color":"{color}","width":2}}}},
             "shape":{{"name":"rect","width":300,"height":100,"geometry":{{"kind":"rect","radius":0}}}},
-            "text":{{"paragraphs":[{{"runs":[{run}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[]}}],
+            "text":{{"paragraphs":[{{"runs":[{run}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"lineBox":{{"height":38.4,"baseline":32}}}}],
             "margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}}}]}}]}}"#
         )
     }
@@ -391,6 +391,79 @@ mod tests {
         ]
         .iter()
         .find_map(|p| std::fs::read(p).ok())
+    }
+
+    /// A text box of 30px Liberation Sans paragraphs, each a list of runs (every run after the first
+    /// starts a new line) and its `lineBox` height and baseline.
+    fn text_box(paragraphs: &[(&[&str], f32, f32)]) -> model::TextBox {
+        let run = |(i, text): (usize, &&str)| {
+            format!(
+                r##"{{"text":"{text}","fontFace":"Liberation Sans","fontSize":30,"color":"#000000","bold":false,"italic":false,
+                "decoration":{{"underline":false,"strike":false,"doubleStrike":false}},"verticalAlign":"baseline",
+                "baselineOffset":0,"characterSpacing":0,"softBreakBefore":{}}}"##,
+                i > 0
+            )
+        };
+        let paragraphs: Vec<String> = paragraphs
+            .iter()
+            .map(|(runs, height, baseline)| {
+                let runs: Vec<String> = runs.iter().enumerate().map(run).collect();
+                format!(
+                    r#"{{"runs":[{}],"align":"left","rtl":false,"spaceBefore":0,"spaceAfter":0,"tabStops":[],"lineBox":{{"height":{height},"baseline":{baseline}}}}}"#,
+                    runs.join(",")
+                )
+            })
+            .collect();
+        serde_json::from_str(&format!(
+            r#"{{"paragraphs":[{}],"margin":[0,0,0,0],"verticalAlign":"top","wrap":true,"fit":"none","direction":"horz"}}"#,
+            paragraphs.join(",")
+        ))
+        .expect("test text box is valid model JSON")
+    }
+
+    /// `text` laid out in an 800x400 box with Liberation Sans, or None when it is not installed.
+    fn laid_out(text: &model::TextBox) -> Option<BoxLayout> {
+        let mut r = Renderer::new();
+        r.add_font(liberation_sans()?);
+        let mut layout = BoxLayout::default();
+        r.fit_text(text, 800.0, 400.0, &mut layout);
+        Some(layout)
+    }
+
+    #[test]
+    fn puts_every_line_on_the_models_line_box() {
+        // 1.5x spacing at 30px (LibreOffice): 1.8em = 54px lines, baseline 0.2em = 6px above each line bottom.
+        let Some(layout) = laid_out(&text_box(&[(&["Line one", "Line two"], 54.0, 48.0)])) else {
+            return eprintln!("Liberation Sans not installed: line box not checked");
+        };
+        let para = &layout.paras[0];
+        assert_eq!(layout.baselines.get(para.baselines.clone()), Some(&[48.0, 102.0][..]));
+        assert_eq!(layout.height, 108.0);
+    }
+
+    #[test]
+    fn a_16px_line_is_1_2em_tall_whatever_parleys_root_style() {
+        // parley's root style has no family or size; its default strut once made this line 19.95px.
+        let mut text = text_box(&[(&["Arial"], 19.2, 16.0)]);
+        text.paragraphs[0].runs[0].font_size = 16.0;
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: 16px line height not checked");
+        };
+        assert!((layout.height - 19.2).abs() < 1e-4, "{}", layout.height);
+    }
+
+    #[test]
+    fn a_lowered_subscript_grows_its_line_below_the_baseline() {
+        let mut text = text_box(&[(&["Base", "sub"], 36.0, 30.0)]);
+        let sub = &mut text.paragraphs[0].runs[1];
+        // A 20px subscript lowered 40%, as normalization resolves it.
+        (sub.baseline_offset, sub.font_size, sub.soft_break_before) = (-8.0, 20.0, false);
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: subscript line growth not checked");
+        };
+        // The baseline stays 1.0em below the top; only the descent grows past its 0.2em (6px).
+        assert_eq!(layout.baselines, [30.0]);
+        assert!(layout.height > 36.5, "{}", layout.height);
     }
 
     #[test]
@@ -421,8 +494,11 @@ mod tests {
                 "baselineOffset":0,"characterSpacing":0,"softBreakBefore":false}}"#
             )
         };
-        let para =
-            |runs: &str, bullet: &str| format!(r#"{{"runs":[{runs}],"align":"center","rtl":false,"spaceBefore":2,"spaceAfter":4,"tabStops":[]{bullet}}}"#);
+        let para = |runs: &str, bullet: &str| {
+            format!(
+                r#"{{"runs":[{runs}],"align":"center","rtl":false,"spaceBefore":2,"spaceAfter":4,"tabStops":[],"lineBox":{{"height":44.8,"baseline":37.33}}{bullet}}}"#
+            )
+        };
         let object = |x: u32, fit: &str, paragraphs: &str| {
             format!(
                 r#"{{"kind":"text","style":{{"geometry":{{"x":{x},"y":10,"width":200,"height":60}},
