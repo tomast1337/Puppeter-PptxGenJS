@@ -126,6 +126,16 @@ describe("shared object normalization", () => {
         expect(shadow.blur).toBe(4);
         expect(shadow.color).toBe("rgba(0, 0, 0, 0.5)");
     });
+
+    test("fills unset and zero shadow values like PptxGenJS's slide XML (blur || 8, offset || 4, angle || 270, opacity || 0.75)", () => {
+        for (const value of [{ type: "outer" as const }, { type: "outer" as const, blur: 0, offset: 0, angle: 0, opacity: 0 }]) {
+            const shadow = normalizeShadow(value);
+            expect(shadow.blur).toBeCloseTo((8 * 96) / 72, 8);
+            expect(shadow.offsetX).toBeCloseTo(0, 8);
+            expect(shadow.offsetY).toBeCloseTo((-4 * 96) / 72, 8);
+            expect(shadow.color).toBe("rgba(0, 0, 0, 0.75)");
+        }
+    });
 });
 
 describe("image source normalization", () => {

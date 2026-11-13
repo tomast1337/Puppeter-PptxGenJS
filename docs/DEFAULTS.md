@@ -35,13 +35,13 @@ metadata values are available in the machine-readable contract.
 
 ## Shared styles
 
-| Area                         |                                          Default |
-| ---------------------------- | -----------------------------------------------: |
-| Fill options when supplied   |                          Solid / 0% transparency |
-| Border options when supplied |                             Solid, `666666`, 1pt |
-| Shadow when absent           |                                             None |
-| Enabled shape shadow         | Outer, black, 35%, 3pt blur, 90°, ~1.81pt offset |
-| Enabled text glow            |                                  White, 75%, 8pt |
+| Area                         |                                                            Default |
+| ---------------------------- | -----------------------------------------------------------------: |
+| Fill options when supplied   |                                            Solid / 0% transparency |
+| Border options when supplied |                                               Solid, `666666`, 1pt |
+| Shadow when absent           |                                                               None |
+| Enabled object shadow        | Outer, black, 75%, 8pt blur, 270°, 4pt offset (0 also takes these) |
+| Enabled text glow            |                                                    White, 75%, 8pt |
 
 ## Text boxes
 
