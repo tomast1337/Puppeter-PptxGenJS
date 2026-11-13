@@ -26,7 +26,7 @@ import { pixelsToInches } from "./units";
 import { createBrowserDocument, objectIdScope } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
-    /** `document` only hosts the renders that check charts and components when they are added; toHtml() builds its own. */
+    /** `document` is the `context.document` of components rendered to check them when they are added; toHtml() does not use it. */
     constructor(
         pageSize: PageSize,
         document: Document,
@@ -123,8 +123,8 @@ export class PuppeteerSlide implements PptxSlide {
         const normalized = normalizeComponent(input, options, this.pageSize, options?.objectName ?? "Component");
         const definition = this.components.get(normalized.input.type, normalized.input.version);
         // Application code: render it once here so its validation and render errors throw from addComponent
-        // and leave the slide unchanged. The element is dropped; toHtml() renders the model again.
-        renderComponent(this.document, normalized, definition, this.nextIdScope());
+        // and leave the slide unchanged. The markup is dropped; toHtml() renders the model again.
+        renderComponent(normalized, definition, this.nextIdScope(), () => this.document);
         // The default name is only consumed after a successful render.
         const objectName = this.nextObjectName("Component", options.objectName);
         return this.addObject({ kind: "component", style: { ...normalized.style, objectName }, component: normalized.input });
@@ -156,8 +156,8 @@ export class PuppeteerSlide implements PptxSlide {
         const style = normalizeObjectStyle(options, PPTX_DEFAULTS.chart, this.pageSize, this.nextObjectName("Chart", options.objectName));
         const svg = renderChartExtensionSvg(input, style);
         const altText = options.altText ?? "";
-        // Parses the caller's SVG so a non-SVG root or an external reference throws here; the element is dropped.
-        renderChartExtension(this.document, svg, style, altText, this.nextIdScope());
+        // Parses the caller's SVG so a non-SVG root or an external reference throws here; the markup is dropped.
+        renderChartExtension(svg, style, altText, this.nextIdScope());
         return this.addObject({ kind: "chartExtension", style, svg, altText });
     }
 
@@ -249,7 +249,7 @@ export interface PuppeteerGenOptions {
     renderer?: PresentationRenderer | ModelRenderer;
     /** Resolves an addImage() path or URL to a data URI before serialization. */
     resolveImage?: (source: string) => Promise<string>;
-    /** Creates the empty HTML document slides are rendered into. */
+    /** Creates `pres.page` (tableToSlides input) and the document components may build elements in. */
     createDocument?: () => Document;
 }
 

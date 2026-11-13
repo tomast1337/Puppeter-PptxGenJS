@@ -52,19 +52,6 @@ export async function resolveRemoteImageSource(source: string): Promise<string> 
     throw new Error(`Cannot resolve image path '${source}' without filesystem access: use the Node entry ("puppeteer-pptxgenjs") or pass a resolveImage option`);
 }
 
-export async function resolveDocumentImages(document: Document, resolveImage: (source: string) => Promise<string>): Promise<void> {
-    const images = Array.from(document.querySelectorAll<HTMLImageElement>("img[data-source-path], img[data-source-url]"));
-    await Promise.all(
-        images.map(async image => {
-            const source = image.dataset.sourcePath ?? image.dataset.sourceUrl;
-            if (!source) return;
-            image.src = await resolveImage(source);
-            delete image.dataset.sourcePath;
-            delete image.dataset.sourceUrl;
-        }),
-    );
-}
-
 /**
  * Replaces path and URL image sources in `model` (a detached copy such as getModel()) with data URIs,
  * resolving each distinct source once, so a model renderer never reads files or fetches.

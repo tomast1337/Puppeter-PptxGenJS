@@ -1,5 +1,6 @@
 import type { NormalizedGeometry, NormalizedLine, NormalizedObjectStyle, NormalizedShadow, NormalizedTransform } from "@pdfdeck/model";
 import type { InlineStyle } from "./css";
+import type { Attribute } from "./markup";
 
 export function applyGeometry(css: InlineStyle, geometry: NormalizedGeometry): void {
     css.set("left", `${geometry.x}px`);
@@ -32,15 +33,17 @@ export function applyLine(css: InlineStyle, line?: NormalizedLine): void {
  * The line values the drawing only shows resolved: SVG rewrites some dash patterns and keeps only the arrow
  * head paths, CSS borders have no dash pattern. Written on the element that carries the line.
  */
-export function writeLineData(element: Element, line?: NormalizedLine): void {
-    if (line?.dashArray) element.setAttribute("data-line-dash-array", line.dashArray);
-    if (line?.beginArrow) element.setAttribute("data-line-begin-arrow", line.beginArrow);
-    if (line?.endArrow) element.setAttribute("data-line-end-arrow", line.endArrow);
+export function lineDataAttributes(line?: NormalizedLine): Attribute[] {
+    return [
+        ["data-line-dash-array", line?.dashArray || undefined],
+        ["data-line-begin-arrow", line?.beginArrow || undefined],
+        ["data-line-end-arrow", line?.endArrow || undefined],
+    ];
 }
 
 /** `drop-shadow()` and `text-shadow` have no `inset`, so the element that draws such a shadow says it here. */
-export function writeShadowInset(element: Element, shadow?: NormalizedShadow): void {
-    if (shadow?.visible && shadow.inset) element.setAttribute("data-shadow-inset", "");
+export function shadowInsetAttribute(shadow?: NormalizedShadow): Attribute {
+    return ["data-shadow-inset", shadow?.visible && shadow.inset ? "" : undefined];
 }
 
 export function applyShadow(css: InlineStyle, shadow?: NormalizedShadow): void {
@@ -48,13 +51,12 @@ export function applyShadow(css: InlineStyle, shadow?: NormalizedShadow): void {
     css.set("box-shadow", `${shadow.inset ? "inset " : ""}${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${shadow.color}`);
 }
 
-/** The common object box: its declarations go into `css` (written by the caller), its name onto `element`. */
-export function applyObjectStyle(element: HTMLElement, css: InlineStyle, style: NormalizedObjectStyle): void {
+/** The common object box: its declarations go into `css` (written by the caller); returns the attributes that name it. */
+export function applyObjectStyle(css: InlineStyle, style: NormalizedObjectStyle): Attribute[] {
     applyGeometry(css, style.geometry);
     applyTransform(css, style.transform);
     if (style.fill) css.set("background-color", style.fill.visible ? style.fill.color : "transparent");
     applyLine(css, style.line);
     applyShadow(css, style.shadow);
-    writeLineData(element, style.line);
-    element.dataset.objectName = style.objectName;
+    return [...lineDataAttributes(style.line), ["data-object-name", style.objectName]];
 }

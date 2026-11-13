@@ -1,6 +1,12 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
-import { type InlineStyle, writeStyle } from "./css";
-import { writeShadowInset } from "./style";
+import { type InlineStyle, styleAttribute } from "./css";
+import { type Attribute, element, escapeText, voidElement } from "./markup";
+import { shadowInsetAttribute } from "./style";
+
+/** U+200B: the text of an empty run, so an empty PowerPoint paragraph still owns a line box. */
+const EMPTY_RUN_TEXT = "\u200B";
+/** U+00A0 after the bullet marker: a no-break space, so the marker stays with its first word. */
+const BULLET_GAP = "\u00A0";
 
 function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     if (!shadow?.visible) return undefined;
@@ -16,7 +22,8 @@ function fontFamilyCSS(fontFace: string): string {
     return `"${escaped}", ${fallback}`;
 }
 
-function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
+/** The run's attributes after its link, in the order the profile writes them. */
+function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
     const css: InlineStyle = new Map([
         ["font-family", fontFamilyCSS(run.fontFace)],
         ["font-size", `${run.fontSize}px`],
@@ -30,15 +37,10 @@ function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
     if (lines.length) css.set("text-decoration-line", lines.join(" "));
     css.set("text-decoration-style", run.decoration.underlineStyle);
     if (run.decoration.underlineColor) css.set("text-decoration-color", run.decoration.underlineColor);
-    if (run.decoration.doubleStrike) {
-        // CSS has one decoration style per box, so the underline style the double strike replaces is kept here.
-        css.set("text-decoration-style", "double");
-        element.dataset.doubleStrike = "";
-        element.dataset.underlineStyle = run.decoration.underlineStyle;
-    }
-    // Glyphs must not size the line box; the paragraph's strut does (applyParagraphStyle).
+    // CSS has one decoration style per box, so the underline style the double strike replaces is kept in data-underline-style.
+    if (run.decoration.doubleStrike) css.set("text-decoration-style", "double");
+    // Glyphs must not size the line box; the paragraph's strut does (paragraphAttributes).
     css.set("line-height", "0");
-    if (run.verticalAlign !== "baseline") element.dataset.verticalAlign = run.verticalAlign;
     if (run.baselineOffset) {
         css.set("position", "relative");
         css.set("top", `${-run.baselineOffset}px`);
@@ -48,34 +50,38 @@ function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
     if (run.outline) css.set("-webkit-text-stroke", `${run.outline.width}px ${run.outline.color}`);
     const glow = shadowCSS(run.glow);
     const shadow = shadowCSS(run.shadow);
-    if (glow || shadow) {
-        css.set("text-shadow", [glow, shadow].filter(Boolean).join(", "));
+    if (glow || shadow) css.set("text-shadow", [glow, shadow].filter(Boolean).join(", "));
+    return [
+        ["data-double-strike", run.decoration.doubleStrike ? "" : undefined],
+        ["data-underline-style", run.decoration.doubleStrike ? run.decoration.underlineStyle : undefined],
+        ["data-vertical-align", run.verticalAlign !== "baseline" ? run.verticalAlign : undefined],
         // Names the text-shadow entries in order, so one entry still says whether it is the glow or the shadow.
-        element.dataset.textShadow = [glow && "glow", shadow && "shadow"].filter(Boolean).join(" ");
-    }
-    writeStyle(element, css);
-    writeShadowInset(element, run.shadow);
-    element.lang = run.language;
+        ["data-text-shadow", glow || shadow ? [glow && "glow", shadow && "shadow"].filter(Boolean).join(" ") : undefined],
+        styleAttribute(css),
+        shadowInsetAttribute(run.shadow),
+        ["lang", run.language],
+    ];
 }
 
-function renderRun(document: Document, run: NormalizedTextRun): HTMLElement {
-    const element = run.link ? document.createElement("a") : document.createElement("span");
-    element.className = "text-run";
-    if (run.link) {
-        const anchor = element as HTMLAnchorElement;
-        anchor.href = run.link.href;
-        if (run.link.tooltip) anchor.title = run.link.tooltip;
-        if (run.link.slide) anchor.dataset.slide = String(run.link.slide);
-    }
-    applyRunStyle(element, run);
-    // An empty PowerPoint paragraph still owns a line box; data-empty tells it from a real U+200B.
-    element.textContent = run.text || "​";
-    if (!run.text) element.dataset.empty = "";
-    if (run.softBreakBefore) element.dataset.softBreakBefore = "";
-    return element;
+function renderRun(run: NormalizedTextRun): string {
+    const link = run.link;
+    return element(
+        link ? "a" : "span",
+        [
+            ["class", "text-run"],
+            ["href", link?.href],
+            ["title", link?.tooltip || undefined],
+            ["data-slide", link?.slide ? String(link.slide) : undefined],
+            ...runStyleAttributes(run),
+            // data-empty tells an empty run from a real U+200B.
+            ["data-empty", run.text ? undefined : ""],
+            ["data-soft-break-before", run.softBreakBefore ? "" : undefined],
+        ],
+        escapeText(run.text || EMPTY_RUN_TEXT),
+    );
 }
 
-function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextParagraph, horizontal: boolean): void {
+function paragraphAttributes(paragraph: NormalizedTextParagraph, horizontal: boolean): Attribute[] {
     const css: InlineStyle = new Map([
         ["text-align", paragraph.align],
         ["direction", paragraph.rtl ? "rtl" : "ltr"],
@@ -85,10 +91,9 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
     // A 0px font makes each line's strut exactly `height` tall with its baseline in the middle, whatever
     // the fonts' ascent and descent; runs have line-height 0, so the strut alone sizes the line. Moving
     // the paragraph then puts every baseline where LibreOffice puts it.
-    const { lineBox } = paragraph;
+    const { lineBox, bullet } = paragraph;
     css.set("font-size", "0px");
     css.set("line-height", `${lineBox.height}px`);
-    element.dataset.lineBaseline = String(lineBox.baseline);
     // shortcut: vertical text keeps the centred baseline; shift along the block axis once it is measured.
     if (horizontal) {
         css.set("position", "relative");
@@ -96,25 +101,53 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
     }
     // Default stops only: CSS has no explicit tab stops.
     css.set("tab-size", `${paragraph.defaultTabStop}px`);
-    if (paragraph.tabStops.length) {
-        element.dataset.tabStops = paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",");
-    }
-    if (paragraph.bullet) {
-        const levelIndent = paragraph.bullet.indent / (paragraph.bullet.level + 1);
-        css.set("padding-left", `${levelIndent * paragraph.bullet.level}px`);
+    if (bullet) {
+        const levelIndent = bullet.indent / (bullet.level + 1);
+        css.set("padding-left", `${levelIndent * bullet.level}px`);
         css.set("text-indent", "0px");
-        element.dataset.bulletLevel = String(paragraph.bullet.level);
-        element.dataset.bulletType = paragraph.bullet.kind;
-        // The marker text and widths only show the result; these keep the model values.
-        element.dataset.bulletIndent = String(paragraph.bullet.indent);
-        element.dataset.bulletStart = String(paragraph.bullet.start);
-        if (paragraph.bullet.numberType) element.dataset.bulletNumberType = paragraph.bullet.numberType;
     }
-    writeStyle(element, css);
+    return [
+        ["class", "text-paragraph"],
+        ["data-line-baseline", String(lineBox.baseline)],
+        ["data-tab-stops", paragraph.tabStops.length ? paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",") : undefined],
+        ["data-bullet-level", bullet ? String(bullet.level) : undefined],
+        ["data-bullet-type", bullet?.kind],
+        // The marker text and widths only show the result; these keep the model values.
+        ["data-bullet-indent", bullet ? String(bullet.indent) : undefined],
+        ["data-bullet-start", bullet ? String(bullet.start) : undefined],
+        ["data-bullet-number-type", bullet?.numberType || undefined],
+        styleAttribute(css),
+    ];
 }
 
-/** Adds the text box's declarations to `css`, which the caller writes onto `element`, and appends its content. */
-export function renderText(document: Document, element: HTMLElement, css: InlineStyle, text: NormalizedTextBox): void {
+function renderBulletMarker(paragraph: NormalizedTextParagraph & { bullet: NonNullable<NormalizedTextParagraph["bullet"]> }): string {
+    const { bullet } = paragraph;
+    const css: InlineStyle = new Map([
+        ["display", "inline-block"],
+        ["width", `${bullet.indent / (bullet.level + 1)}px`],
+    ]);
+    const firstRun = paragraph.runs[0];
+    if (firstRun) {
+        css.set("font-family", fontFamilyCSS(firstRun.fontFace));
+        css.set("font-size", `${firstRun.fontSize}px`);
+        css.set("color", firstRun.color);
+        css.set("line-height", "0");
+    }
+    return element("span", [["class", "text-bullet"], styleAttribute(css)], escapeText(`${bullet.marker}${BULLET_GAP}`));
+}
+
+function renderParagraph(paragraph: NormalizedTextParagraph, horizontal: boolean): string {
+    let content = paragraph.bullet ? renderBulletMarker({ ...paragraph, bullet: paragraph.bullet }) : "";
+    paragraph.runs.forEach((run, index) => {
+        // A soft break separates a run from what precedes it in the paragraph; the bullet marker does not count.
+        if (run.softBreakBefore && index > 0) content += voidElement("br", []);
+        content += renderRun(run);
+    });
+    return element("div", paragraphAttributes(paragraph, horizontal), content);
+}
+
+/** Adds the text box's declarations to `css`, which the caller writes; returns the box's attributes and its content. */
+export function renderText(css: InlineStyle, text: NormalizedTextBox): { attributes: Attribute[]; content: string } {
     const [top, right, bottom, left] = text.margin;
     css.set("padding", `${top}px ${right}px ${bottom}px ${left}px`);
     css.set("align-items", text.verticalAlign === "top" ? "flex-start" : text.verticalAlign === "bottom" ? "flex-end" : "center");
@@ -122,8 +155,6 @@ export function renderText(document: Document, element: HTMLElement, css: Inline
     css.set("overflow-wrap", text.wrap ? "break-word" : "normal");
     css.set("direction", text.rtl ? "rtl" : "ltr");
     css.set("border-radius", `${text.borderRadius}%`);
-    element.dataset.textFit = text.fit;
-    element.dataset.textDirection = text.direction;
     if (text.fit === "resize") {
         const minimumHeight = css.get("height");
         css.set("height", "auto");
@@ -135,46 +166,19 @@ export function renderText(document: Document, element: HTMLElement, css: Inline
         css.set("overflow", "visible");
     }
 
-    const content = document.createElement("div");
-    content.className = "text-content";
     const contentCss: InlineStyle = new Map([["width", "100%"]]);
     if (text.direction !== "horizontal") {
         contentCss.set("writing-mode", text.direction === "vertical270" ? "vertical-rl" : "vertical-lr");
         contentCss.set("text-orientation", text.direction === "stacked" ? "upright" : "mixed");
         contentCss.set("height", "100%");
     }
-    writeStyle(content, contentCss);
-
-    text.paragraphs.forEach(paragraph => {
-        const paragraphElement = document.createElement("div");
-        paragraphElement.className = "text-paragraph";
-        applyParagraphStyle(paragraphElement, paragraph, text.direction === "horizontal");
-        if (paragraph.bullet) {
-            const marker = document.createElement("span");
-            marker.className = "text-bullet";
-            marker.textContent = `${paragraph.bullet.marker} `;
-            const markerCss: InlineStyle = new Map([
-                ["display", "inline-block"],
-                ["width", `${paragraph.bullet.indent / (paragraph.bullet.level + 1)}px`],
-            ]);
-            const firstRun = paragraph.runs[0];
-            if (firstRun) {
-                markerCss.set("font-family", fontFamilyCSS(firstRun.fontFace));
-                markerCss.set("font-size", `${firstRun.fontSize}px`);
-                markerCss.set("color", firstRun.color);
-                markerCss.set("line-height", "0");
-            }
-            writeStyle(marker, markerCss);
-            paragraphElement.appendChild(marker);
-        }
-        paragraph.runs.forEach(run => {
-            if (run.softBreakBefore && paragraphElement.childNodes.length > (paragraph.bullet ? 1 : 0)) {
-                paragraphElement.appendChild(document.createElement("br"));
-            }
-            paragraphElement.appendChild(renderRun(document, run));
-        });
-        content.appendChild(paragraphElement);
-    });
-    element.querySelector(":scope > .text-content")?.remove();
-    element.appendChild(content);
+    const horizontal = text.direction === "horizontal";
+    const paragraphs = text.paragraphs.map(paragraph => renderParagraph(paragraph, horizontal)).join("");
+    return {
+        attributes: [
+            ["data-text-fit", text.fit],
+            ["data-text-direction", text.direction],
+        ],
+        content: element("div", [["class", "text-content"], styleAttribute(contentCss)], paragraphs),
+    };
 }

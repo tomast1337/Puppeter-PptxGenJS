@@ -19,10 +19,11 @@ both backends read only the HTML.
 
 - **The model is the only source of truth.** Each `add*` call writes only the model. `toHtml()` is
   `modelToHtml(getModel())` (`render/document.ts`), exported from `@pdfdeck/pptxgenjs/html` for producers
-  that build the model themselves: it renders the whole document at once on a fresh document from the
-  caller's `createDocument`, inlines images through `resolveImage`, and renders components with the
-  caller's registry. `pres.page` is only the input document of `tableToSlides(tableId)`; slides are not
-  written into it, so editing it changes neither the HTML nor the PDF.
+  that build the model themselves: it writes the whole document at once as strings, without a DOM,
+  inlines images through `resolveImage`, and renders components with the caller's registry. Only a
+  component that reads `context.document` gets a document, from the caller's `createDocument`.
+  `pres.page` is only the input document of `tableToSlides(tableId)`; slides are not written into it,
+  so editing it changes neither the HTML nor the PDF.
 - **WASM reads either.** `WasmRenderer.renderModel(getModel())` reads the model as JSON;
   `WasmRenderer.render(await toHtml())` parses this profile in Rust (`crates/pdf-core/src/profile/`,
   [Parsing (WASM)](#parsing-wasm)) into the same structs, so both give the same PDF bytes. `toPdf()` still
@@ -54,8 +55,9 @@ From the maintainer's decisions on #69:
   `rgba(…)`). The CSSOM would let the DOM decide: Chromium rounds lengths to 6 significant digits,
   collapses `padding` and drops font-family quotes, and jsdom turns hex colors into `rgb()` (#69
   finding 4). So jsdom (Node entry) and Chromium (`/html` entry in a browser) give the same bytes;
-  `tests/htmlBrowser.test.ts` checks it. Markup a component returns, and chart SVG, are inserted as
-  they come.
+  `tests/htmlBrowser.test.ts` checks it. Markup a component returns, and chart SVG, are parsed and
+  serialized with parse5 (`render/fragment.ts`), as an `innerHTML` round trip in jsdom does; every
+  other element is written as a string, escaped as the HTML serializer escapes (`render/markup.ts`).
 - **A property at its default may be omitted**: `opacity` when 1, `letter-spacing` when 0,
   `text-decoration-line` when there is none, `transform` when there is no rotation or flip.
 
@@ -91,7 +93,7 @@ From the maintainer's decisions on #69:
 - `<meta name="pdfdeck-page-size">` holds the page size's name (`PageSize.name`); the size itself is in
   the stylesheet.
 - There is no `<title>`, `<script>` or external resource. Every image is a `data:` URI by the time
-  `toHtml()` returns (`resolveDocumentImages`, `normalize/image.ts:55`).
+  `toHtml()` returns (`modelToHtml`, `render/document.ts`).
 
 ## Slide
 
@@ -101,7 +103,7 @@ size from the stylesheet. Children are the slide's objects in model order, which
 ## Slide objects
 
 Every object is one absolutely positioned element with class `slide-element` plus a kind class, and
-`data-object-name`. The common box comes from `applyObjectStyle` (`render/style.ts:52`):
+`data-object-name`. The common box comes from `applyObjectStyle` (`render/style.ts:55`):
 
 | CSS / attribute    | Value                                                                     |
 | ------------------ | ------------------------------------------------------------------------- |
@@ -476,7 +478,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | Field                                          | Status       | HTML                                                                          |
 | ---------------------------------------------- | ------------ | ----------------------------------------------------------------------------- |
 | `NormalizedImage.source`                       | profile      | `img` `src`, always a `data:` URI once `toHtml()` resolved it.                |
-| `NormalizedImage.sourceKind`                   | not drawable | Provenance only: `toHtml()` inlines every image (`normalize/image.ts:55-66`). |
+| `NormalizedImage.sourceKind`                   | not drawable | Provenance only: `toHtml()` inlines every image (`render/document.ts:37-45`). |
 | `NormalizedImage.sizing`                       | profile      | `data-image-sizing` and the `img` box.                                        |
 | `NormalizedImageSizing<stretch>.type`          | profile      | `data-image-sizing="stretch"`; `img` `width: 100%; height: 100%`.             |
 | `NormalizedImageSizing<contain\|cover>.type`   | profile      | `data-image-sizing="contain\|cover"`.                                         |

@@ -1,3 +1,5 @@
+import type { Attribute } from "./markup";
+
 /**
  * An element's inline CSS, kept as our own strings and never written through the CSSOM: jsdom and Chromium
  * serialize CSSOM writes differently (Chromium rounds lengths to 6 significant digits, collapses `padding`,
@@ -7,8 +9,7 @@
  */
 export type InlineStyle = Map<string, string>;
 
-/** Sets the `style` attribute verbatim; an element without declarations gets none. */
-export function writeStyle(element: Element, style: InlineStyle): void {
-    if (!style.size) return;
-    element.setAttribute("style", Array.from(style, ([property, value]) => `${property}: ${value};`).join(" "));
+/** The `style` attribute, verbatim; an element without declarations gets none. */
+export function styleAttribute(style: InlineStyle): Attribute {
+    return ["style", style.size ? Array.from(style, ([property, value]) => `${property}: ${value};`).join(" ") : undefined];
 }

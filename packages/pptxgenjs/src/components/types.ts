@@ -13,6 +13,7 @@ export interface ComponentOptions {
     objectName?: string;
 }
 export interface ComponentContext {
+    /** Created on first read, one per toHtml(); a component that returns HTML text does not need it. */
     document: Document;
     width: number;
     height: number;

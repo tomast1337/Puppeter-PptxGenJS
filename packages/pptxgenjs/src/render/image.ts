@@ -1,25 +1,23 @@
 import type { NormalizedImage, NormalizedObjectStyle } from "@pdfdeck/model";
-import { type InlineStyle, writeStyle } from "./css";
+import { type InlineStyle, styleAttribute } from "./css";
+import { type Attribute, element, voidElement } from "./markup";
 import { applyObjectStyle } from "./style";
 
-export function renderImage(document: Document, image: NormalizedImage, style: NormalizedObjectStyle): HTMLElement {
-    const outer = image.link ? document.createElement("a") : document.createElement("div");
-    outer.className = "slide-element slide-image";
-    const outerCss: InlineStyle = new Map();
-    applyObjectStyle(outer, outerCss, style);
-    if (image.link) {
-        const anchor = outer as HTMLAnchorElement;
-        anchor.href = image.link.href;
-        if (image.link.tooltip) anchor.title = image.link.tooltip;
-        if (image.link.slide) anchor.dataset.slide = String(image.link.slide);
-    }
-    outer.setAttribute("role", "img");
-    outer.setAttribute("aria-label", image.altText);
-    if (image.rounding) outerCss.set("border-radius", "50%");
-    writeStyle(outer, outerCss);
+/**
+ * `resolved` is the data URI of a path or URL source. It goes last, where resolving the image used to
+ * append it; without it the source stays in `data-source-path` or `data-source-url`.
+ */
+function sourceAttributes(image: NormalizedImage, resolved: string | undefined): { before: Attribute[]; after: Attribute[] } {
+    if (image.sourceKind === "data") return { before: [["src", image.source]], after: [] };
+    if (resolved !== undefined) return { before: [], after: [["src", resolved]] };
+    return { before: [[image.sourceKind === "remote" ? "data-source-url" : "data-source-path", image.source]], after: [] };
+}
 
-    const frame = document.createElement("div");
-    frame.className = "slide-image-frame";
+export function renderImage(image: NormalizedImage, style: NormalizedObjectStyle, resolved?: string): string {
+    const outerCss: InlineStyle = new Map();
+    const objectAttributes = applyObjectStyle(outerCss, style);
+    if (image.rounding) outerCss.set("border-radius", "50%");
+
     const frameCss: InlineStyle = new Map([
         ["width", "100%"],
         ["height", "100%"],
@@ -27,20 +25,11 @@ export function renderImage(document: Document, image: NormalizedImage, style: N
         ["position", "relative"],
     ]);
     if (image.rounding) frameCss.set("border-radius", "50%");
-    writeStyle(frame, frameCss);
 
-    const element = document.createElement("img");
-    element.className = "slide-image-content";
-    element.dataset.imageSizing = image.sizing.type;
-    element.alt = image.altText;
     const css: InlineStyle = new Map([
         ["display", "block"],
         ["opacity", String(image.opacity)],
     ]);
-    if (image.sourceKind === "data") element.src = image.source;
-    else if (image.sourceKind === "remote") element.dataset.sourceUrl = image.source;
-    else element.dataset.sourcePath = image.source;
-
     if (image.sizing.type === "crop") {
         css.set("position", "absolute");
         css.set("left", `${-image.sizing.offsetX}px`);
@@ -61,9 +50,10 @@ export function renderImage(document: Document, image: NormalizedImage, style: N
         css.set("object-fit", "fill");
         css.set("object-position", "center center");
     }
-    writeStyle(element, css);
+    const source = sourceAttributes(image, resolved);
+    const img = voidElement("img", [["class", "slide-image-content"], ["data-image-sizing", image.sizing.type], ["alt", image.altText], ...source.before, styleAttribute(css), ...source.after]);
+    const frame = element("div", [["class", "slide-image-frame"], styleAttribute(frameCss)], img);
 
-    frame.appendChild(element);
-    outer.appendChild(frame);
-    return outer;
+    const link = image.link;
+    return element(link ? "a" : "div", [["class", "slide-element slide-image"], ...objectAttributes, ["href", link?.href], ["title", link?.tooltip || undefined], ["data-slide", link?.slide ? String(link.slide) : undefined], ["role", "img"], ["aria-label", image.altText], styleAttribute(outerCss)], frame);
 }

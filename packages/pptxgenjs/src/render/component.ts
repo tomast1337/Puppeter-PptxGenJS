@@ -1,36 +1,84 @@
+import type { DefaultTreeAdapterTypes } from "parse5";
 import type { normalizeComponent } from "../components/normalize";
 import type { ComponentDefinition } from "../components/types";
 import { COMPONENT_DEFAULTS } from "../defaults";
-import { type InlineStyle, writeStyle } from "./css";
+import { type InlineStyle, styleAttribute } from "./css";
+import { descendants, type FragmentElement, getAttribute, HTML_NAMESPACE, parseMarkup, removeAttribute, serialize, setAttribute } from "./fragment";
+import { type Attribute, element } from "./markup";
 import { applyObjectStyle } from "./style";
 
-/** `idScope` is the object's position in the deck (`objectIdScope`), so ids the component derives from it are unique and stable. */
-export function renderComponent(document: Document, component: ReturnType<typeof normalizeComponent>, definition: ComponentDefinition, idScope: string): HTMLElement {
+const REMOTE_URL = /^https?:\/\//i;
+
+/** A rendered component: its host attributes and its parsed content, whose images resolve before it is written. */
+export interface RenderedComponent {
+    attributes: Attribute[];
+    content: DefaultTreeAdapterTypes.DocumentFragment;
+}
+
+function images(content: DefaultTreeAdapterTypes.DocumentFragment): FragmentElement[] {
+    return Array.from(descendants(content)).filter(node => node.tagName === "img" && node.namespaceURI === HTML_NAMESPACE);
+}
+
+/**
+ * `idScope` is the object's position in the deck (`objectIdScope`), so ids the component derives from it are
+ * unique and stable. `getDocument` is called only when the component reads `context.document`, so a component
+ * that returns HTML text needs no DOM.
+ */
+export function renderComponent(component: ReturnType<typeof normalizeComponent>, definition: ComponentDefinition, idScope: string, getDocument: () => Document): RenderedComponent {
     const { input, style } = component;
     definition.validate?.(input.props);
-    const content = definition.render(input.props, { document, width: style.geometry.width!, height: style.geometry.height!, idPrefix: idScope });
-    const host = document.createElement("div");
-    host.className = "slide-element slide-component";
-    host.dataset.componentType = input.type;
-    host.dataset.componentVersion = String(input.version);
+    const context = {
+        get document() {
+            return getDocument();
+        },
+        width: style.geometry.width!,
+        height: style.geometry.height!,
+        idPrefix: idScope,
+    };
+    const result = definition.render(input.props, context);
     const css: InlineStyle = new Map();
-    applyObjectStyle(host, css, style);
+    const objectAttributes = applyObjectStyle(css, style);
     // Explicit dimensions define the component viewport, independently of inner HTML sizing.
     css.set("position", "absolute");
     css.set("overflow", COMPONENT_DEFAULTS.overflow);
-    writeStyle(host, css);
-    if (typeof content === "string") host.innerHTML = content;
+    const attributes: Attribute[] = [["class", "slide-element slide-component"], ["data-component-type", input.type], ["data-component-version", String(input.version)], ...objectAttributes, styleAttribute(css)];
+
+    let markup: string;
+    if (typeof result === "string") markup = result;
     // Not `instanceof`: browser documents from createHTMLDocument() have no defaultView to supply the HTMLElement class.
-    else if ((content as Node | undefined)?.ownerDocument === document && (content as Element).namespaceURI === "http://www.w3.org/1999/xhtml") host.appendChild(content.cloneNode(true));
+    else if ((result as Node | undefined)?.ownerDocument && result.ownerDocument === getDocument() && result.namespaceURI === HTML_NAMESPACE) markup = result.outerHTML;
     else throw new Error("Component render must return HTML text or an HTMLElement from the supplied document");
-    for (const image of host.querySelectorAll("img")) {
-        if (image.hasAttribute("srcset")) throw new Error("Component images do not support srcset; use a single src");
-        const source = image.getAttribute("src");
+    // Parsed as the host's innerHTML, so the markup is normalized as a DOM would have it.
+    const content = parseMarkup(markup, "div");
+    for (const image of images(content)) {
+        if (getAttribute(image, "srcset") !== undefined) throw new Error("Component images do not support srcset; use a single src");
+        const source = getAttribute(image, "src");
         if (source && !source.startsWith("data:")) {
-            if (/^https?:\/\//i.test(source)) image.dataset.sourceUrl = source;
-            else image.dataset.sourcePath = source;
-            image.removeAttribute("src");
+            setAttribute(image, REMOTE_URL.test(source) ? "data-source-url" : "data-source-path", source);
+            removeAttribute(image, "src");
         }
     }
-    return host;
+    return { attributes, content };
+}
+
+/** The image sources a component still has to resolve: `data-source-path`, then `data-source-url`. */
+function pendingSource(image: FragmentElement): string | undefined {
+    return getAttribute(image, "data-source-path") ?? getAttribute(image, "data-source-url");
+}
+
+export function componentImageSources(component: RenderedComponent): string[] {
+    return images(component.content).flatMap(image => pendingSource(image) || []);
+}
+
+/** The host with its content; `resolved` maps image sources to data URIs, which replace them as `src`. */
+export function componentHtml(component: RenderedComponent, resolved?: ReadonlyMap<string, string>): string {
+    for (const image of images(component.content)) {
+        const source = pendingSource(image);
+        const data = source && resolved?.get(source);
+        if (!data) continue;
+        setAttribute(image, "src", data);
+        removeAttribute(image, "data-source-path");
+        removeAttribute(image, "data-source-url");
+    }
+    return element("div", component.attributes, serialize(component.content));
 }
