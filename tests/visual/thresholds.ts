@@ -31,7 +31,30 @@ export const FLOWCHART_DIVIDER_CROP_THRESHOLD = 0.11;
 export const TABLE_CROP_THRESHOLD = 0.09;
 
 /**
- * table-inheritance (d9dbab6), table-pagination-* (07e5f05), table-html-* (0f838d5): no recorded
- * evidence beyond the shared divider-stroke comment; these crops are held only to the page limit.
+ * Table crops whose text sits off LibreOffice's (#44). Scores measured in the pinned image
+ * (`bun run test:visual:docker`); each limit is the score plus at least BASELINE_EPSILON, capped at
+ * PAGE_THRESHOLD. Grid geometry (column widths, row heights, pagination breaks) matches the reference;
+ * two Chromium effects remain:
+ *
+ * - Glyphs sit 1-4 px (96 dpi) higher than in LibreOffice, in every cell and valign. It is not
+ *   table-specific: the plain addText titles on pages 47 and 48 sit 2 px higher too. Shifting the
+ *   whole PuppeteerGen crop down 1 px lowers five of these six scores even though it misaligns
+ *   the grid lines (table-html-first 0.1011 -> 0.0780, table-pagination-first 0.1002 -> 0.0909).
+ * - Chromium floors CSS border widths to whole CSS px: 1pt (1.33 px) draws as 1 px and 2pt as 2 px
+ *   (measured at 384 dpi), which also moves row lines up ~1 px. Drawing the borders as exact SVG
+ *   strokes instead fixes the widths (table-inheritance 0.1183 -> 0.0956) but makes the 0.75pt
+ *   pagination grids worse (table-pagination-first 0.1002 -> 0.1148): pdftoppm snaps LibreOffice's
+ *   1 px strokes to the pixel grid, while a stroke at a fractional position antialiases over 2 px.
  */
-export const TABLE_LAYOUT_CROP_THRESHOLD = PAGE_THRESHOLD;
+export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
+    // 0.1183 (only 0.0017 under the cap). Largest offset: 3 px in the 13pt header, up to 4 px in the
+    // valign cells, plus the 1pt and 2pt borders drawn thinner.
+    "table-inheritance": PAGE_THRESHOLD,
+    // 0.1002, 0.1030, 0.0816: every row's text 1 px higher; 0.75pt borders are already whole px.
+    "table-pagination-first": 0.105,
+    "table-pagination-second": 0.105,
+    "table-pagination-third": 0.085,
+    // 0.1011, 0.0918: the same 1 px text offset in the tableToSlides import.
+    "table-html-first": 0.105,
+    "table-html-second": 0.095,
+};
