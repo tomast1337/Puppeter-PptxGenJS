@@ -42,6 +42,7 @@ const PRESETS = [
     "irregularSeal2",
     "leftCircularArrow",
     "leftRightCircularArrow",
+    "leftRightUpArrow",
     "plaque",
     "plaqueTabs",
     "round1Rect",
@@ -52,6 +53,7 @@ const PRESETS = [
     "snip2SameRect",
     "snipRoundRect",
     "squareTabs",
+    "star4",
     "teardrop",
     "wave",
     "wedgeEllipseCallout",
@@ -107,7 +109,13 @@ const output =
     `type GeneratedPresetDefinition = {\n` +
     `    readonly adjustments: readonly (readonly [string, string])[];\n` +
     `    readonly guides: readonly (readonly [string, string])[];\n` +
-    `    readonly paths: readonly { readonly w?: string; readonly h?: string; readonly fill?: string; readonly stroke?: string; readonly commands: readonly (readonly string[])[] }[];\n` +
+    `    readonly paths: readonly {\n` +
+    `        readonly w?: string;\n` +
+    `        readonly h?: string;\n` +
+    `        readonly fill?: string;\n` +
+    `        readonly stroke?: string;\n` +
+    `        readonly commands: readonly (readonly string[])[];\n` +
+    `    }[];\n` +
     `};\n` +
     `export const GENERATED_PRESET_SHAPES: Readonly<Record<string, GeneratedPresetDefinition>> = ${JSON.stringify(definitions)};\n`;
 writeFileSync(new URL("../packages/pptxgenjs/src/generatedPresetShapes.ts", import.meta.url), output);

@@ -62,3 +62,10 @@ export function convertToPixels(value: number | `${number}%` | undefined, contai
 export function pointsToPixels(points: number): number {
     return points * (CSS_PX_PER_INCH / POINTS_PER_INCH);
 }
+
+/**
+ * Converts millimetres to CSS pixels
+ */
+export function millimetersToPixels(millimeters: number): number {
+    return inchesToPixels(millimeters / 25.4);
+}

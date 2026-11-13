@@ -5,7 +5,7 @@ import { convertToPixels, inchesToPixels } from "../units";
 import { GENERATED_PRESET_NAMES, generatedPresetGeometry } from "./generatedPreset";
 
 const POLYGON_SIDES = Object.freeze({ pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8, decagon: 10, dodecagon: 12 } as const);
-const STAR_POINTS = Object.freeze({ star4: 4, star5: 5, star6: 6, star7: 7, star8: 8, star10: 10, star12: 12, star16: 16, star24: 24, star32: 32 } as const);
+const STAR_POINTS = Object.freeze({ star5: 5, star6: 6, star7: 7, star8: 8, star10: 10, star12: 12, star16: 16, star24: 24, star32: 32 } as const);
 const ARROW_SHAPES = Object.freeze([
     "rightArrow",
     "leftArrow",
@@ -14,7 +14,6 @@ const ARROW_SHAPES = Object.freeze([
     "leftRightArrow",
     "upDownArrow",
     "quadArrow",
-    "leftRightUpArrow",
     "notchedRightArrow",
     "stripedRightArrow",
     "leftUpArrow",
@@ -448,7 +447,7 @@ function quadCalloutPoints(width: number, height: number): PixelPoint[] {
     ];
 }
 
-function quadArrowPoints(width: number, height: number, includeDown = true): PixelPoint[] {
+function quadArrowPoints(width: number, height: number): PixelPoint[] {
     const short = Math.min(width, height);
     const headInset = short * 0.225;
     const headHalfWidth = short * 0.225;
@@ -481,8 +480,7 @@ function quadArrowPoints(width: number, height: number, includeDown = true): Pix
         [x6, y4],
         [x4, y4],
     ];
-    if (includeDown) points.push([x4, y6], [x5, y6], [width / 2, height], [x2, y6], [x3, y6]);
-    else points.push([x4, height], [x3, height]);
+    points.push([x4, y6], [x5, y6], [width / 2, height], [x2, y6], [x3, y6]);
     points.push([x3, y4], [headInset, y4], [headInset, y5]);
     return points;
 }
@@ -2065,7 +2063,6 @@ function arrowPath(shapeName: string, width: number, height: number): string | u
         return pixelPath(source.map(([x, y]) => [y, height - x]));
     }
     if (shapeName === "quadArrow") return pixelPath(quadArrowPoints(width, height));
-    if (shapeName === "leftRightUpArrow") return pixelPath(quadArrowPoints(width, height, false));
     if (shapeName === "leftUpArrow") return pixelPath(leftUpArrowPoints(width, height));
     if (shapeName === "bentUpArrow") return pixelPath(bentUpArrowPoints(width, height));
     if (shapeName === "bentArrow") return bentArrowPath(width, height);
@@ -2205,7 +2202,7 @@ function presetPath(shapeName: string, width: number, height: number): string | 
     const sides = POLYGON_SIDES[shapeName as keyof typeof POLYGON_SIDES];
     if (sides) return radialPath(sides, width, height);
     const points = STAR_POINTS[shapeName as keyof typeof STAR_POINTS];
-    if (points) return radialPath(points, width, height, points === 4 ? 0.18 : 0.382);
+    if (points) return radialPath(points, width, height, 0.382);
     return arrowPath(shapeName, width, height);
 }
 

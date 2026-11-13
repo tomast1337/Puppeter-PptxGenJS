@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
 import type { NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdfdeck/model";
 import { colorToCSS } from "../color";
-import { pointsToPixels } from "../units";
+import { millimetersToPixels, pointsToPixels } from "../units";
 
 type ColorValue = string | { color?: string; transparency?: number; alpha?: number; type?: string };
 
@@ -35,29 +35,47 @@ export function normalizeFill(value?: ColorValue): NormalizedFill {
     return { visible: true, color: normalizeColor(value) };
 }
 
+/**
+ * Where LibreOffice starts the stroked shaft behind a begin arrowhead (drawinglayer
+ * PolygonStrokeArrowPrimitive2D): the head consumes its full length, or half for the centred oval and
+ * diamond, less a 1/15 head-width overlap. The dash pattern restarts there, so the phase depends on it.
+ * shortcut: also shifts closed outlines that LibreOffice draws without heads; pass the geometry in if that matters.
+ */
+export function arrowShaftStart(arrow: string, width: number): number {
+    if (arrow === "none") return 0;
+    const { widthFactor, openArrowWidthFactor, minLineWidthMm } = PPTX_DEFAULTS.shape.arrowHead;
+    const head = (arrow === "arrow" ? openArrowWidthFactor : widthFactor) * Math.max(width, millimetersToPixels(minLineWidthMm));
+    return head * (arrow === "oval" || arrow === "diamond" ? 0.5 : 1) - head / 15;
+}
+
+/**
+ * Rotates a dash pattern so its first dash begins `start` px along the path. Renderers take no
+ * dash offset, so the split entry is padded with a zero-length dash or gap to keep dash/gap parity.
+ */
+export function startDashAt(pattern: readonly number[], start: number): number[] {
+    const period = pattern.reduce((sum, part) => sum + part, 0);
+    let offset = (((period - start) % period) + period) % period;
+    if (offset === 0) return [...pattern];
+    const index = pattern.findIndex(part => (offset -= part) < 0);
+    const rest = [-offset, ...pattern.slice(index + 1), ...pattern.slice(0, index), pattern[index]! + offset];
+    return index % 2 === 0 ? [...rest, 0] : [0, ...rest];
+}
+
 export function normalizeLine(value?: PptxGenJS.ShapeLineProps): NormalizedLine {
     if (!value || value.type === "none") {
         return { visible: false, color: "transparent", width: 0, style: "solid" };
     }
     const dash = value.dashType ?? value.lineDash ?? "solid";
     const width = pointsToPixels(value.width ?? value.pt ?? value.size ?? PPTX_DEFAULTS.shape.line.widthPt);
-    const dashPatterns: Readonly<Record<string, number[] | undefined>> = {
-        solid: undefined,
-        dash: [4, 3],
-        dashDot: [4, 3, 1, 3],
-        lgDash: [8, 3],
-        lgDashDot: [8, 3, 1, 3],
-        lgDashDotDot: [8, 3, 1, 3, 1, 3],
-        sysDash: [3, 2],
-        sysDot: [1, 2],
-    };
+    const beginArrow = value.beginArrowType ?? value.lineHead ?? "none";
+    const pattern = PPTX_DEFAULTS.shape.dashPatterns[dash]?.map(part => part * width);
     return {
         visible: true,
         color: normalizeColor({ ...value, color: value.color ?? PPTX_DEFAULTS.shape.line.color }),
         width,
         style: dash === "solid" ? "solid" : dash === "sysDot" ? "dotted" : "dashed",
-        dashArray: dashPatterns[dash]?.map(part => part * width).join(" "),
-        beginArrow: value.beginArrowType ?? value.lineHead ?? "none",
+        dashArray: pattern && startDashAt(pattern, arrowShaftStart(beginArrow, width)).join(" "),
+        beginArrow,
         endArrow: value.endArrowType ?? value.lineTail ?? "none",
     };
 }
