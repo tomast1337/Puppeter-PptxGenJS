@@ -358,6 +358,8 @@ describe("SVG shape rendering", () => {
         expect(offsets[1]).toBe("translate(-0.2px, -0.4px)");
         expect(offsets[2]).toBe("translate(-0.2px, -0.4px)");
         expect(presentation.page.querySelector("style")?.textContent).toContain("transform: var(--print-snap-offset, none);");
+        // The document has a doctype (standards mode): an inline SVG would sit on the line box's baseline.
+        expect(presentation.page.querySelector("style")?.textContent).toMatch(/\.slide-shape > \.shape-svg \{\s*display: block;/);
 
         // Chromium applies the page-space difference after the object's rotation and flips.
         const offset = (rotation: number, flipH = false, flipV = false) => printSnapOffset({ geometry: { x: 628.8, y: 153.6 }, transform: { rotation, flipH, flipV, opacity: 1 } });

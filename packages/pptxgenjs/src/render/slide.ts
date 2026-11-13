@@ -169,6 +169,11 @@ body {
     border-style: none;
 }
 
+/* Standards mode puts an inline <svg> on the text baseline: a zero-height line box would drop it by the strut. */
+.slide-shape > .shape-svg {
+    display: block;
+}
+
 .slide-image {
     display: block;
     color: inherit;
