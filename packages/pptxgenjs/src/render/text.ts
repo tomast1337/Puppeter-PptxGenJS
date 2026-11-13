@@ -103,6 +103,10 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
         css.set("text-indent", "0px");
         element.dataset.bulletLevel = String(paragraph.bullet.level);
         element.dataset.bulletType = paragraph.bullet.kind;
+        // The marker text and widths only show the result; these keep the model values.
+        element.dataset.bulletIndent = String(paragraph.bullet.indent);
+        element.dataset.bulletStart = String(paragraph.bullet.start);
+        if (paragraph.bullet.numberType) element.dataset.bulletNumberType = paragraph.bullet.numberType;
     }
     writeStyle(element, css);
 }
