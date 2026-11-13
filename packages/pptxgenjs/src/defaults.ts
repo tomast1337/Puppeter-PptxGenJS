@@ -151,6 +151,20 @@ export const PPTX_DEFAULTS = Object.freeze({
         angleRange: Object.freeze([270, 0] as const),
         arcThicknessRatio: 0.5,
         line: Object.freeze({ type: "none" as const, color: "333333", widthPt: 1 }),
+        // ECMA-376 prstDash patterns in line widths (dash, space, ...), as LibreOffice 26.2 imports
+        // them (oox lineproperties.cxx lclConvertPresetDash): sysDash is 3:1 and sysDot 1:1.
+        dashPatterns: Object.freeze({
+            dash: [4, 3],
+            dashDot: [4, 3, 1, 3],
+            lgDash: [8, 3],
+            lgDashDot: [8, 3, 1, 3],
+            lgDashDotDot: [8, 3, 1, 3, 1, 3],
+            sysDash: [3, 1],
+            sysDot: [1, 1],
+        } as Readonly<Record<string, readonly number[]>>),
+        // PptxGenJS writes headEnd/tailEnd without w/len, so heads are "med": LibreOffice 26.2 makes them
+        // 3 line widths wide and long (3.5 for `arrow`), sized from at least a 0.7 mm line.
+        arrowHead: Object.freeze({ widthFactor: 3, openArrowWidthFactor: 3.5, minLineWidthMm: 0.7 }),
     }),
     image: Object.freeze({
         x: 0,

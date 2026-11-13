@@ -133,7 +133,16 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
     strokeTarget.setAttribute("stroke", style.line?.visible ? style.line.color : "none");
     strokeTarget.setAttribute("stroke-width", String(style.line?.visible ? style.line.width : 0));
     strokeTarget.setAttribute("vector-effect", "non-scaling-stroke");
-    if (style.line?.dashArray) strokeTarget.setAttribute("stroke-dasharray", style.line.dashArray);
+    if (style.line?.dashArray) {
+        const [first, gap, ...rest] = style.line.dashArray.split(" ").map(Number);
+        // Chromium's PDF keeps a zero-length dash, which poppler paints as a hairline in every gap: draw a
+        // pattern that starts with a gap (startDashAt) as the same pattern shifted by stroke-dashoffset.
+        if (first === 0 && rest.length > 0) {
+            rest[rest.length - 1]! += gap!;
+            strokeTarget.setAttribute("stroke-dasharray", rest.join(" "));
+            strokeTarget.setAttribute("stroke-dashoffset", String(rest.reduce((sum, part) => sum + part, 0) - gap!));
+        } else strokeTarget.setAttribute("stroke-dasharray", style.line.dashArray);
+    }
     if (style.line?.visible) {
         const base = `shape-${style.objectName.replace(/[^a-z\d]/gi, "-")}`;
         if (addMarker(document, defs, `${base}-begin`, style.line.beginArrow ?? "none", style.line.color)) strokeTarget.setAttribute("marker-start", `url(#${base}-begin)`);

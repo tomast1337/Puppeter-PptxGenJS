@@ -184,7 +184,9 @@ for (const [index, shape] of (["mathPlus", "heart", "moon", "sun", "smileyFace",
     const column = index % 3;
     SYMBOL_CASES.push({ page, name: `${shape}-wide`, shape, x: 0.5 + column * 3.125, y: 1, w: 2.5, h: 0.75 }, { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 });
 }
-const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.map((shape, index) => ({
+// leftRightUpArrow and star4 already have crops on the arrow and star slides; leaving them out keeps
+// this grid, its crop names and the WASM baseline keys where they were.
+const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.filter(shape => shape !== "leftRightUpArrow" && shape !== "star4").map((shape, index) => ({
     page: 36 + Math.floor(index / 8),
     name: shape,
     shape,
@@ -918,6 +920,11 @@ export function populateParityFixture(presentation: Presentation): void {
         y: 1.6,
         w: 2.6,
         h: 0,
+        // Crop stays above CROP_TARGET (issue #42; WASM 0.098): LibreOffice stores the width in whole 1/100 mm
+        // (2.25pt -> 0.79 mm, 2.986px), so its 7-width dash period is 20.9px, not 21px; measured dash starts
+        // 28.65, 49.35, ... 238 against our 28.7 ... 239, a 1px drift by the end. The heads also differ: LibreOffice
+        // draws a 3-width oval and triangle, the renderers' markers are 3.2x2.4 widths (oval) and 3x3 (triangle).
+        // Puppeteer (0.206) also paints this zero-height line 1px below LibreOffice and WASM.
         line: { color: "4472C4", width: 2.25, dashType: "dash", beginArrowType: "oval", endArrowType: "triangle" },
         hyperlink: { url: "https://example.com", tooltip: "Shape link" },
     });

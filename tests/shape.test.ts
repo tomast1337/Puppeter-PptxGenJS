@@ -234,8 +234,15 @@ describe("shape normalization", () => {
         expect((normalizeShape("mathDivide", {}, 160, 100, PAGE).geometry as { data: string }).data.match(/M /g)).toHaveLength(3);
     });
 
+    test("draws leftRightUpArrow and star4 from their ECMA-376 guides (issue #42)", () => {
+        // The bar sits on the bottom edge with no stem below it (hand-written geometry mirrored quadArrow).
+        expect((normalizeShape("leftRightUpArrow", {}, 100, 80, PAGE).geometry as { data: string }).data).toBe("M 0 60 L 20 40 L 20 50 L 40 50 L 40 20 L 30 20 L 50 0 L 70 20 L 60 20 L 60 50 L 80 50 L 80 40 L 100 60 L 80 80 L 80 70 L 20 70 L 20 80 Z");
+        // adj 12500: inner vertices at (wd2, hd2) * 0.25 * cos 45 from the centre, not 0.18 of the radius.
+        expect((normalizeShape("star4", {}, 100, 80, PAGE).geometry as { data: string }).data).toBe("M 0 40 L 41.161165 32.928932 L 50 0 L 58.838835 32.928932 L 100 40 L 58.838835 47.071068 L 50 80 L 41.161165 47.071068 Z");
+    });
+
     test("normalizes every generated ECMA preset without fallback geometry", () => {
-        expect(GENERATED_PRESET_NAMES).toHaveLength(52);
+        expect(GENERATED_PRESET_NAMES).toHaveLength(54);
         for (const name of GENERATED_PRESET_NAMES) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
@@ -309,6 +316,7 @@ describe("SVG shape rendering", () => {
             h: 0,
             line: { color: "ED7D31", width: 2, beginArrowType: "oval", endArrowType: "triangle" },
         });
+        slide.addShape("line", { x: 1, y: 4, w: 4, h: 0, line: { color: "ED7D31", width: 2.25, dashType: "dash", beginArrowType: "oval" } });
 
         const shapes = presentation.page.querySelectorAll<HTMLElement>(".slide-shape");
         expect(shapes[0]?.querySelector("rect")?.getAttribute("rx")).toBe("9.600000000000001");
@@ -321,6 +329,10 @@ describe("SVG shape rendering", () => {
         expect(shapes[2]?.querySelector('marker[id$="-begin"]')?.getAttribute("markerWidth")).toBe("4");
         expect(shapes[2]?.querySelector('marker[id$="-end"]')?.getAttribute("markerWidth")).toBe("3");
         expect(shapes[2]?.querySelector('marker[id$="-end"]')?.getAttribute("refX")).toBe("9");
+        // The model's gap-first pattern "0 3.9 12 5.1" is drawn without its zero-length dash.
+        const dashed = shapes[3]?.querySelector(".shape-geometry");
+        expect(dashed?.getAttribute("stroke-dasharray")?.split(" ").map(Number)).toEqual([12, expect.closeTo(9, 9)]);
+        expect(Number(dashed?.getAttribute("stroke-dashoffset"))).toBeCloseTo(21 - 3.9, 9);
     });
 
     test("renders custom paths and shape hyperlinks", () => {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { normalizeGeometry, normalizeTransform } from "../packages/pptxgenjs/src/normalize/geometry";
 import { resolveImageSource } from "../packages/pptxgenjs/src/node";
-import { normalizeColor, normalizeFill, normalizeLine, normalizeShadow } from "../packages/pptxgenjs/src/normalize/style";
+import { arrowShaftStart, normalizeColor, normalizeFill, normalizeLine, normalizeShadow, startDashAt } from "../packages/pptxgenjs/src/normalize/style";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("shared object normalization", () => {
@@ -29,6 +29,40 @@ describe("shared object normalization", () => {
             color: "#ED7D31",
             style: "dashed",
         });
+    });
+
+    test("uses the ECMA-376 prstDash ratios LibreOffice imports", () => {
+        // 0.75pt = 1px, so the dash array is the pattern in line widths.
+        const dashArray = (dashType: NonNullable<Parameters<typeof normalizeLine>[0]>["dashType"]) => normalizeLine({ width: 0.75, dashType }).dashArray;
+        expect(dashArray("dash")).toBe("4 3");
+        expect(dashArray("lgDashDotDot")).toBe("8 3 1 3 1 3");
+        expect(dashArray("sysDash")).toBe("3 1");
+        expect(dashArray("sysDot")).toBe("1 1");
+        expect(dashArray("solid")).toBeUndefined();
+    });
+
+    test("restarts the dash pattern where LibreOffice starts the shaft behind a begin arrowhead", () => {
+        // 2.25pt = 3px line; a medium oval is 9px across and docks on its centre, so the shaft starts at
+        // 4.5px less the 9/15px overlap = 3.9px (measured: LibreOffice dashes start 4px later than SVG's).
+        expect(arrowShaftStart("oval", 3)).toBeCloseTo(3.9, 9);
+        expect(arrowShaftStart("triangle", 3)).toBeCloseTo(8.4, 9);
+        expect(arrowShaftStart("none", 3)).toBe(0);
+        // Thin lines size heads from a 0.7mm line.
+        expect(arrowShaftStart("triangle", 1)).toBeCloseTo(((3 * 0.7 * 96) / 25.4) * (14 / 15), 9);
+        const line = normalizeLine({ width: 2.25, dashType: "dash", beginArrowType: "oval", endArrowType: "triangle" });
+        const parts = line.dashArray!.split(" ").map(Number);
+        expect(parts).toHaveLength(4);
+        [0, 3.9, 12, 5.1].forEach((value, index) => expect(parts[index]).toBeCloseTo(value, 9));
+        // The end arrowhead does not move the phase.
+        expect(normalizeLine({ width: 2.25, dashType: "dash", endArrowType: "triangle" }).dashArray).toBe("12 9");
+    });
+
+    test("rotates a dash pattern without breaking dash/gap parity", () => {
+        expect(startDashAt([4, 3], 0)).toEqual([4, 3]);
+        expect(startDashAt([4, 3], 7)).toEqual([4, 3]);
+        expect(startDashAt([4, 3], 1)).toEqual([0, 1, 4, 2]);
+        expect(startDashAt([4, 3], 5)).toEqual([2, 3, 2, 0]);
+        expect(startDashAt([4, 3, 1, 3], 2)).toEqual([0, 2, 4, 3, 1, 1]);
     });
 
     test("converts PowerPoint shadows to CSS geometry", () => {
