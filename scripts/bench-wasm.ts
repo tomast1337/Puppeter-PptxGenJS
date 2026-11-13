@@ -1,19 +1,21 @@
-// Cold start and per-deck time for the text deck: Puppeteer default vs the WASM backend,
-// both through PuppeteerGen.toPdf(). `bun run bench:wasm` spawns fresh processes for cold numbers,
+// Cold start and per-deck time for the text deck: Puppeteer default vs the WASM backend, both
+// through PuppeteerGen.toPdf(), and the WASM backend reading toHtml() (`wasm-html`, render(html)). `bun run bench:wasm` spawns fresh processes for cold numbers,
 // then runs warm loops. Medians over BENCH_RUNS (default 20 warm, 7 cold).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ModelRenderer } from "../packages/pptxgenjs/src/render/document";
+import type { WasmRenderer } from "../packages/wasm/src/node";
 
-type Engine = "puppeteer" | "wasm";
+type Engine = "puppeteer" | "wasm" | "wasm-html";
 const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 
-async function deckPdf(renderer?: ModelRenderer): Promise<Uint8Array> {
+async function deckPdf(engine: Engine, renderer?: WasmRenderer): Promise<Uint8Array> {
     const [{ PuppeteerGen }, { PAGE_SIZES }, { populateTextDeck }] = await Promise.all([import("../packages/pptxgenjs/src/node"), import("../packages/pptxgenjs/src/pageLayouts"), import("../tests/visual/wasm/deck")]);
-    return populateTextDeck(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf();
+    const page = PAGE_SIZES.SCREEN_16X9.landscape;
+    if (engine === "wasm-html" && renderer) return renderer.render(await populateTextDeck(new PuppeteerGen(page)).toHtml());
+    return populateTextDeck(new PuppeteerGen(page, { renderer })).toPdf();
 }
 
-async function setup(engine: Engine): Promise<ModelRenderer | undefined> {
+async function setup(engine: Engine): Promise<WasmRenderer | undefined> {
     if (engine === "puppeteer") return undefined;
     const { createRenderer } = await import("../tests/visual/wasm/backend");
     return createRenderer();
@@ -24,7 +26,7 @@ async function cold(engine: Engine): Promise<{ setup: number; firstDeck: number 
     const t0 = performance.now();
     const renderer = await setup(engine);
     const t1 = performance.now();
-    if (!(await deckPdf(renderer)).length) throw new Error("empty pdf");
+    if (!(await deckPdf(engine, renderer)).length) throw new Error("empty pdf");
     return { setup: t1 - t0, firstDeck: performance.now() - t1 };
 }
 
@@ -37,7 +39,7 @@ const warmRuns = Number(process.env.BENCH_RUNS ?? 20);
 const coldRuns = Number(process.env.BENCH_COLD_RUNS ?? 7);
 const results: Record<string, unknown> = {};
 
-for (const engine of ["puppeteer", "wasm"] as const) {
+for (const engine of ["puppeteer", "wasm", "wasm-html"] as const) {
     const setups: number[] = [];
     const firsts: number[] = [];
     const walls: number[] = [];
@@ -52,14 +54,15 @@ for (const engine of ["puppeteer", "wasm"] as const) {
         firsts.push(firstDeck);
     }
 
-    // Warm: same process, engine already initialised. Deck time includes the JSDOM model build.
+    // Warm: same process, engine already initialised. Deck time includes the model build (and for
+    // wasm-html the JSDOM toHtml() serialization).
     const renderer = await setup(engine);
-    await deckPdf(renderer);
+    await deckPdf(engine, renderer);
     const deckMs: number[] = [];
     let size = 0;
     for (let i = 0; i < warmRuns; i++) {
         const start = performance.now();
-        size = (await deckPdf(renderer)).length;
+        size = (await deckPdf(engine, renderer)).length;
         deckMs.push(performance.now() - start);
     }
     results[engine] = { coldSetupMs: median(setups), coldFirstDeckMs: median(firsts), coldProcessWallMs: median(walls), warmDeckMs: median(deckMs), pdfBytes: size };

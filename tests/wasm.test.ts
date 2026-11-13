@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
-import { PuppeteerGen as HtmlPuppeteerGen, type ModelRenderer, type NormalizedPresentation } from "../packages/pptxgenjs/src/html";
+import { PuppeteerGen as HtmlPuppeteerGen, type ModelRenderer, type NormalizedPresentation, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
@@ -12,6 +12,7 @@ import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
+import { DECKS } from "./visual/wasm/decks";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
 // incompatible binding, or changing the model the loader serializes, fails `bun run typecheck`.
@@ -19,7 +20,7 @@ type Assert<T extends true> = T;
 type _Binding = Assert<Renderer extends TextPdfBinding ? true : false>;
 type _Source = Assert<WasmSource extends InitInput ? true : false>;
 type _Model = Assert<Parameters<WasmRenderer["renderModel"]>[0] extends NormalizedPresentation ? true : false>;
-type _Renderer = Assert<WasmRenderer extends ModelRenderer ? true : false>;
+type _Renderer = Assert<WasmRenderer extends ModelRenderer & PresentationRenderer ? true : false>;
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
@@ -37,6 +38,9 @@ class FakeBinding implements TextPdfBinding {
     render(modelJson: string): Uint8Array {
         this.rendered.push(modelJson);
         return new TextEncoder().encode("%PDF-fake");
+    }
+    renderHtml(html: string): Uint8Array {
+        return this.render(html);
     }
     warnings(): string[] {
         return this.skipped;
@@ -107,6 +111,12 @@ describe("WasmRenderer failure behavior", () => {
         const model: NormalizedPresentation = { pageSize: PAGE, slides: [] };
         await new WasmRenderer(binding).renderModel(model);
         expect(JSON.parse(binding.rendered[0]!)).toEqual(model);
+    });
+
+    test("render() passes the HTML document and applies the same warning check", async () => {
+        const binding = new FakeBinding(["object kind 'chart' not rendered"]);
+        await expect(new WasmRenderer(binding).render({ html: "<html></html>", pageSize: PAGE })).rejects.toThrow("object kind 'chart' not rendered");
+        expect(binding.rendered).toEqual(["<html></html>"]);
     });
 
     test("createWasmRenderer requires fonts before loading the binary", async () => {
@@ -299,4 +309,31 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         });
         expect(result).toEqual({ header: "%PDF-", pages: 2, errors: [] });
     }, 60_000);
+});
+
+// The HTML path (render(toHtml())) must draw exactly what the model path draws: same structs, same bytes.
+describe.skipIf(!canRender)("WASM HTML profile path", () => {
+    test.each(Object.keys(DECKS))(
+        "the %s deck gives byte-identical PDFs from toHtml() and getModel()",
+        async name => {
+            const { populate } = DECKS[name]!;
+            const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
+            const fromModel = await populate(new PuppeteerGen(PAGE, { renderer })).toPdf();
+            const modelWarnings = renderer.warnings();
+            const fromHtml = await renderer.render(await populate(new PuppeteerGen(PAGE)).toHtml());
+            expect(renderer.warnings()).toEqual(modelWarnings);
+            expect(Buffer.from(fromHtml).equals(Buffer.from(fromModel))).toBe(true);
+        },
+        60_000,
+    );
+
+    test("out-of-profile HTML throws naming the slide, object and property", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pres = new PuppeteerGen(PAGE);
+        pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1, objectName: "Title" });
+        const { html, pageSize } = await pres.toHtml();
+        const tampered = html.replace('style="left: 96px;', 'style="filter: blur(2px); left: 96px;');
+        await expect(renderer.render({ html: tampered, pageSize })).rejects.toThrow("slide 1: object 'Title': CSS property 'filter'");
+        await expect(renderer.render({ html: html.replace('content="1"', 'content="2"'), pageSize })).rejects.toThrow("pdfdeck profile version '2' is not supported");
+    });
 });
