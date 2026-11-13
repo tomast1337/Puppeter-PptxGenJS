@@ -56,9 +56,6 @@ impl Renderer {
     pub(crate) fn fit_text(&mut self, text: &TextBox, w: f32, h: f32, layout: &mut BoxLayout) {
         let [top, right, bottom, left] = text.margin;
         let vertical = text.direction == "vertical" || text.direction == "vertical270";
-        if text.direction == "stacked" {
-            self.warn("stacked (wordArtVert) text direction rendered horizontally");
-        }
         let (inner_w, inner_h) = if vertical {
             (h - top - bottom, w - left - right)
         } else {
@@ -84,6 +81,7 @@ impl Renderer {
         out.baselines.clear();
         let paints = &mut out.paints;
         let (mut y, mut width) = (0.0f32, 0.0f32);
+        let stacked = text.direction == "stacked";
         for paragraph in &text.paragraphs {
             let (indent, marker_x) = match &paragraph.bullet {
                 Some(b) => (b.indent, b.indent / (b.level as f32 + 1.0) * b.level as f32),
@@ -106,10 +104,18 @@ impl Renderer {
                 }
                 for (i, part) in run.text.split('\t').enumerate() {
                     if i > 0 {
+                        stack_break(&mut s, stacked);
                         tabs.push(s.len());
                         s.push(TAB_PLACEHOLDER);
                     }
-                    s.push_str(part);
+                    if stacked {
+                        for c in part.chars() {
+                            stack_break(&mut s, stacked);
+                            s.push(c);
+                        }
+                    } else {
+                        s.push_str(part);
+                    }
                 }
                 spans.push(start..s.len());
             }
@@ -268,6 +274,17 @@ impl Renderer {
         }
         out.width = width;
         out.height = y;
+    }
+}
+
+/// Stacked (`wordArtVert`) text, as LibreOffice draws it: every character on a line of its own (a
+/// space is an empty line), aligned and anchored like horizontal text. Breaks before the next
+/// character unless it starts the paragraph or follows a break already.
+/// shortcut: breaks between chars, not grapheme clusters, so combining marks and emoji sequences
+/// split; segment clusters when a deck stacks them.
+fn stack_break(s: &mut String, stacked: bool) {
+    if stacked && !s.is_empty() && !s.ends_with('\n') {
+        s.push('\n');
     }
 }
 
