@@ -347,6 +347,27 @@ describe("SVG shape rendering", () => {
         expect(Number(dashed?.getAttribute("stroke-dashoffset"))).toBeCloseTo(parts.reduce((sum, part) => sum + part, 0) - 3.9, 9);
     });
 
+    test("writes the line, shadow and size values the drawing only shows resolved as data attributes", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        const slide = presentation.addSlide();
+        slide.addShape("line", { x: 1, y: 3, w: 4, h: 0, line: { color: "ED7D31", width: 2, dashType: "sysDot", beginArrowType: "oval", endArrowType: "triangle" } });
+        slide.addShape("rect", { x: 1, y: 1, w: 2, h: 1, fill: { color: "4472C4" }, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } });
+        slide.addText("boxed", { x: 4, y: 1, w: 2, h: 1, line: { color: "000000", width: 1, dashType: "dash" } });
+
+        const page = renderedPage(presentation);
+        const [line, rect] = Array.from(page.querySelectorAll<SVGSVGElement>("svg.shape-svg"));
+        const normalized = presentation.getModel().slides[0]?.objects[0]?.style.line;
+        expect(line?.getAttribute("data-line-dash-array")).toBe(normalized?.dashArray ?? "");
+        expect(line?.getAttribute("data-line-begin-arrow")).toBe("oval");
+        expect(line?.getAttribute("data-line-end-arrow")).toBe("triangle");
+        expect(line?.getAttribute("data-shape-height")).toBe("0");
+        expect(line?.hasAttribute("data-shape-width")).toBe(false);
+        expect(rect?.hasAttribute("data-shadow-inset")).toBe(true);
+        expect(rect?.hasAttribute("data-line-dash-array")).toBe(false);
+        // A CSS border has no dash pattern, so the box keeps it.
+        expect(page.querySelector(".slide-text")?.getAttribute("data-line-dash-array")).toBe(presentation.getModel().slides[0]?.objects[2]?.style.line?.dashArray ?? "");
+    });
+
     test("undoes Chromium's whole-px SVG root snap in print, in the object's pre-transform space (issue #42)", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();

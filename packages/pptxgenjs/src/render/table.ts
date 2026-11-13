@@ -2,6 +2,8 @@ import type { NormalizedTable, NormalizedTableBorder } from "@pdfdeck/model";
 import { type InlineStyle, writeStyle } from "./css";
 import { renderText } from "./text";
 
+const BORDER_SIDES = ["top", "right", "bottom", "left"] as const;
+
 function borderCSS(border: NormalizedTableBorder): string {
     return border.visible ? `${border.width}px ${border.style} ${border.color}` : "0px none transparent";
 }
@@ -51,6 +53,11 @@ export function renderTable(document: Document, table: NormalizedTable): HTMLTab
             cellCss.set("border-right", borderCSS(right));
             cellCss.set("border-bottom", borderCSS(bottom));
             cellCss.set("border-left", borderCSS(left));
+            // CSS borders have no dash pattern, only `dashed`.
+            BORDER_SIDES.forEach((side, index) => {
+                const dashArray = cell.borders[index]?.dashArray;
+                if (dashArray) cellElement.setAttribute(`data-border-${side}-dash-array`, dashArray);
+            });
             writeStyle(cellElement, cellCss);
 
             const text = document.createElement("div");

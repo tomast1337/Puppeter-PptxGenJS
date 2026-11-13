@@ -1,5 +1,6 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
 import { type InlineStyle, writeStyle } from "./css";
+import { writeShadowInset } from "./style";
 
 function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     if (!shadow?.visible) return undefined;
@@ -53,6 +54,7 @@ function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
         element.dataset.textShadow = [glow && "glow", shadow && "shadow"].filter(Boolean).join(" ");
     }
     writeStyle(element, css);
+    writeShadowInset(element, run.shadow);
     element.lang = run.language;
 }
 

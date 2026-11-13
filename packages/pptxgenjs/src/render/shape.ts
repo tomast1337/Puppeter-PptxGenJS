@@ -1,6 +1,6 @@
 import type { NormalizedObjectStyle, NormalizedShape } from "@pdfdeck/model";
 import { type InlineStyle, writeStyle } from "./css";
-import { applyGeometry, applyTransform } from "./style";
+import { applyGeometry, applyTransform, writeLineData, writeShadowInset } from "./style";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -118,6 +118,11 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", shape.height === 0 ? "1" : "100%");
     svg.setAttribute("preserveAspectRatio", "none");
+    // The viewBox clamps these; keep the model values when it does.
+    if (shape.width < 0.001) svg.setAttribute("data-shape-width", String(shape.width));
+    if (!shape.height) svg.setAttribute("data-shape-height", String(shape.height));
+    writeLineData(svg, style.line);
+    writeShadowInset(svg, style.shadow);
     const css: InlineStyle = new Map([["overflow", "visible"]]);
     const snapOffset = printSnapOffset(style);
     if (snapOffset) css.set("--print-snap-offset", snapOffset);
