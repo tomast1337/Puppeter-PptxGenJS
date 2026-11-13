@@ -7,7 +7,7 @@ import { PPTX_DEFAULTS } from "./defaults";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/table/html";
-import { normalizeImage, resolveModelImages, resolveRemoteImageSource } from "./normalize/image";
+import { normalizeImage, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, straightLineLength } from "./normalize/shape";
 import { normalizeColor, normalizeLine } from "./normalize/style";
@@ -19,7 +19,7 @@ import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
-import { type HtmlPresentationDocument, type ModelRenderer, modelToHtml, type PresentationRenderer } from "./render/document";
+import { type HtmlPresentationDocument, modelToHtml, type PresentationRenderer } from "./render/document";
 import { convertPdfOutput, resolveOutputType } from "./output";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { pixelsToInches } from "./units";
@@ -245,8 +245,8 @@ export class PuppeteerSlide implements PptxSlide {
 
 /** Runtime adapters. The Node entry supplies jsdom, filesystem image paths and Puppeteer by default. */
 export interface PuppeteerGenOptions {
-    /** Turns the serialized HTML (PresentationRenderer) or the normalized model (ModelRenderer) into PDF bytes for toPdf() and writeFile(). */
-    renderer?: PresentationRenderer | ModelRenderer;
+    /** Turns the toHtml() document into PDF bytes for toPdf() and writeFile(); every renderer reads the HTML (#69). */
+    renderer?: PresentationRenderer;
     /** Resolves an addImage() path or URL to a data URI before serialization. */
     resolveImage?: (source: string) => Promise<string>;
     /** Creates `pres.page` (tableToSlides input) and the document components may build elements in. */
@@ -263,7 +263,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     page: Document;
     private readonly components = new ComponentRegistry();
     private slides: PuppeteerSlide[] = [];
-    private readonly renderer: PresentationRenderer | ModelRenderer | undefined;
+    private readonly renderer: PresentationRenderer | undefined;
     private readonly resolveImage: (source: string) => Promise<string>;
     private readonly createDocument: () => Document;
 
@@ -314,7 +314,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
     /** PDF bytes from the configured renderer; nothing is written to disk. */
     async toPdf(): Promise<Uint8Array> {
         if (!this.renderer) throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("puppeteer-pptxgenjs") for the Puppeteer default');
-        if ("renderModel" in this.renderer) return this.renderer.renderModel(await resolveModelImages(this.getModel(), this.resolveImage));
+        // A renderer with only renderModel() (the removed model path) would otherwise fail as "render is not a function".
+        if (typeof this.renderer.render !== "function") throw new Error("toPdf() renderer must implement render(document: HtmlPresentationDocument): every renderer reads the toHtml() document, renderModel(model) is no longer called (#69)");
         return this.renderer.render(await this.toHtml());
     }
 

@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
-import { PuppeteerGen as HtmlPuppeteerGen, type ModelRenderer, type NormalizedPresentation, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
+import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type ModelRenderer, type NormalizedPresentation, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
-import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PuppeteerGen, resolveImageSource } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
@@ -47,22 +47,21 @@ class FakeBinding implements TextPdfBinding {
     }
 }
 
-describe("model renderer contract", () => {
-    test("toPdf, write and stream hand getModel() to a ModelRenderer instead of HTML", async () => {
-        const models: NormalizedPresentation[] = [];
-        const renderer: ModelRenderer = { renderModel: async model => (models.push(model), new TextEncoder().encode("%PDF-model")) };
-        const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer });
-        pres.addSlide().addText("Model", { x: 1, y: 1, w: 3, h: 1 });
-        expect(ascii(await pres.toPdf())).toBe("%PDF-model");
-        expect(await pres.write({ outputType: "base64" })).toBe(btoa("%PDF-model"));
-        expect(ascii((await pres.stream()) as Uint8Array)).toBe("%PDF-model");
-        expect(models).toHaveLength(3);
-        expect(models[0]).toEqual(pres.getModel());
+describe("renderer contract", () => {
+    test("toPdf, write and stream hand toHtml() to the WASM renderer", async () => {
+        const binding = new FakeBinding();
+        const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer: new WasmRenderer(binding) });
+        pres.addSlide().addText("Html", { x: 1, y: 1, w: 3, h: 1 });
+        expect(ascii(await pres.toPdf())).toBe("%PDF-fake");
+        expect(await pres.write({ outputType: "base64" })).toBe(btoa("%PDF-fake"));
+        expect(ascii((await pres.stream()) as Uint8Array)).toBe("%PDF-fake");
+        const { html } = await pres.toHtml();
+        expect(binding.rendered).toEqual([html, html, html]);
     });
 
-    test("resolves path and URL images to data URIs once per source before a ModelRenderer sees them", async () => {
-        const models: NormalizedPresentation[] = [];
-        const renderer: ModelRenderer = { renderModel: async model => (models.push(model), new TextEncoder().encode("%PDF-model")) };
+    test("resolves path and URL images to data URIs once per source before the renderer sees them", async () => {
+        const documents: HtmlPresentationDocument[] = [];
+        const renderer: PresentationRenderer = { render: async document => (documents.push(document), new TextEncoder().encode("%PDF-html")) };
         const requested: string[] = [];
         const resolveImage = async (source: string) => (requested.push(source), PNG);
         const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer, resolveImage });
@@ -70,14 +69,19 @@ describe("model renderer contract", () => {
         pres.addSlide().addImage({ path: "https://example.com/a.png", x: 1, y: 1, w: 1, h: 1 }).addImage({ data: PNG, x: 3, y: 1, w: 1, h: 1 });
         await pres.toPdf();
         expect(requested).toEqual(["logo.png", "https://example.com/a.png"]);
-        const images = models[0]?.slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "image" ? [object.image] : []))) ?? [];
-        expect(images.map(image => [image.sourceKind, image.source])).toEqual(Array.from({ length: 4 }, () => ["data", PNG]));
+        expect(documents[0]?.html.match(/<img [^>]*src="([^"]*)"/g)?.map(img => img.includes(`src="${PNG}"`))).toEqual([true, true, true, true]);
         // getModel() itself keeps the sources the caller passed.
         expect(pres.getModel().slides[0]?.objects[0]).toMatchObject({ image: { source: "logo.png", sourceKind: "path" } });
     });
 
-    test("the Node entry accepts a ModelRenderer for writeFile()", async () => {
-        const directory = await mkdtemp(join(tmpdir(), "wasm-model-"));
+    test("a renderer without render() fails with an error that says what toPdf() calls", async () => {
+        const renderer = { renderModel: async () => new Uint8Array() } as unknown as PresentationRenderer; // a model-only renderer from plain JS
+        const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer });
+        await expect(pres.toPdf()).rejects.toThrow("toPdf() renderer must implement render(document: HtmlPresentationDocument)");
+    });
+
+    test("the Node entry renders writeFile() through the WASM renderer", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "wasm-file-"));
         try {
             const renderer = new WasmRenderer(new FakeBinding());
             const pres = new PuppeteerGen(PAGE, { renderer });
@@ -318,9 +322,13 @@ describe.skipIf(!canRender)("WASM HTML profile path", () => {
         async name => {
             const { populate } = DECKS[name]!;
             const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
-            const fromModel = await populate(new PuppeteerGen(PAGE, { renderer })).toPdf();
+            const deck = populate(new PuppeteerGen(PAGE));
+            // toPdf() reads the HTML now; the model path is called directly, with images inlined as toHtml() does.
+            const model = deck.getModel();
+            for (const slide of model.slides) for (const object of slide.objects) if (object.kind === "image" && object.image.sourceKind !== "data") object.image = { ...object.image, source: await resolveImageSource(object.image.source), sourceKind: "data" };
+            const fromModel = await renderer.renderModel(model);
             const modelWarnings = renderer.warnings();
-            const fromHtml = await renderer.render(await populate(new PuppeteerGen(PAGE)).toHtml());
+            const fromHtml = await renderer.render(await deck.toHtml());
             expect(renderer.warnings()).toEqual(modelWarnings);
             expect(Buffer.from(fromHtml).equals(Buffer.from(fromModel))).toBe(true);
         },
