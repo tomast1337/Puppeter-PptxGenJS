@@ -44,3 +44,6 @@ notes/*
 
 # Built by `bun run build:wasm` (issue #16 builds it in CI)
 packages/wasm/src/*.wasm
+
+# Claude Code agent worktrees (full repo copies with their own node_modules and build output)
+.claude/worktrees/
