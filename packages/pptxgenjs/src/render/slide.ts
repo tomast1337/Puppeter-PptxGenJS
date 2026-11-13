@@ -5,9 +5,10 @@ import { normalizeColor } from "../normalize/style";
 import type { PageSize } from "../pageLayouts";
 import { inchesToPixels, pointsToPixels } from "../units";
 import { renderChart, renderChartExtension } from "./chart";
-import { renderComponent } from "./component";
-import { type InlineStyle, writeStyle } from "./css";
+import { componentHtml, type RenderedComponent, renderComponent } from "./component";
+import { type InlineStyle, styleAttribute } from "./css";
 import { renderImage } from "./image";
+import { element, voidElement } from "./markup";
 import { renderShape, renderShapeSvg } from "./shape";
 import { applyObjectStyle } from "./style";
 import { renderTable } from "./table";
@@ -24,58 +25,52 @@ export function objectIdScope(slideIndex: number, objectIndex: number): string {
 /** What rendering needs from a component registry: the definition for a saved type and version. */
 export type ComponentLookup = Pick<ComponentRegistry, "get">;
 
-export function renderSlideObject(document: Document, object: NormalizedSlideObject, idScope: string, components?: ComponentLookup): HTMLElement {
+/** What writing the model needs besides the model: its rendered components and its resolved images. */
+export interface RenderPass {
+    /** Each `component` object of the model, rendered (`renderComponents`). */
+    components: ReadonlyMap<NormalizedSlideObject, RenderedComponent>;
+    /** Data URIs of path and URL image sources; without one an image keeps `data-source-path` or `data-source-url`. */
+    images?: ReadonlyMap<string, string>;
+}
+
+export function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass: RenderPass): string {
     switch (object.kind) {
         case "text": {
-            const element = document.createElement("div");
-            element.className = "slide-element slide-text";
             const css: InlineStyle = new Map();
-            if (object.shape) {
-                applyObjectStyle(element, css, { ...object.style, fill: undefined, line: undefined, shadow: undefined });
-                element.dataset.shape = object.shape.name;
-                element.appendChild(renderShapeSvg(document, object.shape, object.style));
-            } else applyObjectStyle(element, css, object.style);
-            renderText(document, element, css, object.text);
-            writeStyle(element, css);
-            return element;
+            const objectAttributes = applyObjectStyle(css, object.shape ? { ...object.style, fill: undefined, line: undefined, shadow: undefined } : object.style);
+            const svg = object.shape ? renderShapeSvg(object.shape, object.style) : "";
+            const text = renderText(css, object.text);
+            return element("div", [["class", "slide-element slide-text"], ...objectAttributes, ["data-shape", object.shape?.name], ...text.attributes, styleAttribute(css)], `${svg}${text.content}`);
         }
         case "shape":
-            return renderShape(document, object.shape, object.style);
+            return renderShape(object.shape, object.style);
         case "image":
-            return renderImage(document, object.image, object.style);
+            return renderImage(object.image, object.style, pass.images?.get(object.image.source));
         case "table": {
-            const element = document.createElement("div");
-            element.className = "slide-element slide-table-container";
             const css: InlineStyle = new Map();
-            applyObjectStyle(element, css, object.style);
-            writeStyle(element, css);
-            element.appendChild(renderTable(document, object.table));
-            return element;
+            const objectAttributes = applyObjectStyle(css, object.style);
+            return element("div", [["class", "slide-element slide-table-container"], ...objectAttributes, styleAttribute(css)], renderTable(object.table));
         }
         case "chart":
-            return renderChart(document, object.chart, object.style, idScope);
+            return renderChart(object.chart, object.style, idScope);
         case "chartExtension":
-            return renderChartExtension(document, object.svg, object.style, object.altText, idScope);
-        case "component":
-            if (!components) throw new Error(`Rendering component ${object.component.type}@${object.component.version} requires its component registry`);
-            return renderComponent(document, { input: object.component, style: object.style }, components.get(object.component.type, object.component.version), idScope);
+            return renderChartExtension(object.svg, object.style, object.altText, idScope);
+        case "component": {
+            const component = pass.components.get(object);
+            // renderComponents() renders every component object of the model it is given.
+            if (!component) throw new Error(`Component ${object.component.type}@${object.component.version} was not rendered before writing its slide`);
+            return componentHtml(component, pass.images);
+        }
     }
 }
 
-export function renderSlide(document: Document, slide: NormalizedSlide, index: number, components?: ComponentLookup): HTMLDivElement {
-    const element = document.createElement("div");
-    element.className = "slide-container";
-    element.id = `slide-${index + 1}`;
-    writeStyle(
-        element,
-        new Map([
-            ["background-color", slide.background],
-            ["--slide-text-color", slide.color],
-        ]),
-    );
-    element.dataset.hidden = String(slide.hidden);
-    slide.objects.forEach((object, objectIndex) => element.appendChild(renderSlideObject(document, object, objectIdScope(index, objectIndex), components)));
-    return element;
+export function renderSlide(slide: NormalizedSlide, index: number, pass: RenderPass): string {
+    const objects = slide.objects.map((object, objectIndex) => renderSlideObject(object, objectIdScope(index, objectIndex), pass)).join("");
+    const css: InlineStyle = new Map([
+        ["background-color", slide.background],
+        ["--slide-text-color", slide.color],
+    ]);
+    return element("div", [["class", "slide-container"], ["id", `slide-${index + 1}`], styleAttribute(css), ["data-hidden", String(slide.hidden)]], objects);
 }
 
 /** Default document factory for browser runtimes; the Node entry injects jsdom instead. */
@@ -85,23 +80,39 @@ export function createBrowserDocument(): Document {
     return document.implementation.createHTMLDocument();
 }
 
-/** Pure HTML render pass: the normalized model is the only input besides component definitions. */
-export function renderPresentationDocument(presentation: NormalizedPresentation, components?: ComponentLookup, createDocument: () => Document = createBrowserDocument): Document {
-    const document = createDocument();
-    const profile = document.createElement("meta");
-    profile.name = "pdfdeck-profile";
-    profile.content = String(HTML_PROFILE_VERSION);
+/**
+ * Renders the model's components, in deck order, with their definitions. `getDocument` is called only for a
+ * component that reads `context.document`, so a deck without one never creates a document.
+ */
+export function renderComponents(presentation: NormalizedPresentation, components: ComponentLookup | undefined, getDocument: () => Document): Map<NormalizedSlideObject, RenderedComponent> {
+    const rendered = new Map<NormalizedSlideObject, RenderedComponent>();
+    presentation.slides.forEach((slide, slideIndex) =>
+        slide.objects.forEach((object, objectIndex) => {
+            if (object.kind !== "component") return;
+            if (!components) throw new Error(`Rendering component ${object.component.type}@${object.component.version} requires its component registry`);
+            const definition = components.get(object.component.type, object.component.version);
+            rendered.set(object, renderComponent({ input: object.component, style: object.style }, definition, objectIdScope(slideIndex, objectIndex), getDocument));
+        }),
+    );
+    return rendered;
+}
+
+/** The model's whole HTML document, written as a string: the pure render pass, no DOM. */
+export function presentationHtml(presentation: NormalizedPresentation, pass: RenderPass): string {
+    const profile = voidElement("meta", [
+        ["name", "pdfdeck-profile"],
+        ["content", String(HTML_PROFILE_VERSION)],
+    ]);
     // The size itself is in the stylesheet; its name ("Screen 16:9 Landscape", a defineLayout() name) is not.
-    const pageSize = document.createElement("meta");
-    pageSize.name = "pdfdeck-page-size";
-    pageSize.content = presentation.pageSize.name;
-    document.head.append(profile, pageSize);
-    const style = document.createElement("style");
-    style.id = "puppeteer-gen-styles";
-    style.textContent = presentationCSS(presentation.pageSize);
-    document.head.appendChild(style);
-    presentation.slides.forEach((slide, index) => document.body.appendChild(renderSlide(document, slide, index, components)));
-    return document;
+    const pageSize = voidElement("meta", [
+        ["name", "pdfdeck-page-size"],
+        ["content", presentation.pageSize.name],
+    ]);
+    // <style> holds raw text: its content is not escaped.
+    const style = element("style", [["id", "puppeteer-gen-styles"]], presentationCSS(presentation.pageSize));
+    const slides = presentation.slides.map((slide, index) => renderSlide(slide, index, pass)).join("");
+    // Standards mode: quirks mode drops the line-box strut that text.ts sizes lines with.
+    return `<!DOCTYPE html><html><head>${profile}${pageSize}${style}</head><body>${slides}</body></html>`;
 }
 
 function presentationCSS(pageSize: PageSize): string {

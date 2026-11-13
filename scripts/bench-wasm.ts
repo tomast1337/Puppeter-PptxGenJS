@@ -55,7 +55,7 @@ for (const engine of ["puppeteer", "wasm", "wasm-html"] as const) {
     }
 
     // Warm: same process, engine already initialised. Deck time includes the model build (and for
-    // wasm-html the JSDOM toHtml() serialization).
+    // wasm-html the toHtml() string build).
     const renderer = await setup(engine);
     await deckPdf(engine, renderer);
     const deckMs: number[] = [];

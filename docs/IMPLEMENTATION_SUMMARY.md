@@ -170,7 +170,7 @@ The generated CSS includes:
 
 ### PDF Generation Process
 
-1. **Build HTML**: Create DOM structure with jsdom
+1. **Build HTML**: Write the model as one HTML string (`modelToHtml`), without a DOM
 2. **Inject CSS**: Add page-specific styles to `<head>`
 3. **Add Slides**: Append slide containers to body
 4. **Position Elements**: Apply inline styles for precise positioning

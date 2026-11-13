@@ -7,7 +7,9 @@ import type { ChartExtensionInput } from "../chart/types";
 import type { NormalizedChart, NormalizedObjectStyle } from "@pdfdeck/model";
 import { pointsToPixels } from "../units";
 import { renderBar3DSvg } from "./chart3d";
-import { type InlineStyle, writeStyle } from "./css";
+import { type InlineStyle, styleAttribute } from "./css";
+import { attributeName, descendants, firstElementChild, getAttribute, parseMarkup, SVG_NAMESPACE, serializeOuter, setAttribute } from "./fragment";
+import { element } from "./markup";
 import { applyObjectStyle } from "./style";
 
 use([BarChart, LineChart, PieChart, RadarChart, ScatterChart, GridComponent, LegendComponent, RadarComponent, TitleComponent, SVGRenderer]);
@@ -328,63 +330,55 @@ export function renderEChartsSvg(width: number, height: number, option: EChartsC
     }
 }
 
-function parseSvg(document: Document, source: string): SVGSVGElement {
-    const template = document.createElement("template");
-    template.innerHTML = source.trim();
-    const svg = template.content.firstElementChild;
-    // Not `instanceof`: browser documents from createHTMLDocument() have a null defaultView.
-    if (svg?.namespaceURI !== "http://www.w3.org/2000/svg" || svg.localName !== "svg") {
+const RESOURCE_ATTRIBUTE = /^(?:href|src|xlink:href)$/i;
+const EXTERNAL_URL = /^(?:https?:|file:|\/\/)/i;
+const EXTERNAL_CSS_URL = /url\(\s*["']?(?:https?:|file:|\/\/)/i;
+
+/**
+ * The chart's SVG root as markup: parsed as `template.innerHTML` parses it, checked for external references,
+ * its ids prefixed with `idScope` and its size set to the object box. Only the root's descendants are
+ * checked and renamed (it was `svg.querySelectorAll()`), so the bytes match the DOM-built HTML.
+ */
+function chartSvg(source: string, idScope: string): string {
+    const svg = firstElementChild(parseMarkup(source.trim()));
+    if (svg?.namespaceURI !== SVG_NAMESPACE || svg.tagName !== "svg") {
         throw new TypeError("Chart renderer did not return an SVG root element");
     }
-    for (const element of svg.querySelectorAll("*")) {
-        for (const attribute of Array.from(element.attributes)) {
-            if (/^(?:href|src|xlink:href)$/i.test(attribute.name) && /^(?:https?:|file:|\/\/)/i.test(attribute.value)) {
-                throw new TypeError("Chart SVG must not reference external resources");
-            }
-            if (/url\(\s*["']?(?:https?:|file:|\/\/)/i.test(attribute.value)) {
+    const elements = Array.from(descendants(svg));
+    for (const element of elements) {
+        for (const attribute of element.attrs) {
+            if ((RESOURCE_ATTRIBUTE.test(attributeName(attribute)) && EXTERNAL_URL.test(attribute.value)) || EXTERNAL_CSS_URL.test(attribute.value)) {
                 throw new TypeError("Chart SVG must not reference external resources");
             }
         }
     }
-    return svg as SVGSVGElement;
-}
-
-function namespaceSvgIds(svg: SVGSVGElement, namespace: string): void {
     const ids = new Map<string, string>();
-    svg.querySelectorAll<SVGElement>("[id]").forEach(element => {
-        const oldId = element.id;
-        const newId = `${namespace}-${oldId.replace(ZRENDER_ID_PREFIX, "")}`;
+    for (const element of elements) {
+        const oldId = getAttribute(element, "id");
+        if (oldId === undefined) continue;
+        const newId = `${idScope}-${oldId.replace(ZRENDER_ID_PREFIX, "")}`;
         ids.set(oldId, newId);
-        element.id = newId;
-    });
-    svg.querySelectorAll<SVGElement>("*").forEach(element => {
-        for (const attribute of Array.from(element.attributes)) {
-            let value = attribute.value;
+        setAttribute(element, "id", newId);
+    }
+    for (const element of elements) {
+        for (const attribute of element.attrs) {
             for (const [oldId, newId] of ids) {
-                value = value.replaceAll(`url(#${oldId})`, `url(#${newId})`);
-                if (value === `#${oldId}`) value = `#${newId}`;
+                attribute.value = attribute.value.replaceAll(`url(#${oldId})`, `url(#${newId})`);
+                if (attribute.value === `#${oldId}`) attribute.value = `#${newId}`;
             }
-            if (value !== attribute.value) element.setAttribute(attribute.name, value);
         }
-    });
+    }
+    setAttribute(svg, "width", "100%");
+    setAttribute(svg, "height", "100%");
+    return serializeOuter(svg);
 }
 
 /** `idScope` is unique per object in the document (slide and object index), so chart ids stay apart and deterministic. */
-function chartContainer(document: Document, svgSource: string, style: NormalizedObjectStyle, altText: string, idScope: string): HTMLDivElement {
-    const container = document.createElement("div");
-    container.className = "slide-element slide-chart";
+function chartContainer(svgSource: string, style: NormalizedObjectStyle, altText: string, idScope: string): string {
     const css: InlineStyle = new Map();
-    applyObjectStyle(container, css, style);
+    const objectAttributes = applyObjectStyle(css, style);
     css.set("overflow", "hidden");
-    writeStyle(container, css);
-    container.setAttribute("role", "img");
-    if (altText) container.setAttribute("aria-label", altText);
-    const svg = parseSvg(document, svgSource);
-    namespaceSvgIds(svg, idScope);
-    svg.setAttribute("width", "100%");
-    svg.setAttribute("height", "100%");
-    container.appendChild(svg);
-    return container;
+    return element("div", [["class", "slide-element slide-chart"], ...objectAttributes, styleAttribute(css), ["role", "img"], ["aria-label", altText || undefined]], chartSvg(svgSource, idScope));
 }
 
 /** The chart box; addChart() calls it too, so a zero-sized chart fails there rather than at toHtml(). */
@@ -395,10 +389,10 @@ export function chartSize(style: NormalizedObjectStyle): { width: number; height
     return { width, height };
 }
 
-export function renderChart(document: Document, chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): HTMLDivElement {
+export function renderChart(chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): string {
     const { width, height } = chartSize(style);
     const source = chart.type === "bar3D" ? renderBar3DSvg(width, height, chart) : renderEChartsSvg(width, height, chartOption(chart));
-    return chartContainer(document, source, style, chart.altText, idScope);
+    return chartContainer(source, style, chart.altText, idScope);
 }
 
 /** Resolves caller renderer input to SVG source so the slide model stores only data. */
@@ -407,6 +401,6 @@ export function renderChartExtensionSvg(input: ChartExtensionInput, style: Norma
     return input.renderer === "svg" ? input.svg : renderEChartsSvg(width, height, input.option as EChartsCoreOption);
 }
 
-export function renderChartExtension(document: Document, svg: string, style: NormalizedObjectStyle, altText: string, idScope: string): HTMLDivElement {
-    return chartContainer(document, svg, style, altText, idScope);
+export function renderChartExtension(svg: string, style: NormalizedObjectStyle, altText: string, idScope: string): string {
+    return chartContainer(svg, style, altText, idScope);
 }

@@ -147,7 +147,8 @@ Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
 
 In `/html`, `writeFile()` throws because it needs a filesystem; use `toPdf()`.
 Without a global DOM (for example a worker or a server runtime without
-jsdom), pass `createDocument`.
+jsdom), pass `createDocument`: the constructor creates `pres.page` with it. `toHtml()` and `modelToHtml()`
+build the HTML as strings and call `createDocument` only for a component that reads `context.document`.
 
 ## WASM backend (`@pdfdeck/wasm`, opt-in, text, shapes, images and tables)
 
