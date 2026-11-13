@@ -298,10 +298,11 @@ pres.setPageSize({
 #### Constructor
 
 ```typescript
-new PuppeteerGen(pageSize?: PageSize)
+new PuppeteerGen(pageSize?: PageSize, options?: PuppeteerGenOptions)
 ```
 
 Creates a new PuppeteerGen instance with the specified page size (default: 16:9 landscape).
+`options` injects the `renderer`, `resolveImage` and `createDocument`; see [BACKENDS.md](./BACKENDS.md).
 
 #### Methods
 

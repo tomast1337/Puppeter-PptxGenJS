@@ -109,11 +109,11 @@ Implemented conversion and styling utilities:
 
 **README.md:**
 
-- Project overview
+- Project overview and release status
 - Quick start guide
-- Feature list
-- Usage examples
-- Implementation details
+- Backend choice and support matrix
+- Links to the guides in `docs/` (output and backends in [BACKENDS.md](./BACKENDS.md),
+  components in [COMPONENTS.md](./COMPONENTS.md), project structure below)
 
 **USAGE.md:**
 
@@ -179,6 +179,36 @@ The generated CSS includes:
 7. **Set Viewport**: Match page dimensions
 8. **Generate PDF**: Create PDF with exact page size
 9. **Write File**: Save to disk with Bun
+
+## Project Structure
+
+```
+├── packages/
+│   ├── model/src/         # @pdfdeck/model: normalized model types and renderer interfaces
+│   ├── pptxgenjs/src/     # @pdfdeck/pptxgenjs
+│   │   ├── PuppeteerGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
+│   │   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
+│   │   ├── output.ts          # write()/stream() outputType conversion of PDF bytes
+│   │   ├── pageLayouts.ts     # Page size definitions
+│   │   ├── units.ts           # Inch, point and percentage to pixel conversion
+│   │   ├── color.ts           # PptxGenJS color to CSS color
+│   │   ├── alignment.ts       # PptxGenJS alignment to CSS
+│   │   ├── pageCss.ts         # Page and slide CSS
+│   │   ├── pptx.ts            # Type definitions
+│   │   ├── html.ts            # Browser-safe entry (@pdfdeck/pptxgenjs/html)
+│   │   └── index.ts           # Node entry (@pdfdeck/pptxgenjs)
+│   ├── puppeteer/src/     # @pdfdeck/puppeteer: PuppeteerPdfRenderer and the shared browser
+│   ├── wasm/src/          # @pdfdeck/wasm: WASM backend loaders + wasm-bindgen glue
+│   ├── react/src/         # @pdfdeck/react: React component adapter
+│   └── puppeteer-pptxgenjs/src/  # Deprecation shim re-exporting the packages above
+├── crates/                # Rust workspace: pdf-core (model -> PDF) and pdf-wasm (wasm-bindgen)
+├── examples/
+│   ├── test.ts                   # Basic example
+│   └── comprehensive-example.ts  # Feature demonstrations
+├── tests/                       # Unit, DOM, and visual parity tests
+├── docs/                  # Usage guide, quick reference, defaults, backends, components, implementation notes
+└── README.md              # Project overview
+```
 
 ## Files Created/Modified
 

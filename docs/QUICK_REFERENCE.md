@@ -297,5 +297,7 @@ bun run examples/comprehensive-example.ts
 ## More Info
 
 - Full documentation: [USAGE.md](./USAGE.md)
+- Output, renderers and backends: [BACKENDS.md](./BACKENDS.md)
+- HTML and React components: [COMPONENTS.md](./COMPONENTS.md)
 - Implementation details: [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)
 - Project overview: [README.md](../README.md)
