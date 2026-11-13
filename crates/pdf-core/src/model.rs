@@ -105,7 +105,7 @@ pub(crate) struct ImageModel {
     pub(crate) sizing: ImageSizing,
     pub(crate) rounding: bool,
     pub(crate) opacity: f32,
-    pub(crate) link: Option<Value>,
+    pub(crate) link: Option<Link>,
 }
 
 /// `NormalizedImageSizing`: where the picture sits relative to the object box, in px.
@@ -180,6 +180,16 @@ pub(crate) struct Transform2 {
     pub(crate) opacity: f32,
 }
 
+/// `NormalizedTextLink` / `NormalizedShapeLink` / `NormalizedImageLink`: a slide jump when `slide`
+/// is set (its `href` is then `#slide-N`), otherwise the URL in `href`.
+#[derive(Deserialize)]
+pub(crate) struct Link {
+    pub(crate) href: String,
+    pub(crate) tooltip: Option<String>,
+    /// 1-based slide number.
+    pub(crate) slide: Option<u32>,
+}
+
 #[derive(Deserialize)]
 pub(crate) struct Visible {
     pub(crate) visible: bool,
@@ -213,7 +223,7 @@ pub(crate) struct ShapeModel {
     pub(crate) width: f32,
     pub(crate) height: f32,
     pub(crate) geometry: ShapeGeometry,
-    pub(crate) link: Option<Value>,
+    pub(crate) link: Option<Link>,
 }
 
 /// `NormalizedShapeGeometry`. An unknown `kind` fails the model rather than drawing a substitute.
@@ -328,7 +338,7 @@ pub(crate) struct Run {
     pub(crate) outline: Option<Outline>,
     pub(crate) glow: Option<Value>,
     pub(crate) shadow: Option<Visible>,
-    pub(crate) link: Option<Value>,
+    pub(crate) link: Option<Link>,
     pub(crate) soft_break_before: bool,
 }
 

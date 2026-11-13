@@ -12,6 +12,7 @@ use parley::{Layout, PositionedLayoutItem};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
+use crate::link::page_quad;
 use crate::model::TextBox;
 use crate::path::{fill_path, rect_path};
 use crate::text::layout::{BoxLayout, Brush, RunPaint};
@@ -37,8 +38,9 @@ fn stroke_of(Rgba(r, g, b, a): Rgba, width: f32) -> Stroke {
 }
 
 impl Renderer {
+    /// Draws the box and queues its runs' link annotations; a link the PDF cannot carry is an error.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn draw_text(&mut self, surface: &mut Surface, text: &TextBox, layout: &BoxLayout, x: f32, y: f32, w: f32, h: f32) {
+    pub(crate) fn draw_text(&mut self, surface: &mut Surface, text: &TextBox, layout: &BoxLayout, x: f32, y: f32, w: f32, h: f32) -> Result<(), String> {
         let [top, right, bottom, left] = text.margin;
         let (ix, iy, iw, ih) = (x + left, y + top, w - left - right, h - top - bottom);
         // Local frame: u along the line, v along the block axis.
@@ -62,6 +64,16 @@ impl Renderer {
             self.draw_layout(surface, &para.layout, &para.text, &layout.paints, (para.x, v0 + para.y), baselines);
         }
         surface.pop();
+        let mut quads = std::mem::take(&mut self.link_quads);
+        let linked = quads.drain(..).try_for_each(|(p, r, quad)| {
+            let run = text.paragraphs.get(p as usize).and_then(|para| para.runs.get(r as usize));
+            match run.and_then(|run| run.link.as_ref()) {
+                Some(link) => self.add_link(link, quad),
+                None => Ok(()),
+            }
+        });
+        self.link_quads = quads;
+        linked
     }
 
     fn pdf_font(&mut self, font: &parley::FontData) -> Option<Font> {
@@ -94,6 +106,12 @@ impl Renderer {
                 let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
                 let start = ox + glyph_run.offset();
                 let advance = glyph_run.advance();
+                if let Some((p, r)) = paint.link {
+                    // One annotation per line fragment, over the run's line box, as Chromium does for an inline <a>.
+                    if let Some(quad) = page_quad(surface, start, baseline - metrics.ascent, advance, metrics.ascent + metrics.descent) {
+                        self.link_quads.push((p, r, quad));
+                    }
+                }
                 if let Some(hl) = paint.highlight {
                     fill_path(
                         surface,

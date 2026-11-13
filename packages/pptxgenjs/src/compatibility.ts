@@ -456,9 +456,8 @@ export const WASM_COMPATIBILITY = Object.freeze({
             // The WASM image deck (tests/visual/wasm/image-deck.ts) covers the same sizing, transform and
             // effect options with PNG and JPEG sources (data and path); paths and URLs are resolved to data URIs before rendering.
             ...COMPATIBILITY.image.options,
-            // Reported through warnings(): no link annotations, no blurred drop shadow, and no GIF, WebP
-            // or SVG decoder (krilla's decoders for them do not fit the wasm size budget, GZIP_BUDGET).
-            hyperlink: "unsupported",
+            // Reported through warnings(): no blurred drop shadow, and no GIF, WebP or SVG decoder
+            // (krilla's decoders for them do not fit the wasm size budget, GZIP_BUDGET).
             shadow: "unsupported",
             gifFirstFrame: "unsupported",
             svg: "unsupported",
@@ -471,8 +470,7 @@ export const WASM_COMPATIBILITY = Object.freeze({
             ...Object.fromEntries(Object.keys(COMPATIBILITY.shape.options).map(option => [option, "implemented" as const])),
             // As in the Puppeteer renderer.
             align: "unsupported",
-            // Reported through warnings(): no link annotations and no blurred drop shadow yet.
-            hyperlink: "unsupported",
+            // Reported through warnings(): no blurred drop shadow yet.
             shadow: "unsupported",
             // Text in shapes uses the WASM text layout and inherits its gaps (right-to-left tab stops, ...).
             text: "partial",
@@ -498,9 +496,8 @@ export const WASM_COMPATIBILITY = Object.freeze({
         options: Object.freeze({
             // What the Puppeteer renderer verified is drawn the same way, and the text deck gates it.
             ...Object.fromEntries(Object.entries(COMPATIBILITY.text.options).map(([option, status]) => [option, status === "verified" ? "implemented" : status])),
-            // Reported through warnings(): no link annotations and no blurred glow or shadow yet.
+            // Reported through warnings(): no blurred glow or shadow yet.
             glow: "unsupported",
-            hyperlink: "unsupported",
             shadow: "unsupported",
             // Left, right, center and decimal stops plus the 1in default (defTabSz), measured from
             // the left even in right-to-left paragraphs (a warning says so).

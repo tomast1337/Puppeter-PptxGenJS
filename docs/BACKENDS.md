@@ -153,8 +153,19 @@ paths and URLs are resolved to data URIs by `toPdf()` before the renderer sees
 the model) and tables (merged cells, fills, per-side solid and dashed borders,
 cell insets and alignment, vertical text, rows grown to fit their text;
 underline styles draw as a single line). GIF, WebP and SVG images, charts,
-components, shadows and hyperlink annotations are not drawn yet
-(issue #17).
+components, shadows and glow are not drawn yet (issue #17).
+
+**Hyperlinks:** linked text runs (also in table cells), shapes and images
+become PDF link annotations, like the `<a>` elements Chromium turns into links.
+A `url` opens through a URI action; a `slide` jumps to the top of that page.
+Two differences from the Puppeteer output: a rotated or flipped object gets
+its exact outline (`/QuadPoints`, with the bounding box as `/Rect` for viewers
+that ignore them) where Chromium only writes the bounding box, and the
+`tooltip` is the annotation's `/Contents`, which Chromium leaves out. Chromium
+also normalizes the URL (`https://example.com` becomes `https://example.com/`)
+and jumps to slides through named destinations. Both backends accept only
+`http:`, `https:` and `mailto:` URLs: normalization rejects any other scheme
+(PptxGenJS writes any string).
 
 **Unsupported content:** by default `toPdf()` throws an error listing
 everything the backend could not draw. Pass `onUnsupported: "warn"` to get the
