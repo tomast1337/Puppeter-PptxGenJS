@@ -474,7 +474,7 @@ export const WASM_COMPATIBILITY = Object.freeze({
             // Reported through warnings(): no link annotations and no blurred drop shadow yet.
             hyperlink: "unsupported",
             shadow: "unsupported",
-            // Text in shapes uses the WASM text layout and inherits its gaps (tab stops, synthetic styles, ...).
+            // Text in shapes uses the WASM text layout and inherits its gaps (stacked text, right-to-left tab stops, ...).
             text: "partial",
         }),
     }),
