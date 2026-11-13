@@ -145,6 +145,8 @@ export interface NormalizedTableBorder {
     color: string;
     width: number;
     style: "solid" | "dashed";
+    /** SVG stroke-dasharray in px for a dashed border, resolved from the DrawingML preset dash. */
+    dashArray?: string;
 }
 
 export interface NormalizedTableCell {

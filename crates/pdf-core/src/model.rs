@@ -28,7 +28,8 @@ pub(crate) enum SlideObject {
     Text(TextObject),
     Shape(ShapeObject),
     Image(ImageObject),
-    /// Any other `kind` (table, chart, ...), or `?` when it is missing or not a
+    Table(TableObject),
+    /// Any other `kind` (chart, media, ...), or `?` when it is missing or not a
     /// string: reported through `warnings()` instead of failing the model.
     Unsupported(String),
 }
@@ -44,6 +45,49 @@ pub(crate) struct TextObject {
 pub(crate) struct ShapeObject {
     pub(crate) style: ObjectStyle,
     pub(crate) shape: Option<ShapeModel>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TableObject {
+    pub(crate) style: ObjectStyle,
+    pub(crate) table: Table,
+}
+
+/// `NormalizedTable`. Its `width`/`height` are the sums of `columns` and of the row heights
+/// that normalization resolved; rows without one grow to their content, so they are not read.
+#[derive(Deserialize)]
+pub(crate) struct Table {
+    /// Grid column widths (px).
+    pub(crate) columns: Vec<f32>,
+    pub(crate) rows: Vec<TableRow>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TableRow {
+    /// Minimum height (px); the row grows to fit its cells' text.
+    pub(crate) height: Option<f32>,
+    /// Origin cells only, as in HTML: grid slots covered by a span have no entry.
+    pub(crate) cells: Vec<TableCell>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TableCell {
+    pub(crate) text: TextBox,
+    pub(crate) colspan: u32,
+    pub(crate) rowspan: u32,
+    pub(crate) fill: Option<FillModel>,
+    /// Top, right, bottom, left.
+    pub(crate) borders: [TableBorder; 4],
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TableBorder {
+    pub(crate) visible: bool,
+    pub(crate) color: String,
+    pub(crate) width: f32,
+    /// SVG stroke-dasharray (px) of a dashed border.
+    pub(crate) dash_array: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +144,7 @@ impl<'de> Deserialize<'de> for SlideObject {
             Some("text") => TextObject::deserialize(object).map(SlideObject::Text),
             Some("shape") => ShapeObject::deserialize(object).map(SlideObject::Shape),
             Some("image") => ImageObject::deserialize(object).map(SlideObject::Image),
+            Some("table") => TableObject::deserialize(object).map(SlideObject::Table),
             kind => return Ok(SlideObject::Unsupported(kind.unwrap_or("?").to_owned())),
         };
         typed.map_err(D::Error::custom)

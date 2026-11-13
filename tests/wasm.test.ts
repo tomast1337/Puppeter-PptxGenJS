@@ -97,9 +97,9 @@ describe("WasmRenderer failure behavior", () => {
     });
 
     test('onUnsupported: "warn" returns the PDF and surfaces warnings()', async () => {
-        const renderer = new WasmRenderer(new FakeBinding(["object kind 'table' not rendered"]), "warn");
+        const renderer = new WasmRenderer(new FakeBinding(["object kind 'chart' not rendered"]), "warn");
         expect(ascii(await renderer.renderModel({ pageSize: PAGE, slides: [] }))).toBe("%PDF-fake");
-        expect(renderer.warnings()).toEqual(["object kind 'table' not rendered"]);
+        expect(renderer.warnings()).toEqual(["object kind 'chart' not rendered"]);
     });
 
     test("the binding receives the model as JSON", async () => {
@@ -174,9 +174,9 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
         pres.addSlide()
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
-            .addTable([[{ text: "Cell" }]], { x: 1, y: 2, w: 2 })
+            .addChart("bar", [{ name: "Series", labels: ["A"], values: [1] }], { x: 1, y: 2, w: 2, h: 1 })
             .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
-        await expect(pres.toPdf()).rejects.toThrow(/object kind 'table' not rendered[\s\S]*object shadow not rendered/);
+        await expect(pres.toPdf()).rejects.toThrow(/object kind 'chart' not rendered[\s\S]*object shadow not rendered/);
     });
 
     test("draws every preset shape the model emits, with dashed lines and arrowheads, without warnings", async () => {
