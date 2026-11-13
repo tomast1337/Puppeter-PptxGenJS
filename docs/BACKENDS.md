@@ -161,7 +161,9 @@ PDF anyway; the skipped items are then in `renderer.warnings()`.
 bytes); at least one is required. Office faces fall back to their
 metric-compatible equivalents when the originals are not supplied: Calibri ->
 Carlito, Cambria -> Caladea, Arial/Helvetica -> Liberation Sans, Times New
-Roman -> Liberation Serif, Courier New -> Liberation Mono, then DejaVu Sans.
+Roman -> Liberation Serif, Courier New -> Liberation Mono, then DejaVu Sans,
+Liberation Sans and Noto Sans CJK JP, so Latin text tries a Latin face before
+the CJK one.
 Under Node/Bun, `loadSystemFonts()` reads those faces (and the Office
 originals, Noto Color Emoji and Noto Sans CJK when installed) from the system
 font directories; pass `{ dirs, match }` to choose others. Emoji and CJK fonts
