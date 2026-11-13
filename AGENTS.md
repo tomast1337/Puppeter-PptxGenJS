@@ -260,7 +260,11 @@ comments with concrete evidence. Do not loosen thresholds only to make a regress
 - **Required checks must pass** before merge: "Build and test package", "Packed package on Node.js 22",
   "Packed package on Node.js 24", "Visual parity", "WASM build", and "Format" (#27). Never rename a CI
   job: the branch rules match on these names.
-- Any merge method is fine; squash is the default.
+- **Rebase merges only, linear history.** `main` accepts only rebase merges (the ruleset enforces it),
+  so every commit on a PR lands on `main` as written: each one builds, says why, and carries its
+  sign-off. Keep PR branches free of merge commits: to pick up `main`, rebase onto it and push with
+  `git push --force-with-lease` (PR branches only; `main` rejects force-pushes). For a stacked PR,
+  after the PR below it merges, run `git rebase --onto origin/main <old-base>` and retarget it to `main`.
 - The PR description says what changed and why, which PptxGenJS behavior was the reference, which tests
   were added, and what known gaps remain (with issue links).
 
