@@ -1,5 +1,4 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
-import { paragraphLineBox } from "../normalize/text";
 
 function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     if (!shadow?.visible) return undefined;
@@ -28,7 +27,6 @@ function applyRunStyle(element: HTMLElement, run: NormalizedTextRun): void {
     element.style.textDecorationStyle = run.decoration.underlineStyle;
     if (run.decoration.underlineColor) element.style.textDecorationColor = run.decoration.underlineColor;
     if (run.decoration.doubleStrike) element.style.textDecorationStyle = "double";
-    element.style.verticalAlign = run.verticalAlign;
     // Glyphs must not size the line box; the paragraph's strut does (applyParagraphStyle).
     element.style.lineHeight = "0";
     if (run.baselineOffset) {
@@ -67,7 +65,7 @@ function applyParagraphStyle(element: HTMLDivElement, paragraph: NormalizedTextP
     // A 0px font makes each line's strut exactly `height` tall with its baseline in the middle, whatever
     // the fonts' ascent and descent; runs have line-height 0, so the strut alone sizes the line. Moving
     // the paragraph then puts every baseline where LibreOffice puts it.
-    const lineBox = paragraphLineBox(paragraph);
+    const { lineBox } = paragraph;
     element.style.fontSize = "0px";
     element.style.lineHeight = `${lineBox.height}px`;
     // shortcut: vertical text keeps the centred baseline; shift along the block axis once it is measured.

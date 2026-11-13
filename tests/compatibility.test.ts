@@ -139,6 +139,14 @@ describe("compatibility manifest", () => {
         expect(WASM_COMPATIBILITY.shape.options.text).toBe("partial");
     });
 
+    test("tracks the WASM backend's text support on the same option surface", () => {
+        expect(Object.keys(WASM_COMPATIBILITY.text.options).sort()).toEqual(Object.keys(COMPATIBILITY.text.options).sort());
+        expect(WASM_COMPATIBILITY.text.options.lineSpacingMultiple).toBe("implemented");
+        expect(WASM_COMPATIBILITY.text.options.superscript).toBe("implemented");
+        expect(WASM_COMPATIBILITY.text.options.hyperlink).toBe("unsupported");
+        expect(WASM_COMPATIBILITY.text.options.textDirection).toBe("unsupported");
+    });
+
     test("tracks every ShapeProps field and classifies every preset", () => {
         for (const option of SHAPE_OPTION_KEYS) {
             expect(COMPATIBILITY.shape.options[option]).toBeDefined();

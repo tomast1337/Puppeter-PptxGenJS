@@ -35,12 +35,11 @@ impl Renderer {
         surface.push_transform(&frame);
         for para in &layout.paras {
             if let Some((marker, ml, mx)) = &para.marker {
-                // Marker shares the first line's baseline.
-                let first_baseline = para.layout.lines().next().map(|l| l.metrics().baseline).unwrap_or(0.0);
-                let marker_baseline = ml.lines().next().map(|l| l.metrics().baseline).unwrap_or(0.0);
-                self.draw_layout(surface, ml, marker, &layout.paints, *mx, v0 + para.y + first_baseline - marker_baseline);
+                let first = layout.baselines.get(para.baselines.start..para.baselines.start + 1).unwrap_or_default();
+                self.draw_layout(surface, ml, marker, &layout.paints, (*mx, v0 + para.y), first);
             }
-            self.draw_layout(surface, &para.layout, &para.text, &layout.paints, para.x, v0 + para.y);
+            let baselines = layout.baselines.get(para.baselines.clone()).unwrap_or_default();
+            self.draw_layout(surface, &para.layout, &para.text, &layout.paints, (para.x, v0 + para.y), baselines);
         }
         surface.pop();
     }
@@ -56,11 +55,14 @@ impl Renderer {
         Some(f)
     }
 
-    fn draw_layout(&mut self, surface: &mut Surface, layout: &Layout<Brush>, text: &str, paints: &[RunPaint], ox: f32, oy: f32) {
+    /// Draws `layout` at `(ox, oy)` with line `i`'s baseline `baselines[i]` below `oy` (from
+    /// `stack_lines`, where LibreOffice puts it), instead of where parley's font metrics would.
+    fn draw_layout(&mut self, surface: &mut Surface, layout: &Layout<Brush>, text: &str, paints: &[RunPaint], (ox, oy): (f32, f32), baselines: &[f32]) {
         let mut ranges = std::mem::take(&mut self.glyph_ranges);
         let mut positioned = std::mem::take(&mut self.positioned);
         let mut glyphs = std::mem::take(&mut self.glyphs);
-        for line in layout.lines() {
+        for (line, baseline) in layout.lines().zip(baselines) {
+            let oy = oy + baseline - line.metrics().baseline;
             for item in line.items() {
                 let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
                 let run = glyph_run.run();

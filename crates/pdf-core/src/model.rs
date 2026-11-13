@@ -227,11 +227,18 @@ pub(crate) struct Paragraph {
     pub(crate) runs: Vec<Run>,
     pub(crate) align: String,
     pub(crate) rtl: bool,
-    pub(crate) line_height: Option<f32>,
+    pub(crate) line_box: LineBox,
     pub(crate) space_before: f32,
     pub(crate) space_after: f32,
     pub(crate) tab_stops: Vec<Value>,
     pub(crate) bullet: Option<Bullet>,
+}
+
+/// `NormalizedTextParagraph.lineBox`: every line is `height` px tall with its baseline `baseline` px below its top.
+#[derive(Deserialize, Clone, Copy)]
+pub(crate) struct LineBox {
+    pub(crate) height: f32,
+    pub(crate) baseline: f32,
 }
 
 #[derive(Deserialize)]
@@ -251,7 +258,7 @@ pub(crate) struct Run {
     pub(crate) bold: bool,
     pub(crate) italic: bool,
     pub(crate) decoration: Decoration,
-    pub(crate) vertical_align: String,
+    /// Super/subscript are already resolved into `font_size` and `baseline_offset`.
     pub(crate) baseline_offset: f32,
     pub(crate) character_spacing: f32,
     pub(crate) highlight: Option<String>,

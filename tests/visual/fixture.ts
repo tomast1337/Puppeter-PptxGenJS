@@ -6,7 +6,7 @@ import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/g
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
-import { CROP_TARGET, TABLE_CROP_THRESHOLD, TABLE_TEXT_OFFSET_CROP_THRESHOLDS } from "./thresholds";
+import { CROP_TARGET, TABLE_CROP_THRESHOLD, TABLE_TEXT_OFFSET_CROP_THRESHOLDS, TEXT_LINE_SNAP_CROP_THRESHOLDS } from "./thresholds";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -226,10 +226,12 @@ const SHAPED_TEXT_CASES = [
     { page: 53, name: "text-cloud", shape: "cloud", text: "Idea", x: 7.7, y: 1.2, w: 1.8, h: 1.4 },
 ] as const;
 // Baseline placement and line pitch of plain text boxes (#49): the paragraph slide's title and its
-// single and exact line spacing paragraphs with paragraph spacing.
+// single and exact line spacing paragraphs with paragraph spacing, and two lines at 1.5x spacing
+// (LibreOffice puts the extra leading above each baseline).
 const TEXT_CASES = [
     { page: 4, name: "text-title", x: 0.5, y: 0.2, w: 9, h: 0.5 },
     { page: 4, name: "text-paragraph-spacing", x: 0.75, y: 1, w: 8.5, h: 2.1 },
+    { page: 4, name: "text-line-spacing-multiple", x: 0.75, y: 4.95, w: 8.5, h: 0.6 },
 ] as const;
 // Every line head type at both ends of a 45 degree line, from a 1pt line (below LibreOffice's 0.7 mm sizing
 // floor) and a 4.5pt one. The diagonal keeps triangle-like heads inside the box, so the WASM deck's
@@ -242,6 +244,8 @@ const ARROW_HEAD_CASES = [1, 4.5].flatMap((widthPt, row) => ARROW_HEAD_TYPES.map
 function cropThreshold(name: string): number {
     const tableTextOffset = TABLE_TEXT_OFFSET_CROP_THRESHOLDS[name];
     if (tableTextOffset !== undefined) return tableTextOffset;
+    const lineSnap = TEXT_LINE_SNAP_CROP_THRESHOLDS[name];
+    if (lineSnap !== undefined) return lineSnap;
     if (name.startsWith("table-")) return TABLE_CROP_THRESHOLD;
     return CROP_TARGET;
 }
@@ -506,6 +510,17 @@ export function populateParityFixture(presentation: Presentation): void {
         color: "44546A",
         align: "center",
         valign: "middle",
+        margin: 0,
+    });
+    paragraphsSlide.addText([{ text: "Two lines at 1.5x line spacing:" }, { text: "the extra leading sits above each baseline", options: { softBreakBefore: true } }], {
+        x: 0.75,
+        y: 4.95,
+        w: 8.5,
+        h: 0.6,
+        fontFace: "Arial",
+        fontSize: 12,
+        color: "363636",
+        lineSpacingMultiple: 1.5,
         margin: 0,
     });
 

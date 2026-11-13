@@ -90,7 +90,9 @@ export interface NormalizedTextRun {
     bold: boolean;
     italic: boolean;
     decoration: NormalizedTextDecoration;
+    /** What the run asked for; `fontSize` and `baselineOffset` already hold the resulting size and shift. */
     verticalAlign: "baseline" | "sub" | "super";
+    /** Baseline shift in px, positive up. */
     baselineOffset: number;
     characterSpacing: number;
     highlight?: string;
@@ -116,6 +118,8 @@ export interface NormalizedTextParagraph {
     align: "left" | "center" | "right" | "justify";
     rtl: boolean;
     lineHeight?: number;
+    /** Each line's height and its baseline's distance below the line top, in px (LibreOffice's font-independent line box). */
+    lineBox: { height: number; baseline: number };
     spaceBefore: number;
     spaceAfter: number;
     tabStops: ReadonlyArray<{ position: number; alignment: "left" | "right" | "center" | "decimal" }>;

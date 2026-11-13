@@ -24,11 +24,28 @@ describe("text normalization", () => {
         // lineSpacingMultiple scales the 1.2em line; the extra height goes above the baseline.
         expect(normalizeText("Text", { lineSpacingMultiple: 1.5 }).paragraphs[0]?.lineHeight).toBeCloseTo(1.8);
         close(box({ fontSize: 30, lineSpacingMultiple: 1.5 }), 72, 64);
+        // The model carries the box, so every renderer stacks lines the same way.
+        close(normalizeText("Text", { fontSize: 30, lineSpacingMultiple: 1.5 }).paragraphs[0]!.lineBox, 72, 64);
         close(box({ fontSize: 30, lineSpacingMultiple: 0.8 }), 38.4, 30.4);
         // lineSpacing is the exact line height (36pt = 48px); the baseline stays 0.2em above its bottom.
         close(box({ fontSize: 30, lineSpacing: 36 }), 48, 40);
         // Mixed sizes: the largest run sets the line box.
         close(box({ fontSize: 12 }, [{ text: "small" }, { text: "LARGE", options: { fontSize: 24 } }]), 38.4, 32);
+    });
+
+    // PptxGenJS writes baseline="30000"/"-40000"; LibreOffice draws such runs at 58% of their size.
+    test("resolves super- and subscript into LibreOffice's escapement size and shift", () => {
+        const [sup, sub, custom] = normalizeText([
+            { text: "sup", options: { superscript: true, fontSize: 30 } },
+            { text: "sub", options: { subscript: true, fontSize: 30 } },
+            { text: "custom", options: { subscript: true, baseline: 20, fontSize: 30 } },
+        ]).paragraphs[0]!.runs;
+        expect(sup!.fontSize).toBeCloseTo(40 * 0.58);
+        expect(sup!.baselineOffset).toBeCloseTo(12);
+        expect(sub!.fontSize).toBeCloseTo(40 * 0.58);
+        expect(sub!.baselineOffset).toBeCloseTo(-16);
+        // A custom baseline wins and keeps the run's size.
+        expect(custom!.fontSize).toBe(40);
     });
 
     test("groups rich runs using PptxGenJS break and alignment behavior", () => {
