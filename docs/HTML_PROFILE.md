@@ -126,10 +126,11 @@ There is no media, notes or master element: the model has no such kinds.
 ```html
 <div class="slide-element slide-text" style="…box…; padding; align-items; white-space; overflow-wrap; direction; border-radius" data-object-name="Text 1" data-text-fit="none" data-text-direction="horizontal">
     <div class="text-content" style="width: 100%">
-        <div class="text-paragraph" style="text-align; direction; margin-top; margin-bottom; font-size: 0px; line-height; position: relative; top; tab-size" data-tab-stops="96:left,192:right" data-bullet-level="0" data-bullet-type="bullet">
+        <div class="text-paragraph" style="text-align; direction; margin-top; margin-bottom; font-size: 0px; line-height; position: relative; top; tab-size" data-line-baseline="14.4" data-tab-stops="96:left,192:right" data-bullet-level="0" data-bullet-type="bullet">
             <span class="text-bullet" style="display: inline-block; width; font-family; font-size; color; line-height: 0">•&nbsp;</span>
             <span class="text-run" lang="en-US" style="font-family; font-size; color; font-weight; font-style; text-decoration-*; line-height: 0; …">text</span>
-            <br /><a class="text-run" href="…" title="…" data-slide="2" style="…">linked text</a>
+            <br /><a class="text-run" href="…" title="…" data-slide="2" data-soft-break-before="" style="…">linked text</a>
+            <span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" style="…">x</span>
         </div>
     </div>
 </div>
@@ -138,8 +139,11 @@ There is no media, notes or master element: the model has no such kinds.
 `render/text.ts`. The box is a flex container: `align-items` is the vertical anchor (`flex-start`,
 `center`, `flex-end`). Vertical text sets `writing-mode` (`vertical-rl` for `vertical270`, `vertical-lr`
 otherwise) and `text-orientation` (`upright` for `stacked`) on `.text-content`. With `fit: resize` the
-height becomes `min-height` and `height: auto`. A soft break is a `<br>` before the run. A run is an `a`
-when it has a link, a `span` otherwise.
+height becomes `min-height` and `height: auto`. A soft break is a `<br>` before the run and
+`data-soft-break-before` on it. A run is an `a` when it has a link, a `span` otherwise. Model values that
+CSS cannot state exactly are `data-*` on the run: `data-vertical-align` (`sub`, `super`),
+`data-text-shadow` (which `text-shadow` entry is the `glow` and which the `shadow`), `data-double-strike`
+with `data-underline-style`, and `data-empty` on an empty run (its text is U+200B).
 
 ### Shape
 
@@ -230,7 +234,7 @@ them.
 
 | Workaround     | Where in the HTML                                                                                                | Code                                                |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:34,71-81`                           |
+| Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:39,83-94`                           |
 | Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:97-123`, `render/slide.ts:212-214` |
 | Dash rewrite   | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap                                   | `render/shape.ts:143-151`                           |
 | Table offset   | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                                    | `render/table.ts:17-24`                             |
@@ -238,7 +242,7 @@ them.
 Other Chromium-specific details that phase 2 or 6 revisits: the font fallback list in `font-family`
 (`render/text.ts:9-16`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
 `height="1"` for zero-height lines (`render/shape.ts:117-119`), U+200B for empty runs
-(`render/text.ts:60`).
+(`render/text.ts:70`).
 
 ## Field mapping
 
@@ -338,63 +342,63 @@ object-valued field covers the field's presence; its own fields have their own r
 
 ### Text
 
-| Field                                          | Status       | HTML                                                                                                                     |
-| ---------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `NormalizedTextBox.paragraphs`                 | profile      | `div.text-paragraph` children of `.text-content`.                                                                        |
-| `NormalizedTextBox.margin`                     | profile      | `padding: <top>px <right>px <bottom>px <left>px` on the box.                                                             |
-| `NormalizedTextBox.verticalAlign`              | profile      | `align-items: flex-start\|center\|flex-end`; also `vertical-align` on a table cell's `td`.                               |
-| `NormalizedTextBox.wrap`                       | profile      | `white-space: pre-wrap\|pre` (and `overflow-wrap`).                                                                      |
-| `NormalizedTextBox.fit`                        | profile      | `data-text-fit`.                                                                                                         |
-| `NormalizedTextBox.direction`                  | profile      | `data-text-direction` (plus `writing-mode`/`text-orientation` on `.text-content`).                                       |
-| `NormalizedTextBox.rtl`                        | profile      | `direction: rtl\|ltr` on the box.                                                                                        |
-| `NormalizedTextBox.borderRadius`               | profile      | `border-radius: <n>%` on the box.                                                                                        |
-| `NormalizedTextParagraph.runs`                 | profile      | `.text-run` children (`span`, or `a` when linked).                                                                       |
-| `NormalizedTextParagraph.align`                | profile      | `text-align`.                                                                                                            |
-| `NormalizedTextParagraph.rtl`                  | profile      | `direction: rtl\|ltr` on the paragraph.                                                                                  |
-| `NormalizedTextParagraph.lineHeight`           | not drawable | Input of `lineBox` (`normalize/text.ts:314-318`); the line box is what is drawn.                                         |
-| `NormalizedTextParagraph.lineBox`              | gap          | Encoded as the strut: `font-size: 0px`, `line-height`, `top` (`render/text.ts:71-81`).                                   |
-| `NormalizedTextParagraph.lineBox.height`       | profile      | `line-height: <height>px` on the paragraph.                                                                              |
-| `NormalizedTextParagraph.lineBox.baseline`     | gap          | Only as `top = baseline - height / 2`; not written at all for vertical text (`render/text.ts:77-81`).                    |
-| `NormalizedTextParagraph.spaceBefore`          | profile      | `margin-top`.                                                                                                            |
-| `NormalizedTextParagraph.spaceAfter`           | profile      | `margin-bottom`.                                                                                                         |
-| `NormalizedTextParagraph.tabStops`             | profile      | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                         |
-| `NormalizedTextParagraph.tabStops[].position`  | profile      | `<position>` in `data-tab-stops`, px.                                                                                    |
-| `NormalizedTextParagraph.tabStops[].alignment` | profile      | `<alignment>` in `data-tab-stops`.                                                                                       |
-| `NormalizedTextParagraph.defaultTabStop`       | profile      | `tab-size: <n>px`.                                                                                                       |
-| `NormalizedTextParagraph.bullet`               | profile      | `span.text-bullet` first child and `data-bullet-*`.                                                                      |
-| `NormalizedTextBullet.kind`                    | profile      | `data-bullet-type="bullet\|number"`.                                                                                     |
-| `NormalizedTextBullet.marker`                  | profile      | `.text-bullet` text, minus the trailing U+00A0.                                                                          |
-| `NormalizedTextBullet.indent`                  | gap          | Only as `indent / (level + 1)`, in the marker `width` and the paragraph `padding-left` (`render/text.ts:87-93,133-149`). |
-| `NormalizedTextBullet.level`                   | profile      | `data-bullet-level`.                                                                                                     |
-| `NormalizedTextBullet.start`                   | gap          | Folded into the marker text (`render/text.ts:133-149`).                                                                  |
-| `NormalizedTextBullet.numberType`              | gap          | Folded into the marker text (`render/text.ts:133-149`).                                                                  |
-| `NormalizedTextRun.text`                       | gap          | Run text content; an empty run becomes U+200B (`render/text.ts:60`).                                                     |
-| `NormalizedTextRun.fontFace`                   | gap          | First family of `font-family`, wrapped in a Chromium fallback list (`render/text.ts:9-16`).                              |
-| `NormalizedTextRun.fontSize`                   | profile      | `font-size: <n>px` (already the sub/superscript size).                                                                   |
-| `NormalizedTextRun.color`                      | profile      | `color`.                                                                                                                 |
-| `NormalizedTextRun.bold`                       | profile      | `font-weight: bold\|normal`.                                                                                             |
-| `NormalizedTextRun.italic`                     | profile      | `font-style: italic\|normal`.                                                                                            |
-| `NormalizedTextRun.decoration`                 | profile      | `text-decoration-*`.                                                                                                     |
-| `NormalizedTextDecoration.underline`           | profile      | `underline` in `text-decoration-line`.                                                                                   |
-| `NormalizedTextDecoration.underlineStyle`      | gap          | `text-decoration-style`, overwritten by `double` when `doubleStrike` is set (`render/text.ts:30-32`).                    |
-| `NormalizedTextDecoration.underlineColor`      | profile      | `text-decoration-color`.                                                                                                 |
-| `NormalizedTextDecoration.strike`              | profile      | `line-through` in `text-decoration-line`.                                                                                |
-| `NormalizedTextDecoration.doubleStrike`        | gap          | `text-decoration-style: double`, indistinguishable from a double underline (`render/text.ts:30-32`).                     |
-| `NormalizedTextRun.verticalAlign`              | gap          | Only its result, the `top` offset and font size (`render/text.ts:35-38`).                                                |
-| `NormalizedTextRun.baselineOffset`             | profile      | `position: relative; top: <-offset>px`, omitted at 0.                                                                    |
-| `NormalizedTextRun.characterSpacing`           | profile      | `letter-spacing`, omitted at 0.                                                                                          |
-| `NormalizedTextRun.highlight`                  | profile      | `background-color` on the run.                                                                                           |
-| `NormalizedTextRun.outline`                    | profile      | `-webkit-text-stroke: <width>px <color>`.                                                                                |
-| `NormalizedTextRun.outline.color`              | profile      | Color of `-webkit-text-stroke`.                                                                                          |
-| `NormalizedTextRun.outline.width`              | profile      | Width of `-webkit-text-stroke`, px.                                                                                      |
-| `NormalizedTextRun.glow`                       | gap          | Merged with `shadow` into one `text-shadow` list; with one entry you cannot tell which it was (`render/text.ts:42-44`).  |
-| `NormalizedTextRun.shadow`                     | gap          | Merged with `glow` into one `text-shadow` list (`render/text.ts:42-44`).                                                 |
-| `NormalizedTextRun.language`                   | profile      | `lang`.                                                                                                                  |
-| `NormalizedTextRun.link`                       | profile      | The run is an `a`.                                                                                                       |
-| `NormalizedTextLink.href`                      | profile      | `href`.                                                                                                                  |
-| `NormalizedTextLink.tooltip`                   | profile      | `title`.                                                                                                                 |
-| `NormalizedTextLink.slide`                     | profile      | `data-slide`.                                                                                                            |
-| `NormalizedTextRun.softBreakBefore`            | gap          | `<br>` before the run, but not before a paragraph's first run (`render/text.ts:152`).                                    |
+| Field                                          | Status       | HTML                                                                                                                       |
+| ---------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `NormalizedTextBox.paragraphs`                 | profile      | `div.text-paragraph` children of `.text-content`.                                                                          |
+| `NormalizedTextBox.margin`                     | profile      | `padding: <top>px <right>px <bottom>px <left>px` on the box.                                                               |
+| `NormalizedTextBox.verticalAlign`              | profile      | `align-items: flex-start\|center\|flex-end`; also `vertical-align` on a table cell's `td`.                                 |
+| `NormalizedTextBox.wrap`                       | profile      | `white-space: pre-wrap\|pre` (and `overflow-wrap`).                                                                        |
+| `NormalizedTextBox.fit`                        | profile      | `data-text-fit`.                                                                                                           |
+| `NormalizedTextBox.direction`                  | profile      | `data-text-direction` (plus `writing-mode`/`text-orientation` on `.text-content`).                                         |
+| `NormalizedTextBox.rtl`                        | profile      | `direction: rtl\|ltr` on the box.                                                                                          |
+| `NormalizedTextBox.borderRadius`               | profile      | `border-radius: <n>%` on the box.                                                                                          |
+| `NormalizedTextParagraph.runs`                 | profile      | `.text-run` children (`span`, or `a` when linked).                                                                         |
+| `NormalizedTextParagraph.align`                | profile      | `text-align`.                                                                                                              |
+| `NormalizedTextParagraph.rtl`                  | profile      | `direction: rtl\|ltr` on the paragraph.                                                                                    |
+| `NormalizedTextParagraph.lineHeight`           | not drawable | Input of `lineBox` (`normalize/text.ts:314-318`); the line box is what is drawn.                                           |
+| `NormalizedTextParagraph.lineBox`              | profile      | `line-height` and `data-line-baseline` on the paragraph; the strut that draws it is a [workaround](#renderer-workarounds). |
+| `NormalizedTextParagraph.lineBox.height`       | profile      | `line-height: <height>px` on the paragraph.                                                                                |
+| `NormalizedTextParagraph.lineBox.baseline`     | profile      | `data-line-baseline` on the paragraph (px from the line top), verbatim.                                                    |
+| `NormalizedTextParagraph.spaceBefore`          | profile      | `margin-top`.                                                                                                              |
+| `NormalizedTextParagraph.spaceAfter`           | profile      | `margin-bottom`.                                                                                                           |
+| `NormalizedTextParagraph.tabStops`             | profile      | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                           |
+| `NormalizedTextParagraph.tabStops[].position`  | profile      | `<position>` in `data-tab-stops`, px.                                                                                      |
+| `NormalizedTextParagraph.tabStops[].alignment` | profile      | `<alignment>` in `data-tab-stops`.                                                                                         |
+| `NormalizedTextParagraph.defaultTabStop`       | profile      | `tab-size: <n>px`.                                                                                                         |
+| `NormalizedTextParagraph.bullet`               | profile      | `span.text-bullet` first child and `data-bullet-*`.                                                                        |
+| `NormalizedTextBullet.kind`                    | profile      | `data-bullet-type="bullet\|number"`.                                                                                       |
+| `NormalizedTextBullet.marker`                  | profile      | `.text-bullet` text, minus the trailing U+00A0.                                                                            |
+| `NormalizedTextBullet.indent`                  | gap          | Only as `indent / (level + 1)`, in the marker `width` and the paragraph `padding-left` (`render/text.ts:100-106,146-162`). |
+| `NormalizedTextBullet.level`                   | profile      | `data-bullet-level`.                                                                                                       |
+| `NormalizedTextBullet.start`                   | gap          | Folded into the marker text (`render/text.ts:146-162`).                                                                    |
+| `NormalizedTextBullet.numberType`              | gap          | Folded into the marker text (`render/text.ts:146-162`).                                                                    |
+| `NormalizedTextRun.text`                       | profile      | Run text content. An empty run holds U+200B and has `data-empty`.                                                          |
+| `NormalizedTextRun.fontFace`                   | profile      | First family of `font-family`, a CSS string (unescape `\\` and `\"`); the fallback list after it is renderer-only.         |
+| `NormalizedTextRun.fontSize`                   | profile      | `font-size: <n>px` (already the sub/superscript size).                                                                     |
+| `NormalizedTextRun.color`                      | profile      | `color`.                                                                                                                   |
+| `NormalizedTextRun.bold`                       | profile      | `font-weight: bold\|normal`.                                                                                               |
+| `NormalizedTextRun.italic`                     | profile      | `font-style: italic\|normal`.                                                                                              |
+| `NormalizedTextRun.decoration`                 | profile      | `text-decoration-*`.                                                                                                       |
+| `NormalizedTextDecoration.underline`           | profile      | `underline` in `text-decoration-line`.                                                                                     |
+| `NormalizedTextDecoration.underlineStyle`      | profile      | `text-decoration-style`; `data-underline-style` when `data-double-strike` replaced it with `double`.                       |
+| `NormalizedTextDecoration.underlineColor`      | profile      | `text-decoration-color`.                                                                                                   |
+| `NormalizedTextDecoration.strike`              | profile      | `line-through` in `text-decoration-line`.                                                                                  |
+| `NormalizedTextDecoration.doubleStrike`        | profile      | `data-double-strike` on the run (`text-decoration-style: double` draws it).                                                |
+| `NormalizedTextRun.verticalAlign`              | profile      | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |
+| `NormalizedTextRun.baselineOffset`             | profile      | `position: relative; top: <-offset>px`, omitted at 0.                                                                      |
+| `NormalizedTextRun.characterSpacing`           | profile      | `letter-spacing`, omitted at 0.                                                                                            |
+| `NormalizedTextRun.highlight`                  | profile      | `background-color` on the run.                                                                                             |
+| `NormalizedTextRun.outline`                    | profile      | `-webkit-text-stroke: <width>px <color>`.                                                                                  |
+| `NormalizedTextRun.outline.color`              | profile      | Color of `-webkit-text-stroke`.                                                                                            |
+| `NormalizedTextRun.outline.width`              | profile      | Width of `-webkit-text-stroke`, px.                                                                                        |
+| `NormalizedTextRun.glow`                       | profile      | The `text-shadow` entry that `data-text-shadow` names `glow`.                                                              |
+| `NormalizedTextRun.shadow`                     | profile      | The `text-shadow` entry that `data-text-shadow` names `shadow`.                                                            |
+| `NormalizedTextRun.language`                   | profile      | `lang`.                                                                                                                    |
+| `NormalizedTextRun.link`                       | profile      | The run is an `a`.                                                                                                         |
+| `NormalizedTextLink.href`                      | profile      | `href`.                                                                                                                    |
+| `NormalizedTextLink.tooltip`                   | profile      | `title`.                                                                                                                   |
+| `NormalizedTextLink.slide`                     | profile      | `data-slide`.                                                                                                              |
+| `NormalizedTextRun.softBreakBefore`            | profile      | `data-soft-break-before` on the run; a `<br>` before it unless it is the first run.                                        |
 
 ### Shapes
 

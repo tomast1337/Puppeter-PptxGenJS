@@ -170,6 +170,30 @@ describe("text DOM rendering", () => {
         expect(link?.title).toBe("Example");
     });
 
+    test("writes the run and line-box values CSS cannot state exactly as data attributes", () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addText(
+            [
+                { text: "glow", options: { glow: { size: 4, opacity: 0.5, color: "FF0000" }, breakLine: true } },
+                { text: "", options: { breakLine: true } },
+                { text: "a", options: { strike: "dblStrike", underline: { style: "wavy" } } },
+                { text: "b", options: { superscript: true, softBreakBefore: true, shadow: { type: "outer", color: "000000" } } },
+            ],
+            { x: 1, y: 1, w: 4, h: 2 },
+        );
+
+        const paragraphs = renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph");
+        const run = (paragraph: number, index = 0) => paragraphs[paragraph]?.querySelectorAll<HTMLElement>(".text-run")[index]?.dataset;
+        // 18pt default: the baseline sits 0.2em above the bottom of a 1.2em line box, 24px from its top.
+        expect(Number(paragraphs[0]?.dataset.lineBaseline)).toBeCloseTo(24);
+        expect(run(0)?.textShadow).toBe("glow");
+        expect(run(1)?.empty).toBe("");
+        expect(run(0)?.empty).toBeUndefined();
+        expect(run(2)).toMatchObject({ doubleStrike: "", underlineStyle: "wavy" });
+        expect(run(2, 1)).toMatchObject({ verticalAlign: "super", softBreakBefore: "", textShadow: "shadow" });
+        expect(run(2)?.verticalAlign).toBeUndefined();
+    });
+
     test("keeps text transparency off the box and exposes direction and fit", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
