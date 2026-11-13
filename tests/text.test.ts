@@ -170,6 +170,18 @@ describe("text DOM rendering", () => {
         expect(link?.title).toBe("Example");
     });
 
+    test("writes the bullet indent, start and number type that the marker only shows as a result", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText("Roman", { x: 1, y: 1, w: 4, h: 1, bullet: { type: "number", style: "romanLcParenR", numberStartAt: 3 } });
+        slide.addText("custom", { x: 1, y: 2, w: 4, h: 1, bullet: { characterCode: "25BA", indent: 18 }, indentLevel: 1 });
+
+        const [numbered, custom] = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph"), paragraph => paragraph.dataset);
+        expect(numbered).toMatchObject({ bulletType: "number", bulletStart: "3", bulletNumberType: "romanLcParenR" });
+        // 18pt indent per level at level 1: 48px in the model, 24px marker width.
+        expect(custom).toMatchObject({ bulletType: "bullet", bulletIndent: "48", bulletLevel: "1", bulletStart: "1", bulletNumberType: "arabicPeriod" });
+    });
+
     test("writes the run and line-box values CSS cannot state exactly as data attributes", () => {
         const presentation = new PuppeteerGen();
         presentation.addSlide().addText(
