@@ -7,6 +7,7 @@ import type { ChartExtensionInput } from "../chart/types";
 import type { NormalizedChart, NormalizedObjectStyle } from "@pdfdeck/model";
 import { pointsToPixels } from "../units";
 import { renderBar3DSvg } from "./chart3d";
+import { type InlineStyle, writeStyle } from "./css";
 import { applyObjectStyle } from "./style";
 
 use([BarChart, LineChart, PieChart, RadarChart, ScatterChart, GridComponent, LegendComponent, RadarComponent, TitleComponent, SVGRenderer]);
@@ -372,8 +373,10 @@ function namespaceSvgIds(svg: SVGSVGElement, namespace: string): void {
 function chartContainer(document: Document, svgSource: string, style: NormalizedObjectStyle, altText: string, idScope: string): HTMLDivElement {
     const container = document.createElement("div");
     container.className = "slide-element slide-chart";
-    applyObjectStyle(container, style);
-    container.style.overflow = "hidden";
+    const css: InlineStyle = new Map();
+    applyObjectStyle(container, css, style);
+    css.set("overflow", "hidden");
+    writeStyle(container, css);
     container.setAttribute("role", "img");
     if (altText) container.setAttribute("aria-label", altText);
     const svg = parseSvg(document, svgSource);

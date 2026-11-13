@@ -46,12 +46,14 @@ From the maintainer's decisions on #69:
 - **Lengths** are CSS px at 96 px per inch (`PPTX_DEFAULTS.units`), the model's unit, written with a `px`
   suffix in CSS and without a unit in SVG attributes. Only `@page` uses inches. Angles are `deg`;
   `border-radius` on text boxes is a percentage.
-- **Inline styles are written through the CSSOM** (`element.style.x = ...`) and read back with
-  `outerHTML`, so the serializer decides their spelling. Hex colors come out as `rgb()`/`rgba()`;
-  custom properties (`--slide-text-color`) and SVG presentation attributes (`fill="#17365D"`) stay
-  verbatim. jsdom (Node entry) keeps numbers verbatim; Chromium (the `/html` entry in a browser) rounds
-  them to 6 significant digits and rewrites some shorthands (#69 finding 4). Phase 2 writes profile
-  values verbatim instead. Attributes set with `setAttribute` or `dataset` are verbatim in both.
+- **Values are written verbatim, never through the CSSOM.** Each inline `style` attribute is a string
+  the renderer formats itself (`render/css.ts`): `property: value;` pairs joined by one space, in
+  first-write order. Numbers keep full float precision and colors keep the model's spelling (`#17365D`,
+  `rgba(…)`). The CSSOM would let the DOM decide: Chromium rounds lengths to 6 significant digits,
+  collapses `padding` and drops font-family quotes, and jsdom turns hex colors into `rgb()` (#69
+  finding 4). So jsdom (Node entry) and Chromium (`/html` entry in a browser) give the same bytes;
+  `tests/htmlBrowser.test.ts` checks it. Markup a component returns, and chart SVG, are inserted as
+  they come.
 - **A property at its default may be omitted**: `opacity` when 1, `letter-spacing` when 0,
   `text-decoration-line` when there is none, `transform` when there is no rotation or flip.
 
@@ -61,8 +63,9 @@ From the maintainer's decisions on #69:
 <!DOCTYPE html>
 <html>
     <head>
+        <meta name="pdfdeck-profile" content="1" />
         <style id="puppeteer-gen-styles">
-            /* presentationCSS(pageSize), render/slide.ts:86 */
+            /* presentationCSS(pageSize), render/slide.ts:103 */
         </style>
     </head>
     <body>
@@ -80,7 +83,8 @@ From the maintainer's decisions on #69:
   `.slide-container { width; height }` in px, the defaults for each class (font, color, padding, table
   insets, from `defaults.ts`) and the print rules. It is generated from the page size only, so it is
   the same for every deck of one size.
-- There is no profile version marker yet; phase 2 adds `<meta name="pdfdeck-profile" content="1">`.
+- `<meta name="pdfdeck-profile" content="1">` names the profile version this document follows
+  (`HTML_PROFILE_VERSION`, `render/slide.ts`).
 - There is no `<title>`, `<script>` or external resource. Every image is a `data:` URI by the time
   `toHtml()` returns (`resolveDocumentImages`, `normalize/image.ts:55`).
 
@@ -92,7 +96,7 @@ size from the stylesheet. Children are the slide's objects in model order, which
 ## Slide objects
 
 Every object is one absolutely positioned element with class `slide-element` plus a kind class, and
-`data-object-name`. The common box comes from `applyObjectStyle` (`render/style.ts:35`):
+`data-object-name`. The common box comes from `applyObjectStyle` (`render/style.ts:37`):
 
 | CSS / attribute    | Value                                                                     |
 | ------------------ | ------------------------------------------------------------------------- |
@@ -204,7 +208,7 @@ normalization (`normalize/table/pagination.ts`), so a paginated table is already
 </div>
 ```
 
-`render/chart.ts:358-372`. The SVG is an opaque subtree (ECharts output, the 3D bar renderer, or a
+`render/chart.ts:373-387`. The SVG is an opaque subtree (ECharts output, the 3D bar renderer, or a
 `chartExtension`'s caller SVG). Its ids are prefixed with the object name; it may not reference external
 resources. Its class names are deterministic after #66. The chart options are not in the HTML.
 
@@ -226,15 +230,15 @@ them.
 
 | Workaround     | Where in the HTML                                                                                                | Code                                                |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:30-31,65-75`                        |
-| Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:96-122`, `render/slide.ts:195-197` |
-| Dash rewrite   | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap                                   | `render/shape.ts:141-149`                           |
-| Table offset   | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                                    | `render/table.ts:16-23`                             |
+| Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:34,71-81`                           |
+| Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:97-123`, `render/slide.ts:212-214` |
+| Dash rewrite   | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap                                   | `render/shape.ts:143-151`                           |
+| Table offset   | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                                    | `render/table.ts:17-24`                             |
 
 Other Chromium-specific details that phase 2 or 6 revisits: the font fallback list in `font-family`
-(`render/text.ts:8-15`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
-`height="1"` for zero-height lines (`render/shape.ts:116-118`), U+200B for empty runs
-(`render/text.ts:56`).
+(`render/text.ts:9-16`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
+`height="1"` for zero-height lines (`render/shape.ts:117-119`), U+200B for empty runs
+(`render/text.ts:60`).
 
 ## Field mapping
 
@@ -284,7 +288,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedSlideObject<table>.table`            | profile | `table.slide-table` child.                                                               |
 | `NormalizedSlideObject<chart>.kind`             | profile | Class `slide-chart` (shared with `chartExtension`: both are an SVG subtree in the HTML). |
 | `NormalizedSlideObject<chart>.style`            | profile | Common box on `.slide-chart`.                                                            |
-| `NormalizedSlideObject<chart>.chart`            | gap     | Only the drawn SVG; see the `NormalizedChart` rows (`render/chart.ts:395-399`).          |
+| `NormalizedSlideObject<chart>.chart`            | gap     | Only the drawn SVG; see the `NormalizedChart` rows (`render/chart.ts:398-402`).          |
 | `NormalizedSlideObject<chartExtension>.kind`    | profile | Class `slide-chart` (same as `chart`).                                                   |
 | `NormalizedSlideObject<chartExtension>.style`   | profile | Common box on `.slide-chart`.                                                            |
 | `NormalizedSlideObject<chartExtension>.svg`     | profile | The `svg` child (ids prefixed with the object name, `width`/`height` set to 100%).       |
@@ -294,7 +298,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedSlideObject<component>.component`    | profile | `data-component-*` and the rendered markup.                                              |
 | `ComponentInput.type`                           | profile | `data-component-type`.                                                                   |
 | `ComponentInput.version`                        | profile | `data-component-version`.                                                                |
-| `ComponentInput.props`                          | gap     | Only the markup the definition rendered from them (`render/component.ts:10-14`).         |
+| `ComponentInput.props`                          | gap     | Only the markup the definition rendered from them (`render/component.ts:11-21`).         |
 
 ### Object style
 
@@ -312,24 +316,24 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTransform.opacity`      | profile | `opacity`, omitted at 1.                                                                                                                                |
 | `NormalizedObjectStyle.fill`       | profile | `background-color` on the box; SVG `fill` on the geometry for shapes and text with a shape.                                                             |
 | `NormalizedFill.visible`           | profile | `background-color: transparent` or SVG `fill="none"` when false.                                                                                        |
-| `NormalizedFill.color`             | profile | `background-color` (serialized as `rgb()`), SVG `fill` (verbatim); a table cell's `td` `background-color`.                                              |
+| `NormalizedFill.color`             | profile | `background-color`, SVG `fill`; a table cell's `td` `background-color`.                                                                                 |
 | `NormalizedObjectStyle.line`       | profile | SVG `stroke*` for shapes; `border-color`, `border-width`, `border-style` on other boxes.                                                                |
 | `NormalizedLine.visible`           | profile | SVG `stroke="none"`, `stroke-width="0"`; `border-style: none`.                                                                                          |
 | `NormalizedLine.color`             | profile | SVG `stroke`; `border-color`; arrow marker `fill`.                                                                                                      |
 | `NormalizedLine.width`             | profile | SVG `stroke-width` (px, `vector-effect="non-scaling-stroke"`); `border-width`.                                                                          |
 | `NormalizedLine.style`             | profile | `border-style` on boxes; on SVG implied by `stroke-dasharray`.                                                                                          |
-| `NormalizedLine.dashArray`         | gap     | SVG pattern rewritten with `stroke-dashoffset` when it starts with a gap (`render/shape.ts:141-149`); dropped on CSS borders (`render/style.ts:20-28`). |
-| `NormalizedLine.beginArrow`        | gap     | Only the resolved head path in a `<marker>` (`render/shape.ts:151-154`).                                                                                |
-| `NormalizedLine.endArrow`          | gap     | Only the resolved head path in a `<marker>` (`render/shape.ts:151-154`).                                                                                |
+| `NormalizedLine.dashArray`         | gap     | SVG pattern rewritten with `stroke-dashoffset` when it starts with a gap (`render/shape.ts:143-151`); dropped on CSS borders (`render/style.ts:21-29`). |
+| `NormalizedLine.beginArrow`        | gap     | Only the resolved head path in a `<marker>` (`render/shape.ts:153-156`).                                                                                |
+| `NormalizedLine.endArrow`          | gap     | Only the resolved head path in a `<marker>` (`render/shape.ts:153-156`).                                                                                |
 | `NormalizedLine.beginHeadPath`     | profile | `marker-start="url(#line-head-…)"`; the marker's `path d`.                                                                                              |
 | `NormalizedLine.endHeadPath`       | profile | `marker-end="url(#line-head-…)"`; the marker's `path d`.                                                                                                |
 | `NormalizedObjectStyle.shadow`     | profile | `box-shadow` on boxes; `filter: drop-shadow(…)` on `svg.shape-svg`.                                                                                     |
 | `NormalizedShadow.visible`         | profile | Presence of the `box-shadow`, `drop-shadow` or `text-shadow` entry.                                                                                     |
-| `NormalizedShadow.color`           | profile | Last part of the shadow value (`rgba()`).                                                                                                               |
+| `NormalizedShadow.color`           | profile | Last part of the shadow value (`rgba()`, as in the model).                                                                                              |
 | `NormalizedShadow.blur`            | profile | Third length of the shadow value, px.                                                                                                                   |
 | `NormalizedShadow.offsetX`         | profile | First length of the shadow value, px.                                                                                                                   |
 | `NormalizedShadow.offsetY`         | profile | Second length of the shadow value, px.                                                                                                                  |
-| `NormalizedShadow.inset`           | gap     | `inset` keyword in `box-shadow` only; `drop-shadow()` and `text-shadow` have none (`render/shape.ts:123-125`, `render/text.ts:3-6`).                    |
+| `NormalizedShadow.inset`           | gap     | `inset` keyword in `box-shadow` only; `drop-shadow()` and `text-shadow` have none (`render/shape.ts:124-126`, `render/text.ts:4-7`).                    |
 | `NormalizedObjectStyle.objectName` | profile | `data-object-name`.                                                                                                                                     |
 
 ### Text
@@ -348,9 +352,9 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextParagraph.align`                | profile      | `text-align`.                                                                                                            |
 | `NormalizedTextParagraph.rtl`                  | profile      | `direction: rtl\|ltr` on the paragraph.                                                                                  |
 | `NormalizedTextParagraph.lineHeight`           | not drawable | Input of `lineBox` (`normalize/text.ts:314-318`); the line box is what is drawn.                                         |
-| `NormalizedTextParagraph.lineBox`              | gap          | Encoded as the strut: `font-size: 0px`, `line-height`, `top` (`render/text.ts:65-75`).                                   |
+| `NormalizedTextParagraph.lineBox`              | gap          | Encoded as the strut: `font-size: 0px`, `line-height`, `top` (`render/text.ts:71-81`).                                   |
 | `NormalizedTextParagraph.lineBox.height`       | profile      | `line-height: <height>px` on the paragraph.                                                                              |
-| `NormalizedTextParagraph.lineBox.baseline`     | gap          | Only as `top = baseline - height / 2`; not written at all for vertical text (`render/text.ts:71-75`).                    |
+| `NormalizedTextParagraph.lineBox.baseline`     | gap          | Only as `top = baseline - height / 2`; not written at all for vertical text (`render/text.ts:77-81`).                    |
 | `NormalizedTextParagraph.spaceBefore`          | profile      | `margin-top`.                                                                                                            |
 | `NormalizedTextParagraph.spaceAfter`           | profile      | `margin-bottom`.                                                                                                         |
 | `NormalizedTextParagraph.tabStops`             | profile      | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                         |
@@ -360,45 +364,45 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextParagraph.bullet`               | profile      | `span.text-bullet` first child and `data-bullet-*`.                                                                      |
 | `NormalizedTextBullet.kind`                    | profile      | `data-bullet-type="bullet\|number"`.                                                                                     |
 | `NormalizedTextBullet.marker`                  | profile      | `.text-bullet` text, minus the trailing U+00A0.                                                                          |
-| `NormalizedTextBullet.indent`                  | gap          | Only as `indent / (level + 1)`, in the marker `width` and the paragraph `padding-left` (`render/text.ts:81-86,124-137`). |
+| `NormalizedTextBullet.indent`                  | gap          | Only as `indent / (level + 1)`, in the marker `width` and the paragraph `padding-left` (`render/text.ts:87-93,133-149`). |
 | `NormalizedTextBullet.level`                   | profile      | `data-bullet-level`.                                                                                                     |
-| `NormalizedTextBullet.start`                   | gap          | Folded into the marker text (`render/text.ts:124-137`).                                                                  |
-| `NormalizedTextBullet.numberType`              | gap          | Folded into the marker text (`render/text.ts:124-137`).                                                                  |
-| `NormalizedTextRun.text`                       | gap          | Run text content; an empty run becomes U+200B (`render/text.ts:56`).                                                     |
-| `NormalizedTextRun.fontFace`                   | gap          | First family of `font-family`, wrapped in a Chromium fallback list (`render/text.ts:8-15`).                              |
+| `NormalizedTextBullet.start`                   | gap          | Folded into the marker text (`render/text.ts:133-149`).                                                                  |
+| `NormalizedTextBullet.numberType`              | gap          | Folded into the marker text (`render/text.ts:133-149`).                                                                  |
+| `NormalizedTextRun.text`                       | gap          | Run text content; an empty run becomes U+200B (`render/text.ts:60`).                                                     |
+| `NormalizedTextRun.fontFace`                   | gap          | First family of `font-family`, wrapped in a Chromium fallback list (`render/text.ts:9-16`).                              |
 | `NormalizedTextRun.fontSize`                   | profile      | `font-size: <n>px` (already the sub/superscript size).                                                                   |
 | `NormalizedTextRun.color`                      | profile      | `color`.                                                                                                                 |
 | `NormalizedTextRun.bold`                       | profile      | `font-weight: bold\|normal`.                                                                                             |
 | `NormalizedTextRun.italic`                     | profile      | `font-style: italic\|normal`.                                                                                            |
 | `NormalizedTextRun.decoration`                 | profile      | `text-decoration-*`.                                                                                                     |
 | `NormalizedTextDecoration.underline`           | profile      | `underline` in `text-decoration-line`.                                                                                   |
-| `NormalizedTextDecoration.underlineStyle`      | gap          | `text-decoration-style`, overwritten by `double` when `doubleStrike` is set (`render/text.ts:27-29`).                    |
+| `NormalizedTextDecoration.underlineStyle`      | gap          | `text-decoration-style`, overwritten by `double` when `doubleStrike` is set (`render/text.ts:30-32`).                    |
 | `NormalizedTextDecoration.underlineColor`      | profile      | `text-decoration-color`.                                                                                                 |
 | `NormalizedTextDecoration.strike`              | profile      | `line-through` in `text-decoration-line`.                                                                                |
-| `NormalizedTextDecoration.doubleStrike`        | gap          | `text-decoration-style: double`, indistinguishable from a double underline (`render/text.ts:27-29`).                     |
-| `NormalizedTextRun.verticalAlign`              | gap          | Only its result, the `top` offset and font size (`render/text.ts:32-35`).                                                |
+| `NormalizedTextDecoration.doubleStrike`        | gap          | `text-decoration-style: double`, indistinguishable from a double underline (`render/text.ts:30-32`).                     |
+| `NormalizedTextRun.verticalAlign`              | gap          | Only its result, the `top` offset and font size (`render/text.ts:35-38`).                                                |
 | `NormalizedTextRun.baselineOffset`             | profile      | `position: relative; top: <-offset>px`, omitted at 0.                                                                    |
 | `NormalizedTextRun.characterSpacing`           | profile      | `letter-spacing`, omitted at 0.                                                                                          |
 | `NormalizedTextRun.highlight`                  | profile      | `background-color` on the run.                                                                                           |
 | `NormalizedTextRun.outline`                    | profile      | `-webkit-text-stroke: <width>px <color>`.                                                                                |
 | `NormalizedTextRun.outline.color`              | profile      | Color of `-webkit-text-stroke`.                                                                                          |
 | `NormalizedTextRun.outline.width`              | profile      | Width of `-webkit-text-stroke`, px.                                                                                      |
-| `NormalizedTextRun.glow`                       | gap          | Merged with `shadow` into one `text-shadow` list; with one entry you cannot tell which it was (`render/text.ts:39-41`).  |
-| `NormalizedTextRun.shadow`                     | gap          | Merged with `glow` into one `text-shadow` list (`render/text.ts:39-41`).                                                 |
+| `NormalizedTextRun.glow`                       | gap          | Merged with `shadow` into one `text-shadow` list; with one entry you cannot tell which it was (`render/text.ts:42-44`).  |
+| `NormalizedTextRun.shadow`                     | gap          | Merged with `glow` into one `text-shadow` list (`render/text.ts:42-44`).                                                 |
 | `NormalizedTextRun.language`                   | profile      | `lang`.                                                                                                                  |
 | `NormalizedTextRun.link`                       | profile      | The run is an `a`.                                                                                                       |
 | `NormalizedTextLink.href`                      | profile      | `href`.                                                                                                                  |
 | `NormalizedTextLink.tooltip`                   | profile      | `title`.                                                                                                                 |
 | `NormalizedTextLink.slide`                     | profile      | `data-slide`.                                                                                                            |
-| `NormalizedTextRun.softBreakBefore`            | gap          | `<br>` before the run, but not before a paragraph's first run (`render/text.ts:140`).                                    |
+| `NormalizedTextRun.softBreakBefore`            | gap          | `<br>` before the run, but not before a paragraph's first run (`render/text.ts:152`).                                    |
 
 ### Shapes
 
 | Field                                                | Status       | HTML                                                                                                 |
 | ---------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
 | `NormalizedShape.name`                               | profile      | `data-shape`.                                                                                        |
-| `NormalizedShape.width`                              | gap          | SVG `viewBox` width, clamped to at least 0.001 (`render/shape.ts:116`); `rect`/`ellipse` attributes. |
-| `NormalizedShape.height`                             | gap          | SVG `viewBox` height, 1 when 0, with `height="1"` (`render/shape.ts:116-118`).                       |
+| `NormalizedShape.width`                              | gap          | SVG `viewBox` width, clamped to at least 0.001 (`render/shape.ts:117`); `rect`/`ellipse` attributes. |
+| `NormalizedShape.height`                             | gap          | SVG `viewBox` height, 1 when 0, with `height="1"` (`render/shape.ts:117-119`).                       |
 | `NormalizedShape.geometry`                           | profile      | `.shape-geometry` element.                                                                           |
 | `NormalizedShapeGeometry<rect>.kind`                 | profile      | `rect.shape-geometry`.                                                                               |
 | `NormalizedShapeGeometry<rect>.radius`               | profile      | `rx` and `ry`.                                                                                       |
@@ -463,12 +467,12 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTableBorder.color`     | profile | Color of the side's `border-*`.                                                                |
 | `NormalizedTableBorder.width`     | profile | Width of the side's `border-*`, px.                                                            |
 | `NormalizedTableBorder.style`     | profile | `solid\|dashed` in the side's `border-*`.                                                      |
-| `NormalizedTableBorder.dashArray` | gap     | Only `dashed`; the DrawingML dash pattern is gone (`render/table.ts:4-6`).                     |
+| `NormalizedTableBorder.dashArray` | gap     | Only `dashed`; the DrawingML dash pattern is gone (`render/table.ts:5-7`).                     |
 
 ### Charts
 
 The chart's options drive ECharts or the 3D bar renderer; the HTML keeps only the SVG they produce
-(`render/chart.ts:395-399`). Phase 8 decides how charts reach WASM (SVG subtrees, #69).
+(`render/chart.ts:398-402`). Phase 8 decides how charts reach WASM (SVG subtrees, #69).
 
 | Field                                      | Status  | HTML                                                         |
 | ------------------------------------------ | ------- | ------------------------------------------------------------ |

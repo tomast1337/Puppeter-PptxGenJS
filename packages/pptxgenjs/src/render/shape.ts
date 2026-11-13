@@ -1,4 +1,5 @@
 import type { NormalizedObjectStyle, NormalizedShape } from "@pdfdeck/model";
+import { type InlineStyle, writeStyle } from "./css";
 import { applyGeometry, applyTransform } from "./style";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -117,12 +118,13 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", shape.height === 0 ? "1" : "100%");
     svg.setAttribute("preserveAspectRatio", "none");
-    svg.style.overflow = "visible";
+    const css: InlineStyle = new Map([["overflow", "visible"]]);
     const snapOffset = printSnapOffset(style);
-    if (snapOffset) svg.style.setProperty("--print-snap-offset", snapOffset);
+    if (snapOffset) css.set("--print-snap-offset", snapOffset);
     if (style.shadow?.visible) {
-        svg.style.filter = `drop-shadow(${style.shadow.offsetX}px ${style.shadow.offsetY}px ${style.shadow.blur}px ${style.shadow.color})`;
+        css.set("filter", `drop-shadow(${style.shadow.offsetX}px ${style.shadow.offsetY}px ${style.shadow.blur}px ${style.shadow.color})`);
     }
+    writeStyle(svg, css);
     const defs = document.createElementNS(SVG_NS, "defs");
     const geometry = geometryElement(document, shape);
     geometry.classList.add("shape-geometry");
@@ -159,8 +161,10 @@ export function renderShapeSvg(document: Document, shape: NormalizedShape, style
 export function renderShape(document: Document, shape: NormalizedShape, style: NormalizedObjectStyle): HTMLElement {
     const outer = shape.link ? document.createElement("a") : document.createElement("div");
     outer.className = "slide-element slide-shape";
-    applyGeometry(outer, style.geometry);
-    applyTransform(outer, style.transform);
+    const css: InlineStyle = new Map();
+    applyGeometry(css, style.geometry);
+    applyTransform(css, style.transform);
+    writeStyle(outer, css);
     outer.dataset.objectName = style.objectName;
     outer.dataset.shape = shape.name;
     if (shape.link) {
