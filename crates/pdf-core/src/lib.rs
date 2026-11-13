@@ -483,6 +483,35 @@ mod tests {
     }
 
     #[test]
+    fn latin_text_in_a_missing_office_face_falls_back_to_liberation_sans_before_cjk() {
+        let cjk = [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        ]
+        .iter()
+        .find_map(|p| std::fs::read(p).ok());
+        let (Some(sans), Some(cjk)) = (liberation_sans(), cjk) else {
+            return eprintln!("Liberation Sans or Noto Sans CJK not installed: Latin fallback not checked");
+        };
+        let mut r = Renderer::new();
+        r.add_font(sans.clone());
+        r.add_font(cjk);
+        // No Carlito or DejaVu Sans loaded: Calibri used to land on Noto Sans CJK JP.
+        let mut text = text_box(&[(&["Calibri text"], 36.0, 30.0)]);
+        text.paragraphs[0].runs[0].font_face = "Calibri".into();
+        let mut layout = BoxLayout::default();
+        r.fit_text(&text, 800.0, 400.0, &mut layout);
+        let line = layout.paras[0].layout.lines().next().expect("one line");
+        let Some(parley::PositionedLayoutItem::GlyphRun(glyph_run)) = line.items().next() else {
+            panic!("the line starts with a glyph run");
+        };
+        assert!(
+            glyph_run.run().font().data.as_ref() == sans.as_slice(),
+            "Calibri text did not use Liberation Sans"
+        );
+    }
+
+    #[test]
     fn puts_every_line_on_the_models_line_box() {
         // 1.5x spacing at 30px (LibreOffice): 1.8em = 54px lines, baseline 0.2em = 6px above each line bottom.
         let Some(layout) = laid_out(&text_box(&[(&["Line one", "Line two"], 54.0, 48.0)])) else {

@@ -20,7 +20,7 @@ export async function createWasmRenderer(options: WasmRendererOptions): Promise<
 }
 
 // The metric-compatible faces the renderer's fallback chain maps Office fonts to (Calibri->Carlito,
-// Cambria->Caladea, Arial->Liberation Sans, ... then DejaVu Sans), emoji/CJK fallbacks, plus the Office faces themselves.
+// Cambria->Caladea, Arial->Liberation Sans, ... then DejaVu Sans, Liberation Sans), emoji/CJK fallbacks, plus the Office faces themselves.
 const DEFAULT_FONT_FILES = /^(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?|NotoColorEmoji|NotoSansCJK-(?:Regular|Bold)|calibri.*|cambria.*|arial.*|times.*|cour.*)\.(?:ttf|otf|ttc)$/i;
 
 function systemFontDirs(): string[] {
