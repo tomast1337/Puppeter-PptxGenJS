@@ -3,6 +3,7 @@ import type { NormalizedLine, NormalizedShape, NormalizedTextBox } from "@pdfdec
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../units";
 import { GENERATED_PRESET_NAMES, generatedPresetGeometry } from "./generatedPreset";
+import { normalizeHyperlink } from "./link";
 
 const POLYGON_SIDES = Object.freeze({ pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8, decagon: 10, dodecagon: 12 } as const);
 const STAR_POINTS = Object.freeze({ star5: 5, star6: 6, star7: 7, star8: 8, star10: 10, star12: 12, star16: 16, star24: 24, star32: 32 } as const);
@@ -2206,15 +2207,6 @@ function presetPath(shapeName: string, width: number, height: number): string | 
     return arrowPath(shapeName, width, height);
 }
 
-function normalizeShapeLink(options: PptxGenJS.ShapeProps): NormalizedShape["link"] {
-    if (!options.hyperlink) return undefined;
-    if (options.hyperlink.url) return { href: options.hyperlink.url, tooltip: options.hyperlink.tooltip };
-    if (options.hyperlink.slide) {
-        return { href: `#slide-${options.hyperlink.slide}`, tooltip: options.hyperlink.tooltip, slide: options.hyperlink.slide };
-    }
-    throw new Error("hyperlink requires either url or slide");
-}
-
 function shapeTextInsets(shapeName: CustomShapeName, width: number, height: number): NormalizedShape["textInsets"] {
     const short = Math.min(width, height);
     if (shapeName === "diamond") return [height / 4, width / 4, height / 4, width / 4];
@@ -2227,7 +2219,7 @@ export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.Sh
     if (!CORE_SVG_SHAPES.includes(shapeName as (typeof CORE_SVG_SHAPES)[number])) {
         throw new Error(`Unsupported shape geometry: ${shapeName}`);
     }
-    const link = normalizeShapeLink(options);
+    const link = normalizeHyperlink(options.hyperlink);
     let geometry: NormalizedShape["geometry"];
     if (shapeName === "rect") geometry = { kind: "rect", radius: 0 };
     else if (shapeName === "roundRect") {
