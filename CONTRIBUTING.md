@@ -109,11 +109,36 @@ git diff --check
 `bun run test:package` needs the built `.wasm` (`bun run build:wasm`) and fails
 without it, because a `@pdfdeck/wasm` tarball without the binary is broken.
 
+`bun run build` writes each package's bundled ESM entrypoints, source maps, and
+declaration files to `packages/<name>/dist/`. Runtime dependencies, including
+the other `@pdfdeck` packages, remain external so Puppeteer can locate its
+installed browser correctly. The pinned PptxGenJS package is used only while
+developing to audit its API types; the build vendors its declaration file and
+license into `@pdfdeck/pptxgenjs`, so consumers neither install nor execute
+PptxGenJS. Package tarballs run this build automatically.
+`bun run test:package` verifies the packed packages, and the
+`puppeteer-pptxgenjs` shim, in clean temporary consumer projects.
+
 The visual suite requires LibreOffice, Poppler, and ImageMagick. New or changed
 rendering behavior should include unit coverage and, where useful, a visual
 fixture. Do not increase a visual threshold merely to make a regression pass.
 `bun run test:visual:docker` runs it in the pinned image CI uses
 (`tests/visual/Dockerfile`), which is the only environment whose scores count.
+
+The visual test creates the same presentation through both APIs, converts the
+PptxGenJS `.pptx` to PDF with LibreOffice, rasterizes both PDFs with Poppler,
+and uses ImageMagick's normalized RMSE metric. The default maximum difference
+is `0.12`; override it with `VISUAL_DIFF_THRESHOLD=0.10` as fidelity improves.
+LibreOffice, `pdftoppm`, and ImageMagick must be available on `PATH`.
+
+LibreOffice's reference output depends on installed fonts, so scores vary
+between machines. The pinned image fixes the Ubuntu digest, an apt snapshot,
+fonts and Bun. Docker runs write their artifacts to `.visual-parity/`.
+CI doesn't rebuild the image on every run. It pulls
+`ghcr.io/tomast1337/puppeteer-gen-visual:<hash>`, where the tag hashes the
+Dockerfile, `package.json` and `bun.lock`, and only builds and publishes a new
+image when one of those changes. To test against a prebuilt image locally, set
+`VISUAL_IMAGE=<image>`.
 
 ## WASM backend (Rust)
 
