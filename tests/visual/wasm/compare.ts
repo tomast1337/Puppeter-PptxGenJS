@@ -8,8 +8,11 @@
 // - every deck: no crop scores worse than its committed baseline.json entry + BASELINE_EPSILON. Most crops
 //   are still above the CROP_TARGET (0.08), so a fixed limit would either fail today or hide regressions
 //   behind a loosened threshold; the baseline is a ratchet that only moves down.
-// WASM_BASELINE_UPDATE=1 writes the measured scores to <out>/baseline.json; review the diff and copy
-// it over tests/visual/wasm/baseline.json deliberately (CONTRIBUTING.md).
+// - every deck: wasm.pdf has the sha256 in pdf-sha256.json, so a refactor that should not change the
+//   output is checked byte for byte (the pinned image fixes the fonts; #69 phase 5).
+// WASM_BASELINE_UPDATE=1 writes the measured scores to <out>/baseline.json and the PDF hashes to
+// <out>/pdf-sha256.json; review the diff and copy them over tests/visual/wasm/ deliberately (CONTRIBUTING.md).
+import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +21,7 @@ import { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../../../packages/pptxgenjs/src/pageLayouts";
 import { createRenderer } from "./backend";
 import baseline from "./baseline.json";
+import pdfSha256 from "./pdf-sha256.json";
 import { DECKS } from "./decks";
 import { BASELINE_EPSILON, CROP_TARGET, PAGE_THRESHOLD } from "../thresholds";
 const deckNames = process.argv.length > 2 ? process.argv.slice(2) : Object.keys(DECKS);
@@ -41,6 +45,7 @@ const f = (n: unknown) => (n as number).toFixed(4);
 const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 const failures: string[] = [];
 const measured: Record<string, Record<string, number>> = {};
+const measuredSha256: Record<string, string> = {};
 
 for (const deckName of deckNames) {
     const deckSpec = DECKS[deckName];
@@ -62,8 +67,13 @@ for (const deckName of deckNames) {
     writeFileSync(join(out, "puppeteer.pdf"), await deck.toPdf());
     const model = deck.getModel();
     const renderer = await createRenderer();
-    writeFileSync(join(out, "wasm.pdf"), await populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf());
+    const wasmPdf = await populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf();
+    writeFileSync(join(out, "wasm.pdf"), wasmPdf);
     const warnings = renderer.warnings();
+    const sha256 = createHash("sha256").update(wasmPdf).digest("hex");
+    measuredSha256[deckName] = sha256;
+    const expectedSha256 = (pdfSha256 as Record<string, string>)[deckName];
+    if (sha256 !== expectedSha256) failures.push(`${deckName}: wasm.pdf sha256 ${sha256} != pdf-sha256.json ${expectedSha256 ?? "(none)"}`);
 
     const engines = ["puppeteer", "wasm"] as const;
     for (const name of ["reference", ...engines]) {
@@ -140,15 +150,17 @@ for (const deckName of deckNames) {
     if (improved.length) console.log(`\nImproved beyond ${BASELINE_EPSILON}: ${improved.join(", ")}. Ratchet them down with WASM_BASELINE_UPDATE=1.`);
     console.log(`\nsummary: ${JSON.stringify(summary)}`);
     console.log(`warnings: ${JSON.stringify(warnings)}`);
+    console.log(`wasm.pdf sha256: ${sha256}${sha256 === expectedSha256 ? "" : " FAIL (pdf-sha256.json)"}`);
 }
 
 if (process.env.WASM_BASELINE_UPDATE === "1") {
     const next = { ...baseline, ...measured };
     writeFileSync(join(root, "baseline.json"), `${JSON.stringify(next, null, 2)}\n`);
-    console.log(`\nWrote ${join(root, "baseline.json")}; review it and copy it to tests/visual/wasm/baseline.json.`);
+    writeFileSync(join(root, "pdf-sha256.json"), `${JSON.stringify({ ...pdfSha256, ...measuredSha256 }, null, 2)}\n`);
+    console.log(`\nWrote ${join(root, "baseline.json")} and ${join(root, "pdf-sha256.json")}; review them and copy them to tests/visual/wasm/.`);
 } else if (failures.length) {
     console.error(`\nWASM visual parity failed:\n- ${failures.join("\n- ")}`);
     process.exit(1);
 } else {
-    console.log(`\nWASM visual parity passed: pages <= ${PAGE_THRESHOLD}, every crop within ${BASELINE_EPSILON} of baseline.json.`);
+    console.log(`\nWASM visual parity passed: pages <= ${PAGE_THRESHOLD}, every crop within ${BASELINE_EPSILON} of baseline.json, every PDF matches pdf-sha256.json.`);
 }

@@ -196,12 +196,15 @@ decks must stay at or below 0.12. Most per-object crops are still above the 0.08
 a fixed limit each crop must not score worse than its entry in
 `tests/visual/wasm/baseline.json` (plus 0.002 for rounding). The baseline is a
 ratchet: lower it when a change improves a crop, never raise it to hide a
-regression. To update it deliberately:
+regression. Each deck's WASM PDF must also match its sha256 in
+`tests/visual/wasm/pdf-sha256.json`, so a refactor that should not change the
+output is checked byte for byte; a change that draws differently updates the
+hash in the same PR. To update both deliberately:
 
 ```bash
 WASM_BASELINE_UPDATE=1 bun run test:visual:wasm:docker
-cp .visual-parity/wasm-parity/baseline.json tests/visual/wasm/baseline.json
-git diff tests/visual/wasm/baseline.json   # explain every increase in the PR
+cp .visual-parity/wasm-parity/baseline.json .visual-parity/wasm-parity/pdf-sha256.json tests/visual/wasm/
+git diff tests/visual/wasm/   # explain every baseline increase and every changed hash in the PR
 ```
 
 Side-by-side crops (`montage-*.png`) land in `.visual-parity/wasm-parity/<deck>/`.
