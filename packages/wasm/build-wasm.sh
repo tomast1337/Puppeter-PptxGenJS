@@ -18,7 +18,8 @@ root=$PWD
 . crates/wasm-toolchain.env
 
 # Spike measured 850 KB; 0.2.0 built 912,028 B. ~5% headroom: growth past it needs a deliberate bump.
-GZIP_BUDGET=960000
+# +4,404 B: tab stops (parley inline boxes), measured on top of the line-box fix (958,384 B).
+GZIP_BUDGET=964404
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

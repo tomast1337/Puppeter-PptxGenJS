@@ -487,8 +487,10 @@ export const WASM_COMPATIBILITY = Object.freeze({
             glow: "unsupported",
             hyperlink: "unsupported",
             shadow: "unsupported",
-            // Not drawn yet: tab stops and stacked (wordArtVert) text are reported through warnings().
-            tabStops: "unsupported",
+            // Left, right, center and decimal stops plus the 1in default (defTabSz), measured from
+            // the left even in right-to-left paragraphs (a warning says so).
+            tabStops: "partial",
+            // Not drawn yet: stacked (wordArtVert) text is reported through warnings().
             vert: "partial",
         }),
     }),

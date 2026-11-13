@@ -48,6 +48,19 @@ describe("text normalization", () => {
         expect(custom!.fontSize).toBe(40);
     });
 
+    // PptxGenJS writes <a:tab pos="inch2Emu(position || 1)" algn="alignment || l"/>; its master sets defTabSz 1in.
+    test("normalizes tab stops in position order with PptxGenJS's fallbacks and the 1in default spacing", () => {
+        const paragraph = normalizeText("a\tb", {
+            tabStops: [{ position: 3, alignment: "dec" }, { position: 0 }, { position: 2, alignment: "ctr" }],
+        }).paragraphs[0]!;
+        expect(paragraph.tabStops).toEqual([
+            { position: 96, alignment: "left" },
+            { position: 192, alignment: "center" },
+            { position: 288, alignment: "decimal" },
+        ]);
+        expect(paragraph.defaultTabStop).toBe(96);
+    });
+
     test("groups rich runs using PptxGenJS break and alignment behavior", () => {
         const text = normalizeText(
             [
@@ -143,6 +156,7 @@ describe("text DOM rendering", () => {
         // 18pt (24px) default: a 28.8px line box, the 0px strut's baseline moved from 14.4px to 24px.
         expect(paragraph?.style.fontSize).toBe("0px");
         expect(parseFloat(paragraph?.style.lineHeight ?? "")).toBeCloseTo(28.8);
+        expect(paragraph?.style.getPropertyValue("tab-size")).toBe("96px");
         expect(parseFloat(paragraph?.style.top ?? "")).toBeCloseTo(9.6);
         expect(runs?.[0]?.style.lineHeight).toBe("0");
         expect(paragraph?.querySelector<HTMLElement>(".text-bullet")?.style.lineHeight).toBe("0");

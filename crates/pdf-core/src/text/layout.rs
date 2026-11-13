@@ -11,6 +11,7 @@ use crate::Renderer;
 use crate::color::{Rgba, parse_color};
 use crate::model::{LineBox, TextBox};
 use crate::text::font::family_stack;
+use crate::text::tabs::{TAB_PLACEHOLDER, place_tabs, tab_box};
 
 /// Per-run paint data that parley does not carry; the parley brush is the index.
 #[derive(Clone)]
@@ -84,9 +85,6 @@ impl Renderer {
         let paints = &mut out.paints;
         let (mut y, mut width) = (0.0f32, 0.0f32);
         for paragraph in &text.paragraphs {
-            if !paragraph.tab_stops.is_empty() {
-                self.warn("tab stops ignored");
-            }
             let (indent, marker_x) = match &paragraph.bullet {
                 Some(b) => (b.indent, b.indent / (b.level as f32 + 1.0) * b.level as f32),
                 None => (0.0, 0.0),
@@ -98,13 +96,21 @@ impl Renderer {
             let mut s = String::new();
             let mut spans = std::mem::take(&mut self.span_ranges);
             spans.clear();
+            let mut tabs = std::mem::take(&mut self.tab_indices);
+            tabs.clear();
             for (i, run) in paragraph.runs.iter().enumerate() {
                 // The break belongs to the run's span: parley dropped the text after a newline outside every span.
                 let start = s.len();
                 if run.soft_break_before && i > 0 {
                     s.push('\n');
                 }
-                s.push_str(&run.text);
+                for (i, part) in run.text.split('\t').enumerate() {
+                    if i > 0 {
+                        tabs.push(s.len());
+                        s.push(TAB_PLACEHOLDER);
+                    }
+                    s.push_str(part);
+                }
                 spans.push(start..s.len());
             }
             let first = paragraph.runs.first();
@@ -164,6 +170,9 @@ impl Renderer {
                     builder.push(StyleProperty::FontFamily("\"Noto Color Emoji\"".into()), start..i + 3);
                 }
             }
+            for (k, &index) in tabs.iter().enumerate() {
+                builder.push_inline_box(tab_box(k, index));
+            }
             let mut layout: Layout<Brush> = builder.build(&s);
             self.span_ranges = spans;
             self.span_families = families;
@@ -190,6 +199,14 @@ impl Renderer {
                 },
             );
             layout.break_all_lines(max_w);
+            if !tabs.is_empty() {
+                if paragraph.rtl {
+                    // shortcut: stops are measured from the left; mirror them for RTL paragraphs when a deck needs it.
+                    self.warn("tab stops in right-to-left paragraphs measured from the left");
+                }
+                place_tabs(&mut layout, &s, &tabs, &paragraph.tab_stops, paragraph.default_tab_stop, indent, max_w);
+            }
+            self.tab_indices = tabs;
 
             // Unwrapped text: align the single line manually against the inset box.
             let x = indent
