@@ -20,7 +20,8 @@ root=$PWD
 # Spike measured 850 KB; 0.2.0 built 912,028 B. ~5% headroom: growth past it needs a deliberate bump.
 # +4,404 B: tab stops (parley inline boxes), measured on top of the line-box fix (958,384 B).
 # +6,510 B: table drawing (#57), 962,788 -> 970,914 B measured on top of tab stops; budget = that size.
-GZIP_BUDGET=970914
+# +38 B: Liberation Sans before the CJK fallback face, measured on top of tables and synthetic styles.
+GZIP_BUDGET=970952
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
