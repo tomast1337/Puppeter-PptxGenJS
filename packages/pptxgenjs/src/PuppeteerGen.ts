@@ -23,13 +23,14 @@ import { type HtmlPresentationDocument, type ModelRenderer, type PresentationRen
 import { convertPdfOutput, resolveOutputType } from "./output";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { pixelsToInches } from "./units";
-import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, renderSlideObject } from "./render/slide";
+import { applyPresentationStyles, applySlideBackground, applySlideColor, applySlideHidden, createPresentationDocument, objectIdScope, renderSlideObject } from "./render/slide";
 
 export class PuppeteerSlide implements PptxSlide {
     constructor(
         slideElm: HTMLDivElement,
         pageSize: PageSize,
         document: Document,
+        private readonly slideIndex: number,
         getContinuationSlide: (offset: number) => PuppeteerSlide,
         private readonly components = new ComponentRegistry(),
     ) {
@@ -117,7 +118,7 @@ export class PuppeteerSlide implements PptxSlide {
 
     /** Renders before recording, so render-time errors still throw from addX and leave the slide unchanged. */
     private addObject(object: NormalizedSlideObject): this {
-        this.slideElm.appendChild(renderSlideObject(this.document, object, this.components));
+        this.slideElm.appendChild(renderSlideObject(this.document, object, objectIdScope(this.slideIndex, this.model.objects.length), this.components));
         this.model.objects.push(object);
         return this;
     }
@@ -339,6 +340,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
             slideElm,
             this.pageSize,
             this.page,
+            slideIndex,
             offset => {
                 const targetIndex = slideIndex + offset;
                 while (this.slides.length <= targetIndex) this.addSlide();

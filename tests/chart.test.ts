@@ -330,7 +330,7 @@ describe("chart normalization and rendering", () => {
         );
 
         expect(presentation.page.querySelectorAll(".slide-chart svg")).toHaveLength(2);
-        expect(presentation.page.querySelector("#Raw-SVG-face")).not.toBeNull();
+        expect(presentation.page.querySelector("#slide-1-object-1-face")).not.toBeNull();
     });
 
     test("rejects external resources in extension SVG", () => {

@@ -295,6 +295,14 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
     };
 }
 
+/** zrender's SVGPainter.renderToString; zrender is an echarts dependency, not ours, so it is typed here. */
+interface SvgPainter {
+    renderToString(options: { cssAnimation: boolean; cssEmphasis: boolean }): string;
+}
+
+/** zrender prefixes SVG ids with its instance number (zr<N>-), taken from a process-wide counter. */
+const ZRENDER_ID_PREFIX = /^zr\d+-/;
+
 export function renderEChartsSvg(width: number, height: number, option: EChartsCoreOption): string {
     // zrender checks the process-global `document` when measuring text. The
     // visual oracle installs jsdom globally for PptxGenJS, but jsdom exposes a
@@ -308,7 +316,11 @@ export function renderEChartsSvg(width: number, height: number, option: EChartsC
     try {
         instance = init(null, null, { renderer: "svg", ssr: true, width, height });
         instance.setOption({ ...option, animation: false });
-        return instance.renderToSVGString();
+        // Not renderToSVGString(): it cannot turn off the emphasis :hover CSS, whose class names
+        // (zr<N>-cls-<M>) come from process-wide counters and made toHtml() differ between runs (#66).
+        // A printed chart has no hover. `as`: ssr with renderer "svg" always creates zrender's SVGPainter.
+        const painter = instance.getZr().painter as unknown as SvgPainter;
+        return painter.renderToString({ cssAnimation: false, cssEmphasis: false });
     } finally {
         instance?.dispose();
         if (isJsdom && globalDocument) Object.defineProperty(globalThis, "document", globalDocument);
@@ -340,7 +352,7 @@ function namespaceSvgIds(svg: SVGSVGElement, namespace: string): void {
     const ids = new Map<string, string>();
     svg.querySelectorAll<SVGElement>("[id]").forEach(element => {
         const oldId = element.id;
-        const newId = `${namespace}-${oldId}`;
+        const newId = `${namespace}-${oldId.replace(ZRENDER_ID_PREFIX, "")}`;
         ids.set(oldId, newId);
         element.id = newId;
     });
@@ -356,7 +368,8 @@ function namespaceSvgIds(svg: SVGSVGElement, namespace: string): void {
     });
 }
 
-function chartContainer(document: Document, svgSource: string, style: NormalizedObjectStyle, altText: string): HTMLDivElement {
+/** `idScope` is unique per object in the document (slide and object index), so chart ids stay apart and deterministic. */
+function chartContainer(document: Document, svgSource: string, style: NormalizedObjectStyle, altText: string, idScope: string): HTMLDivElement {
     const container = document.createElement("div");
     container.className = "slide-element slide-chart";
     applyObjectStyle(container, style);
@@ -364,19 +377,19 @@ function chartContainer(document: Document, svgSource: string, style: Normalized
     container.setAttribute("role", "img");
     if (altText) container.setAttribute("aria-label", altText);
     const svg = parseSvg(document, svgSource);
-    namespaceSvgIds(svg, style.objectName.replace(/[^a-zA-Z0-9_-]/g, "-") || "chart");
+    namespaceSvgIds(svg, idScope);
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", "100%");
     container.appendChild(svg);
     return container;
 }
 
-export function renderChart(document: Document, chart: NormalizedChart, style: NormalizedObjectStyle): HTMLDivElement {
+export function renderChart(document: Document, chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): HTMLDivElement {
     const width = style.geometry.width ?? 0;
     const height = style.geometry.height ?? 0;
     if (width <= 0 || height <= 0) throw new RangeError("Chart width and height must be greater than zero");
     const source = chart.type === "bar3D" ? renderBar3DSvg(width, height, chart) : renderEChartsSvg(width, height, chartOption(chart));
-    return chartContainer(document, source, style, chart.altText);
+    return chartContainer(document, source, style, chart.altText, idScope);
 }
 
 /** Resolves caller renderer input to SVG source so the slide model stores only data. */
@@ -387,6 +400,6 @@ export function renderChartExtensionSvg(input: ChartExtensionInput, style: Norma
     return input.renderer === "svg" ? input.svg : renderEChartsSvg(width, height, input.option as EChartsCoreOption);
 }
 
-export function renderChartExtension(document: Document, svg: string, style: NormalizedObjectStyle, altText: string): HTMLDivElement {
-    return chartContainer(document, svg, style, altText);
+export function renderChartExtension(document: Document, svg: string, style: NormalizedObjectStyle, altText: string, idScope: string): HTMLDivElement {
+    return chartContainer(document, svg, style, altText, idScope);
 }

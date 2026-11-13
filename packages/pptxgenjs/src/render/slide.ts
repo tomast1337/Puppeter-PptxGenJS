@@ -12,7 +12,12 @@ import { applyObjectStyle } from "./style";
 import { renderTable } from "./table";
 import { renderText } from "./text";
 
-export function renderSlideObject(document: Document, object: NormalizedSlideObject, components?: ComponentRegistry): HTMLElement {
+/** Prefix for ids inside one object; taken from its position so the same deck always gives the same ids. */
+export function objectIdScope(slideIndex: number, objectIndex: number): string {
+    return `slide-${slideIndex + 1}-object-${objectIndex}`;
+}
+
+export function renderSlideObject(document: Document, object: NormalizedSlideObject, idScope: string, components?: ComponentRegistry): HTMLElement {
     switch (object.kind) {
         case "text": {
             const element = document.createElement("div");
@@ -37,9 +42,9 @@ export function renderSlideObject(document: Document, object: NormalizedSlideObj
             return element;
         }
         case "chart":
-            return renderChart(document, object.chart, object.style);
+            return renderChart(document, object.chart, object.style, idScope);
         case "chartExtension":
-            return renderChartExtension(document, object.svg, object.style, object.altText);
+            return renderChartExtension(document, object.svg, object.style, object.altText, idScope);
         case "component":
             if (!components) throw new Error(`Rendering component ${object.component.type}@${object.component.version} requires its component registry`);
             return renderComponent(document, { input: object.component, style: object.style }, components.get(object.component.type, object.component.version));
@@ -65,7 +70,7 @@ export function renderSlide(document: Document, slide: NormalizedSlide, index: n
     applySlideBackground(element, slide);
     applySlideColor(element, slide);
     applySlideHidden(element, slide);
-    for (const object of slide.objects) element.appendChild(renderSlideObject(document, object, components));
+    slide.objects.forEach((object, objectIndex) => element.appendChild(renderSlideObject(document, object, objectIdScope(index, objectIndex), components)));
     return element;
 }
 

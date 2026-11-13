@@ -55,8 +55,7 @@ function representativeDeck(): PuppeteerGen {
 }
 
 function html(document: Document): string {
-    // zrender numbers each SSR instance and CSS class process-wide (zr1-cls-3); re-rendering a chart only advances those counters.
-    return document.documentElement.outerHTML.replace(/\bzr\d+-cls-\d+/g, "zr-cls");
+    return document.documentElement.outerHTML;
 }
 
 describe("normalized slide-object model", () => {
