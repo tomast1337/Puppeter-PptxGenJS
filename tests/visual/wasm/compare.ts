@@ -57,7 +57,7 @@ for (const deckName of deckNames) {
     await reference.writeFile({ fileName: join(out, "reference.pptx") });
     await run(["libreoffice", "--headless", `-env:UserInstallation=file://${join(out, "lo-profile")}`, "--convert-to", "pdf", "--outdir", out, join(out, "reference.pptx")]);
 
-    // 2. The same deck through the Puppeteer default and the WASM backend.
+    // 2. The same deck through the Puppeteer default and the WASM backend; toPdf() hands both toHtml().
     const deck = populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape));
     writeFileSync(join(out, "puppeteer.pdf"), await deck.toPdf());
     const model = deck.getModel();

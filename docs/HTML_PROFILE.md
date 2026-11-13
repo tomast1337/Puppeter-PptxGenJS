@@ -24,10 +24,10 @@ both backends read only the HTML.
   component that reads `context.document` gets a document, from the caller's `createDocument`.
   `pres.page` is only the input document of `tableToSlides(tableId)`; slides are not written into it,
   so editing it changes neither the HTML nor the PDF.
-- **WASM reads either.** `WasmRenderer.renderModel(getModel())` reads the model as JSON;
-  `WasmRenderer.render(await toHtml())` parses this profile in Rust (`crates/pdf-core/src/profile/`,
-  [Parsing (WASM)](#parsing-wasm)) into the same structs, so both give the same PDF bytes. `toPdf()` still
-  takes the model path; phase 4 switches it.
+- **Every renderer reads the HTML.** `toPdf()` hands `toHtml()` to the renderer, whichever it is.
+  `WasmRenderer.render(document)` parses this profile in Rust (`crates/pdf-core/src/profile/`,
+  [Parsing (WASM)](#parsing-wasm)). `WasmRenderer.renderModel(getModel())` still reads the model as JSON
+  into the same structs, with the same PDF bytes; phase 5 removes it.
 
 ## Decisions
 

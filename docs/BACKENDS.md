@@ -141,7 +141,7 @@ Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
 
 | Option                                               | Node entry default                                         | `/html` default                         |
 | ---------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------- |
-| `renderer?: PresentationRenderer \| ModelRenderer`   | `PuppeteerPdfRenderer`                                     | none: `toPdf()` throws                  |
+| `renderer?: PresentationRenderer`                    | `PuppeteerPdfRenderer`                                     | none: `toPdf()` throws                  |
 | `resolveImage?: (source: string) => Promise<string>` | data URIs, http(s), file paths relative to `process.cwd()` | data URIs and http(s); file paths throw |
 | `createDocument?: () => Document`                    | jsdom                                                      | global `document`; throws without a DOM |
 
@@ -152,25 +152,24 @@ build the HTML as strings and call `createDocument` only for a component that re
 
 ## WASM backend (`@pdfdeck/wasm`, opt-in, text, shapes, images and tables)
 
-An experimental renderer that draws `getModel()` straight to PDF in
-WebAssembly (Rust, `crates/`), without HTML or Chromium. Puppeteer stays the
+An experimental renderer that parses the `toHtml()` document and draws it to PDF in
+WebAssembly (Rust, `crates/`), without Chromium. Puppeteer stays the
 default; nothing loads the WASM code unless you import this entry, and the
 `.wasm` binary (~2.5 MB, ~1.0 MB gzip) is only fetched by `createWasmRenderer()`.
 The prebuilt binary ships in the `@pdfdeck/wasm` tarball, so installing it
 needs no Rust toolchain.
-It implements `ModelRenderer`, so `toPdf()`, `write()`, `stream()` and
-`writeFile()` work unchanged. It also implements `PresentationRenderer`:
-`renderer.render(await pres.toHtml())` parses the [HTML profile](HTML_PROFILE.md#parsing-wasm)
-in WebAssembly and gives the same PDF bytes as the model path. It is strict:
+It implements `PresentationRenderer` like the Puppeteer default, so `toPdf()`, `write()`,
+`stream()` and `writeFile()` hand it `toHtml()`, and `renderer.render(await pres.toHtml())` does the
+same directly. It parses the [HTML profile](HTML_PROFILE.md#parsing-wasm) strictly:
 HTML outside the profile throws, naming the slide, object and property, and
-images must already be `data:` URIs.
+images must already be `data:` URIs (`toHtml()` inlines them).
 
 **Status:** text boxes (runs, paragraphs, bullets, tab stops, insets, rotation, fit) and
 every preset and custom shape (fills, transparency, multi-face shading, lines,
 dashes, arrowheads, rotation, flips, text in shapes), PNG and JPEG images
 (every sizing mode, rounding, transparency, rotation, flips, alpha channels;
-paths and URLs are resolved to data URIs by `toPdf()` before the renderer sees
-the model) and tables (merged cells, fills, per-side solid and dashed borders,
+paths and URLs are resolved to data URIs by `toHtml()` before the renderer sees
+the document) and tables (merged cells, fills, per-side solid and dashed borders,
 cell insets and alignment, vertical text, rows grown to fit their text;
 underline styles draw as a single line). GIF, WebP and SVG images, charts and
 components are not drawn yet (issue #17).
@@ -197,7 +196,9 @@ and jumps to slides through named destinations. Both backends accept only
 
 **Unsupported content:** by default `toPdf()` throws an error listing
 everything the backend could not draw. Pass `onUnsupported: "warn"` to get the
-PDF anyway; the skipped items are then in `renderer.warnings()`.
+PDF anyway; the skipped items are then in `renderer.warnings()`. Charts and
+`addChartExtension()` objects are both an SVG subtree in the HTML, so both are reported as
+`object kind 'chart' not rendered`.
 
 **Fonts:** WASM cannot see system fonts, so you pass font files (TTF/OTF/TTC
 bytes); at least one is required. Office faces fall back to their
