@@ -11,6 +11,16 @@ The compatibility baseline is the exact `pptxgenjs` version pinned in `package.j
 the normalized model into PDF: Chromium through Puppeteer (`@pdfdeck/puppeteer`, the default) and a
 Rust renderer compiled to WebAssembly (`@pdfdeck/wasm`, from `crates/`).
 
+**HTML is a first-class output, whichever backend draws the PDF.** `toHtml()` returns the deck as one
+self-contained HTML document built from the same model the renderers draw, so a user can read it, check
+that the text is what they expect, and diff two versions of a deck without touching a PDF. Keep it that
+way:
+
+- Everything a renderer draws is in the HTML as well. A feature never exists only in the WASM backend.
+- The output is deterministic: the same deck gives byte-identical HTML (no random ids, timestamps or
+  absolute paths), so a diff shows only real changes. Chart SVG class names break this today (#66).
+- Text stays text in the HTML (not paths or images), in reading order.
+
 The active rendering priorities are complete coverage for:
 
 1. Text and rich text
