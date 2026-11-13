@@ -68,6 +68,7 @@ async function checkConsumer(consumerDirectory: string, dependencies: string[], 
 
     const consumerSource = `
 import PuppeteerGen, {
+    modelToHtml,
     PAGE_SIZES,
     type PuppeteerSlide,
     type PptxSlide,
@@ -87,12 +88,14 @@ slide.addChart("bar", [{ name: "Series", labels: ["A", "B"], values: [2, 4] }], 
     x: 1, y: 2, w: 3, h: 2,
 });
 compatibleSlide.addText("Compatible slide type", { x: 4, y: 1, w: 3, h: 1 });
-if (presentation.page.querySelectorAll(".slide-text").length !== 2) {
+const { html } = await presentation.toHtml();
+if (html.split('class="slide-element slide-text"').length - 1 !== 2) {
     throw new Error("Built package did not render consumer text boxes");
 }
-if (presentation.page.querySelectorAll(".slide-chart svg").length !== 1) {
+if (html.split('class="slide-element slide-chart"').length - 1 !== 1) {
     throw new Error("Built package did not render the consumer chart");
 }
+if (typeof modelToHtml !== "function") throw new Error("Built package does not export modelToHtml");
 console.log("standalone package consumer passed");
 `;
     const consumerSourcePath = join(consumerDirectory, "consumer.ts");
@@ -137,10 +140,11 @@ slide.addImage({ path: imagePath, x: 5, y: 1, w: 1, h: 1 });
 slide.addChart("bar", [{ name: "Series", labels: ["A", "B"], values: [2, 4] }], {
     x: 1, y: 2, w: 3, h: 2,
 });
-if (presentation.page.querySelectorAll(".slide-text").length !== 1) {
+const rendered = (await presentation.toHtml()).html;
+if (rendered.split('class="slide-element slide-text"').length - 1 !== 1) {
     throw new Error("Packed package did not render text under Node.js");
 }
-if (presentation.page.querySelectorAll(".slide-chart svg").length !== 1) {
+if (rendered.split('class="slide-element slide-chart"').length - 1 !== 1) {
     throw new Error("Packed package did not render a chart under Node.js");
 }
 const pdfPath = join(process.cwd(), "node-consumer.pdf");
@@ -254,8 +258,8 @@ registerReactComponent(p, "card", 1, Card, {
 const slide = p.addSlide();
 slide.addComponent({ type: "card", version: 1, props: { label: "React consumer" } }, { x: 1, y: 1, w: 3, h: 1 });
 slide.addComponent({ type: "card", version: 1, props: { label: "Second" } }, { x: 1, y: 2, w: 3, h: 1 });
-const cards = p.page.querySelectorAll("section");
-if (cards[0]?.textContent !== "React consumer" || cards[0].id === cards[1]?.id) throw new Error("React adapter consumer failed");
+const cards = [...(await p.toHtml()).html.matchAll(/<section id="([^"]+)">([^<]*)<[/]section>/g)];
+if (cards[0]?.[2] !== "React consumer" || cards[0][1] === cards[1]?.[1]) throw new Error("React adapter consumer failed");
 console.log("React adapter package consumer passed");
 `;
     const reactConsumerPath = join(consumerDirectory, "react-consumer.ts");

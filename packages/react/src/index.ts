@@ -10,22 +10,15 @@ export interface ReactComponentRegistrar {
 
 export type ReactComponentOptions<Props extends object> = { schema: z.ZodType<Props>; parseProps?: never } | { schema?: never; parseProps?: (props: ComponentProps) => Props };
 
-// Module-level because the presentation type is structural and has no slot for adapter state: each
-// presentation's render count gives its React trees distinct useId prefixes. Keyed weakly by the
-// presentation, which owns its entry; the entry is released when the presentation is garbage collected.
-const renderCounts = new WeakMap<object, number>();
-
 /** Register a synchronous React-to-HTML renderer. React code never enters the saved document. */
 export function registerReactComponent<Props extends object, Presentation extends ReactComponentRegistrar>(presentation: Presentation, type: string, version: number, component: ComponentType<Props>, options: ReactComponentOptions<NoInfer<Props>> = {}): Presentation {
     const { schema, parseProps } = options;
     if (schema && parseProps) throw new Error("Choose a component schema or parseProps, not both");
     presentation.registerComponent(type, version, {
-        render: savedProps => {
+        render: (savedProps, context) => {
             const props = schema ? parseComponentProps(schema, savedProps) : parseProps ? parseProps(savedProps) : (savedProps as unknown as Props);
-            const index = renderCounts.get(presentation) ?? 0;
-            renderCounts.set(presentation, index + 1);
-            // Each static React tree gets a distinct useId namespace within the presentation.
-            return renderToStaticMarkup(createElement(component, props), { identifierPrefix: `pptx-react-${index}-` });
+            // The object's position gives each static React tree its own useId namespace, the same on every render.
+            return renderToStaticMarkup(createElement(component, props), { identifierPrefix: `pptx-react-${context.idPrefix}-` });
         },
     });
     return presentation;

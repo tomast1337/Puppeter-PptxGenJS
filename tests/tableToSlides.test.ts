@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { renderedPage } from "./renderedPage";
 import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/table/html";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
@@ -90,7 +91,7 @@ describe("tableToSlides", () => {
             addTable: { rows: [[{ text: "Extra" }]], options: { x: 8.5, y: 5, w: 1, h: 0.3, fontSize: 7, margin: 0 } },
         });
 
-        const slides = presentation.page.querySelectorAll<HTMLElement>(".slide-container");
+        const slides = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-container");
         expect(slides.length).toBeGreaterThan(1);
         slides.forEach(slide => {
             expect(slide.querySelectorAll(".slide-table-container").length).toBe(2);

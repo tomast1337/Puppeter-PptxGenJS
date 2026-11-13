@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { renderedPage } from "./renderedPage";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
 import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
 import { arrowHeadPath, normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
@@ -319,14 +320,14 @@ describe("SVG shape rendering", () => {
         });
         slide.addShape("line", { x: 1, y: 4, w: 4, h: 0, line: { color: "ED7D31", width: 2.25, dashType: "dash", beginArrowType: "oval" } });
 
-        const shapes = presentation.page.querySelectorAll<HTMLElement>(".slide-shape");
+        const shapes = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-shape");
         expect(shapes[0]?.querySelector("rect")?.getAttribute("rx")).toBe("9.600000000000001");
         expect(shapes[0]?.querySelector(".shape-geometry")?.getAttribute("stroke-dasharray")).toBe(`${(4 * 2 * 96) / 72} ${(3 * 2 * 96) / 72}`);
         expect(shapes[1]?.querySelector("ellipse")).not.toBeNull();
         expect(shapes[2]?.querySelector("svg")?.getAttribute("height")).toBe("1");
         expect(shapes[2]?.querySelector("svg")?.getAttribute("viewBox")).toBe(`0 0 ${4 * 96} 1`);
         // Markers draw the model's head outlines in user space; orient reverses the begin head.
-        const marker = (end: "start" | "end") => presentation.page.getElementById(shapes[2]?.querySelector(".shape-geometry")?.getAttribute(`marker-${end}`)?.slice(5, -1) ?? "");
+        const marker = (end: "start" | "end") => renderedPage(presentation).getElementById(shapes[2]?.querySelector(".shape-geometry")?.getAttribute(`marker-${end}`)?.slice(5, -1) ?? "");
         expect(marker("end")?.getAttribute("markerUnits")).toBe("userSpaceOnUse");
         expect(marker("end")?.getAttribute("orient")).toBe("auto-start-reverse");
         expect(marker("end")?.querySelector("path")?.getAttribute("d")).toBe(String(arrowHeadPath("triangle", (2 * 96) / 72)));
@@ -334,10 +335,10 @@ describe("SVG shape rendering", () => {
         // Ids come from the outline, not the object name, which repeats across slides: url(#id) takes the first match.
         const objectName = shapes[2]?.dataset.objectName;
         presentation.addSlide().addShape("line", { x: 1, y: 3, w: 4, h: 0, objectName, line: { color: "ED7D31", width: 2, endArrowType: "diamond" } });
-        const repeated = presentation.page.querySelectorAll<HTMLElement>(".slide-shape")[4];
+        const repeated = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-shape")[4];
         expect(repeated?.dataset.objectName).toBe(String(objectName));
         const repeatedEnd = repeated?.querySelector(".shape-geometry")?.getAttribute("marker-end")?.slice(5, -1) ?? "";
-        expect(presentation.page.getElementById(repeatedEnd)?.querySelector("path")?.getAttribute("d")).toBe(String(arrowHeadPath("diamond", (2 * 96) / 72)));
+        expect(renderedPage(presentation).getElementById(repeatedEnd)?.querySelector("path")?.getAttribute("d")).toBe(String(arrowHeadPath("diamond", (2 * 96) / 72)));
         // The model's gap-first pattern "0 3.9 12 9 ..." is drawn without its zero-length dash: the offset
         // leaves the first 3.9px blank.
         const dashed = shapes[3]?.querySelector(".shape-geometry");
@@ -353,13 +354,13 @@ describe("SVG shape rendering", () => {
         // 6.55in, 1.6in -> 628.8px, 153.6px: Chromium draws the SVG from 629, 154.
         slide.addShape("line", { x: 6.55, y: 1.6, w: 2.6, h: 0, line: { color: "4472C4", width: 2.25 } });
         slide.addText("Shape text", { x: 6.55, y: 1.6, w: 2, h: 1, shape: "rect" });
-        const offsets = Array.from(presentation.page.querySelectorAll<SVGSVGElement>(".shape-svg"), svg => svg.style.getPropertyValue("--print-snap-offset"));
+        const offsets = Array.from(renderedPage(presentation).querySelectorAll<SVGSVGElement>(".shape-svg"), svg => svg.style.getPropertyValue("--print-snap-offset"));
         expect(offsets[0]).toBe("");
         expect(offsets[1]).toBe("translate(-0.2px, -0.4px)");
         expect(offsets[2]).toBe("translate(-0.2px, -0.4px)");
-        expect(presentation.page.querySelector("style")?.textContent).toContain("transform: var(--print-snap-offset, none);");
+        expect(renderedPage(presentation).querySelector("style")?.textContent).toContain("transform: var(--print-snap-offset, none);");
         // The document has a doctype (standards mode): an inline SVG would sit on the line box's baseline.
-        expect(presentation.page.querySelector("style")?.textContent).toMatch(/\.slide-shape > \.shape-svg \{\s*display: block;/);
+        expect(renderedPage(presentation).querySelector("style")?.textContent).toMatch(/\.slide-shape > \.shape-svg \{\s*display: block;/);
 
         // Chromium applies the page-space difference after the object's rotation and flips.
         const offset = (rotation: number, flipH = false, flipV = false) => printSnapOffset({ geometry: { x: 628.8, y: 153.6 }, transform: { rotation, flipH, flipV, opacity: 1 } });
@@ -381,7 +382,7 @@ describe("SVG shape rendering", () => {
             hyperlink: { slide: 2, tooltip: "Details" },
         });
 
-        const shape = presentation.page.querySelector<HTMLAnchorElement>("a.slide-shape");
+        const shape = renderedPage(presentation).querySelector<HTMLAnchorElement>("a.slide-shape");
         expect(shape?.getAttribute("href")).toBe("#slide-2");
         expect(shape?.title).toBe("Details");
         expect(shape?.querySelector("path")?.getAttribute("d")).toBe("M 0 0 L 288 0 L 144 192 Z");
@@ -398,7 +399,7 @@ describe("SVG shape rendering", () => {
             line: { color: "843C0C", width: 1.15 },
         });
 
-        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const geometry = renderedPage(presentation).querySelector<SVGGElement>(".shape-geometry");
         const faces = geometry?.querySelectorAll<SVGPathElement>(".shape-face");
         expect(faces).toHaveLength(2);
         expect(faces?.[0]?.getAttribute("fill")).toBe("#5B9BD5");
@@ -417,7 +418,7 @@ describe("SVG shape rendering", () => {
             fill: { color: "5B9BD5" },
             line: { color: "843C0C", width: 2 },
         });
-        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const geometry = renderedPage(presentation).querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
         expect(geometry?.querySelector(".shape-face")?.getAttribute("fill")).toBe("#5B9BD5");
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
@@ -434,7 +435,7 @@ describe("SVG shape rendering", () => {
             fill: { color: "5B9BD5" },
             line: { color: "843C0C", width: 1 },
         });
-        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const geometry = renderedPage(presentation).querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")).toContain("M 24 0 L 24 144");
@@ -450,7 +451,7 @@ describe("SVG shape rendering", () => {
             fill: { color: "5B9BD5" },
             line: { color: "843C0C", width: 1 },
         });
-        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const geometry = renderedPage(presentation).querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(1);
         expect(geometry?.querySelector(".shape-face")?.getAttribute("d")?.endsWith(" Z")).toBe(true);
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("d")?.endsWith(" Z")).toBe(false);
@@ -467,7 +468,7 @@ describe("SVG shape rendering", () => {
             fill: { color: "5B9BD5" },
             line: { color: "843C0C", width: 1 },
         });
-        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const geometry = renderedPage(presentation).querySelector<SVGGElement>(".shape-geometry");
         const faces = geometry?.querySelectorAll<SVGPathElement>(".shape-face");
         expect(faces).toHaveLength(2);
         expect(faces?.[0]?.getAttribute("fill")).toBe("#5B9BD5");
@@ -485,7 +486,7 @@ describe("SVG shape rendering", () => {
             fill: { color: "5B9BD5" },
             line: { color: "843C0C", width: 1 },
         });
-        const faces = presentation.page.querySelectorAll<SVGPathElement>(".shape-face");
+        const faces = renderedPage(presentation).querySelectorAll<SVGPathElement>(".shape-face");
         expect(faces).toHaveLength(3);
         expect(faces[0]?.getAttribute("fill")).toBe("#5B9BD5");
         expect(faces[1]?.getAttribute("fill")).toBe("#365d7f");
@@ -502,7 +503,7 @@ describe("SVG shape rendering", () => {
             fill: { color: "5B9BD5" },
             line: { color: "843C0C", width: 1 },
         });
-        const geometry = presentation.page.querySelector<SVGGElement>(".shape-geometry");
+        const geometry = renderedPage(presentation).querySelector<SVGGElement>(".shape-geometry");
         expect(geometry?.querySelectorAll(".shape-face")).toHaveLength(2);
         expect(geometry?.querySelectorAll(".shape-outline")).toHaveLength(1);
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("fill")).toBe("none");
@@ -513,6 +514,6 @@ describe("SVG shape rendering", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
         expect(() => slide.addShape("definitelyUnknown" as never, { x: 1, y: 1, w: 2, h: 1 })).toThrow("Unsupported shape geometry: definitelyUnknown");
-        expect(presentation.page.querySelector(".slide-shape")).toBeNull();
+        expect(renderedPage(presentation).querySelector(".slide-shape")).toBeNull();
     });
 });

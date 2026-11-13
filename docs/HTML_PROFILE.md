@@ -17,14 +17,12 @@ PptxGenJS API -> JSON model (IR 1, getModel()) -> HTML (IR 2, this profile) -> P
 The model is the public schema; the HTML is derived from it by one pure, deterministic function, and
 both backends read only the HTML.
 
-Today is different in two ways:
-
-- **The HTML is built incrementally through the DOM.** Each `add*` call normalizes its options into a
-  model object, then appends the rendered DOM node and pushes the model object separately
-  (`packages/pptxgenjs/src/PuppeteerGen.ts:119-121`, components at `:132-133`). `toHtml()` serializes
-  that live document (`pres.page`) with `outerHTML` (`render/document.ts:6-11`). The DOM and the model
-  are two sources of truth: an edit to `pres.page` reaches Puppeteer and not WASM. Phase 2 moves HTML
-  generation into one `modelToHtml(model)` with the same output bytes.
+- **The model is the only source of truth.** Each `add*` call writes only the model. `toHtml()` is
+  `modelToHtml(getModel())` (`render/document.ts`), exported from `@pdfdeck/pptxgenjs/html` for producers
+  that build the model themselves: it renders the whole document at once on a fresh document from the
+  caller's `createDocument`, inlines images through `resolveImage`, and renders components with the
+  caller's registry. `pres.page` is only the input document of `tableToSlides(tableId)`; slides are not
+  written into it, so editing it changes neither the HTML nor the PDF.
 - **WASM still reads the model**, as JSON (`packages/wasm/src/browser.ts:46-47`). Phases 3 and 4 switch
   it to this profile.
 
@@ -64,7 +62,7 @@ From the maintainer's decisions on #69:
 <html>
     <head>
         <style id="puppeteer-gen-styles">
-            /* presentationCSS(pageSize), render/slide.ts:100 */
+            /* presentationCSS(pageSize), render/slide.ts:86 */
         </style>
     </head>
     <body>
@@ -229,7 +227,7 @@ them.
 | Workaround     | Where in the HTML                                                                                                | Code                                                |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:30-31,65-75`                        |
-| Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:96-122`, `render/slide.ts:209-211` |
+| Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:96-122`, `render/slide.ts:195-197` |
 | Dash rewrite   | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap                                   | `render/shape.ts:141-149`                           |
 | Table offset   | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                                    | `render/table.ts:16-23`                             |
 
@@ -286,7 +284,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedSlideObject<table>.table`            | profile | `table.slide-table` child.                                                               |
 | `NormalizedSlideObject<chart>.kind`             | profile | Class `slide-chart` (shared with `chartExtension`: both are an SVG subtree in the HTML). |
 | `NormalizedSlideObject<chart>.style`            | profile | Common box on `.slide-chart`.                                                            |
-| `NormalizedSlideObject<chart>.chart`            | gap     | Only the drawn SVG; see the `NormalizedChart` rows (`render/chart.ts:374-381`).          |
+| `NormalizedSlideObject<chart>.chart`            | gap     | Only the drawn SVG; see the `NormalizedChart` rows (`render/chart.ts:395-399`).          |
 | `NormalizedSlideObject<chartExtension>.kind`    | profile | Class `slide-chart` (same as `chart`).                                                   |
 | `NormalizedSlideObject<chartExtension>.style`   | profile | Common box on `.slide-chart`.                                                            |
 | `NormalizedSlideObject<chartExtension>.svg`     | profile | The `svg` child (ids prefixed with the object name, `width`/`height` set to 100%).       |
@@ -296,7 +294,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedSlideObject<component>.component`    | profile | `data-component-*` and the rendered markup.                                              |
 | `ComponentInput.type`                           | profile | `data-component-type`.                                                                   |
 | `ComponentInput.version`                        | profile | `data-component-version`.                                                                |
-| `ComponentInput.props`                          | gap     | Only the markup the definition rendered from them (`render/component.ts:9-13`).          |
+| `ComponentInput.props`                          | gap     | Only the markup the definition rendered from them (`render/component.ts:10-14`).         |
 
 ### Object style
 
@@ -470,7 +468,7 @@ object-valued field covers the field's presence; its own fields have their own r
 ### Charts
 
 The chart's options drive ECharts or the 3D bar renderer; the HTML keeps only the SVG they produce
-(`render/chart.ts:374-381`). Phase 8 decides how charts reach WASM (SVG subtrees, #69).
+(`render/chart.ts:395-399`). Phase 8 decides how charts reach WASM (SVG subtrees, #69).
 
 | Field                                      | Status  | HTML                                                         |
 | ------------------------------------------ | ------- | ------------------------------------------------------------ |

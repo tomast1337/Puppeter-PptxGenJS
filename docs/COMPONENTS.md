@@ -40,8 +40,12 @@ A component's type and positive integer version select an exact registration.
 Different versions can coexist; duplicate registration and unknown versions
 throw. Registries belong to a presentation and are also shared with its existing
 and automatically created slides. Register definitions before calling
-`addComponent` or replaying a recording. Components render synchronously when
-added; registration changes do not retroactively redraw existing elements.
+`addComponent` or replaying a recording. `addComponent` renders the component once
+so that validation and render errors throw there, then records only its type,
+version and props; `toHtml()` and `toPdf()` render it again from that record, in
+a fresh document. Keep renderers pure: the same props must give the same markup.
+`context.idPrefix` is unique in the deck and the same on every render of the
+object; prefix element ids with it.
 
 Props must be a plain JSON object (no functions, undefined, dates, cycles or DOM
 nodes). They are copied before validation/rendering. The optional validator throws
@@ -121,8 +125,9 @@ Keep the same versioned schema in a shared package used by the editor, HTML and
 React code; schemas and component functions never enter the serialized document.
 
 The adapter renders function or class components with React's synchronous
-`renderToStaticMarkup`. It automatically gives each render a distinct `useId`
-prefix within the presentation. React components can be composed normally; wrap
+`renderToStaticMarkup`. It gives each component's tree its own `useId` prefix
+from `context.idPrefix`, so ids are unique in the deck and the same on every
+render. React components can be composed normally; wrap
 them in another component to supply providers or application themes. Use inline
 styles or supply the corresponding scoped CSS; importing a CSS module does not
 bundle its stylesheet into the PDF.

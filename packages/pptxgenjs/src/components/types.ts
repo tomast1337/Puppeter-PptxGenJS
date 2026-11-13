@@ -16,6 +16,8 @@ export interface ComponentContext {
     document: Document;
     width: number;
     height: number;
+    /** Unique within the deck and the same on every render of this object (its slide and position); prefix ids with it. */
+    idPrefix: string;
 }
 export interface ComponentDefinition<Props extends object = ComponentProps> {
     /** Zod supplies runtime validation/defaults and infers render props. Saved input remains unchanged. */

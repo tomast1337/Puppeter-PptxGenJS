@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
 import { normalizeTable } from "../packages/pptxgenjs/src/normalize/table";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
@@ -132,11 +133,11 @@ describe("table rendering", () => {
             },
         );
 
-        const container = presentation.page.querySelector<HTMLElement>(".slide-table-container");
-        const cells = presentation.page.querySelectorAll<HTMLTableCellElement>("td");
+        const container = renderedPage(presentation).querySelector<HTMLElement>(".slide-table-container");
+        const cells = renderedPage(presentation).querySelectorAll<HTMLTableCellElement>("td");
         expect(container?.style.width).toBe("384px");
         expect(container?.style.height).toBe("96px");
-        expect(presentation.page.querySelectorAll("col")).toHaveLength(3);
+        expect(renderedPage(presentation).querySelectorAll("col")).toHaveLength(3);
         expect(cells[0]?.colSpan).toBe(2);
         expect(cells[0]?.rowSpan).toBe(2);
         expect(cells[0]?.querySelectorAll(".text-run")).toHaveLength(2);

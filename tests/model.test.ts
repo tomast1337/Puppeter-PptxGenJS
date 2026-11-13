@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import type { NormalizedPresentation } from "../packages/model/src/types";
 import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
-import { renderPresentationDocument } from "../packages/pptxgenjs/src/render/slide";
+import { modelToHtml } from "../packages/pptxgenjs/src/render/document";
+import { type ComponentLookup, renderPresentationDocument } from "../packages/pptxgenjs/src/render/slide";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
+// Every path and URL in the deck resolves to the same PNG, so no test reads files or the network.
+const resolveImage = async () => PNG;
+
 function representativeDeck(): PuppeteerGen {
-    const pres = new PuppeteerGen();
+    const pres = new PuppeteerGen(undefined, { resolveImage });
     pres.registerComponent("example/metric", 1, { render: props => `<strong>${String(props.label)}</strong><img src="logo.png">` });
 
     const text = pres.addSlide();
@@ -54,12 +58,8 @@ function representativeDeck(): PuppeteerGen {
     return pres;
 }
 
-function html(document: Document): string {
-    return document.documentElement.outerHTML;
-}
-
 describe("normalized slide-object model", () => {
-    test("re-renders to the same HTML as the live page, before and after a JSON round trip", () => {
+    test("toHtml() is modelToHtml() of getModel(), before and after a JSON round trip", async () => {
         const pres = representativeDeck();
         const model = pres.getModel();
         expect(model.slides.flatMap(slide => slide.objects.map(object => object.kind))).toContain("component");
@@ -70,9 +70,16 @@ describe("normalized slide-object model", () => {
         const parsed = JSON.parse(json) as NormalizedPresentation;
         expect(JSON.stringify(parsed)).toBe(json);
 
-        const components = (pres as unknown as { components: Parameters<typeof renderPresentationDocument>[1] }).components;
-        expect(html(renderPresentationDocument(model, components, createNodeDocument))).toBe(html(pres.page));
-        expect(html(renderPresentationDocument(parsed, components, createNodeDocument))).toBe(html(pres.page));
+        // `as`: the registry is private; toHtml() passes this same object.
+        const components = (pres as unknown as { components: ComponentLookup }).components;
+        const options = { components, resolveImage, createDocument: createNodeDocument };
+        const html = await pres.toHtml();
+        expect(html.html).toContain(`src="${PNG}"`);
+        expect(html.html).not.toContain("data-source-");
+        expect(await modelToHtml(model, options)).toEqual(html);
+        expect(await modelToHtml(parsed, options)).toEqual(html);
+        // modelToHtml() leaves its input alone: the path images are still paths.
+        expect(JSON.stringify(model)).toBe(json);
     });
 
     test("records slide properties and returns a detached copy", () => {
@@ -93,7 +100,6 @@ describe("normalized slide-object model", () => {
         expect(() => slide.addChartEx({ renderer: "svg", svg: "<div></div>" }, { x: 0, y: 0, w: 1, h: 1 })).toThrow();
         expect(() => slide.addImage({ x: 0, y: 0, w: 1, h: 1 } as never)).toThrow("requires either 'data' or 'path'");
         expect(() => slide.addComponent({ type: "missing", version: 1, props: {} }, { x: 0, y: 0, w: 1, h: 1 })).toThrow("Unknown component");
-        expect(slide.slideElm.children).toHaveLength(0);
         expect(pres.getModel().slides.at(-1)!.objects).toHaveLength(0);
     });
 });

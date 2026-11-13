@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
 import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
@@ -101,7 +102,7 @@ describe("table auto-pagination", () => {
             fontSize: 12,
         });
 
-        const slides = presentation.page.querySelectorAll<HTMLElement>(".slide-container");
+        const slides = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-container");
         expect(slides).toHaveLength(3);
         expect(slide.newAutoPagedSlides).toHaveLength(2);
         expect(slides[0]?.querySelectorAll(".slide-table-container")).toHaveLength(1);
