@@ -11,10 +11,30 @@ use krilla::text::{Font, GlyphId, KrillaGlyph};
 use parley::{Layout, PositionedLayoutItem};
 
 use crate::Renderer;
-use crate::color::{fill_of, unit};
+use crate::color::{Rgba, fill_of, unit};
 use crate::model::TextBox;
 use crate::path::{fill_path, rect_path};
 use crate::text::layout::{BoxLayout, Brush, RunPaint};
+
+/// LibreOffice's synthetic styles for a face that lacks them, read from its PDF export of a
+/// regular-only face (Droid Sans Mono, 72pt): bold fills and strokes the glyphs (`2 Tr`) with a line
+/// 1/30 of the size wide (`2.39996 w`); italic shears them (`1 0 0.3462535606 1 x y Tm`).
+const SYNTHETIC_BOLD_STROKE_EM: f32 = 1.0 / 30.0;
+const SYNTHETIC_ITALIC_SHEAR: f32 = 0.346_253_56;
+
+/// Shears what is drawn on `baseline` (y down) to the right above it and to the left below it.
+fn oblique(baseline: f32) -> Transform {
+    Transform::from_row(1.0, 0.0, -SYNTHETIC_ITALIC_SHEAR, 1.0, SYNTHETIC_ITALIC_SHEAR * baseline, 0.0)
+}
+
+fn stroke_of(Rgba(r, g, b, a): Rgba, width: f32) -> Stroke {
+    Stroke {
+        paint: rgb::Color::new(r, g, b).into(),
+        width,
+        opacity: unit(a),
+        ..Stroke::default()
+    }
+}
 
 impl Renderer {
     #[allow(clippy::too_many_arguments)]
@@ -74,10 +94,6 @@ impl Renderer {
                 let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
                 let start = ox + glyph_run.offset();
                 let advance = glyph_run.advance();
-                if run.synthesis().embolden() || run.synthesis().skew().is_some() {
-                    self.warn("synthetic bold/italic requested but not applied");
-                }
-
                 if let Some(hl) = paint.highlight {
                     fill_path(
                         surface,
@@ -122,19 +138,23 @@ impl Renderer {
                     continue;
                 };
                 let origin = Point::from_xy(start, baseline);
-                surface.set_stroke(None);
+                // fontique asks for synthesis when the face it matched lacks the requested style.
+                let synthesis = run.synthesis();
+                let skewed = synthesis.skew().is_some();
+                if skewed {
+                    surface.push_transform(&oblique(baseline));
+                }
+                surface.set_stroke(synthesis.embolden().then(|| stroke_of(paint.color, size * SYNTHETIC_BOLD_STROKE_EM)));
                 surface.set_fill(Some(fill_of(paint.color)));
                 surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
                 if let Some((color, width)) = paint.outline {
                     surface.set_fill(None);
-                    surface.set_stroke(Some(Stroke {
-                        paint: rgb::Color::new(color.0, color.1, color.2).into(),
-                        width,
-                        opacity: unit(color.3),
-                        ..Stroke::default()
-                    }));
+                    surface.set_stroke(Some(stroke_of(color, width)));
                     surface.draw_glyphs(origin, &glyphs, font, text, size, false);
-                    surface.set_stroke(None);
+                }
+                surface.set_stroke(None);
+                if skewed {
+                    surface.pop();
                 }
 
                 let deco = paint.underline_color.unwrap_or(paint.color);
@@ -160,5 +180,20 @@ impl Renderer {
         self.glyph_ranges = ranges;
         self.positioned = positioned;
         self.glyphs = glyphs;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn obliques_lean_right_above_the_baseline_and_keep_it_in_place() {
+        let t = oblique(100.0);
+        let map = |x: f32, y: f32| (t.sx() * x + t.kx() * y + t.tx(), t.ky() * x + t.sy() * y + t.ty());
+        let close = |(x, y): (f32, f32), (ex, ey): (f32, f32)| assert!((x - ex).abs() < 1e-4 && (y - ey).abs() < 1e-4, "({x}, {y}) != ({ex}, {ey})");
+        close(map(5.0, 100.0), (5.0, 100.0));
+        close(map(5.0, 90.0), (5.0 + 10.0 * SYNTHETIC_ITALIC_SHEAR, 90.0));
+        close(map(5.0, 110.0), (5.0 - 10.0 * SYNTHETIC_ITALIC_SHEAR, 110.0));
     }
 }

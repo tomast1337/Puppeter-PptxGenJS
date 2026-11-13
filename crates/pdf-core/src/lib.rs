@@ -503,6 +503,23 @@ mod tests {
     }
 
     #[test]
+    fn asks_for_synthetic_bold_and_italic_when_only_the_regular_face_is_loaded() {
+        let mut text = text_box(&[(&["Ag"], 36.0, 30.0)]);
+        let run = &mut text.paragraphs[0].runs[0];
+        (run.bold, run.italic) = (true, true);
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: synthesis not checked");
+        };
+        let line = layout.paras[0].layout.lines().next().expect("one line");
+        let Some(parley::PositionedLayoutItem::GlyphRun(glyph_run)) = line.items().next() else {
+            panic!("the line starts with a glyph run");
+        };
+        // draw_layout strokes (bold) and shears (italic) exactly these runs.
+        let synthesis = glyph_run.run().synthesis();
+        assert!(synthesis.embolden() && synthesis.skew().is_some());
+    }
+
+    #[test]
     fn renders_out_of_range_and_nan_alpha_without_panicking() {
         let mut r = Renderer::new();
         let has_font = liberation_sans().is_some_and(|f| r.add_font(f) > 0);

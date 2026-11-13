@@ -1,9 +1,10 @@
 // Text-layout deck for the WASM backend: features the Puppeteer renderer does not draw the same way
-// (explicit tab stops), so they stay out of the shared fixture's gated crops.
+// (explicit tab stops, faces synthesized for a missing style), so they stay out of the shared
+// fixture's gated crops.
 import type PptxGenJS from "pptxgenjs";
 import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 
-export const LAYOUT_PAGES = 1;
+export const LAYOUT_PAGES = 2;
 
 // Spread per call: PptxGenJS mutates the options object it is given.
 const title = { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 } as const;
@@ -28,5 +29,12 @@ export function populateLayoutDeck<T extends PptxGenJS | PuppeteerGen>(presentat
             { position: 7, alignment: "dec" },
         ],
     });
+
+    // The visual image has no DejaVu Sans Oblique (fonts-dejavu-core) and no Noto Sans CJK italic, so
+    // LibreOffice and WASM both shear the regular face.
+    const synthetic = presentation.addSlide();
+    synthetic.addText("Synthetic italic", { ...title });
+    synthetic.addText("Sheared DejaVu Sans: Italic Hamburgefonts", { ...body, fontFace: "DejaVu Sans", fontSize: 24, italic: true, x: 0.5, y: 0.9, w: 9, h: 0.8 });
+    synthetic.addText("斜体の日本語テキスト", { ...body, fontFace: "Noto Sans CJK JP", fontSize: 24, italic: true, x: 0.5, y: 2, w: 9, h: 0.8 });
     return presentation;
 }
