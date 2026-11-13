@@ -1,12 +1,13 @@
 // Browser-safe WASM text renderer ("@pdfdeck/wasm" under the browser/default conditions).
 // Must not load node:* modules, puppeteer or jsdom (enforced by tests/wasm.test.ts and scripts/build.ts).
-import type { ModelRenderer, NormalizedPresentation } from "@pdfdeck/model";
+import type { HtmlPresentationDocument, ModelRenderer, NormalizedPresentation, PresentationRenderer } from "@pdfdeck/model";
 import init, { Renderer } from "./pdf_wasm.js";
 
 /** The wasm-bindgen surface the loader relies on; tests/wasm.test.ts checks the generated class against it. */
 export interface TextPdfBinding {
     addFont(data: Uint8Array): number;
     render(modelJson: string): Uint8Array;
+    renderHtml(html: string): Uint8Array;
     warnings(): string[];
 }
 
@@ -33,8 +34,11 @@ export interface SystemFontOptions {
     match?: RegExp;
 }
 
-/** Text-only PDF backend: renders `getModel()` in WebAssembly instead of printing HTML in Chromium. */
-export class WasmRenderer implements ModelRenderer {
+/**
+ * PDF backend in WebAssembly instead of Chromium: renders `getModel()` (`renderModel`) or the
+ * pdfdeck HTML profile document `toHtml()` returns (`render`, docs/HTML_PROFILE.md). Both give the same bytes.
+ */
+export class WasmRenderer implements ModelRenderer, PresentationRenderer {
     readonly #binding: TextPdfBinding;
     readonly #onUnsupported: "error" | "warn";
 
@@ -44,7 +48,15 @@ export class WasmRenderer implements ModelRenderer {
     }
 
     async renderModel(model: NormalizedPresentation): Promise<Uint8Array> {
-        const pdf = this.#binding.render(JSON.stringify(model));
+        return this.#checked(this.#binding.render(JSON.stringify(model)));
+    }
+
+    /** Parses the profile HTML in WebAssembly; out-of-profile or malformed HTML throws, naming slide, object and property. Images must be data URIs. */
+    async render(document: HtmlPresentationDocument): Promise<Uint8Array> {
+        return this.#checked(this.#binding.renderHtml(document.html));
+    }
+
+    #checked(pdf: Uint8Array): Uint8Array {
         const skipped = this.#binding.warnings();
         if (skipped.length && this.#onUnsupported !== "warn") {
             throw new Error(`The WASM renderer cannot draw everything in this presentation (pass { onUnsupported: "warn" } to render anyway):\n- ${skipped.join("\n- ")}`);
