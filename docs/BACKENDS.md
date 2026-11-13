@@ -12,6 +12,9 @@ included, every image inlined as a data URI) and its page size. It never
 launches Chromium. `toPdf()` returns the PDF bytes from the configured renderer
 without touching the filesystem; `writeFile()` is `toPdf()` plus a file write.
 
+[HTML_PROFILE.md](./HTML_PROFILE.md) specifies that document: where each model field lives in it, and
+which values it loses today.
+
 ```typescript
 import PuppeteerGen from "@pdfdeck/pptxgenjs";
 
