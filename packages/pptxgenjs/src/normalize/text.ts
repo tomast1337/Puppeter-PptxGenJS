@@ -82,6 +82,10 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     const underline = typeof options.underline === "object" ? options.underline : undefined;
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const baseline = options.baseline ?? 0;
+    const fontSize = pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt);
+    // A custom baseline wins over super/subscript, as in PptxGenJS's run XML.
+    // shortcut: custom baselines keep their full size and the point-based offset; check them against LibreOffice's 58% when a fixture uses one.
+    const escapement = options.baseline ? undefined : options.subscript ? PPTX_DEFAULTS.text.subscriptBaseline : options.superscript ? PPTX_DEFAULTS.text.superscriptBaseline : undefined;
     const link = getHyperlinkData(options);
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
     const hasUnderline = Boolean(link) || Boolean(underline && underline.style !== "none");
@@ -89,7 +93,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     return {
         text,
         fontFace: options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
-        fontSize: pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt),
+        fontSize: escapement === undefined ? fontSize : fontSize * PPTX_DEFAULTS.text.escapementSizeRatio,
         color: normalizeColor({ color: options.color ?? defaultColor, transparency: options.transparency }),
         bold: options.bold ?? PPTX_DEFAULTS.text.bold,
         italic: options.italic ?? PPTX_DEFAULTS.text.italic,
@@ -101,7 +105,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
             doubleStrike: options.strike === "dblStrike",
         },
         verticalAlign: getVerticalAlign(options),
-        baselineOffset: pointsToPixels(baseline / 100),
+        baselineOffset: escapement === undefined ? pointsToPixels(baseline / 100) : escapement * fontSize,
         characterSpacing: pointsToPixels(options.charSpacing ?? 0),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
         outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(options.outline.size) } : undefined,
@@ -204,12 +208,14 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
     const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : multiple;
+    const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options)));
 
     return {
-        runs: pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options))),
+        runs,
         align: first.align ?? PPTX_DEFAULTS.text.align,
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineHeight,
+        lineBox: paragraphLineBox({ runs, lineHeight }),
         spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
         spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
         tabStops: (first.tabStops ?? []).map(stop => ({
@@ -311,7 +317,7 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * `height` is each line's height and `baseline` its baseline's distance below the line top, both set
  * by the paragraph's largest run. Chromium's own line box depends on each font's ascent and descent.
  */
-export function paragraphLineBox(paragraph: NormalizedTextParagraph): { height: number; baseline: number } {
+export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">): NormalizedTextParagraph["lineBox"] {
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).

@@ -121,6 +121,14 @@ export const PPTX_DEFAULTS = Object.freeze({
         // 1.5x spacing puts it at 1.6em with a 1.8em pitch, exact spacing H at H - 0.2em.
         singleLineEm: 1.2,
         lineDescentEm: 0.2,
+        // PptxGenJS 4.0.1 genXmlTextRunProperties writes superscript as baseline="30000" and subscript as
+        // baseline="-40000": the baseline moves by that fraction of the run's font size.
+        superscriptBaseline: 0.3,
+        subscriptBaseline: -0.4,
+        // LibreOffice's PPTX import draws a run with a baseline attribute at DFLT_ESC_PROP, 58% of its size
+        // (oox TextCharacterProperties). Measured on the visual runs slide: 13pt "super" 24 px wide vs
+        // 42 px unscaled, "sub" 15 vs 26 px.
+        escapementSizeRatio: 0.58,
     }),
     table: Object.freeze({
         x: 0.5,

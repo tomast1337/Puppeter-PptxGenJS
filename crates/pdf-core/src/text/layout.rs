@@ -1,13 +1,15 @@
 //! Text box layout: runs to parley layouts, shrink-to-fit, bullets.
 
+use std::ops::Range;
+
 use parley::{
-    Alignment, AlignmentOptions, BaseDirection, FontStyle, FontWeight, Layout, LineHeight, OverflowWrap, StyleProperty, TextWrapMode, VerticalAlign,
+    Alignment, AlignmentOptions, BaseDirection, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem, StyleProperty, TextWrapMode,
     WhiteSpaceCollapse,
 };
 
 use crate::Renderer;
 use crate::color::{Rgba, parse_color};
-use crate::model::TextBox;
+use crate::model::{LineBox, TextBox};
 use crate::text::font::family_stack;
 
 /// Per-run paint data that parley does not carry; the parley brush is the index.
@@ -31,6 +33,8 @@ pub(crate) struct ParaLayout {
     pub(crate) layout: Layout<Brush>,
     pub(crate) x: f32,
     pub(crate) y: f32,
+    /// This paragraph's line baselines in `BoxLayout::baselines`, below `y`.
+    pub(crate) baselines: Range<usize>,
     pub(crate) marker: Option<(String, Layout<Brush>, f32)>,
 }
 
@@ -38,14 +42,11 @@ pub(crate) struct ParaLayout {
 pub(crate) struct BoxLayout {
     pub(crate) paras: Vec<ParaLayout>,
     pub(crate) paints: Vec<RunPaint>,
+    /// Every paragraph's line baselines, one flat buffer so it keeps its capacity across boxes.
+    pub(crate) baselines: Vec<f32>,
     pub(crate) width: f32,
     pub(crate) height: f32,
 }
-
-/// CSS `line-height: 1.2`, as used by packages/pptxgenjs/src/render/text.ts for single spacing.
-/// Measured: font-metrics line height (ascent+descent+gap) scored slightly worse
-/// against LibreOffice on the text deck (page median 0.0580 vs 0.0556).
-const DEFAULT_LINE_HEIGHT: f32 = 1.2;
 
 impl Renderer {
     /// Lays the box out, applying the current renderer's shrink-to-fit rule:
@@ -79,6 +80,7 @@ impl Renderer {
     fn layout_text(&mut self, text: &TextBox, inner_w: f32, scale: f32, out: &mut BoxLayout) {
         out.paras.clear();
         out.paints.clear();
+        out.baselines.clear();
         let paints = &mut out.paints;
         let (mut y, mut width) = (0.0f32, 0.0f32);
         for paragraph in &text.paragraphs {
@@ -97,10 +99,11 @@ impl Renderer {
             let mut spans = std::mem::take(&mut self.span_ranges);
             spans.clear();
             for (i, run) in paragraph.runs.iter().enumerate() {
+                // The break belongs to the run's span: parley dropped the text after a newline outside every span.
+                let start = s.len();
                 if run.soft_break_before && i > 0 {
                     s.push('\n');
                 }
-                let start = s.len();
                 s.push_str(&run.text);
                 spans.push(start..s.len());
             }
@@ -111,14 +114,13 @@ impl Renderer {
                 spans.push(0..s.len());
             }
 
-            let line_height = match paragraph.line_height {
-                None => LineHeight::FontSizeRelative(DEFAULT_LINE_HEIGHT),
-                Some(v) if v < 10.0 => LineHeight::FontSizeRelative(v),
-                Some(v) => LineHeight::Absolute(v * scale),
+            // LibreOffice's font-independent line box, not parley's font metrics, places the lines (draw_layout).
+            let line_box = LineBox {
+                height: paragraph.line_box.height * scale,
+                baseline: paragraph.line_box.baseline * scale,
             };
             let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, &s, 1.0, false);
             builder.set_base_direction(if paragraph.rtl { BaseDirection::Rtl } else { BaseDirection::Ltr });
-            builder.push_default(StyleProperty::LineHeight(line_height));
             builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
             builder.push_default(StyleProperty::OverflowWrap(OverflowWrap::BreakWord));
             builder.push_default(StyleProperty::TextWrapMode(if text.wrap { TextWrapMode::Wrap } else { TextWrapMode::NoWrap }));
@@ -152,11 +154,6 @@ impl Renderer {
                 builder.push(StyleProperty::Brush(Brush(index)), r.clone());
                 if run.character_spacing != 0.0 {
                     builder.push(StyleProperty::LetterSpacing(run.character_spacing), r.clone());
-                }
-                match run.vertical_align.as_str() {
-                    "super" => builder.push(StyleProperty::VerticalAlign(VerticalAlign::SUPER), r.clone()),
-                    "sub" => builder.push(StyleProperty::VerticalAlign(VerticalAlign::SUB), r.clone()),
-                    _ => {}
                 }
             }
             // parley tries the run's own stack before the emoji family, so a text font that has
@@ -234,11 +231,49 @@ impl Renderer {
             // PowerPoint adds paragraph spacing (CSS would collapse adjacent margins).
             y += paragraph.space_before;
             width = width.max(x + layout.width());
-            let height = layout.height();
-            out.paras.push(ParaLayout { text: s, layout, x, y, marker });
+            let first = out.baselines.len();
+            let height = stack_lines(
+                &layout,
+                line_box,
+                paragraph.runs.iter().fold(0.0, |m, r| r.font_size.max(m)) * scale,
+                paints,
+                &mut out.baselines,
+            );
+            out.paras.push(ParaLayout {
+                text: s,
+                layout,
+                x,
+                y,
+                baselines: first..out.baselines.len(),
+                marker,
+            });
             y += height + paragraph.space_after;
         }
         out.width = width;
         out.height = y;
     }
+}
+
+/// Stacks the lines of `layout` on LibreOffice's font-independent line box and pushes each line's
+/// baseline (below the paragraph top) onto `baselines`; returns the paragraph height. `line_box` is
+/// sized for the paragraph's largest font, `max_size`. A run raised or lowered off the baseline
+/// (super/subscript) carries its own box, `line_box` scaled to its font size, and grows its line where
+/// that box sticks out, as LibreOffice's escapement does (a 13pt subscript under 20pt text adds ~5 px).
+fn stack_lines(layout: &Layout<Brush>, line_box: LineBox, max_size: f32, paints: &[RunPaint], baselines: &mut Vec<f32>) -> f32 {
+    let (ascent, descent) = (line_box.baseline, line_box.height - line_box.baseline);
+    let mut top = 0.0;
+    for line in layout.lines() {
+        let (mut above, mut below) = (ascent, descent);
+        for item in line.items() {
+            let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
+            let paint = paints.get(glyph_run.style().brush.0 as usize);
+            let raise = line.metrics().baseline - glyph_run.baseline() + paint.map_or(0.0, |p| p.baseline_offset);
+            let ratio = if max_size > 0.0 { glyph_run.run().font_size() / max_size } else { 1.0 };
+            above = above.max(ascent * ratio + raise);
+            below = below.max(descent * ratio - raise);
+        }
+        baselines.push(top + above);
+        top += above + below;
+    }
+    top
 }
