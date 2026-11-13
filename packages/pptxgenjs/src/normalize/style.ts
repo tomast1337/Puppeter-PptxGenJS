@@ -167,15 +167,16 @@ export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow
     if (!value || value.type === "none") {
         return { visible: false, color: "transparent", blur: 0, offsetX: 0, offsetY: 0, inset: false };
     }
-    const defaults = PPTX_DEFAULTS.shadow.shapeWhenEnabled;
-    const angle = ((value.angle ?? defaults.angle) * Math.PI) / 180;
-    const offset = pointsToPixels(value.offset ?? defaults.offsetPt);
-    const opacity = value.opacity ?? defaults.opacity;
-    const color = normalizeColor({ color: value.color ?? defaults.color, transparency: (1 - opacity) * 100 });
+    // `||`, not `??`: PptxGenJS replaces 0 with the default too (see the defaults).
+    const defaults = PPTX_DEFAULTS.shadow.objectWhenEnabled;
+    const angle = ((value.angle || defaults.angle) * Math.PI) / 180;
+    const offset = pointsToPixels(value.offset || defaults.offsetPt);
+    const opacity = value.opacity || defaults.opacity;
+    const color = normalizeColor({ color: value.color || defaults.color, transparency: (1 - opacity) * 100 });
     return {
         visible: true,
         color,
-        blur: pointsToPixels(value.blur ?? defaults.blurPt),
+        blur: pointsToPixels(value.blur || defaults.blurPt),
         offsetX: Math.cos(angle) * offset,
         offsetY: Math.sin(angle) * offset,
         inset: value.type === "inner",

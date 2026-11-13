@@ -73,14 +73,16 @@ export const PPTX_DEFAULTS = Object.freeze({
         angle: 0,
         offsetPt: 0,
         rotateWithShape: false,
-        shapeWhenEnabled: Object.freeze({
+        // slideObjectToXml writes the shadow of text boxes, shapes and images with `blur || 8`,
+        // `offset || 4`, `angle || 270`, `opacity || 0.75`: a falsy value (0 included) takes the
+        // default. It always writes rotWithShape="0". (DEF_SHAPE_SHADOW is used by charts only.)
+        objectWhenEnabled: Object.freeze({
             type: "outer" as const,
-            blurPt: 3,
-            offsetPt: 23000 / 12700,
-            angle: 90,
+            blurPt: 8,
+            offsetPt: 4,
+            angle: 270,
             color: "000000",
-            opacity: 0.35,
-            rotateWithShape: true,
+            opacity: 0.75,
         }),
         textColorWhenEnabled: "000000",
     }),
