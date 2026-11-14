@@ -1,7 +1,7 @@
 import type { NormalizedObjectStyle, NormalizedShape } from "@pdfdeck/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element } from "./markup";
-import { applyGeometry, applyTransform, lineDataAttributes, shadowInsetAttribute } from "./style";
+import { applyGeometry, applyTransform, lineArrowAttributes, shadowInsetAttribute } from "./style";
 
 type ColorModifier = "darken" | "darkenLess" | "lighten" | "lightenLess";
 
@@ -55,17 +55,9 @@ function strokeAttributes(style: NormalizedObjectStyle): { attributes: Attribute
         ["stroke", line?.visible ? line.color : "none"],
         ["stroke-width", String(line?.visible ? line.width : 0)],
         ["vector-effect", "non-scaling-stroke"],
+        // The model's pattern verbatim; the Puppeteer print step redraws one that starts with a gap.
+        ["stroke-dasharray", line?.dashArray || undefined],
     ];
-    if (line?.dashArray) {
-        const [first, gap = 0, ...rest] = line.dashArray.split(" ").map(Number);
-        const last = rest.at(-1);
-        // Chromium's PDF keeps a zero-length dash, which poppler paints as a hairline in every gap: draw a
-        // pattern that starts with a gap (startDashAt) as the same pattern shifted by stroke-dashoffset.
-        if (first === 0 && last !== undefined) {
-            const pattern = [...rest.slice(0, -1), last + gap];
-            attributes.push(["stroke-dasharray", pattern.join(" ")], ["stroke-dashoffset", String(pattern.reduce((sum, part) => sum + part, 0) - gap)]);
-        } else attributes.push(["stroke-dasharray", line.dashArray]);
-    }
     let markers = "";
     if (line?.visible) {
         if (line.beginHeadPath) {
@@ -115,32 +107,8 @@ function geometryElement(shape: NormalizedShape, fill: string, stroke: readonly 
     return element("path", [["d", geometry.data], ["transform", geometry.transform || undefined], ...painted]);
 }
 
-/**
- * Chromium paints an SVG root from a whole CSS px: in print it rounds the object's offset on its page
- * half up (-10.5 -> -10) and moves the drawing by the difference, in page space even under the object's
- * rotation or flip. Measured from the PDF matrices (issue #42), also on later A4 pages, whose 793.92px
- * height puts them at fractional document offsets. This returns the translate, in the SVG's own
- * pre-transform space, that puts the drawing back on the exact offset. slide.ts applies it under
- * `@media print` only, because on screen the snap step is 1 / devicePixelRatio.
- */
-export function printSnapOffset({ geometry, transform }: Pick<NormalizedObjectStyle, "geometry" | "transform">): string | undefined {
-    // 1e-4 px is far below Chromium's 1/64 px layout unit; it drops float noise from inch conversions.
-    const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4) / 1e4;
-    const dx = fraction(geometry.x);
-    const dy = fraction(geometry.y);
-    if (!dx && !dy) return undefined;
-    // Undo the object's `rotate() scaleX() scaleY()` (applyTransform) on the page-space offset.
-    const angle = (transform.rotation * Math.PI) / 180;
-    const local = (value: number) => Number(value.toFixed(4)) || 0;
-    const x = local((dx * Math.cos(angle) + dy * Math.sin(angle)) * (transform.flipH ? -1 : 1));
-    const y = local((dy * Math.cos(angle) - dx * Math.sin(angle)) * (transform.flipV ? -1 : 1));
-    return `translate(${x}px, ${y}px)`;
-}
-
 export function renderShapeSvg(shape: NormalizedShape, style: NormalizedObjectStyle): string {
     const css: InlineStyle = new Map([["overflow", "visible"]]);
-    const snapOffset = printSnapOffset(style);
-    if (snapOffset) css.set("--print-snap-offset", snapOffset);
     if (style.shadow?.visible) {
         css.set("filter", `drop-shadow(${style.shadow.offsetX}px ${style.shadow.offsetY}px ${style.shadow.blur}px ${style.shadow.color})`);
     }
@@ -160,7 +128,7 @@ export function renderShapeSvg(shape: NormalizedShape, style: NormalizedObjectSt
             // The viewBox clamps these; keep the model values when it does.
             ["data-shape-width", shape.width < 0.001 ? String(shape.width) : undefined],
             ["data-shape-height", shape.height ? undefined : String(shape.height)],
-            ...lineDataAttributes(style.line),
+            ...lineArrowAttributes(style.line),
             shadowInsetAttribute(style.shadow),
             styleAttribute(css),
         ],

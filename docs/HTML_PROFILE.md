@@ -160,7 +160,7 @@ with `data-underline-style`, and `data-empty` on an empty run (its text is U+200
 
 ```html
 <div class="slide-element slide-shape" style="…box without fill, line or shadow…" data-object-name="Shape 0" data-shape="rect">
-    <svg class="shape-svg" viewBox="0 0 W H" width="100%" height="100%" preserveAspectRatio="none" style="overflow: visible; --print-snap-offset: translate(…); filter: drop-shadow(…)">
+    <svg class="shape-svg" viewBox="0 0 W H" width="100%" height="100%" preserveAspectRatio="none" style="overflow: visible; filter: drop-shadow(…)" data-line-begin-arrow="oval" data-line-end-arrow="triangle">
         <defs>
             <marker id="line-head-…" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="…" fill="…" /></marker>
         </defs>
@@ -245,18 +245,18 @@ the shared stylesheet (driven by profile classes and attributes) or in the Puppe
 `setContent` and before shrink-to-fit and `page.pdf()`. Opening the HTML in a browser shows the
 stylesheet rules but not the print step. A parser of this profile never sees either.
 
-| Workaround     | Derived from                                                     | Where it lives                                                                                                                                                |
-| -------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Line-box strut | `line-height` on `.text-paragraph`                               | Stylesheet: `.text-paragraph { font-size: 0 }` and `.text-run, .text-bullet { line-height: 0 }`, so each line is exactly `line-height` tall, baseline centred |
-| Baseline shift | `line-height` and `data-line-baseline` on a horizontal paragraph | Print step: `position: relative; top: <baseline - line-height / 2>px`, read from the raw `style` attribute at full precision                                  |
+| Workaround     | Derived from                                                       | Where it lives                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Line-box strut | `line-height` on `.text-paragraph`                                 | Stylesheet: `.text-paragraph { font-size: 0 }` and `.text-run, .text-bullet { line-height: 0 }`, so each line is exactly `line-height` tall, baseline centred |
+| Baseline shift | `line-height` and `data-line-baseline` on a horizontal paragraph   | Print step: `position: relative; top: <baseline - line-height / 2>px`, read from the raw `style` attribute at full precision                                  |
+| Print snap     | `left`, `top` and `transform` of the object around `svg.shape-svg` | Print step: `transform: translate(…)` on the svg, undoing Chromium's whole-px snap of SVG roots in print (issue #42), in the object's pre-transform space     |
+| Dash rewrite   | `stroke-dasharray` that starts with a zero-length dash             | Print step: the same pattern shifted by `stroke-dashoffset`, since Chromium's PDF keeps the zero-length dash and poppler paints it as a hairline              |
 
 These are still inline and **move out in phase 6**; a parser accepts and ignores them:
 
-| Workaround   | Where in the HTML                                                                            | Code                                        |
-| ------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Print snap   | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }` | `render/shape.ts:97-128`, `render/slide.ts` |
-| Dash rewrite | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap               | `render/shape.ts:148-156`                   |
-| Table offset | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                | `render/table.ts:19-26`                     |
+| Workaround   | Where in the HTML                                                             | Code                    |
+| ------------ | ----------------------------------------------------------------------------- | ----------------------- |
+| Table offset | `table.slide-table` `position: relative; left/top: -<max border width / 2>px` | `render/table.ts:19-26` |
 
 Other Chromium-specific details that phase 2 or 6 revisits: the font fallback list in `font-family`
 (`render/text.ts:10-17`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
@@ -386,7 +386,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedLine.color`             | profile | SVG `stroke`; `border-color`; arrow marker `fill`.                                                                                                                          |
 | `NormalizedLine.width`             | profile | SVG `stroke-width` (px, `vector-effect="non-scaling-stroke"`); `border-width`.                                                                                              |
 | `NormalizedLine.style`             | profile | `border-style` on boxes; on SVG implied by `stroke-dasharray`.                                                                                                              |
-| `NormalizedLine.dashArray`         | profile | `data-line-dash-array` on the element that carries the line (`svg.shape-svg` or the box), verbatim; the drawn `stroke-dasharray` may be [rewritten](#renderer-workarounds). |
+| `NormalizedLine.dashArray`         | profile | SVG `stroke-dasharray` on the element that draws the outline, verbatim (the print step [rewrites](#renderer-workarounds) a gap-first one); `data-line-dash-array` on a box. |
 | `NormalizedLine.beginArrow`        | profile | `data-line-begin-arrow` on the element that carries the line.                                                                                                               |
 | `NormalizedLine.endArrow`          | profile | `data-line-end-arrow` on the element that carries the line.                                                                                                                 |
 | `NormalizedLine.beginHeadPath`     | profile | `marker-start="url(#line-head-…)"`; the marker's `path d`.                                                                                                                  |

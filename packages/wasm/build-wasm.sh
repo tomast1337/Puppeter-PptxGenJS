@@ -26,7 +26,8 @@ root=$PWD
 # +30,024 B: the HTML profile reader (#69: strict tokenizer, profile-to-model mapping, renderHtml binding), 984,534 -> 1,014,558 B measured; budget = that size.
 # -56,463 B: the JSON model reader and serde/serde_json removed (#69 phase 5: renderHtml is the only input), 1,014,558 -> 958,095 B measured; budget = that size.
 # -40 B: the line-box strut leaves the text allow-lists (#69 phase 6), 958,095 -> 958,055 B measured; budget = that size.
-GZIP_BUDGET=958055
+# -95 B: the print snap and dash rewrite leave the shape allow-lists; the dash pattern is read from stroke-dasharray (#69 phase 6), 958,055 -> 957,960 B measured; budget = that size.
+GZIP_BUDGET=957960
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

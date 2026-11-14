@@ -3,7 +3,6 @@ import { renderedPage } from "./renderedPage";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
 import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
 import { arrowHeadPath, normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
-import { printSnapOffset } from "../packages/pptxgenjs/src/render/shape";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
@@ -339,12 +338,10 @@ describe("SVG shape rendering", () => {
         expect(repeated?.dataset.objectName).toBe(String(objectName));
         const repeatedEnd = repeated?.querySelector(".shape-geometry")?.getAttribute("marker-end")?.slice(5, -1) ?? "";
         expect(renderedPage(presentation).getElementById(repeatedEnd)?.querySelector("path")?.getAttribute("d")).toBe(String(arrowHeadPath("diamond", (2 * 96) / 72)));
-        // The model's gap-first pattern "0 3.9 12 9 ..." is drawn without its zero-length dash: the offset
-        // leaves the first 3.9px blank.
+        // The model's gap-first pattern "0 3.9 12 9 ..." is written verbatim; the Puppeteer print step redraws it.
         const dashed = shapes[3]?.querySelector(".shape-geometry");
-        const parts = dashed?.getAttribute("stroke-dasharray")?.split(" ").map(Number) ?? [];
-        expect(parts.slice(0, 2)).toEqual([12, expect.closeTo(9, 9)]);
-        expect(Number(dashed?.getAttribute("stroke-dashoffset"))).toBeCloseTo(parts.reduce((sum, part) => sum + part, 0) - 3.9, 9);
+        expect(dashed?.getAttribute("stroke-dasharray")).toBe(presentation.getModel().slides[0]?.objects[3]?.style.line?.dashArray ?? "");
+        expect(dashed?.hasAttribute("stroke-dashoffset")).toBe(false);
     });
 
     test("writes the line, shadow and size values the drawing only shows resolved as data attributes", () => {
@@ -357,7 +354,9 @@ describe("SVG shape rendering", () => {
         const page = renderedPage(presentation);
         const [line, rect] = Array.from(page.querySelectorAll<SVGSVGElement>("svg.shape-svg"));
         const normalized = presentation.getModel().slides[0]?.objects[0]?.style.line;
-        expect(line?.getAttribute("data-line-dash-array")).toBe(normalized?.dashArray ?? "");
+        // SVG states the dash pattern itself, so the svg has no data-line-dash-array.
+        expect(line?.querySelector(".shape-geometry")?.getAttribute("stroke-dasharray")).toBe(normalized?.dashArray ?? "");
+        expect(line?.hasAttribute("data-line-dash-array")).toBe(false);
         expect(line?.getAttribute("data-line-begin-arrow")).toBe("oval");
         expect(line?.getAttribute("data-line-end-arrow")).toBe("triangle");
         expect(line?.getAttribute("data-shape-height")).toBe("0");
@@ -368,26 +367,13 @@ describe("SVG shape rendering", () => {
         expect(page.querySelector(".slide-text")?.getAttribute("data-line-dash-array")).toBe(presentation.getModel().slides[0]?.objects[2]?.style.line?.dashArray ?? "");
     });
 
-    test("undoes Chromium's whole-px SVG root snap in print, in the object's pre-transform space (issue #42)", () => {
+    test("leaves the print snap to the Puppeteer print step and lays the SVG out as a block", () => {
         const presentation = new PuppeteerGen(PAGE);
-        const slide = presentation.addSlide();
-        slide.addShape("rect", { x: 1, y: 1, w: 1, h: 1 });
-        // 6.55in, 1.6in -> 628.8px, 153.6px: Chromium draws the SVG from 629, 154.
-        slide.addShape("line", { x: 6.55, y: 1.6, w: 2.6, h: 0, line: { color: "4472C4", width: 2.25 } });
-        slide.addText("Shape text", { x: 6.55, y: 1.6, w: 2, h: 1, shape: "rect" });
-        const offsets = Array.from(renderedPage(presentation).querySelectorAll<SVGSVGElement>(".shape-svg"), svg => svg.style.getPropertyValue("--print-snap-offset"));
-        expect(offsets[0]).toBe("");
-        expect(offsets[1]).toBe("translate(-0.2px, -0.4px)");
-        expect(offsets[2]).toBe("translate(-0.2px, -0.4px)");
-        expect(renderedPage(presentation).querySelector("style")?.textContent).toContain("transform: var(--print-snap-offset, none);");
+        presentation.addSlide().addShape("line", { x: 6.55, y: 1.6, w: 2.6, h: 0, line: { color: "4472C4", width: 2.25 } });
+        const page = renderedPage(presentation);
+        expect(page.querySelector(".shape-svg")?.getAttribute("style")).toBe("overflow: visible;");
         // The document has a doctype (standards mode): an inline SVG would sit on the line box's baseline.
-        expect(renderedPage(presentation).querySelector("style")?.textContent).toMatch(/\.slide-shape > \.shape-svg \{\s*display: block;/);
-
-        // Chromium applies the page-space difference after the object's rotation and flips.
-        const offset = (rotation: number, flipH = false, flipV = false) => printSnapOffset({ geometry: { x: 628.8, y: 153.6 }, transform: { rotation, flipH, flipV, opacity: 1 } });
-        expect(offset(90)).toBe("translate(-0.4px, 0.2px)");
-        expect(offset(0, true)).toBe("translate(0.2px, -0.4px)");
-        expect(offset(180, true, true)).toBe("translate(-0.2px, -0.4px)");
+        expect(page.querySelector("style")?.textContent).toMatch(/\.slide-shape > \.shape-svg \{\s*display: block;/);
     });
 
     test("renders custom paths and shape hyperlinks", () => {

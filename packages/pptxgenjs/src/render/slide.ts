@@ -232,10 +232,6 @@ body {
         padding: 0;
     }
 
-    .shape-svg {
-        transform: var(--print-snap-offset, none);
-    }
-
     .slide-container {
         page-break-after: always;
         break-after: page;
