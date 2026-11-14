@@ -47,14 +47,6 @@ export function renderTable(table: NormalizedTable): string {
     css.set("table-layout", "fixed");
     css.set("border-collapse", "collapse");
     css.set("border-spacing", "0");
-    const outerStrokeOffset = Math.max(0, ...table.rows.flatMap(row => row.cells.flatMap(cell => cell.borders.map(border => border.width)))) / 2;
-    if (outerStrokeOffset) {
-        // DrawingML centers table borders on the grid. Chromium collapses the
-        // outer half into the table box, so offset the grid by half a stroke.
-        css.set("position", "relative");
-        css.set("left", `${-outerStrokeOffset}px`);
-        css.set("top", `${-outerStrokeOffset}px`);
-    }
 
     const columns = element("colgroup", [], table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", `${width}px`]]))])).join(""));
     const rows = table.rows.map(row => {

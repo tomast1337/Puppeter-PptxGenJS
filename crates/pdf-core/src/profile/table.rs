@@ -6,17 +6,7 @@ use super::style::{Style, integer};
 use super::text::{self, text_box};
 use crate::model::{FillModel, Table, TableBorder, TableCell, TableRow};
 
-// `position`, `left` and `top` are the half-stroke table offset workaround (docs/HTML_PROFILE.md).
-const TABLE_CSS: &[&str] = &[
-    "width",
-    "height",
-    "table-layout",
-    "border-collapse",
-    "border-spacing",
-    "position",
-    "left",
-    "top",
-];
+const TABLE_CSS: &[&str] = &["width", "height", "table-layout", "border-collapse", "border-spacing"];
 const SIDES: [&str; 4] = ["top", "right", "bottom", "left"];
 const CELL_ATTRS: &[&str] = &[
     "colspan",
@@ -176,7 +166,7 @@ mod tests {
 
     fn table(rows: &str) -> Result<TableObject, String> {
         let html = document(&format!(
-            r#"<div class="slide-element slide-table-container" data-object-name="Tb" style="left: 48px; top: 96px; width: 200px; transform-origin: center; border-style: none;"><table class="slide-table" style="width: 200px; table-layout: fixed; border-collapse: collapse; border-spacing: 0; position: relative; left: -1px; top: -1px;"><colgroup><col style="width: 100px"><col style="width: 100px"></colgroup>{rows}</table></div>"#
+            r#"<div class="slide-element slide-table-container" data-object-name="Tb" style="left: 48px; top: 96px; width: 200px; transform-origin: center; border-style: none;"><table class="slide-table" style="width: 200px; table-layout: fixed; border-collapse: collapse; border-spacing: 0;"><colgroup><col style="width: 100px"><col style="width: 100px"></colgroup>{rows}</table></div>"#
         ));
         match parse(&html)?.slides.pop().and_then(|mut s| s.objects.pop()) {
             Some(SlideObject::Table(object)) => Ok(object),

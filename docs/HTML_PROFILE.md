@@ -5,6 +5,10 @@ This document specifies the HTML that `toHtml()` emits as the mapping from each 
 describes today's output exactly, including the values it loses. It is phase 1 of #69; later phases
 change the output and this document together.
 
+Version 1 still changes while nothing reads it from outside: no package publishes it and there is no
+public HTML entry yet. It is frozen when phase 7 (`renderHtml(html)` on both backends) ships; after
+that, a change to the markup needs a new version number.
+
 ## Pipeline
 
 The target pipeline (#69) has two intermediate representations in a line:
@@ -86,8 +90,8 @@ From the maintainer's decisions on #69:
   (`render/document.ts:8`).
 - The shared stylesheet holds `@page { size: <width>in <height>in; margin: 0 }`, the slide size as
   `.slide-container { width; height }` in px, the defaults for each class (font, color, padding, table
-  insets, from `defaults.ts`) and the print rules. It is generated from the page size only, so it is
-  the same for every deck of one size.
+  insets, from `defaults.ts`), the line-box strut and the print rules. It is generated from the page size
+  only, so it is the same for every deck of one size.
 - `<meta name="pdfdeck-profile" content="1">` names the profile version this document follows
   (`HTML_PROFILE_VERSION`, `render/slide.ts`).
 - `<meta name="pdfdeck-page-size">` holds the page size's name (`PageSize.name`); the size itself is in
@@ -133,9 +137,9 @@ There is no media, notes or master element: the model has no such kinds.
 ```html
 <div class="slide-element slide-text" style="…box…; padding; align-items; white-space; overflow-wrap; direction; border-radius" data-object-name="Text 1" data-text-fit="none" data-text-direction="horizontal">
     <div class="text-content" style="width: 100%">
-        <div class="text-paragraph" style="text-align; direction; margin-top; margin-bottom; font-size: 0px; line-height; position: relative; top; tab-size" data-line-baseline="14.4" data-tab-stops="96:left,192:right" data-bullet-level="0" data-bullet-type="bullet" data-bullet-indent="27" data-bullet-start="1">
-            <span class="text-bullet" style="display: inline-block; width; font-family; font-size; color; line-height: 0">•&nbsp;</span>
-            <span class="text-run" lang="en-US" style="font-family; font-size; color; font-weight; font-style; text-decoration-*; line-height: 0; …">text</span>
+        <div class="text-paragraph" style="text-align; direction; margin-top; margin-bottom; line-height; tab-size" data-line-baseline="14.4" data-tab-stops="96:left,192:right" data-bullet-level="0" data-bullet-type="bullet" data-bullet-indent="27" data-bullet-start="1">
+            <span class="text-bullet" style="display: inline-block; width; font-family; font-size; color">•&nbsp;</span>
+            <span class="text-run" lang="en-US" style="font-family; font-size; color; font-weight; font-style; text-decoration-*; …">text</span>
             <br /><a class="text-run" href="…" title="…" data-slide="2" data-soft-break-before="" style="…">linked text</a>
             <span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" style="…">x</span>
         </div>
@@ -156,7 +160,7 @@ with `data-underline-style`, and `data-empty` on an empty run (its text is U+200
 
 ```html
 <div class="slide-element slide-shape" style="…box without fill, line or shadow…" data-object-name="Shape 0" data-shape="rect">
-    <svg class="shape-svg" viewBox="0 0 W H" width="100%" height="100%" preserveAspectRatio="none" style="overflow: visible; --print-snap-offset: translate(…); filter: drop-shadow(…)">
+    <svg class="shape-svg" viewBox="0 0 W H" width="100%" height="100%" preserveAspectRatio="none" style="overflow: visible; filter: drop-shadow(…)" data-line-begin-arrow="oval" data-line-end-arrow="triangle">
         <defs>
             <marker id="line-head-…" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="…" fill="…" /></marker>
         </defs>
@@ -192,7 +196,7 @@ with the full scaled size, and the frame clips.
 
 ```html
 <div class="slide-element slide-table-container" style="…box…" data-object-name="Table 0">
-    <table class="slide-table" style="width; height; table-layout: fixed; border-collapse: collapse; border-spacing: 0px; position: relative; left; top">
+    <table class="slide-table" style="width; height; table-layout: fixed; border-collapse: collapse; border-spacing: 0px">
         <colgroup>
             <col style="width: 408px" />
         </colgroup>
@@ -234,17 +238,20 @@ in the HTML. Component images are resolved to `data:` URIs like slide images.
 
 ## Renderer workarounds
 
-These are inline today but are not deck content; they exist so Chromium prints what LibreOffice draws.
-Each is a **renderer workaround, moves out in phase 6** (into the shared stylesheet or the Puppeteer
-pre-print step). A parser of this profile ignores them or derives them, never reads a model value from
-them.
+Chromium needs declarations that LibreOffice does not to print what LibreOffice draws. They are not deck
+content: each is derived from a value the profile states once, so it lives outside the markup, either in
+the shared stylesheet (driven by profile classes and attributes) or in the Puppeteer print step,
+`applyPrintWorkarounds` (`packages/puppeteer/src/printWorkarounds.ts`), which runs once in the page after
+`setContent` and before shrink-to-fit and `page.pdf()`. Opening the HTML in a browser shows the
+stylesheet rules but not the print step. A parser of this profile never sees either.
 
-| Workaround     | Where in the HTML                                                                                                | Code                                                |
-| -------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Line-box strut | `.text-paragraph` `font-size: 0px`, `line-height`, `position: relative`, `top`; runs and bullet `line-height: 0` | `render/text.ts:40,85-96`                           |
-| Print snap     | `--print-snap-offset` on `svg.shape-svg`, applied by `@media print .shape-svg { transform }`                     | `render/shape.ts:97-128`, `render/slide.ts:212-214` |
-| Dash rewrite   | `stroke-dasharray` + `stroke-dashoffset` when a dash pattern starts with a gap                                   | `render/shape.ts:148-156`                           |
-| Table offset   | `table.slide-table` `position: relative; left/top: -<max border width / 2>px`                                    | `render/table.ts:19-26`                             |
+| Workaround     | Derived from                                                       | Where it lives                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Line-box strut | `line-height` on `.text-paragraph`                                 | Stylesheet: `.text-paragraph { font-size: 0 }` and `.text-run, .text-bullet { line-height: 0 }`, so each line is exactly `line-height` tall, baseline centred                         |
+| Baseline shift | `line-height` and `data-line-baseline` on a horizontal paragraph   | Print step: `position: relative; top: <baseline - line-height / 2>px`, read from the raw `style` attribute at full precision                                                          |
+| Print snap     | `left`, `top` and `transform` of the object around `svg.shape-svg` | Print step: `transform: translate(…)` on the svg, undoing Chromium's whole-px snap of SVG roots in print (issue #42), in the object's pre-transform space                             |
+| Dash rewrite   | `stroke-dasharray` that starts with a zero-length dash             | Print step: the same pattern shifted by `stroke-dashoffset`, since Chromium's PDF keeps the zero-length dash and poppler paints it as a hairline                                      |
+| Table offset   | the widest `border-*` width over the table's cells                 | Print step: `position: relative; left/top: -<width / 2>px` on `table.slide-table`, since DrawingML centres borders on the grid and Chromium collapses the outer half inside the table |
 
 Other Chromium-specific details that phase 2 or 6 revisits: the font fallback list in `font-family`
 (`render/text.ts:10-17`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
@@ -266,8 +273,8 @@ backend.
 &nbsp;` and numeric ones. HTML a browser would repair (a stray end tag, `<td>` outside `<tr>`, text
   between objects) is an error. Nesting depth does not recurse, so deep input cannot overflow the stack.
 - **Only the profile.** Each element accepts the attributes and inline CSS properties this document lists
-  for it (including the [renderer workarounds](#renderer-workarounds), which are accepted and ignored) and
-  reads each value from its one place. Any other attribute, property, element, enumerated value or a
+  for it and reads each value from its one place. The [renderer workarounds](#renderer-workarounds) are
+  not in the profile, so they are errors too. Any other attribute, property, element, enumerated value or a
   repeated property is an error. Numbers are JSON numbers with their unit (`px`, `deg`, `in`); `NaN`,
   infinities and values outside `f32` are errors.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
@@ -374,7 +381,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedLine.color`             | profile | SVG `stroke`; `border-color`; arrow marker `fill`.                                                                                                                          |
 | `NormalizedLine.width`             | profile | SVG `stroke-width` (px, `vector-effect="non-scaling-stroke"`); `border-width`.                                                                                              |
 | `NormalizedLine.style`             | profile | `border-style` on boxes; on SVG implied by `stroke-dasharray`.                                                                                                              |
-| `NormalizedLine.dashArray`         | profile | `data-line-dash-array` on the element that carries the line (`svg.shape-svg` or the box), verbatim; the drawn `stroke-dasharray` may be [rewritten](#renderer-workarounds). |
+| `NormalizedLine.dashArray`         | profile | SVG `stroke-dasharray` on the element that draws the outline, verbatim (the print step [rewrites](#renderer-workarounds) a gap-first one); `data-line-dash-array` on a box. |
 | `NormalizedLine.beginArrow`        | profile | `data-line-begin-arrow` on the element that carries the line.                                                                                                               |
 | `NormalizedLine.endArrow`          | profile | `data-line-end-arrow` on the element that carries the line.                                                                                                                 |
 | `NormalizedLine.beginHeadPath`     | profile | `marker-start="url(#line-head-…)"`; the marker's `path d`.                                                                                                                  |
@@ -404,7 +411,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextParagraph.align`                | profile      | `text-align`.                                                                                                              |
 | `NormalizedTextParagraph.rtl`                  | profile      | `direction: rtl\|ltr` on the paragraph.                                                                                    |
 | `NormalizedTextParagraph.lineHeight`           | not drawable | Input of `lineBox` (`normalize/text.ts:314-318`); the line box is what is drawn.                                           |
-| `NormalizedTextParagraph.lineBox`              | profile      | `line-height` and `data-line-baseline` on the paragraph; the strut that draws it is a [workaround](#renderer-workarounds). |
+| `NormalizedTextParagraph.lineBox`              | profile      | `line-height` and `data-line-baseline` on the paragraph; the strut and the shift are [workarounds](#renderer-workarounds). |
 | `NormalizedTextParagraph.lineBox.height`       | profile      | `line-height: <height>px` on the paragraph.                                                                                |
 | `NormalizedTextParagraph.lineBox.baseline`     | profile      | `data-line-baseline` on the paragraph (px from the line top), verbatim.                                                    |
 | `NormalizedTextParagraph.spaceBefore`          | profile      | `margin-top`.                                                                                                              |
