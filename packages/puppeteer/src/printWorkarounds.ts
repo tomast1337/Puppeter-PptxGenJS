@@ -11,11 +11,12 @@ export function applyPrintWorkarounds(root: ParentNode = document): void {
     const LEFT = /(?:^|; )left: ([^;]+)px;/;
     const TOP = /(?:^|; )top: ([^;]+)px;/;
     const ROTATE = /rotate\(([^)]+)deg\)/;
+    const BORDER_WIDTH = /(?:^|; )border-(?:top|right|bottom|left): ([^ ;]+)px /g;
     const number = (element: Element, value: string | undefined, what: string): number => {
         const parsed = Number(value);
         if (value !== undefined && Number.isFinite(parsed)) return parsed;
         const object = element.closest("[data-object-name]")?.getAttribute("data-object-name") ?? "unnamed object";
-        throw new Error(`Cannot print '${object}': its .${element.classList[0]} has no ${what} (pdfdeck HTML profile)`);
+        throw new Error(`Cannot print '${object}': its ${element.classList[0] ? `.${element.classList[0]}` : `<${element.localName}>`} has no ${what} (pdfdeck HTML profile)`);
     };
     // 1e-4 px is far below Chromium's 1/64 px layout unit; it drops float noise from inch conversions.
     const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4) / 1e4;
@@ -61,5 +62,18 @@ export function applyPrintWorkarounds(root: ParentNode = document): void {
             stroked.setAttribute("stroke-dasharray", pattern.join(" "));
             stroked.setAttribute("stroke-dashoffset", String(pattern.reduce((sum, part) => sum + part, 0) - gap));
         });
+    });
+
+    // Table offset: DrawingML centres table borders on the grid; Chromium collapses the outer half into the
+    // table box, so offset the grid by half the widest stroke. A hidden border is written 0px wide.
+    root.querySelectorAll<HTMLTableElement>("table.slide-table").forEach(table => {
+        let widest = 0;
+        table.querySelectorAll("td").forEach(cell => {
+            for (const [, width] of (cell.getAttribute("style") ?? "").matchAll(BORDER_WIDTH)) widest = Math.max(widest, number(cell, width, "numeric border width"));
+        });
+        if (!widest) return;
+        table.style.position = "relative";
+        table.style.left = `${-widest / 2}px`;
+        table.style.top = `${-widest / 2}px`;
     });
 }

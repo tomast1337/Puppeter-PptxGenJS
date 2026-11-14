@@ -52,6 +52,18 @@ describe("Puppeteer print workarounds", () => {
         expect(plain?.hasAttribute("stroke-dashoffset")).toBe(false);
     });
 
+    test("offsets a table by half its widest border, which DrawingML centres on the grid", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        const cell = (pt: number) => ({ text: "x", options: { border: { type: "solid" as const, pt, color: "000000" } } });
+        slide.addTable([[cell(1), cell(3)]], { x: 1, y: 1, w: 4 });
+        slide.addTable([[{ text: "x", options: { border: { type: "none" as const } } }]], { x: 1, y: 3, w: 4 });
+        const [bordered, borderless] = printedPage(presentation).querySelectorAll<HTMLElement>("table.slide-table");
+        // 3pt = 4px: the grid moves up and left by 2px.
+        expect([bordered?.style.position, bordered?.style.left, bordered?.style.top]).toEqual(["relative", "-2px", "-2px"]);
+        expect([borderless?.style.position, borderless?.style.left]).toEqual(["", ""]);
+    });
+
     test("names the object when a paragraph has no line box", () => {
         const presentation = new PuppeteerGen();
         presentation.addSlide().addText("Text", { x: 1, y: 1, w: 4, h: 1, objectName: "Title" });
