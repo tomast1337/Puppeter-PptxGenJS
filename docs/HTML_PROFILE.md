@@ -295,10 +295,22 @@ backend.
   step's.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
   always inlines images).
-- **Charts and components are opaque.** `.slide-chart` and `.slide-component` subtrees are only checked for
-  well-formed markup and reported through `warnings()` as `object kind 'chart'` / `'component'` not
-  rendered. `addChartExtension()` objects are `.slide-chart` too, so they are
-  reported as `'chart'` rather than `'chartExtension'`.
+- **Chart SVG is a strict subset.** A `.slide-chart` (from `addChart()` or `addChartExtension()`) is drawn
+  from its one `<svg>`, read once as the subset ECharts, the 3D bar renderer and caller SVGs produce: `g`
+  (`opacity`, `clip-path`, inherited paint and font), `defs` with `clipPath` (`path`, `rect`) and
+  `linearGradient` (bounding-box `x1 y1 x2 y2`, `stop` with `offset`/`stop-color`), `path` (all SVG path
+  commands), `rect` (no `rx`), `polygon`, `polyline`, `line`, `ellipse`, and single-line `text` (`x`, `y`,
+  `text-anchor`, `dominant-baseline` `auto`/`central`, `xml:space`, `paint-order: stroke` halos, one font
+  family, `font-size` in px, `font-weight` normal/bold, `font-style` normal/italic, as attributes or in
+  `style`). Paints are `none`, `#rgb`, `#rrggbb`, `rgb()`/`rgba()` or `url(#id)` (fill only), with
+  `fill-opacity`, `stroke-opacity`, `stroke-width`, `stroke-linecap`, `stroke-linejoin`,
+  `stroke-miterlimit` and `stroke-dasharray`; transforms are one `translate()` or `matrix()`; the
+  `viewBox` maps `xMidYMid meet` into the box. zrender's `pointer-events`, `ecmeta_*` and the 3D
+  renderer's `data-series`/`data-category` are accepted and have no effect. Any other element, attribute
+  or value is an error naming it, never skipped: `<circle>`, `<tspan>`, `<image>`, `<style>`, filters,
+  patterns, radial gradients, `rotate()`/`scale()` and named colors among them.
+- **Components are opaque.** `.slide-component` subtrees are only checked for well-formed markup and
+  reported through `warnings()` as `object kind 'component' not rendered`.
 - **Errors name the place.** Every error is prefixed `invalid pdfdeck HTML:` and names the slide, the object
   (its `data-object-name`, else `#<index>` on the slide) and the attribute or property; malformed markup
   names its byte offset. For example:
@@ -599,7 +611,7 @@ object-valued field covers the field's presence; its own fields have their own r
 ### Charts
 
 The chart's options drive ECharts or the 3D bar renderer; the HTML keeps only the SVG they produce
-(`render/chart.ts:398-402`). Phase 8 decides how charts reach WASM (SVG subtrees, #69).
+(`render/chart.ts:398-402`). WASM draws that SVG ([Parsing (WASM)](#parsing-wasm)), not the options.
 
 | Field                                      | Status  | HTML                                                         |
 | ------------------------------------------ | ------- | ------------------------------------------------------------ |

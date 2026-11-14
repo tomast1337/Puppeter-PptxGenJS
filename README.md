@@ -121,7 +121,7 @@ tables.
 | Shapes                | All 179 presets and custom geometry; 36 of 39 options done               | All presets and custom geometry, hyperlinks, outer shadows                                    |
 | Images                | Partial: 28 of 29 options done                                           | PNG and JPEG in every sizing mode, hyperlinks, shadows; no GIF, WebP or SVG                   |
 | Tables and pagination | Partial: 44 of 47 options done, including `autoPage` and `tableToSlides` | Drawn: merges, fills, borders, rows sized to cell text; single-line underlines                |
-| Charts                | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported    | Not drawn                                                                                     |
+| Charts                | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported    | Drawn from the chart SVG: every type Puppeteer draws, `addChartExtension()`, text as text     |
 | Components            | Implemented ([HTML and React](./docs/COMPONENTS.md))                     | Not drawn                                                                                     |
 | Media, slide masters  | Throw `UnsupportedFeatureError`                                          | Same                                                                                          |
 

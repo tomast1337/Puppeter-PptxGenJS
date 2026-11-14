@@ -4,9 +4,11 @@
 //! Every value comes from the one place the profile puts it, verbatim; nothing is defaulted here
 //! beyond what the profile itself says ("omitted at 0", "omitted at 1"). An element, attribute,
 //! CSS property or value outside the profile is an error naming the slide, the object and the
-//! property, and malformed markup is an error, never a guess. Charts and components are opaque
-//! subtrees: they become `SlideObject::Unsupported`, reported through `warnings()`.
+//! property, and malformed markup is an error, never a guess. A chart's SVG is read as the subset
+//! its renderers write (`chart.rs`). Components are opaque subtrees: they become
+//! `SlideObject::Unsupported`, reported through `warnings()`.
 
+pub(crate) mod chart;
 mod dom;
 mod image;
 mod object;
@@ -218,7 +220,7 @@ pub(crate) mod tests {
     #[test]
     fn names_slide_object_and_property_in_errors() {
         let html = document(
-            r#"<div class="slide-element slide-chart" data-object-name="Chart 1"></div><div class="slide-element slide-wobble" data-object-name="Odd"></div>"#,
+            r#"<div class="slide-element slide-component" data-object-name="Component 1"></div><div class="slide-element slide-wobble" data-object-name="Odd"></div>"#,
         );
         let error = parse(&html).err().unwrap_or_default();
         assert_eq!(

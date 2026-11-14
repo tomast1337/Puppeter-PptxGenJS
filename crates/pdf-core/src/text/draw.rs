@@ -16,7 +16,7 @@ use crate::effect::Effect;
 use crate::link::page_quad;
 use crate::model::TextBox;
 use crate::path::rect_path;
-use crate::text::layout::{BoxLayout, Brush, RunPaint};
+use crate::text::layout::{BoxLayout, Brush, RunPaint, TextStroke};
 use crate::text::outline::glyph_outlines;
 
 /// LibreOffice's synthetic styles for a face that lacks them, read from its PDF export of a
@@ -36,6 +36,13 @@ fn stroke_of(Rgba(r, g, b, a): Rgba, width: f32) -> Stroke {
         width,
         opacity: unit(a),
         ..Stroke::default()
+    }
+}
+
+fn outline_stroke(outline: TextStroke) -> Stroke {
+    Stroke {
+        miter_limit: outline.miter_limit,
+        ..stroke_of(outline.color, outline.width)
     }
 }
 
@@ -114,7 +121,15 @@ impl Renderer {
 
     /// Draws `layout` at `(ox, oy)` with line `i`'s baseline `baselines[i]` below `oy` (from
     /// `stack_lines`, where LibreOffice puts it), instead of where parley's font metrics would.
-    fn draw_layout(&mut self, surface: &mut Surface, layout: &Layout<Brush>, text: &str, paints: &[RunPaint], (ox, oy): (f32, f32), baselines: &[f32]) {
+    pub(crate) fn draw_layout(
+        &mut self,
+        surface: &mut Surface,
+        layout: &Layout<Brush>,
+        text: &str,
+        paints: &[RunPaint],
+        (ox, oy): (f32, f32),
+        baselines: &[f32],
+    ) {
         let mut ranges = std::mem::take(&mut self.glyph_ranges);
         let mut positioned = std::mem::take(&mut self.positioned);
         let mut glyphs = std::mem::take(&mut self.glyphs);
@@ -187,6 +202,11 @@ impl Renderer {
                 if skewed {
                     surface.push_transform(&oblique(baseline));
                 }
+                if let Some(outline) = paint.outline.filter(|o| o.under) {
+                    surface.set_fill(None);
+                    surface.set_stroke(Some(outline_stroke(outline)));
+                    surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
+                }
                 surface.set_stroke(synthesis.embolden().then(|| stroke_of(paint.color, size * SYNTHETIC_BOLD_STROKE_EM)));
                 surface.set_fill(Some(fill_of(paint.color)));
                 surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
@@ -196,9 +216,9 @@ impl Renderer {
                     let outline = glyph_outlines(run.font(), size, at);
                     self.effects.capture(surface.ctm(), &outline, paint.color.3, paint.glow.as_ref());
                 }
-                if let Some((color, width)) = paint.outline {
+                if let Some(outline) = paint.outline.filter(|o| !o.under) {
                     surface.set_fill(None);
-                    surface.set_stroke(Some(stroke_of(color, width)));
+                    surface.set_stroke(Some(outline_stroke(outline)));
                     surface.draw_glyphs(origin, &glyphs, font, text, size, false);
                 }
                 surface.set_stroke(None);

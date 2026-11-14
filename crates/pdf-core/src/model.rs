@@ -1,6 +1,8 @@
 //! The subset of the normalized model (packages/model/src/types.ts) this renderer reads, filled
 //! from the pdfdeck HTML profile by `crate::profile`.
 
+use crate::chart::ChartSvg;
+
 pub(crate) struct Presentation {
     pub(crate) page_size: PageSize,
     pub(crate) slides: Vec<Slide>,
@@ -22,8 +24,15 @@ pub(crate) enum SlideObject {
     Shape(ShapeObject),
     Image(ImageObject),
     Table(TableObject),
-    /// A chart or component subtree: reported through `warnings()` instead of failing the document.
+    /// A `.slide-chart`: its drawing, the chart SVG (the chart options are not in the HTML).
+    Chart(ChartObject),
+    /// A component subtree: reported through `warnings()` instead of failing the document.
     Unsupported(String),
+}
+
+pub(crate) struct ChartObject {
+    pub(crate) style: ObjectStyle,
+    pub(crate) svg: ChartSvg,
 }
 
 pub(crate) struct TextObject {

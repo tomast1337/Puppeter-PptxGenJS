@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
+import { z } from "zod";
 import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
@@ -103,9 +104,9 @@ describe("WasmRenderer failure behavior", () => {
     });
 
     test('onUnsupported: "warn" returns the PDF and surfaces warnings()', async () => {
-        const renderer = new WasmRenderer(new FakeBinding(["object kind 'chart' not rendered"]), "warn");
+        const renderer = new WasmRenderer(new FakeBinding(["object kind 'component' not rendered"]), "warn");
         expect(ascii(await renderer.render(EMPTY))).toBe("%PDF-fake");
-        expect(renderer.warnings()).toEqual(["object kind 'chart' not rendered"]);
+        expect(renderer.warnings()).toEqual(["object kind 'component' not rendered"]);
     });
 
     test("render() passes the HTML to the binding", async () => {
@@ -177,11 +178,40 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
     test("throws on unsupported objects by default and lists them", async () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
+        pres.registerComponent("test/badge", 1, { schema: z.object({}), render: () => "<b>Badge</b>" });
+        const slide = pres.addSlide();
+        slide.addText("Text", { x: 1, y: 1, w: 3, h: 1 }).addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
+        slide.addComponent({ type: "test/badge", version: 1, props: {} }, { x: 1, y: 2, w: 2, h: 1 });
+        await expect(pres.toPdf()).rejects.toThrow(/inner shadow not rendered[\s\S]*object kind 'component' not rendered/);
+    });
+
+    test("draws every chart type and chart extensions as SVG, with nothing skipped", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pres = new PuppeteerGen(PAGE, { renderer });
+        const series = [
+            { name: "North", labels: ["Q1", "Q2", "Q3"], values: [3, 5, 4] },
+            { name: "South", labels: ["Q1", "Q2", "Q3"], values: [5, 2, 6] },
+        ];
+        const xy = [
+            { name: "X", values: [1, 2, 3] },
+            { name: "Y", values: [3, 5, 4], sizes: [1, 4, 2] },
+        ];
+        const box = { x: 1, y: 1, w: 5, h: 3.5, showLegend: true, showTitle: true, title: "Sales <&>" };
+        for (const type of ["bar", "line", "area", "radar", "bar3D"] as const) pres.addSlide().addChart(type, series, box);
+        for (const type of ["pie", "doughnut"] as const) pres.addSlide().addChart(type, series.slice(0, 1), box);
+        for (const type of ["scatter", "bubble"] as const) pres.addSlide().addChart(type, xy, box);
+        pres.addSlide().addChart("bar3D", series, { ...box, bar3DShape: "cylinder", chartColorsOpacity: 50 });
         pres.addSlide()
-            .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
-            .addChart("bar", [{ name: "Series", labels: ["A"], values: [1] }], { x: 1, y: 2, w: 2, h: 1 })
-            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
-        await expect(pres.toPdf()).rejects.toThrow(/inner shadow not rendered[\s\S]*object kind 'chart' not rendered/);
+            .addChartEx({ renderer: "echarts", option: { series: [{ type: "pie", data: [1, 2, 3] }] } }, { x: 1, y: 1, w: 3, h: 3 })
+            .addChartEx({ renderer: "svg", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="5" fill="#C00000"/></svg>' }, { x: 5, y: 1, w: 3, h: 3 });
+        const source = ascii(await pres.toPdf());
+        expect(renderer.warnings()).toEqual([]);
+        expect(source.match(/\/Type\s*\/Page\b(?!s)/g)).toHaveLength(11);
+
+        // A caller's SVG outside the subset the reader knows is an error naming the place, not a blank box.
+        const odd = new PuppeteerGen(PAGE, { renderer });
+        odd.addSlide().addChartEx({ renderer: "svg", svg: '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>' }, { x: 1, y: 1, w: 3, h: 3 });
+        await expect(odd.toPdf()).rejects.toThrow("slide 1: object 'Chart 0': <circle> is not in the chart SVG subset");
     });
 
     test("makes linked runs, shapes and images clickable", async () => {

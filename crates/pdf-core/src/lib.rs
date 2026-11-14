@@ -1,11 +1,12 @@
 //! Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md) straight to PDF: text,
-//! shape, image and table objects.
+//! shape, image, table and chart objects.
 //!
 //! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen): HTML +
 //! font bytes in, PDF bytes out. `profile` parses the document into the `model` structs (the subset of
 //! the normalized model this renderer reads). Units are CSS px at 96 dpi (`PX_PER_IN`); the PDF page is
 //! drawn in px under a `PT_PER_PX` (0.75) scale.
 
+mod chart;
 mod color;
 mod effect;
 mod image;
@@ -183,6 +184,7 @@ impl Renderer {
             SlideObject::Shape(o) => (&o.style, None, None),
             SlideObject::Image(o) => (&o.style, None, None),
             SlideObject::Table(o) => (&o.style, None, Some(&o.table)),
+            SlideObject::Chart(o) => (&o.style, None, None),
             SlideObject::Unsupported(kind) => {
                 self.warn(format!("object kind '{kind}' not rendered"));
                 return Ok(());
@@ -245,11 +247,12 @@ impl Renderer {
         w: f32,
         h: f32,
     ) -> Result<(), String> {
-        let (style, shape, text, image, table) = match object {
-            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref(), None, None),
-            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None, None),
-            SlideObject::Image(o) => (&o.style, None, None, Some(&o.image), None),
-            SlideObject::Table(o) => (&o.style, None, None, None, Some(&o.table)),
+        let (style, shape, text, image, table, chart) = match object {
+            SlideObject::Text(o) => (&o.style, o.shape.as_ref(), o.text.as_ref(), None, None, None),
+            SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None, None, None),
+            SlideObject::Image(o) => (&o.style, None, None, Some(&o.image), None, None),
+            SlideObject::Table(o) => (&o.style, None, None, None, Some(&o.table), None),
+            SlideObject::Chart(o) => (&o.style, None, None, None, None, Some(&o.svg)),
             SlideObject::Unsupported(_) => return Ok(()),
         };
         let t = &style.transform;
@@ -265,6 +268,9 @@ impl Renderer {
             Some(image) => self.draw_image(surface, image, name, x, y, w, h),
             None => self.draw_geometry(surface, shape, style, x, y, w, h),
         };
+        if let Some(chart) = chart {
+            self.draw_chart(surface, chart, x, y, w, h);
+        }
         // The whole object box is clickable, as the Puppeteer renderer's <a> wrapper is. A straight
         // line's box is flat: it gets the stroke's thickness (Chromium's is the SVG's 1px-high box).
         let link = shape.and_then(|s| s.link.as_ref()).or(image.and_then(|i| i.link.as_ref()));
@@ -309,10 +315,10 @@ mod tests {
     #[test]
     fn renders_without_fonts_and_reports_skips() {
         let mut r = Renderer::new();
-        let html = profile::tests::document(r#"<div class="slide-element slide-chart" data-object-name="Chart 1"></div>"#);
+        let html = profile::tests::document(r#"<div class="slide-element slide-component" data-object-name="Component 1"></div>"#);
         let pdf = r.render_html(&html).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
-        assert_eq!(r.warnings(), vec!["object kind 'chart' not rendered".to_string()]);
+        assert_eq!(r.warnings(), vec!["object kind 'component' not rendered".to_string()]);
     }
 
     #[test]
@@ -333,6 +339,22 @@ mod tests {
         assert!(r.render_html(&broken).is_err());
         let error = r.render_html("<html></html>").unwrap_err();
         assert!(error.starts_with("invalid pdfdeck HTML: "), "{error}");
+    }
+
+    #[test]
+    fn draws_chart_svg_without_warnings() {
+        use profile::chart::tests::{BAR3D, ECHARTS, chart};
+        let mut r = Renderer::new();
+        if let Some(font) = liberation_sans() {
+            r.add_font(font);
+        }
+        let blank = r.render_html(&profile::tests::document(&chart(""))).unwrap();
+        let html = profile::tests::document(&format!("{}{}", chart(ECHARTS), chart(BAR3D)));
+        let pdf = r.render_html(&html).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        // Paths, a gradient, a soft mask for the group opacity and the text are all written.
+        assert!(pdf.len() > blank.len() + 1000, "{} vs {}", pdf.len(), blank.len());
+        assert_eq!(r.render_html(&html).unwrap(), pdf, "the same chart gives the same bytes");
     }
 
     /// A centred 17px cell over `colspan` x `rowspan` slots, with a dashed top border.
