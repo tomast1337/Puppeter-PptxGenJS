@@ -196,7 +196,7 @@ with the full scaled size, and the frame clips.
 
 ```html
 <div class="slide-element slide-table-container" style="…box…" data-object-name="Table 0">
-    <table class="slide-table" style="width; height; table-layout: fixed; border-collapse: collapse; border-spacing: 0px; position: relative; left; top">
+    <table class="slide-table" style="width; height; table-layout: fixed; border-collapse: collapse; border-spacing: 0px">
         <colgroup>
             <col style="width: 408px" />
         </colgroup>
@@ -245,18 +245,13 @@ the shared stylesheet (driven by profile classes and attributes) or in the Puppe
 `setContent` and before shrink-to-fit and `page.pdf()`. Opening the HTML in a browser shows the
 stylesheet rules but not the print step. A parser of this profile never sees either.
 
-| Workaround     | Derived from                                                       | Where it lives                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Line-box strut | `line-height` on `.text-paragraph`                                 | Stylesheet: `.text-paragraph { font-size: 0 }` and `.text-run, .text-bullet { line-height: 0 }`, so each line is exactly `line-height` tall, baseline centred |
-| Baseline shift | `line-height` and `data-line-baseline` on a horizontal paragraph   | Print step: `position: relative; top: <baseline - line-height / 2>px`, read from the raw `style` attribute at full precision                                  |
-| Print snap     | `left`, `top` and `transform` of the object around `svg.shape-svg` | Print step: `transform: translate(…)` on the svg, undoing Chromium's whole-px snap of SVG roots in print (issue #42), in the object's pre-transform space     |
-| Dash rewrite   | `stroke-dasharray` that starts with a zero-length dash             | Print step: the same pattern shifted by `stroke-dashoffset`, since Chromium's PDF keeps the zero-length dash and poppler paints it as a hairline              |
-
-These are still inline and **move out in phase 6**; a parser accepts and ignores them:
-
-| Workaround   | Where in the HTML                                                             | Code                    |
-| ------------ | ----------------------------------------------------------------------------- | ----------------------- |
-| Table offset | `table.slide-table` `position: relative; left/top: -<max border width / 2>px` | `render/table.ts:19-26` |
+| Workaround     | Derived from                                                       | Where it lives                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Line-box strut | `line-height` on `.text-paragraph`                                 | Stylesheet: `.text-paragraph { font-size: 0 }` and `.text-run, .text-bullet { line-height: 0 }`, so each line is exactly `line-height` tall, baseline centred                         |
+| Baseline shift | `line-height` and `data-line-baseline` on a horizontal paragraph   | Print step: `position: relative; top: <baseline - line-height / 2>px`, read from the raw `style` attribute at full precision                                                          |
+| Print snap     | `left`, `top` and `transform` of the object around `svg.shape-svg` | Print step: `transform: translate(…)` on the svg, undoing Chromium's whole-px snap of SVG roots in print (issue #42), in the object's pre-transform space                             |
+| Dash rewrite   | `stroke-dasharray` that starts with a zero-length dash             | Print step: the same pattern shifted by `stroke-dashoffset`, since Chromium's PDF keeps the zero-length dash and poppler paints it as a hairline                                      |
+| Table offset   | the widest `border-*` width over the table's cells                 | Print step: `position: relative; left/top: -<width / 2>px` on `table.slide-table`, since DrawingML centres borders on the grid and Chromium collapses the outer half inside the table |
 
 Other Chromium-specific details that phase 2 or 6 revisits: the font fallback list in `font-family`
 (`render/text.ts:10-17`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
@@ -278,8 +273,8 @@ backend.
 &nbsp;` and numeric ones. HTML a browser would repair (a stray end tag, `<td>` outside `<tr>`, text
   between objects) is an error. Nesting depth does not recurse, so deep input cannot overflow the stack.
 - **Only the profile.** Each element accepts the attributes and inline CSS properties this document lists
-  for it (including the [renderer workarounds](#renderer-workarounds) still inline, which are accepted and ignored) and
-  reads each value from its one place. Any other attribute, property, element, enumerated value or a
+  for it and reads each value from its one place. The [renderer workarounds](#renderer-workarounds) are
+  not in the profile, so they are errors too. Any other attribute, property, element, enumerated value or a
   repeated property is an error. Numbers are JSON numbers with their unit (`px`, `deg`, `in`); `NaN`,
   infinities and values outside `f32` are errors.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
