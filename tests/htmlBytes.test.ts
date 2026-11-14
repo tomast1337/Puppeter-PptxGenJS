@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { completeProfileHtml } from "../packages/pptxgenjs/src/render/completion";
 import { buildCrossRuntimeDeck } from "./crossRuntimeDeck";
 import { populateParityFixture } from "./visual/fixture";
 
@@ -25,21 +26,23 @@ const EXPECTED_SHA256: Record<string, string> = {
 };
 
 describe("toHtml() bytes", () => {
-    test("match the recorded hashes for the fixture, the cross-runtime deck and every WASM deck", async () => {
-        const actual: Record<string, string> = {};
+    test("match the recorded hashes for the fixture, the cross-runtime deck and every WASM deck, and need no completion", async () => {
+        const html: Record<string, string> = {};
         const fixture = new PuppeteerGen();
         populateParityFixture(fixture);
-        actual.fixture = sha256((await fixture.toHtml()).html);
-        actual["cross-runtime"] = sha256((await buildCrossRuntimeDeck(PuppeteerGen, PNG).toHtml()).html);
+        html.fixture = (await fixture.toHtml()).html;
+        html["cross-runtime"] = (await buildCrossRuntimeDeck(PuppeteerGen, PNG).toHtml()).html;
         // Imported here: tests/visual/wasm/deck.ts installs a global jsdom `document` when loaded, which
         // tests/html.test.ts must not see; it is removed again below.
         const hadDocument = "document" in globalThis;
         try {
             const { DECKS } = await import("./visual/wasm/decks");
-            for (const [name, deck] of Object.entries(DECKS)) actual[`wasm-${name}`] = sha256((await deck.populate(new PuppeteerGen()).toHtml()).html);
+            for (const [name, deck] of Object.entries(DECKS)) html[`wasm-${name}`] = (await deck.populate(new PuppeteerGen()).toHtml()).html;
         } finally {
             if (!hadDocument) Reflect.deleteProperty(globalThis, "document");
         }
-        expect(actual).toEqual(EXPECTED_SHA256);
+        expect(Object.fromEntries(Object.entries(html).map(([name, document]) => [name, sha256(document)]))).toEqual(EXPECTED_SHA256);
+        // toHtml() states every value, so the completion step returns it byte for byte.
+        for (const [name, document] of Object.entries(html)) expect({ name, same: completeProfileHtml(document) === document }).toEqual({ name, same: true });
     }, 60_000);
 });

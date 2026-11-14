@@ -9,6 +9,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
 import { alignToCSS, valignToCSS } from "./alignment";
 import { colorToCSS } from "./color";
 import { generatePageCSS } from "./pageCss";
+import { completeProfileHtml } from "./render/completion";
 import { modelToHtml } from "./render/document";
 import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "./units";
 
@@ -17,6 +18,8 @@ export {
     CHART_TYPE_COMPATIBILITY,
     COMPATIBILITY,
     colorToCSS,
+    // Fills the values a hand-written or edited profile document may omit, from PPTX_DEFAULTS (#69).
+    completeProfileHtml,
     convertToPixels,
     DEFAULT_PAGE_SIZE,
     generatePageCSS,

@@ -315,6 +315,10 @@ export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs"
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
-    const height = lineHeight === undefined ? PPTX_DEFAULTS.text.singleLineEm * fontSize : lineHeight < 10 ? lineHeight * fontSize : lineHeight;
+    return lineBoxOf(fontSize, lineHeight === undefined ? undefined : lineHeight < 10 ? lineHeight * fontSize : lineHeight);
+}
+
+/** The line box for a paragraph whose largest run is `fontSize` px: `height` px tall, or a single line. */
+export function lineBoxOf(fontSize: number, height = PPTX_DEFAULTS.text.singleLineEm * fontSize): NormalizedTextParagraph["lineBox"] {
     return { height, baseline: height - PPTX_DEFAULTS.text.lineDescentEm * fontSize };
 }
