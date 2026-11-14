@@ -245,18 +245,19 @@ the shared stylesheet (driven by profile classes and attributes) or in the Puppe
 `setContent` and before shrink-to-fit and `page.pdf()`. Opening the HTML in a browser shows the
 stylesheet rules but not the print step. A parser of this profile never sees either.
 
-| Workaround     | Derived from                                                       | Where it lives                                                                                                                                                                        |
-| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Line-box strut | `line-height` on `.text-paragraph`                                 | Stylesheet: `.text-paragraph { font-size: 0 }` and `.text-run, .text-bullet { line-height: 0 }`, so each line is exactly `line-height` tall, baseline centred                         |
-| Baseline shift | `line-height` and `data-line-baseline` on a horizontal paragraph   | Print step: `position: relative; top: <baseline - line-height / 2>px`, read from the raw `style` attribute at full precision                                                          |
-| Print snap     | `left`, `top` and `transform` of the object around `svg.shape-svg` | Print step: `transform: translate(…)` on the svg, undoing Chromium's whole-px snap of SVG roots in print (issue #42), in the object's pre-transform space                             |
-| Dash rewrite   | `stroke-dasharray` that starts with a zero-length dash             | Print step: the same pattern shifted by `stroke-dashoffset`, since Chromium's PDF keeps the zero-length dash and poppler paints it as a hairline                                      |
-| Table offset   | the widest `border-*` width over the table's cells                 | Print step: `position: relative; left/top: -<width / 2>px` on `table.slide-table`, since DrawingML centres borders on the grid and Chromium collapses the outer half inside the table |
+| Workaround     | Derived from                                                       | Where it lives                                                                                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Line-box strut | `line-height` on `.text-paragraph`                                 | Stylesheet: `.text-paragraph { font-size: 0 }` and `.text-run, .text-bullet { line-height: 0 }`, so each line is exactly `line-height` tall, baseline centred                                                                                      |
+| Baseline shift | `line-height` and `data-line-baseline` on a horizontal paragraph   | Print step: `position: relative; top: <baseline - line-height / 2>px`, read from the raw `style` attribute at full precision                                                                                                                       |
+| Print snap     | `left`, `top` and `transform` of the object around `svg.shape-svg` | Print step: `transform: translate(…)` on the svg, undoing Chromium's whole-px snap of SVG roots in print (issue #42), in the object's pre-transform space                                                                                          |
+| Dash rewrite   | `stroke-dasharray` that starts with a zero-length dash             | Print step: the same pattern shifted by `stroke-dashoffset`, since Chromium's PDF keeps the zero-length dash and poppler paints it as a hairline                                                                                                   |
+| Font fallback  | the face in `font-family` on `.text-run` and `.text-bullet`        | Print step: appends `"Noto Sans", Arial, "Liberation Sans", sans-serif` to a Calibri face, `Arial, "Liberation Sans", sans-serif` to any other, since Chromium does not apply LibreOffice's Microsoft-font substitutions; before fonts are awaited |
+| Table offset   | the widest `border-*` width over the table's cells                 | Print step: `position: relative; left/top: -<width / 2>px` on `table.slide-table`, since DrawingML centres borders on the grid and Chromium collapses the outer half inside the table                                                              |
 
-Other Chromium-specific details that phase 2 or 6 revisits: the font fallback list in `font-family`
-(`render/text.ts:10-17`), `z-index: 0` stacking contexts (stylesheet), the clamped `viewBox` and
-`height="1"` for zero-height lines (`render/shape.ts:117-119`), U+200B for empty runs
-(`render/text.ts:70`).
+Other Chromium-specific details that stay in the markup or stylesheet: `z-index: 0` stacking contexts
+(stylesheet), the clamped `viewBox` and `height="1"` for zero-height lines (`render/shape.ts`), U+200B for
+empty runs (`render/text.ts`). Each also states a profile value or is plain CSS layout, so none is a
+second spelling.
 
 ## Parsing (WASM)
 
@@ -428,7 +429,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextBullet.start`                   | profile      | `data-bullet-start`; the marker text is already numbered from it.                                                          |
 | `NormalizedTextBullet.numberType`              | profile      | `data-bullet-number-type`, the PptxGenJS name (`arabicPeriod`, `romanLcParenR`, …), omitted when unset.                    |
 | `NormalizedTextRun.text`                       | profile      | Run text content. An empty run holds U+200B and has `data-empty`.                                                          |
-| `NormalizedTextRun.fontFace`                   | profile      | First family of `font-family`, a CSS string (unescape `\\` and `\"`); the fallback list after it is renderer-only.         |
+| `NormalizedTextRun.fontFace`                   | profile      | `font-family`: only the face, a CSS string (unescape `\\` and `\"`); fallbacks are a [workaround](#renderer-workarounds).  |
 | `NormalizedTextRun.fontSize`                   | profile      | `font-size: <n>px` (already the sub/superscript size).                                                                     |
 | `NormalizedTextRun.color`                      | profile      | `color`.                                                                                                                   |
 | `NormalizedTextRun.bold`                       | profile      | `font-weight: bold\|normal`.                                                                                               |
