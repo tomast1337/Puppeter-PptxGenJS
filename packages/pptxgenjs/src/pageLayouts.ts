@@ -60,3 +60,6 @@ export type Orientation = "landscape" | "portrait";
 
 // Default layout (16:9 landscape)
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES.SCREEN_16X9.landscape;
+
+/** The name of a page size given only by its dimensions (`defineLayout()` without a name, an `@page` rule). */
+export const CUSTOM_PAGE_SIZE_NAME = "Custom";

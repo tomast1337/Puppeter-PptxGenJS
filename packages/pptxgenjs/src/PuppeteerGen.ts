@@ -15,7 +15,7 @@ import { normalizeTable } from "./normalize/table";
 import { paginateTableRows } from "./normalize/table/pagination";
 import { normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
-import { DEFAULT_PAGE_SIZE } from "./pageLayouts";
+import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
@@ -361,7 +361,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
             this.pageSize = {
                 width: layout.width,
                 height: layout.height,
-                name: layout.name || "Custom",
+                name: layout.name || CUSTOM_PAGE_SIZE_NAME,
             };
         }
     }

@@ -6,11 +6,12 @@
  * Pure and browser-safe: parse5 finds what is missing, and each missing value is spliced into the original
  * string, so a document that already states everything (every `toHtml()` result) comes back byte-identical.
  */
+import type { HtmlPresentationDocument, PageSize } from "@pdfdeck/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 import { PPTX_DEFAULTS } from "../defaults";
 import { normalizeColor } from "../normalize/style";
 import { lineBoxOf } from "../normalize/text";
-import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "../pageLayouts";
+import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PAGE_SIZES } from "../pageLayouts";
 import { inchesToPixels, pointsToPixels } from "../units";
 import { attributeName, getAttribute } from "./fragment";
 import { escapeAttribute } from "./markup";
@@ -94,6 +95,7 @@ const DEFAULTS = {
 const OPAQUE_CLASSES = ["slide-chart", "slide-component"] as const;
 const PROFILE_META = `<meta name="pdfdeck-profile" content="${HTML_PROFILE_VERSION}">`;
 const PX_LENGTH = /^-?\d+(\.\d+)?(e[+-]?\d+)?px$/i;
+const PAGE_RULE = /@page\s*\{[^}]*?\bsize:\s*([^\s;}]+)in\s+([^\s;}]+)in\s*[;}]/;
 
 interface Edit {
     start: number;
@@ -242,11 +244,26 @@ function pageSizeNamed(name: string) {
         .find(size => size.name === name);
 }
 
-/** The shared stylesheet, when no `<style>` states the page size: from `pdfdeck-page-size`, else PptxGenJS's LAYOUT_16x9. */
-function stylesheetEdit(head: Element): Edit | undefined {
-    const styled = head.childNodes.some(node => isElement(node) && node.tagName === "style" && node.childNodes.some(text => "value" in text && text.value.includes("@page")));
-    if (styled) return undefined;
+/** The page size of the `@page` rule in `css`, in inches (the profile's spelling). */
+function pageRuleSize(css: string, name: string): PageSize {
+    const match = PAGE_RULE.exec(css);
+    const width = Number(match?.[1]);
+    const height = Number(match?.[2]);
+    if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
+        throw new Error("invalid pdfdeck HTML: the stylesheet's @page rule has no 'size: <width>in <height>in'; write the page size in inches");
+    }
+    return { width, height, name };
+}
+
+/**
+ * The page size, and the shared stylesheet when no `<style>` states it: for the size `pdfdeck-page-size`
+ * names, else PptxGenJS's LAYOUT_16x9.
+ */
+function pageSizeAndStylesheet(head: Element): { pageSize: PageSize; edit?: Edit } {
     const name = metaContent(head, "pdfdeck-page-size");
+    const styles = head.childNodes.filter(isElement).filter(node => node.tagName === "style");
+    const css = styles.flatMap(style => style.childNodes.flatMap(text => ("value" in text ? [text.value] : []))).find(text => text.includes("@page"));
+    if (css !== undefined) return { pageSize: pageRuleSize(css, name ?? CUSTOM_PAGE_SIZE_NAME) };
     const pageSize = name === undefined ? DEFAULT_PAGE_SIZE : pageSizeNamed(name);
     if (!pageSize) {
         const known = Object.values(PAGE_SIZES).flatMap(layout => [layout.landscape.name, layout.portrait.name]);
@@ -254,15 +271,17 @@ function stylesheetEdit(head: Element): Edit | undefined {
     }
     const end = head.sourceCodeLocation?.endTag?.startOffset;
     if (end === undefined) throw new Error("invalid pdfdeck HTML: the document must write out <head>…</head> to receive the stylesheet");
-    return { start: end, end, text: `<style id="puppeteer-gen-styles">${presentationCSS(pageSize)}</style>` };
+    return { pageSize, edit: { start: end, end, text: `<style id="puppeteer-gen-styles">${presentationCSS(pageSize)}</style>` } };
 }
 
 /**
- * Fills the values a profile v1 document may omit (docs/HTML_PROFILE.md, "Completion"). Throws when `html` is
- * not a profile document: empty, without `<meta name="pdfdeck-profile" content="1">`, or of another version.
- * A complete document, such as any `toHtml()` result, is returned unchanged, byte for byte.
+ * Builds the renderer input from a stored, edited or hand-written profile v1 document: completes it
+ * (`completeProfileHtml`) and reads the page size from it. Pass the result to any renderer's `render()`.
+ * Throws when `html` is not a profile document: empty, without `<meta name="pdfdeck-profile" content="1">`,
+ * or of another version. For HTML outside the profile, call `render({ html, pageSize })` on the Puppeteer
+ * renderer directly.
  */
-export function completeProfileHtml(html: string): string {
+export function htmlDocument(html: string): HtmlPresentationDocument {
     if (typeof html !== "string" || !html.trim()) throw new Error(`invalid pdfdeck HTML: expected a non-empty HTML string, got ${typeof html === "string" ? "an empty string" : typeof html}`);
     const document = parse(html, { sourceCodeLocationInfo: true });
     const head = findElement(document, element => element.tagName === "head");
@@ -272,9 +291,8 @@ export function completeProfileHtml(html: string): string {
     }
     if (version !== String(HTML_PROFILE_VERSION)) throw new Error(`invalid pdfdeck HTML: pdfdeck profile version '${version}' is not supported (this library reads version ${HTML_PROFILE_VERSION})`);
 
-    const edits: Edit[] = [];
-    const stylesheet = stylesheetEdit(head);
-    if (stylesheet) edits.push(stylesheet);
+    const { pageSize, edit: stylesheet } = pageSizeAndStylesheet(head);
+    const edits: Edit[] = stylesheet ? [stylesheet] : [];
     const body = findElement(document, element => element.tagName === "body");
     body?.childNodes.filter(isElement).forEach((slide, index) => {
         const edit = completeElement(slide, false, index + 1);
@@ -285,5 +303,14 @@ export function completeProfileHtml(html: string): string {
     let completed = html;
     for (const edit of edits.toSorted((a, b) => b.start - a.start)) completed = `${completed.slice(0, edit.start)}${edit.text}${completed.slice(edit.end)}`;
     // Standards mode: quirks mode drops the line-box strut (render/document.ts).
-    return document.childNodes.some(node => node.nodeName === "#documentType") ? completed : `<!DOCTYPE html>${completed}`;
+    const hasDoctype = document.childNodes.some(node => node.nodeName === "#documentType");
+    return { html: hasDoctype ? completed : `<!DOCTYPE html>${completed}`, pageSize };
+}
+
+/**
+ * Fills the values a profile v1 document may omit (docs/HTML_PROFILE.md, "Completion"); throws as
+ * `htmlDocument` does. A complete document, such as any `toHtml()` result, is returned unchanged, byte for byte.
+ */
+export function completeProfileHtml(html: string): string {
+    return htmlDocument(html).html;
 }

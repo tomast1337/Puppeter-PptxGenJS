@@ -168,6 +168,25 @@ Without a renderer, the `/html` entry still produces the HTML document (`toHtml(
 printing, and any object implementing `PresentationRenderer` can turn that HTML into a PDF. Details,
 constructor options, fonts and bundling: [docs/BACKENDS.md](./docs/BACKENDS.md).
 
+## Rendering your own HTML
+
+`toHtml()` is the exact document both backends draw ([docs/HTML_PROFILE.md](./docs/HTML_PROFILE.md)),
+so you can store it, edit it or write one by hand, and render it later. `htmlDocument(html)` checks the
+document, fills the values PptxGenJS would default (text insets, line box, font, colors) and reads its
+page size. Its result goes to either renderer. Puppeteer also prints any other HTML through
+`render({ html, pageSize })`. WASM reads only the profile and names the slide, the object and the property
+it rejects.
+
+```typescript
+import { htmlDocument, PuppeteerPdfRenderer } from "@pdfdeck/pptxgenjs";
+
+const edited = (await pres.toHtml()).html.replace(">Draft</span>", ">Final</span>");
+const pdf = await new PuppeteerPdfRenderer().render(htmlDocument(edited)); // or a WasmRenderer
+```
+
+Details and a hand-written example: [docs/BACKENDS.md](./docs/BACKENDS.md#rendering-stored-edited-or-hand-written-html)
+and `examples/html-input.ts`.
+
 ## Fidelity
 
 Compatible does not mean pixel-identical: PowerPoint, LibreOffice and Chromium lay out and rasterize
@@ -207,7 +226,8 @@ pdfdeck reproduces.
   project structure
 
 Runnable examples live in [`examples/`](./examples): `bun run examples/test.ts`,
-`bun run examples/comprehensive-example.ts` and `bun run examples/react-component.ts`.
+`bun run examples/comprehensive-example.ts`, `bun run examples/react-component.ts` and
+`bun run examples/html-input.ts`.
 
 ## Contributing
 

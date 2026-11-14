@@ -31,6 +31,11 @@ both backends read only the HTML.
   component that reads `context.document` gets a document, from the caller's `createDocument`.
   `pres.page` is only the input document of `tableToSlides(tableId)`; slides are not written into it,
   so editing it changes neither the HTML nor the PDF.
+- **HTML is also an input.** A stored, edited or hand-written document enters at the HTML stage:
+  `htmlDocument(html)` (`render/completion.ts`, exported from `@pdfdeck/pptxgenjs` and `/html`) checks
+  the version, fills the [defaulted values](#completion) and reads the page size, and its result goes to
+  either renderer. Puppeteer also prints HTML outside the profile through `render({ html, pageSize })`;
+  WASM reads only the profile.
 - **Every renderer reads the HTML.** `toPdf()` hands `toHtml()` to the renderer, whichever it is.
   `WasmRenderer.render(document)` parses this profile in Rust (`crates/pdf-core/src/profile/`,
   [Parsing (WASM)](#parsing-wasm)). The renderers have no model input: the model reaches them only
@@ -246,7 +251,9 @@ content: each is derived from a value the profile states once, so it lives outsi
 the shared stylesheet (driven by profile classes and attributes) or in the Puppeteer print step,
 `applyPrintWorkarounds` (`packages/puppeteer/src/printWorkarounds.ts`), which runs once in the page after
 `setContent` and before shrink-to-fit and `page.pdf()`. Opening the HTML in a browser shows the
-stylesheet rules but not the print step. A parser of this profile never sees either.
+stylesheet rules but not the print step; `printPreviewHtml(html)` (`@pdfdeck/puppeteer`, re-exported by
+`@pdfdeck/pptxgenjs`) adds the print step as an inline script for that, which takes the document out of the
+profile. A parser of this profile never sees either.
 
 | Workaround     | Derived from                                                       | Where it lives                                                                                                                                                                                                                                     |
 | -------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

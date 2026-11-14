@@ -9,7 +9,7 @@ import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
-import { completeProfileHtml } from "../packages/pptxgenjs/src/render/completion";
+import { completeProfileHtml, htmlDocument } from "../packages/pptxgenjs/src/render/completion";
 import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
@@ -327,6 +327,17 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
         }
         // Without completion the reader names the first value the profile requires.
         await expect(renderer.render({ html: handWrittenDocument(HAND_WRITTEN_OBJECTS.text), pageSize: PAGE })).rejects.toThrow("invalid pdfdeck HTML: the stylesheet has no '@page");
+    });
+
+    test("an edited toHtml() document renders through htmlDocument() and draws the edit", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pres = new PuppeteerGen(PAGE);
+        pres.addSlide().addText("Draft", { x: 1, y: 1, w: 3, h: 1 });
+        const { html } = await pres.toHtml();
+        const draft = await renderer.render(htmlDocument(html));
+        const final = await renderer.render(htmlDocument(html.replace(">Draft</span>", ">Final</span>")));
+        expect(ascii(final.subarray(0, 5))).toBe("%PDF-");
+        expect(ascii(final)).not.toBe(ascii(draft));
     });
 
     test("an out-of-profile hand-written document fails naming the slide, the object and the property", async () => {

@@ -37,6 +37,43 @@ const { html, pageSize } = await pres.toHtml(); // no browser launched
 const pdf = await pres.toPdf(); // Uint8Array from the Puppeteer renderer
 ```
 
+## Rendering stored, edited or hand-written HTML
+
+Every renderer reads only `{ html, pageSize }`, so HTML that did not come from `toHtml()` in this process
+renders too: a stored document, an edited one, or one written by hand.
+
+| Input                                                                 | Puppeteer | WASM                                   |
+| --------------------------------------------------------------------- | --------- | -------------------------------------- |
+| `toHtml()` output, stored or edited, through `htmlDocument()`         | Yes       | Yes                                    |
+| Hand-written [profile v1](./HTML_PROFILE.md) through `htmlDocument()` | Yes       | Yes                                    |
+| Any other HTML, through `render({ html, pageSize })`                  | Yes       | No: an error names the first violation |
+
+`htmlDocument(html)` (from `@pdfdeck/pptxgenjs` or the browser-safe `/html` entry) checks that `html` is
+a profile v1 document (`<meta name="pdfdeck-profile" content="1">`) and fills the values PptxGenJS
+defaults (insets, line box, font, colors, the stylesheet; the list is in
+[HTML_PROFILE.md](./HTML_PROFILE.md#completion)). It also reads the page size from the document. A
+`toHtml()` result passes through byte for byte. `completeProfileHtml(html)` is the same completion step,
+returning only the string.
+
+```typescript
+import { htmlDocument, PuppeteerPdfRenderer, printPreviewHtml } from "@pdfdeck/pptxgenjs";
+import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
+
+const document = htmlDocument(storedHtml.replace(">Draft</span>", ">Final</span>"));
+const viaChromium = await new PuppeteerPdfRenderer().render(document);
+const viaWasm = await (await createWasmRenderer({ fonts: await loadSystemFonts() })).render(document);
+
+// Puppeteer prints any HTML: the escape hatch for fully custom HTML and CSS.
+const custom = await new PuppeteerPdfRenderer().render({ html: myHtml, pageSize: { width: 10, height: 5.625, name: "Custom" } });
+
+// The document as Puppeteer prints it, to open in a browser (adds a <script>, so not for WASM).
+const preview = printPreviewHtml(document.html);
+```
+
+WASM errors name the place, as in `invalid pdfdeck HTML: slide 1: object 'Title': paragraph 1: run 1: CSS
+property 'font-variant' on <span> is not in profile v1`. `examples/html-input.ts` renders an edited and
+a hand-written document on both backends.
+
 ## `write()` and `stream()`
 
 Both follow PptxGenJS 4.0.1 semantics, but return PDF bytes instead of a PPTX
