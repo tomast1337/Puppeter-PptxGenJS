@@ -15,9 +15,9 @@ use crate::color::{Rgba, parse_color, unit};
 use crate::model::{FillModifier, LineModel, ObjectStyle, ShapeGeometry, ShapeModel};
 use crate::path::{rect_path, to_path};
 
-/// SVG's `stroke-miterlimit` initial value, which the Puppeteer renderer's shape strokes use
-/// (krilla defaults to 10).
-const SVG_MITER_LIMIT: f32 = 4.0;
+/// SVG's `stroke-miterlimit` initial value, which the Puppeteer renderer's shape and chart strokes
+/// use (krilla defaults to 10).
+pub(crate) const SVG_MITER_LIMIT: f32 = 4.0;
 /// kurbo's tolerance when it turns an ellipse into Béziers (px).
 const CURVE_TOLERANCE: f64 = 0.01;
 

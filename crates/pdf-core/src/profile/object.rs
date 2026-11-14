@@ -2,7 +2,7 @@
 
 use super::dom::{Dom, Element};
 use super::style::{Style, integer, number, shadow};
-use super::{allow, image, shape, table, text};
+use super::{allow, chart, image, shape, table, text};
 use crate::model::{FillModel, Geometry, LineModel, Link, ObjectStyle, ShapeObject, SlideObject, TableObject, TextObject, Transform2};
 
 /// Attributes every object box may carry.
@@ -31,11 +31,12 @@ pub(crate) fn read(dom: &Dom<'_>, element: &Element<'_>) -> Result<SlideObject, 
         return Err(format!("<{}> is not a .slide-element", element.name));
     }
     let linkable = matches!(element.name, "div" | "a");
-    if element.has_class("slide-chart") || element.has_class("slide-component") {
-        // Opaque subtrees: the HTML holds their drawing, not their model, and WASM draws neither.
-        // shortcut: a chartExtension is a .slide-chart too, so it is reported as 'chart'; give it its own marker if callers need to tell them apart (#69).
-        let kind = if element.has_class("slide-chart") { "chart" } else { "component" };
-        return Ok(SlideObject::Unsupported(kind.to_owned()));
+    if element.has_class("slide-chart") && element.name == "div" {
+        return chart::object(dom, element).map(SlideObject::Chart);
+    }
+    if element.has_class("slide-component") {
+        // An opaque subtree: the HTML holds the component's markup, which WASM does not lay out (#69 phase 8c).
+        return Ok(SlideObject::Unsupported("component".to_owned()));
     }
     if element.has_class("slide-text") && element.name == "div" {
         return text_object(dom, element).map(SlideObject::Text);
@@ -257,22 +258,12 @@ mod tests {
     }
 
     #[test]
-    fn charts_and_components_are_opaque_and_unsupported() {
+    fn components_are_opaque_and_unsupported() {
         let html = r#"<div class="slide-element slide-component" data-object-name="C" style="whatever: 1"><script>if (a < b) document.write("</div>")</script><p>free <b>markup</div></div>"#;
         let error = first(html).err().unwrap_or_default();
         assert!(error.contains("malformed HTML"), "a component must still be well-formed markup: {error}");
-        for (html, kind) in [
-            (
-                r#"<div class="slide-element slide-component" style="whatever: 1"><script>if (a < b) x("</div>")</script><p>free <b>markup</b></p></div>"#,
-                "component",
-            ),
-            (
-                r#"<div class="slide-element slide-chart" role="img"><svg viewBox="0 0 1 1"><g><text>1 &lt; 2</text><rect/></g></svg></div>"#,
-                "chart",
-            ),
-        ] {
-            assert!(matches!(first(html), Ok(SlideObject::Unsupported(k)) if k == kind), "{kind}");
-        }
+        let html = r#"<div class="slide-element slide-component" style="whatever: 1"><script>if (a < b) x("</div>")</script><p>free <b>markup</b></p></div>"#;
+        assert!(matches!(first(html), Ok(SlideObject::Unsupported(k)) if k == "component"));
     }
 
     #[test]

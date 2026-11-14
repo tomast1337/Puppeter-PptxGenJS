@@ -7,6 +7,8 @@ use parley::{
     WhiteSpaceCollapse,
 };
 
+use krilla::paint::Stroke;
+
 use crate::Renderer;
 use crate::color::{Rgba, parse_color};
 use crate::effect::Effect;
@@ -19,7 +21,7 @@ use crate::text::tabs::{TAB_PLACEHOLDER, place_tabs, tab_box};
 pub(crate) struct RunPaint {
     pub(crate) color: Rgba,
     pub(crate) highlight: Option<Rgba>,
-    pub(crate) outline: Option<(Rgba, f32)>,
+    pub(crate) outline: Option<TextStroke>,
     pub(crate) underline: bool,
     pub(crate) underline_color: Option<Rgba>,
     pub(crate) strike: bool,
@@ -29,6 +31,16 @@ pub(crate) struct RunPaint {
     pub(crate) link: Option<(u32, u32)>,
     /// The glow drawn under the run's glyphs.
     pub(crate) glow: Option<Effect>,
+}
+
+/// A stroke around the glyphs: a run's outline, or a chart label's halo drawn `under` its fill
+/// (SVG `paint-order: stroke`).
+#[derive(Clone, Copy)]
+pub(crate) struct TextStroke {
+    pub(crate) color: Rgba,
+    pub(crate) width: f32,
+    pub(crate) miter_limit: f32,
+    pub(crate) under: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -77,6 +89,20 @@ impl Renderer {
                 self.layout_text(text, inner_w, scale, layout);
             }
         }
+    }
+
+    /// One unwrapped line of `text` in one face, every glyph with brush 0: a chart SVG `<text>`.
+    pub(crate) fn layout_line(&mut self, text: &str, face: &str, size: f32, bold: bool, italic: bool) -> Layout<Brush> {
+        let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, text, 1.0, false);
+        builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
+        builder.push_default(StyleProperty::FontFamily(family_stack(face).as_str().into()));
+        builder.push_default(StyleProperty::FontSize(size));
+        builder.push_default(StyleProperty::FontWeight(if bold { FontWeight::BOLD } else { FontWeight::NORMAL }));
+        builder.push_default(StyleProperty::FontStyle(if italic { FontStyle::Italic } else { FontStyle::Normal }));
+        builder.push_default(StyleProperty::Brush(Brush(0)));
+        let mut layout: Layout<Brush> = builder.build(text);
+        layout.break_all_lines(None);
+        layout
     }
 
     /// Lays out every paragraph into `out`, replacing what it held.
@@ -150,7 +176,15 @@ impl Renderer {
                 paints.push(RunPaint {
                     color,
                     highlight: run.highlight.as_deref().and_then(parse_color),
-                    outline: run.outline.as_ref().and_then(|o| parse_color(&o.color).map(|c| (c, o.width))),
+                    outline: run.outline.as_ref().and_then(|o| {
+                        parse_color(&o.color).map(|color| TextStroke {
+                            color,
+                            width: o.width,
+                            // krilla's default, which run outlines have always been drawn with.
+                            miter_limit: Stroke::default().miter_limit,
+                            under: false,
+                        })
+                    }),
                     underline: run.decoration.underline,
                     underline_color: run.decoration.underline_color.as_deref().and_then(parse_color),
                     strike: run.decoration.strike,
