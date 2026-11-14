@@ -12,6 +12,10 @@ export function applyPrintWorkarounds(root: ParentNode = document): void {
     const TOP = /(?:^|; )top: ([^;]+)px;/;
     const ROTATE = /rotate\(([^)]+)deg\)/;
     const BORDER_WIDTH = /(?:^|; )border-(?:top|right|bottom|left): ([^ ;]+)px /g;
+    // The face as the profile writes it: one CSS string, `\` and `"` escaped.
+    const FONT_FAMILY = /((?:^|; )font-family: "((?:[^"\\]|\\.)*)")/;
+    const CALIBRI_FALLBACK = '"Noto Sans", Arial, "Liberation Sans", sans-serif';
+    const SANS_FALLBACK = 'Arial, "Liberation Sans", sans-serif';
     const number = (element: Element, value: string | undefined, what: string): number => {
         const parsed = Number(value);
         if (value !== undefined && Number.isFinite(parsed)) return parsed;
@@ -22,6 +26,18 @@ export function applyPrintWorkarounds(root: ParentNode = document): void {
     const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4) / 1e4;
     const local = (value: number) => Number(value.toFixed(4)) || 0;
     const px = (element: Element, pattern: RegExp, property: string) => number(element, element.getAttribute("style")?.match(pattern)?.[1], `'${property}: <number>px' in its style attribute`);
+
+    // Font fallback: Chromium does not apply LibreOffice's Microsoft-font substitutions to an unknown
+    // single-family declaration. Keep the face first, then the metric-compatible sans fallback the
+    // fixtures use. First, so the font loading awaited after this step sees the final families.
+    root.querySelectorAll(".text-run, .text-bullet").forEach(run => {
+        const style = run.getAttribute("style") ?? "";
+        const face = style.match(FONT_FAMILY)?.[2];
+        // A bullet takes its first run's font; one without runs has none.
+        if (face === undefined) return;
+        const fallback = face.toLowerCase().startsWith("calibri") ? CALIBRI_FALLBACK : SANS_FALLBACK;
+        run.setAttribute("style", style.replace(FONT_FAMILY, `$1, ${fallback}`));
+    });
 
     // Line box: the paragraph's 0px-font strut (stylesheet) puts the baseline in the middle of `line-height`;
     // moving the paragraph puts it at data-line-baseline, where LibreOffice puts it.

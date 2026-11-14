@@ -14,12 +14,8 @@ function shadowCSS(shadow?: NormalizedShadow): string | undefined {
 }
 
 function fontFamilyCSS(fontFace: string): string {
-    const escaped = fontFace.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-    // Chromium does not apply LibreOffice's Microsoft-font substitutions to
-    // an unknown single-family declaration. Keep the requested face first,
-    // then use the same metric-compatible sans fallback used by our fixtures.
-    const fallback = fontFace.toLowerCase().startsWith("calibri") ? '"Noto Sans", Arial, "Liberation Sans", sans-serif' : 'Arial, "Liberation Sans", sans-serif';
-    return `"${escaped}", ${fallback}`;
+    // The face alone; the Puppeteer print step appends Chromium's fallback list (docs/HTML_PROFILE.md).
+    return `"${fontFace.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 /** The run's attributes after its link, in the order the profile writes them. */

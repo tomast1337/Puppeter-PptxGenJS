@@ -64,6 +64,25 @@ describe("Puppeteer print workarounds", () => {
         expect([borderless?.style.position, borderless?.style.left]).toEqual(["", ""]);
     });
 
+    test("appends Chromium's fallback list to each run's and bullet's face", () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addText(
+            [
+                { text: "a", options: { fontFace: "Calibri Light" } },
+                { text: "b", options: { fontFace: 'Odd "Face"' } },
+            ],
+            { x: 1, y: 1, w: 4, h: 1, bullet: true },
+        );
+        const page = printedPage(presentation);
+        const family = (selector: string) =>
+            page
+                .querySelector(selector)
+                ?.getAttribute("style")
+                ?.match(/font-family: ([^;]+);/)?.[1];
+        expect(family(".text-bullet")).toBe('"Calibri Light", "Noto Sans", Arial, "Liberation Sans", sans-serif');
+        expect(family(".text-run:nth-of-type(3)")).toBe('"Odd \\"Face\\"", Arial, "Liberation Sans", sans-serif');
+    });
+
     test("names the object when a paragraph has no line box", () => {
         const presentation = new PuppeteerGen();
         presentation.addSlide().addText("Text", { x: 1, y: 1, w: 4, h: 1, objectName: "Title" });

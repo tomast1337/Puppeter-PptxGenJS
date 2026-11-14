@@ -164,7 +164,8 @@ describe("text DOM rendering", () => {
         expect(paragraph?.querySelector(".text-bullet")?.textContent).toContain("●");
         expect(paragraph?.querySelectorAll("br")).toHaveLength(1);
         expect(runs?.[0]?.style.fontWeight).toBe("bold");
-        expect(runs?.[0]?.style.fontFamily).toBe('"Calibri", "Noto Sans", Arial, "Liberation Sans", sans-serif');
+        // The face alone: the Puppeteer print step appends Chromium's fallback list.
+        expect(runs?.[0]?.style.fontFamily).toBe('"Calibri"');
         expect(runs?.[0]?.style.backgroundColor).toBe("rgb(255, 255, 0)");
         expect(link?.href).toBe("https://example.com/");
         expect(link?.title).toBe("Example");
