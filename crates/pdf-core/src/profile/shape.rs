@@ -14,21 +14,17 @@ const SVG_ATTRS: &[&str] = &[
     "preserveAspectRatio",
     "data-shape-width",
     "data-shape-height",
-    "data-line-dash-array",
     "data-line-begin-arrow",
     "data-line-end-arrow",
     "data-shadow-inset",
 ];
-// `--print-snap-offset` is the print-snap workaround (docs/HTML_PROFILE.md), derived from the box.
-const SVG_CSS: &[&str] = &["overflow", "--print-snap-offset", "filter"];
-// `stroke-dasharray`/`stroke-dashoffset` may be the dash rewrite; the pattern is `data-line-dash-array`.
+const SVG_CSS: &[&str] = &["overflow", "filter"];
 const PAINT_ATTRS: &[&str] = &[
     "fill",
     "stroke",
     "stroke-width",
     "vector-effect",
     "stroke-dasharray",
-    "stroke-dashoffset",
     "marker-start",
     "marker-end",
 ];
@@ -238,7 +234,7 @@ fn line_inverse(d: &str, width: f32, height: f32) -> Option<bool> {
     }
 }
 
-/// The line from the stroke target's paint and the svg's `data-line-*` values; head paths come from
+/// The line from the stroke target's paint (with its verbatim `stroke-dasharray`) and the svg's `data-line-*` arrow types; head paths come from
 /// the markers its `marker-start`/`marker-end` point at.
 fn line(svg: &Element<'_>, target: &Element<'_>, heads: &[(String, String)]) -> Result<Option<LineModel>, String> {
     let Some(stroke) = paint(target, "stroke")? else { return Ok(None) };
@@ -258,7 +254,7 @@ fn line(svg: &Element<'_>, target: &Element<'_>, heads: &[(String, String)]) -> 
         visible: true,
         color: stroke.color,
         width: number_attr(target, "stroke-width")?,
-        dash_array: svg.attr("data-line-dash-array")?.map(|d| d.into_owned()),
+        dash_array: target.attr("stroke-dasharray")?.map(|d| d.into_owned()),
         begin_arrow: svg.attr("data-line-begin-arrow")?.map(|d| d.into_owned()),
         end_arrow: svg.attr("data-line-end-arrow")?.map(|d| d.into_owned()),
         begin_head_path: head("marker-start")?,
@@ -301,9 +297,9 @@ mod tests {
         assert_eq!(rect.style.fill.as_ref().map(|f| f.color.as_str()), Some("#FF0000"));
         assert_eq!(rect.style.line.as_ref().map(|l| (l.color.as_str(), l.width)), Some(("#17365D", 1.5)));
 
-        let svg = r#" data-line-dash-array="0 4 8" data-line-end-arrow="triangle" data-shadow-inset="""#;
+        let svg = r#" data-line-end-arrow="triangle" data-shadow-inset="""#;
         let body = format!(
-            r##"<defs><marker id="h" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="M 0 0 L -8 4 Z" fill="#17365D"></path></marker></defs><path d="M 0 48 L 96 0" class="shape-geometry" fill="none" {PAINT} stroke-dasharray="8 4" stroke-dashoffset="8" marker-end="url(#h)"></path>"##
+            r##"<defs><marker id="h" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="M 0 0 L -8 4 Z" fill="#17365D"></path></marker></defs><path d="M 0 48 L 96 0" class="shape-geometry" fill="none" {PAINT} stroke-dasharray="0 4 8" marker-end="url(#h)"></path>"##
         );
         let line = shape(svg, " filter: drop-shadow(1px 2px 3px rgba(0, 0, 0, 0.5));", &body).unwrap();
         assert!(matches!(line.shape.as_ref().map(|s| &s.geometry), Some(ShapeGeometry::Line { inverse: true })));
@@ -350,6 +346,10 @@ mod tests {
             ("", "", rect(" style=\"fill: red\"")),
             ("", " filter: blur(2px);", rect("")),
             ("", " mix-blend-mode: multiply;", rect("")),
+            // The print snap and the dash rewrite are the Puppeteer print step's, not the profile's.
+            ("", " --print-snap-offset: translate(1px, 0px);", rect("")),
+            ("", "", rect(" stroke-dasharray=\"8 4\" stroke-dashoffset=\"8\"")),
+            (" data-line-dash-array=\"8 4\"", "", rect("")),
             (" data-shape-height=\"x\"", "", rect("")),
             ("", "", "<rect class=\"shape-geometry\"></rect>".to_owned()),
             ("", "", r##"<defs></defs><g class="shape-geometry"><path class="shape-face" d="M 0 0" data-fill-modifier="darken" fill="#FF0000" stroke="none"></path></g>"##.to_owned()),

@@ -29,16 +29,17 @@ export function applyLine(css: InlineStyle, line?: NormalizedLine): void {
     css.set("border-style", line.style);
 }
 
-/**
- * The line values the drawing only shows resolved: SVG rewrites some dash patterns and keeps only the arrow
- * head paths, CSS borders have no dash pattern. Written on the element that carries the line.
- */
-export function lineDataAttributes(line?: NormalizedLine): Attribute[] {
+/** The arrow types, which SVG only shows as head paths; written on the element that carries the line. */
+export function lineArrowAttributes(line?: NormalizedLine): Attribute[] {
     return [
-        ["data-line-dash-array", line?.dashArray || undefined],
         ["data-line-begin-arrow", line?.beginArrow || undefined],
         ["data-line-end-arrow", line?.endArrow || undefined],
     ];
+}
+
+/** A box's line values that CSS borders cannot state: the dash pattern (only `dashed`) and the arrow types. */
+function boxLineAttributes(line?: NormalizedLine): Attribute[] {
+    return [["data-line-dash-array", line?.dashArray || undefined], ...lineArrowAttributes(line)];
 }
 
 /** `drop-shadow()` and `text-shadow` have no `inset`, so the element that draws such a shadow says it here. */
@@ -58,5 +59,5 @@ export function applyObjectStyle(css: InlineStyle, style: NormalizedObjectStyle)
     if (style.fill) css.set("background-color", style.fill.visible ? style.fill.color : "transparent");
     applyLine(css, style.line);
     applyShadow(css, style.shadow);
-    return [...lineDataAttributes(style.line), ["data-object-name", style.objectName]];
+    return [...boxLineAttributes(style.line), ["data-object-name", style.objectName]];
 }
