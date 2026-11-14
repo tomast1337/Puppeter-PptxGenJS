@@ -42,24 +42,26 @@ const pdf = await pres.toPdf(); // Uint8Array from the Puppeteer renderer
 Every renderer reads only `{ html, pageSize }`, so HTML that did not come from `toHtml()` in this process
 renders too: a stored document, an edited one, or one written by hand.
 
-| Input                                                                 | Puppeteer | WASM                                   |
-| --------------------------------------------------------------------- | --------- | -------------------------------------- |
-| `toHtml()` output, stored or edited, through `htmlDocument()`         | Yes       | Yes                                    |
-| Hand-written [profile v1](./HTML_PROFILE.md) through `htmlDocument()` | Yes       | Yes                                    |
-| Any other HTML, through `render({ html, pageSize })`                  | Yes       | No: an error names the first violation |
+| Input                                                                     | Puppeteer | WASM                                   |
+| ------------------------------------------------------------------------- | --------- | -------------------------------------- |
+| `toHtml()` output, stored or edited, through `pptxHtmlDocument()`         | Yes       | Yes                                    |
+| Hand-written [profile v1](./HTML_PROFILE.md) through `pptxHtmlDocument()` | Yes       | Yes                                    |
+| Any other HTML, through `render({ html, pageSize })`                      | Yes       | No: an error names the first violation |
 
-`htmlDocument(html)` (from `@pdfdeck/pptxgenjs` or the browser-safe `/html` entry) checks that `html` is
-a profile v1 document (`<meta name="pdfdeck-profile" content="1">`) and fills the values PptxGenJS
+`pptxHtmlDocument(html)` (from `@pdfdeck/pptxgenjs` or the browser-safe `/html` entry) checks that `html`
+is a profile v1 document (`<meta name="pdfdeck-profile" content="1">`) and fills the values PptxGenJS
 defaults (insets, line box, font, colors, the stylesheet; the list is in
 [HTML_PROFILE.md](./HTML_PROFILE.md#completion)). It also reads the page size from the document. A
 `toHtml()` result passes through byte for byte. `completeProfileHtml(html)` is the same completion step,
-returning only the string.
+returning only the string. `htmlDocument(html)` from `@pdfdeck/model` is the step after it, with no
+PptxGenJS rules: it checks the version and reads the page size from the `@page` rule, and throws when
+the document has none instead of filling it.
 
 ```typescript
-import { htmlDocument, PuppeteerPdfRenderer, printPreviewHtml } from "@pdfdeck/pptxgenjs";
+import { pptxHtmlDocument, PuppeteerPdfRenderer, printPreviewHtml } from "@pdfdeck/pptxgenjs";
 import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
 
-const document = htmlDocument(storedHtml.replace(">Draft</span>", ">Final</span>"));
+const document = pptxHtmlDocument(storedHtml.replace(">Draft</span>", ">Final</span>"));
 const viaChromium = await new PuppeteerPdfRenderer().render(document);
 const viaWasm = await (await createWasmRenderer({ fonts: await loadSystemFonts() })).render(document);
 

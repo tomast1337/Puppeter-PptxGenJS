@@ -1,6 +1,6 @@
 import type { ComponentRegistry } from "../components/registry";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "../defaults";
-import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
+import { HTML_PROFILE_VERSION, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject } from "@pdfdeck/model";
 import { normalizeColor } from "../normalize/style";
 import type { PageSize } from "../pageLayouts";
 import { inchesToPixels, pointsToPixels } from "../units";
@@ -13,9 +13,6 @@ import { renderShape, renderShapeSvg } from "./shape";
 import { applyObjectStyle } from "./style";
 import { renderTable } from "./table";
 import { renderText } from "./text";
-
-/** The pdfdeck HTML profile version (docs/HTML_PROFILE.md) the document follows, in `<meta name="pdfdeck-profile">`. */
-export const HTML_PROFILE_VERSION = 1;
 
 /** Prefix for ids inside one object; taken from its position so the same deck always gives the same ids. */
 export function objectIdScope(slideIndex: number, objectIndex: number): string {

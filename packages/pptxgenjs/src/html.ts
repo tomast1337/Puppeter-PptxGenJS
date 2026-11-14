@@ -9,7 +9,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";
 import { alignToCSS, valignToCSS } from "./alignment";
 import { colorToCSS } from "./color";
 import { generatePageCSS } from "./pageCss";
-import { completeProfileHtml, htmlDocument } from "./render/completion";
+import { completeProfileHtml, pptxHtmlDocument } from "./render/completion";
 import { modelToHtml } from "./render/document";
 import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "./units";
 
@@ -23,8 +23,6 @@ export {
     convertToPixels,
     DEFAULT_PAGE_SIZE,
     generatePageCSS,
-    // Stored, edited or hand-written profile HTML -> the renderer input, completed (#69).
-    htmlDocument,
     inchesToPixels,
     // The model -> HTML step for producers that build the JSON model themselves (#69).
     modelToHtml,
@@ -33,6 +31,8 @@ export {
     parseComponentProps,
     PPTX_DEFAULTS,
     PPTX_DEFAULTS_VERSION,
+    // Stored, edited or hand-written profile HTML -> the renderer input, completed with PptxGenJS defaults (#69).
+    pptxHtmlDocument,
     PuppeteerGen,
     percentageToPixels,
     pointsToPixels,
