@@ -2,12 +2,15 @@
 
 This document specifies the HTML that `toHtml()` emits as the mapping from each field of the JSON model
 (`packages/model/src/types.ts`) to the element, class, CSS property or attribute that holds it. Version 1
-describes today's output exactly, including the values it loses. It is phase 1 of #69; later phases
-change the output and this document together.
+describes that output exactly, including the values it loses.
 
-Version 1 still changes while nothing reads it from outside: no package publishes it and there is no
-public HTML entry yet. It is frozen when phase 7 (`renderHtml(html)` on both backends) ships; after
-that, a change to the markup needs a new version number.
+**Version 1 is frozen** (#69 phase 7). Stored, edited and hand-written documents that declare
+`<meta name="pdfdeck-profile" content="1">` keep rendering the same way. Any change to the markup a
+reader accepts or to what a value means (a new element, attribute, CSS property or enumerated value, a
+changed unit or default) is a new version: `toHtml()` then writes `content="2"`, this document describes
+version 2, and the WASM reader parses both versions before a release writes the new one. Fixes that only
+change error messages stay within version 1, as do changes to the Puppeteer print step and to the shared
+stylesheet outside its `@page` size, since a reader never sees them.
 
 ## Pipeline
 
@@ -277,7 +280,9 @@ backend.
   for it and reads each value from its one place. The [renderer workarounds](#renderer-workarounds) are
   not in the profile, so they are errors too. Any other attribute, property, element, enumerated value or a
   repeated property is an error. Numbers are JSON numbers with their unit (`px`, `deg`, `in`); `NaN`,
-  infinities and values outside `f32` are errors.
+  infinities and values outside `f32` are errors. `font-family` is exactly one quoted family
+  (`"Calibri"`), as `toHtml()` writes it: a fallback list is an error, since fallbacks are the print
+  step's.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
   always inlines images).
 - **Charts and components are opaque.** `.slide-chart` and `.slide-component` subtrees are only checked for
