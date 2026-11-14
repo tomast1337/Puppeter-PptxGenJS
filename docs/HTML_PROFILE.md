@@ -300,9 +300,59 @@ backend.
     invalid pdfdeck HTML: malformed HTML at byte 6488: </body> closes <p>
     ```
 
-- **No PptxGenJS rules.** A value missing from the HTML is an error, never a default. Multi-face presets keep
-  the base fill only on their unshaded face; a hand-written preset whose every face is shaded has no base
-  fill and is rejected (#43).
+- **No PptxGenJS rules.** A value missing from the HTML is an error, never a default: the defaults are the
+  [completion step](#completion)'s, in TypeScript. Multi-face presets keep the base fill only on their
+  unshaded face; a hand-written preset whose every face is shaded has no base fill and is rejected (#43).
+
+## Completion
+
+`completeProfileHtml(html)` (`render/completion.ts`, exported from `@pdfdeck/pptxgenjs/html`) fills the
+values a hand-written or edited document may leave out, with the value PptxGenJS gives the same object
+when its option is not set (`packages/pptxgenjs/src/defaults.ts`). It is pure, deterministic and
+browser-safe (parse5, no DOM): it splices each missing value into the original string, so a document that
+states everything, such as any `toHtml()` result, comes back byte for byte (`tests/htmlBytes.test.ts`
+checks every pinned deck), and completing twice changes nothing. Values already in the document are kept;
+`.slide-chart` and `.slide-component` subtrees are not touched.
+
+It throws when the input is not a profile document: a non-string or empty input, no
+`<meta name="pdfdeck-profile">`, another version, an unknown `pdfdeck-page-size` without an `@page` rule,
+or a `font-size` or `line-height` it needs for a line box that is not in px.
+
+| Element                   | Value                                                | Default                                                                                              | From `PPTX_DEFAULTS`                                  |
+| ------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| document                  | doctype                                              | `<!DOCTYPE html>` first                                                                              | (standards mode, [Document](#document))               |
+| `<head>`                  | the shared stylesheet, when no `<style>` has `@page` | the stylesheet `toHtml()` writes, for the size `pdfdeck-page-size` names, else Screen 16:9 Landscape | `presentation.layout` (`LAYOUT_16x9`)                 |
+| `div.slide-container`     | `background-color`                                   | `#FFFFFF`                                                                                            | `slide.backgroundColor`                               |
+| `.slide-text`             | `padding`                                            | `4.8…px 9.6…px 4.8…px 9.6…px` (0.05in 0.1in)                                                         | `text.marginIn`                                       |
+|                           | `align-items`                                        | `center`                                                                                             | `text.valign` (`middle`)                              |
+|                           | `white-space`, `overflow-wrap`                       | `pre-wrap`, `break-word`                                                                             | `text.wrap`                                           |
+|                           | `data-text-fit`, `data-text-direction`               | `none`, `horizontal`                                                                                 | `text.fit`, `text.textDirection`                      |
+| `.table-cell-text`        | as `.slide-text`, except `padding`                   | `4.8…px 9.6…px 4.8…px 9.6…px`                                                                        | `table.marginIn`                                      |
+|                           | `align-items`                                        | `flex-start`                                                                                         | `table.valign` (`top`)                                |
+| `.text-paragraph`         | `text-align`, `direction`                            | `left`, `ltr`                                                                                        | `text.align`, `text.rtlMode`                          |
+|                           | `margin-top`, `margin-bottom`                        | `0px`                                                                                                | (no `paraSpaceBefore`/`paraSpaceAfter`)               |
+|                           | `tab-size`                                           | `96px`                                                                                               | `text.defaultTabStopIn`                               |
+|                           | `line-height`                                        | 1.2 × the largest run `font-size` (after its own default)                                            | `text.singleLineEm`                                   |
+|                           | `data-line-baseline`                                 | `line-height` − 0.2 × the largest run `font-size`                                                    | `text.lineDescentEm`                                  |
+| `.text-run`               | `font-family`                                        | `"Calibri"`                                                                                          | `text.fontFace`                                       |
+|                           | `font-size`                                          | `24px` (18pt); `16px` (12pt) in a table cell                                                         | `text.fontSizePt`, `table.fontSizePt`                 |
+|                           | `color`                                              | `#000000`; `#0563C1` on `a.text-run`                                                                 | `text.color`, `table.color`, `theme.colors.hyperlink` |
+|                           | `font-weight`, `font-style`                          | `normal`                                                                                             | `text.bold`, `text.italic`                            |
+| `img.slide-image-content` | `data-image-sizing`                                  | `stretch`                                                                                            | (no `sizing` option)                                  |
+|                           | `opacity`                                            | `1`                                                                                                  | `image.transparency`                                  |
+| `td`                      | `colspan`, `rowspan`                                 | `1`                                                                                                  | (no `colspan`/`rowspan`)                              |
+|                           | `border-top`, `-right`, `-bottom`, `-left`           | `0px none transparent`                                                                               | `table.border.type` (`none`)                          |
+
+**Required**: everything else the reader requires stays required, because it is the deck's content
+rather than a default: `<meta name="pdfdeck-profile" content="1">`; the element structure (`.text-content`,
+`.slide-image-frame`, `<colgroup>`, `svg.shape-svg` with `<defs>` and `.shape-geometry`); each object's
+`left` and `top`; a shape's `data-shape`, `viewBox` and geometry attributes (`fill`, `stroke`,
+`stroke-width`, `rx`, `d`, …); an image's `src` as a `data:` URI and its box for `contain`, `cover` and
+`crop`; column widths; bullets (`data-bullet-*` and the marker); and every optional value the profile
+already omits at its default (`opacity` 1, no `transform`, …). The completion step adds only profile
+values: layout CSS that `toHtml()` writes for Chromium (`.text-content { width: 100% }`, the image's
+`width`/`height`, the cell's `padding: 0px`) is not filled, so a document that leaves it out can look
+different in Puppeteer, which prints what the HTML says.
 
 ## Field mapping
 

@@ -5,8 +5,11 @@ import { renderText } from "./text";
 
 const BORDER_SIDES = ["top", "right", "bottom", "left"] as const;
 
+/** A hidden cell border. */
+export const HIDDEN_BORDER_CSS = "0px none transparent";
+
 function borderCSS(border: NormalizedTableBorder): string {
-    return border.visible ? `${border.width}px ${border.style} ${border.color}` : "0px none transparent";
+    return border.visible ? `${border.width}px ${border.style} ${border.color}` : HIDDEN_BORDER_CSS;
 }
 
 function renderCell(cell: NormalizedTableCell, fixedHeight: boolean): string {

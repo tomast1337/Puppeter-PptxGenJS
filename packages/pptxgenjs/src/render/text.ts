@@ -13,7 +13,7 @@ function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     return `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${shadow.color}`;
 }
 
-function fontFamilyCSS(fontFace: string): string {
+export function fontFamilyCSS(fontFace: string): string {
     // The face alone; the Puppeteer print step appends Chromium's fallback list (docs/HTML_PROFILE.md).
     return `"${fontFace.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
@@ -131,11 +131,15 @@ function renderParagraph(paragraph: NormalizedTextParagraph): string {
     return element("div", paragraphAttributes(paragraph), content);
 }
 
+export function alignItemsCSS(verticalAlign: NormalizedTextBox["verticalAlign"]): string {
+    return verticalAlign === "top" ? "flex-start" : verticalAlign === "bottom" ? "flex-end" : "center";
+}
+
 /** Adds the text box's declarations to `css`, which the caller writes; returns the box's attributes and its content. */
 export function renderText(css: InlineStyle, text: NormalizedTextBox): { attributes: Attribute[]; content: string } {
     const [top, right, bottom, left] = text.margin;
     css.set("padding", `${top}px ${right}px ${bottom}px ${left}px`);
-    css.set("align-items", text.verticalAlign === "top" ? "flex-start" : text.verticalAlign === "bottom" ? "flex-end" : "center");
+    css.set("align-items", alignItemsCSS(text.verticalAlign));
     css.set("white-space", text.wrap ? "pre-wrap" : "pre");
     css.set("overflow-wrap", text.wrap ? "break-word" : "normal");
     css.set("direction", text.rtl ? "rtl" : "ltr");

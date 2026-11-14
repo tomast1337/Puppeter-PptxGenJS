@@ -115,7 +115,8 @@ export function presentationHtml(presentation: NormalizedPresentation, pass: Ren
     return `<!DOCTYPE html><html><head>${profile}${pageSize}${style}</head><body>${slides}</body></html>`;
 }
 
-function presentationCSS(pageSize: PageSize): string {
+/** The shared stylesheet: generated from the page size only. */
+export function presentationCSS(pageSize: PageSize): string {
     const widthPx = inchesToPixels(pageSize.width);
     const heightPx = inchesToPixels(pageSize.height);
 

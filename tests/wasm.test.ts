@@ -9,9 +9,11 @@ import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { completeProfileHtml } from "../packages/pptxgenjs/src/render/completion";
 import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
+import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
 // incompatible binding fails `bun run typecheck`.
@@ -315,5 +317,22 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
         const tampered = html.replace('style="left: 96px;', 'style="filter: blur(2px); left: 96px;');
         await expect(renderer.render({ html: tampered, pageSize })).rejects.toThrow("slide 1: object 'Title': CSS property 'filter'");
         await expect(renderer.render({ html: html.replace('content="1"', 'content="2"'), pageSize })).rejects.toThrow("pdfdeck profile version '2' is not supported");
+    });
+
+    test("hand-written minimal documents render after the completion step", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        for (const [kind, object] of Object.entries(HAND_WRITTEN_OBJECTS)) {
+            const pdf = await renderer.render({ html: completeProfileHtml(handWrittenDocument(object)), pageSize: PAGE });
+            expect({ kind, pdf: ascii(pdf.subarray(0, 5)) }).toEqual({ kind, pdf: "%PDF-" });
+        }
+        // Without completion the reader names the first value the profile requires.
+        await expect(renderer.render({ html: handWrittenDocument(HAND_WRITTEN_OBJECTS.text), pageSize: PAGE })).rejects.toThrow("invalid pdfdeck HTML: the stylesheet has no '@page");
+    });
+
+    test("an out-of-profile hand-written document fails naming the slide, the object and the property", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const render = (object: string) => renderer.render({ html: completeProfileHtml(handWrittenDocument(object)), pageSize: PAGE });
+        await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-variant: small-caps;"))).rejects.toThrow("invalid pdfdeck HTML: slide 1: object 'Title': paragraph 1: run 1: CSS property 'font-variant' on <span> is not in profile v1");
+        await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-family: &quot;Calibri&quot;, Arial;"))).rejects.toThrow("font-family '\"Calibri\", Arial' is not one quoted family");
     });
 });
