@@ -1,7 +1,7 @@
 // Render stored, edited or hand-written HTML (docs/HTML_PROFILE.md) on both backends.
 // Run: bun run examples/html-input.ts (the WASM half needs `bun run build:wasm` first).
 import { writeFile } from "node:fs/promises";
-import PuppeteerGen, { closeBrowser, pptxHtmlDocument, PuppeteerPdfRenderer, printPreviewHtml } from "../packages/pptxgenjs/src/index";
+import PuppeteerGen, { closeBrowser, pptxHtmlDocument, PuppeteerPdfRenderer, printHtml } from "../packages/pptxgenjs/src/index";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 
 // 1. Edit a toHtml() result: it is plain HTML, so a string replace (or any HTML tool) changes the deck.
@@ -48,5 +48,5 @@ const custom = `<!DOCTYPE html><html><head><style>@page { size: 10in 5.625in; ma
 await writeFile("html-custom-puppeteer.pdf", await puppeteer.render({ html: custom, pageSize: { width: 10, height: 5.625, name: "Custom" } }));
 
 // Open this file in a browser to see the HTML as Puppeteer prints it.
-await writeFile("html-edited-preview.html", printPreviewHtml(pptxHtmlDocument(edited).html));
+await writeFile("html-edited-preview.html", printHtml(pptxHtmlDocument(edited).html));
 await closeBrowser();

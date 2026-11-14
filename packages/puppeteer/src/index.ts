@@ -5,5 +5,5 @@ import { closeBrowser as closeSharedBrowser } from "./browser";
 const closeBrowser: () => Promise<void> = closeSharedBrowser;
 
 export { closeBrowser };
-export { printPreviewHtml } from "./printWorkarounds";
+export { printHtml } from "./printWorkarounds";
 export { PuppeteerPdfRenderer } from "./puppeteerPdf";

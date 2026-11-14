@@ -249,11 +249,14 @@ in the HTML. Component images are resolved to `data:` URIs like slide images.
 Chromium needs declarations that LibreOffice does not to print what LibreOffice draws. They are not deck
 content: each is derived from a value the profile states once, so it lives outside the markup, either in
 the shared stylesheet (driven by profile classes and attributes) or in the Puppeteer print step,
-`applyPrintWorkarounds` (`packages/puppeteer/src/printWorkarounds.ts`), which runs once in the page after
-`setContent` and before shrink-to-fit and `page.pdf()`. Opening the HTML in a browser shows the
-stylesheet rules but not the print step; `printPreviewHtml(html)` (`@pdfdeck/puppeteer`, re-exported by
-`@pdfdeck/pptxgenjs`) adds the print step as an inline script for that, which takes the document out of the
-profile. A parser of this profile never sees either.
+`printHtml(html)` (`packages/puppeteer/src/printWorkarounds.ts`). The print step reads only attributes and
+raw `style` text, never layout, so it is a pure string transform: the Puppeteer renderer passes its output
+to `setContent`, before fonts are awaited, shrink-to-fit and `page.pdf()`. It adds declarations and
+attributes inside start tags and leaves every other byte as it was; the same input gives the same output,
+and HTML outside the profile passes through unchanged. Opening the HTML in a browser shows the stylesheet
+rules but not the print step; open `printHtml(html)` (`@pdfdeck/puppeteer`, re-exported by
+`@pdfdeck/pptxgenjs`) to see what Chromium prints. Its additions are outside the profile, so it is for
+Chromium only. A parser of this profile never sees either.
 
 | Workaround     | Derived from                                                       | Where it lives                                                                                                                                                                                                                                     |
 | -------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
