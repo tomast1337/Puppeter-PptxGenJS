@@ -93,3 +93,14 @@ export function applyPrintWorkarounds(root: ParentNode = document): void {
         table.style.top = `${-widest / 2}px`;
     });
 }
+
+/**
+ * `html` with the print step as an inline script before `</body>`, so the document opened in a browser shows
+ * what Puppeteer prints. For viewing only: a `<script>` is outside the profile, so the WASM renderer rejects
+ * the result, and the print snap it applies is sized for print, not the screen (under 1px).
+ */
+export function printPreviewHtml(html: string): string {
+    const script = `<script>(${applyPrintWorkarounds.toString()})(document);</script>`;
+    const end = html.lastIndexOf("</body>");
+    return end < 0 ? `${html}${script}` : `${html.slice(0, end)}${script}${html.slice(end)}`;
+}
