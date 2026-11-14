@@ -36,6 +36,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@pdfdeck/model": "workspace:*",
+        "parse5": "7.3.0",
         "puppeteer": "^24.15.0",
       },
     },

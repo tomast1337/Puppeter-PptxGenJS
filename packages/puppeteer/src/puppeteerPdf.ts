@@ -1,7 +1,7 @@
 import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type PresentationRenderer } from "@pdfdeck/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
-import { applyPrintWorkarounds } from "./printWorkarounds";
+import { printHtml } from "./printWorkarounds";
 
 // Model page sizes are in inches.
 const inchesToPixels = (inches: number): number => inches * CSS_PX_PER_INCH;
@@ -25,9 +25,8 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
         height: Math.round(inchesToPixels(pageSize.height)),
     });
     // Images are inlined by resolveDocumentImages; the evaluate below waits for fonts and decoding.
-    await page.setContent(html, { waitUntil: "load" });
-    // Before anything measures the layout: shrink-to-fit below scales what it sets.
-    await page.evaluate(applyPrintWorkarounds);
+    // The print workarounds are in the document before anything measures it: shrink-to-fit below scales them.
+    await page.setContent(printHtml(html), { waitUntil: "load" });
     const failedImages = await page.evaluate(async () => {
         await document.fonts.ready;
         await Promise.all(

@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import { htmlDocument } from "../packages/model/src/index";
 import { pptxHtmlDocument } from "../packages/pptxgenjs/src/html";
-import { PuppeteerGen, PuppeteerPdfRenderer, printPreviewHtml } from "../packages/pptxgenjs/src/index";
+import { PuppeteerGen, PuppeteerPdfRenderer, printHtml } from "../packages/pptxgenjs/src/index";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
@@ -47,13 +47,13 @@ describe("pptxHtmlDocument()", () => {
     });
 });
 
-describe("printPreviewHtml()", () => {
-    test("runs the Puppeteer print step when the document is opened in a browser", async () => {
+describe("printHtml()", () => {
+    test("writes the Puppeteer print step into the document, without a script", async () => {
         const pres = new PuppeteerGen();
         pres.addSlide().addText("Preview", { x: 1, y: 1, w: 3, h: 1 });
-        const preview = printPreviewHtml((await pres.toHtml()).html);
-        expect(preview).toEndWith("</script></body></html>");
-        const page = new JSDOM(preview, { runScripts: "dangerously" }).window.document;
+        const preview = printHtml((await pres.toHtml()).html);
+        expect(preview).not.toContain("<script");
+        const page = new JSDOM(preview).window.document;
         // 18pt (24px) default: the paragraph moves 24 - 28.8 / 2 down, as in the PDF.
         expect(parseFloat(page.querySelector<HTMLElement>(".text-paragraph")?.style.top ?? "")).toBeCloseTo(9.6, 9);
         expect(page.querySelector<HTMLElement>(".text-run")?.getAttribute("style")).toContain('font-family: "Calibri", "Noto Sans", Arial');

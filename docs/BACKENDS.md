@@ -58,7 +58,7 @@ PptxGenJS rules: it checks the version and reads the page size from the `@page` 
 the document has none instead of filling it.
 
 ```typescript
-import { pptxHtmlDocument, PuppeteerPdfRenderer, printPreviewHtml } from "@pdfdeck/pptxgenjs";
+import { pptxHtmlDocument, PuppeteerPdfRenderer, printHtml } from "@pdfdeck/pptxgenjs";
 import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
 
 const document = pptxHtmlDocument(storedHtml.replace(">Draft</span>", ">Final</span>"));
@@ -68,8 +68,8 @@ const viaWasm = await (await createWasmRenderer({ fonts: await loadSystemFonts()
 // Puppeteer prints any HTML: the escape hatch for fully custom HTML and CSS.
 const custom = await new PuppeteerPdfRenderer().render({ html: myHtml, pageSize: { width: 10, height: 5.625, name: "Custom" } });
 
-// The document as Puppeteer prints it, to open in a browser (adds a <script>, so not for WASM).
-const preview = printPreviewHtml(document.html);
+// The document as Puppeteer prints it, print workarounds written in, to open in a browser (Chromium only, not for WASM).
+const printed = printHtml(document.html);
 ```
 
 WASM errors name the place, as in `invalid pdfdeck HTML: slide 1: object 'Title': paragraph 1: run 1: CSS
