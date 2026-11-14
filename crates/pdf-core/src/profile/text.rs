@@ -3,7 +3,7 @@
 use super::allow;
 use super::dom::{Dom, Element};
 use super::object::link;
-use super::style::{Style, first_family, integer, number, px, shadow, split_top_level};
+use super::style::{Style, font_family, integer, number, px, shadow, split_top_level};
 use crate::model::{Bullet, Decoration, LineBox, Outline, Paragraph, Run, Shadow, TabAlign, TabStop, TextBox};
 
 /// Attributes of the element that holds a text box.
@@ -200,6 +200,10 @@ fn tab_stop(stop: &str) -> Result<TabStop, String> {
 fn bullet(dom: &Dom<'_>, paragraph: &Element<'_>, marker: &Element<'_>) -> Result<Bullet, String> {
     let style = Style::of(marker)?;
     allow(marker, &style, &[], &[BULLET_CSS])?;
+    // A copy of the first run's face: checked like the run's, not read.
+    if let Some(family) = style.get("font-family") {
+        font_family(family).map_err(|e| format!("span.text-bullet: CSS property 'font-family': {e}"))?;
+    }
     let text = dom.text_of(marker)?;
     let level = paragraph.attr("data-bullet-level")?.ok_or("attribute 'data-bullet-level' is missing")?;
     Ok(Bullet {
@@ -243,10 +247,9 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
         }
         None => None,
     };
-    let font_family = style.require("font-family")?;
     Ok(Run {
         text,
-        font_face: first_family(font_family).map_err(|e| format!("CSS property 'font-family': {e}"))?,
+        font_face: font_family(style.require("font-family")?).map_err(|e| format!("CSS property 'font-family': {e}"))?,
         font_size: style.require_px("font-size")?,
         color: style.require("color")?.to_owned(),
         bold: one_of("CSS property 'font-weight'", style.require("font-weight")?, &["bold", "normal"])? == "bold",
@@ -295,7 +298,7 @@ mod tests {
     use crate::profile::tests::document;
 
     const RUN_STYLE: &str =
-        "font-family: &quot;Calibri&quot;, Arial; font-size: 16px; color: #000000; font-weight: normal; font-style: normal; text-decoration-style: solid;";
+        "font-family: &quot;Calibri&quot;; font-size: 16px; color: #000000; font-weight: normal; font-style: normal; text-decoration-style: solid;";
     const PARAGRAPH_STYLE: &str = "text-align: left; direction: ltr; margin-top: 1px; margin-bottom: 2px; line-height: 19.2px; tab-size: 96px;";
 
     fn text_object(paragraphs: &str) -> Result<TextObject, String> {
@@ -378,6 +381,10 @@ mod tests {
                 "text-bullet",
             ),
             (run("", "", "x").replace("&quot;Calibri&quot;", "Calibri"), "font-family"),
+            (
+                run("", "", "x").replace("&quot;Calibri&quot;", "&quot;Calibri&quot;, Arial"),
+                "one quoted family",
+            ),
             ("<div class=\"text-paragraph\">text</div>".into(), "unexpected text"),
         ] {
             let error = text_object(&html).err().unwrap_or_default();
