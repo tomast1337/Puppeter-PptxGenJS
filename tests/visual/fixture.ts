@@ -1646,6 +1646,13 @@ export function populateParityFixture(presentation: Presentation): void {
         });
     });
 
+    populateChartFixture(presentation);
+    populateComponentFixture(presentation);
+    populateArrowHeadFixture(presentation);
+}
+
+/** The parity fixture's chart slides, also the WASM backend's chart deck (tests/visual/wasm/decks.ts). */
+export function populateChartFixture(presentation: Presentation): void {
     const chartsSlide = presentation.addSlide();
     chartsSlide.addText("Core chart rendering", {
         x: 0.5,
@@ -1854,8 +1861,6 @@ export function populateParityFixture(presentation: Presentation): void {
             valAxisTitle: "Log scale",
         },
     );
-    populateComponentFixture(presentation);
-    populateArrowHeadFixture(presentation);
 }
 
 function populateArrowHeadFixture(presentation: Presentation): void {
