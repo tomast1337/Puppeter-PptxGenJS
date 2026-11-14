@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
-import { htmlDocument } from "../packages/pptxgenjs/src/html";
+import { htmlDocument } from "../packages/model/src/index";
+import { pptxHtmlDocument } from "../packages/pptxgenjs/src/html";
 import { PuppeteerGen, PuppeteerPdfRenderer, printPreviewHtml } from "../packages/pptxgenjs/src/index";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
@@ -10,21 +11,39 @@ afterAll(() => closeBrowser());
 
 const ascii = (bytes: Uint8Array) => new TextDecoder("latin1").decode(bytes);
 
-describe("htmlDocument()", () => {
+describe("htmlDocument() from @pdfdeck/model", () => {
+    const head = (extra: string) => `<!DOCTYPE html><html><head><meta name="pdfdeck-profile" content="1">${extra}</head><body></body></html>`;
+
+    test("returns the document unchanged with the page size of its @page rule and its pdfdeck-page-size name", () => {
+        const named = head(`<meta content='Wide' name=pdfdeck-page-size><style>@page { size: 13.333in 7.5in; margin: 0 }</style>`);
+        expect(htmlDocument(named)).toEqual({ html: named, pageSize: { width: 13.333, height: 7.5, name: "Wide" } });
+        expect(htmlDocument(head(`<style>@page{size:4in 3in}</style>`)).pageSize).toEqual({ width: 4, height: 3, name: "Custom" });
+    });
+
+    test("fills nothing: a missing page size is an error, as is anything that is not a v1 profile document", () => {
+        expect(() => htmlDocument(head(""))).toThrow("the stylesheet's @page rule has no 'size: <width>in <height>in'");
+        expect(() => htmlDocument(head(`<style>@page { size: A4 }</style>`))).toThrow("write the page size in inches");
+        expect(() => htmlDocument("  ")).toThrow("expected a non-empty HTML string, got an empty string");
+        expect(() => htmlDocument("<p>Hi</p>")).toThrow('not a pdfdeck profile document: add <meta name="pdfdeck-profile" content="1"> to <head>');
+        expect(() => htmlDocument(`<meta name="pdfdeck-profile" content="2">`)).toThrow("pdfdeck profile version '2' is not supported");
+    });
+});
+
+describe("pptxHtmlDocument()", () => {
     test("returns a toHtml() document as it is, with its page size", async () => {
         const pres = new PuppeteerGen(PAGE_SIZES.LETTER.portrait);
         pres.addSlide().addText("Stored", { x: 1, y: 1, w: 3, h: 1 });
         const stored = await pres.toHtml();
-        expect(htmlDocument(stored.html)).toEqual({ html: stored.html, pageSize: { ...PAGE_SIZES.LETTER.portrait } });
+        expect(pptxHtmlDocument(stored.html)).toEqual({ html: stored.html, pageSize: { ...PAGE_SIZES.LETTER.portrait } });
     });
 
     test("reads the page size of a hand-written document from its name, its @page rule or PptxGenJS's default", () => {
-        const named = htmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><meta name="pdfdeck-page-size" content="A4 Landscape">`));
+        const named = pptxHtmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><meta name="pdfdeck-page-size" content="A4 Landscape">`));
         expect(named.pageSize).toEqual({ ...PAGE_SIZES.A4.landscape });
-        expect(htmlDocument(handWrittenDocument("")).pageSize).toEqual({ ...PAGE_SIZES.SCREEN_16X9.landscape });
-        const own = htmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><style>@page { size: 4in 3in; margin: 0; }</style>`));
+        expect(pptxHtmlDocument(handWrittenDocument("")).pageSize).toEqual({ ...PAGE_SIZES.SCREEN_16X9.landscape });
+        const own = pptxHtmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><style>@page { size: 4in 3in; margin: 0; }</style>`));
         expect(own.pageSize).toEqual({ width: 4, height: 3, name: "Custom" });
-        expect(() => htmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><style>@page { size: A4; }</style>`))).toThrow("the stylesheet's @page rule has no 'size: <width>in <height>in'");
+        expect(() => pptxHtmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><style>@page { size: A4; }</style>`))).toThrow("the stylesheet's @page rule has no 'size: <width>in <height>in'");
     });
 });
 
@@ -49,13 +68,13 @@ describe("Puppeteer renderer", () => {
         expect(ascii(pdf)).toContain("/MediaBox [0 0 288 216]");
     }, 60_000);
 
-    test("prints an edited toHtml() document and a hand-written one through htmlDocument()", async () => {
+    test("prints an edited toHtml() document and a hand-written one through pptxHtmlDocument()", async () => {
         const pres = new PuppeteerGen();
         pres.addSlide().addText("Draft", { x: 1, y: 1, w: 3, h: 1 });
         const edited = (await pres.toHtml()).html.replace(">Draft</span>", ">Final</span>");
         const renderer = new PuppeteerPdfRenderer();
         for (const html of [edited, handWrittenDocument(Object.values(HAND_WRITTEN_OBJECTS).join(""))]) {
-            expect(ascii((await renderer.render(htmlDocument(html))).subarray(0, 5))).toBe("%PDF-");
+            expect(ascii((await renderer.render(pptxHtmlDocument(html))).subarray(0, 5))).toBe("%PDF-");
         }
     }, 60_000);
 });

@@ -3,3 +3,4 @@
 export type * from "./renderer";
 export type * from "./types";
 export * from "./units";
+export * from "./htmlDocument";

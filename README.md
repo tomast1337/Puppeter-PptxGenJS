@@ -171,17 +171,18 @@ constructor options, fonts and bundling: [docs/BACKENDS.md](./docs/BACKENDS.md).
 ## Rendering your own HTML
 
 `toHtml()` is the exact document both backends draw ([docs/HTML_PROFILE.md](./docs/HTML_PROFILE.md)),
-so you can store it, edit it or write one by hand, and render it later. `htmlDocument(html)` checks the
-document, fills the values PptxGenJS would default (text insets, line box, font, colors) and reads its
-page size. Its result goes to either renderer. Puppeteer also prints any other HTML through
-`render({ html, pageSize })`. WASM reads only the profile and names the slide, the object and the property
-it rejects.
+so you can store it, edit it or write one by hand, and render it later. `pptxHtmlDocument(html)` checks
+the document, fills the values PptxGenJS would default (text insets, line box, font, colors) and reads
+its page size. `htmlDocument(html)` from `@pdfdeck/model` does the same without filling anything, for a
+document that already states every value. Either result goes to either renderer. Puppeteer also prints
+any other HTML through `render({ html, pageSize })`. WASM reads only the profile and names the slide, the
+object and the property it rejects.
 
 ```typescript
-import { htmlDocument, PuppeteerPdfRenderer } from "@pdfdeck/pptxgenjs";
+import { pptxHtmlDocument, PuppeteerPdfRenderer } from "@pdfdeck/pptxgenjs";
 
 const edited = (await pres.toHtml()).html.replace(">Draft</span>", ">Final</span>");
-const pdf = await new PuppeteerPdfRenderer().render(htmlDocument(edited)); // or a WasmRenderer
+const pdf = await new PuppeteerPdfRenderer().render(pptxHtmlDocument(edited)); // or a WasmRenderer
 ```
 
 Details and a hand-written example: [docs/BACKENDS.md](./docs/BACKENDS.md#rendering-stored-edited-or-hand-written-html)

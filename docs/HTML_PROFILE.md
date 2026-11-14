@@ -32,10 +32,10 @@ both backends read only the HTML.
   `pres.page` is only the input document of `tableToSlides(tableId)`; slides are not written into it,
   so editing it changes neither the HTML nor the PDF.
 - **HTML is also an input.** A stored, edited or hand-written document enters at the HTML stage:
-  `htmlDocument(html)` (`render/completion.ts`, exported from `@pdfdeck/pptxgenjs` and `/html`) checks
-  the version, fills the [defaulted values](#completion) and reads the page size, and its result goes to
-  either renderer. Puppeteer also prints HTML outside the profile through `render({ html, pageSize })`;
-  WASM reads only the profile.
+  `pptxHtmlDocument(html)` (`render/completion.ts`, exported from `@pdfdeck/pptxgenjs` and `/html`) fills
+  the [defaulted values](#completion), then `htmlDocument(html)` (`@pdfdeck/model`) checks the version and
+  reads the page size, and its result goes to either renderer. Puppeteer also prints HTML outside the
+  profile through `render({ html, pageSize })`; WASM reads only the profile.
 - **Every renderer reads the HTML.** `toPdf()` hands `toHtml()` to the renderer, whichever it is.
   `WasmRenderer.render(document)` parses this profile in Rust (`crates/pdf-core/src/profile/`,
   [Parsing (WASM)](#parsing-wasm)). The renderers have no model input: the model reaches them only
@@ -101,9 +101,9 @@ From the maintainer's decisions on #69:
   insets, from `defaults.ts`), the line-box strut and the print rules. It is generated from the page size
   only, so it is the same for every deck of one size.
 - `<meta name="pdfdeck-profile" content="1">` names the profile version this document follows
-  (`HTML_PROFILE_VERSION`, `render/slide.ts`).
-- `<meta name="pdfdeck-page-size">` holds the page size's name (`PageSize.name`); the size itself is in
-  the stylesheet.
+  (`HTML_PROFILE_VERSION`, `@pdfdeck/model`).
+- `<meta name="pdfdeck-page-size">` holds the page size's name (`PageSize.name`, `Custom` when it is
+  missing); the size itself is in the stylesheet.
 - There is no `<title>`, `<script>` or external resource. Every image is a `data:` URI by the time
   `toHtml()` returns (`modelToHtml`, `render/document.ts`).
 
@@ -319,7 +319,9 @@ when its option is not set (`packages/pptxgenjs/src/defaults.ts`). It is pure, d
 browser-safe (parse5, no DOM): it splices each missing value into the original string, so a document that
 states everything, such as any `toHtml()` result, comes back byte for byte (`tests/htmlBytes.test.ts`
 checks every pinned deck), and completing twice changes nothing. Values already in the document are kept;
-`.slide-chart` and `.slide-component` subtrees are not touched.
+`.slide-chart` and `.slide-component` subtrees are not touched. When it adds the stylesheet for the default
+size, it also adds `<meta name="pdfdeck-page-size" content="Screen 16:9 Landscape">`, so the completed
+document states its whole page size.
 
 It throws when the input is not a profile document: a non-string or empty input, no
 `<meta name="pdfdeck-profile">`, another version, an unknown `pdfdeck-page-size` without an `@page` rule,
