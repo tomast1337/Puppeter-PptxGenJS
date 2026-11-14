@@ -28,7 +28,8 @@ root=$PWD
 # -40 B: the line-box strut leaves the text allow-lists (#69 phase 6), 958,095 -> 958,055 B measured; budget = that size.
 # -95 B: the print snap and dash rewrite leave the shape allow-lists; the dash pattern is read from stroke-dasharray (#69 phase 6), 958,055 -> 957,960 B measured; budget = that size.
 # +93 B: the table offset leaves the table allow-list (#69 phase 6); raw -26 B, gzip packs it worse, 957,960 -> 958,053 B measured; budget = that size.
-GZIP_BUDGET=958053
+# -112 B: font-family is exactly one quoted family; the bullet copy is checked too (#69 phase 7), 958,053 -> 957,941 B measured; budget = that size.
+GZIP_BUDGET=957941
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

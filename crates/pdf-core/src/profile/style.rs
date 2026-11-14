@@ -207,9 +207,10 @@ pub(crate) fn shadow(text: &str, inset: bool) -> Result<Shadow, String> {
     })
 }
 
-/// The first family of a `font-family` list: a CSS string with `\\` and `\"` escapes.
-pub(crate) fn first_family(text: &str) -> Result<String, String> {
-    let invalid = || format!("font-family '{text}' does not start with a quoted family");
+/// The one family of a `font-family` value: a CSS string with `\\` and `\"` escapes, as `toHtml()`
+/// writes it. Fallback lists are the Puppeteer print step's, not the profile's.
+pub(crate) fn font_family(text: &str) -> Result<String, String> {
+    let invalid = || format!("font-family '{text}' is not one quoted family (write it as \"Calibri\", without fallbacks)");
     let mut chars = text.strip_prefix('"').ok_or_else(invalid)?.chars();
     let mut family = String::new();
     loop {
@@ -219,12 +220,7 @@ pub(crate) fn first_family(text: &str) -> Result<String, String> {
             c => family.push(c),
         }
     }
-    let rest = chars.as_str().trim_ascii_start();
-    if rest.is_empty() || rest.starts_with(',') {
-        Ok(family)
-    } else {
-        Err(invalid())
-    }
+    if chars.as_str().is_empty() { Ok(family) } else { Err(invalid()) }
 }
 
 #[cfg(test)]
@@ -284,10 +280,18 @@ mod tests {
             (3.0, -2.5, 4.0, "rgba(0, 0, 0, 0.35)", true)
         );
         assert!(shadow("3px 4px rgba(0,0,0,1)", false).is_err());
-        assert_eq!(first_family(r#""Calibri", "Noto Sans", Arial"#).unwrap(), "Calibri");
-        assert_eq!(first_family(r#""a\"b\\c""#).unwrap(), r#"a"b\c"#);
-        for bad in ["Arial", r#""open"#, r#""a" b"#, r#""a\"#] {
-            assert!(first_family(bad).is_err(), "{bad}");
+        assert_eq!(font_family(r#""Calibri""#).unwrap(), "Calibri");
+        assert_eq!(font_family(r#""a\"b\\c""#).unwrap(), r#"a"b\c"#);
+        for bad in [
+            "Arial",
+            r#""open"#,
+            r#""a" b"#,
+            r#""a\"#,
+            r#""Calibri", Arial"#,
+            r#""Calibri" "#,
+            r#""Calibri","#,
+        ] {
+            assert!(font_family(bad).is_err(), "{bad}");
         }
         assert_eq!(
             split_top_level("1px 1px 1px rgba(0, 0, 0, 1), 0px 0px 2px #FFF", ','),
