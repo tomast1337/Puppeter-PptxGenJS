@@ -39,8 +39,6 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
     if (run.decoration.underlineColor) css.set("text-decoration-color", run.decoration.underlineColor);
     // CSS has one decoration style per box, so the underline style the double strike replaces is kept in data-underline-style.
     if (run.decoration.doubleStrike) css.set("text-decoration-style", "double");
-    // Glyphs must not size the line box; the paragraph's strut does (paragraphAttributes).
-    css.set("line-height", "0");
     if (run.baselineOffset) {
         css.set("position", "relative");
         css.set("top", `${-run.baselineOffset}px`);
@@ -81,24 +79,16 @@ function renderRun(run: NormalizedTextRun): string {
     );
 }
 
-function paragraphAttributes(paragraph: NormalizedTextParagraph, horizontal: boolean): Attribute[] {
+function paragraphAttributes(paragraph: NormalizedTextParagraph): Attribute[] {
     const css: InlineStyle = new Map([
         ["text-align", paragraph.align],
         ["direction", paragraph.rtl ? "rtl" : "ltr"],
         ["margin-top", `${paragraph.spaceBefore}px`],
         ["margin-bottom", `${paragraph.spaceAfter}px`],
     ]);
-    // A 0px font makes each line's strut exactly `height` tall with its baseline in the middle, whatever
-    // the fonts' ascent and descent; runs have line-height 0, so the strut alone sizes the line. Moving
-    // the paragraph then puts every baseline where LibreOffice puts it.
+    // The line box. The stylesheet's strut and the print step's baseline shift draw it (docs/HTML_PROFILE.md).
     const { lineBox, bullet } = paragraph;
-    css.set("font-size", "0px");
     css.set("line-height", `${lineBox.height}px`);
-    // shortcut: vertical text keeps the centred baseline; shift along the block axis once it is measured.
-    if (horizontal) {
-        css.set("position", "relative");
-        css.set("top", `${lineBox.baseline - lineBox.height / 2}px`);
-    }
     // Default stops only: CSS has no explicit tab stops.
     css.set("tab-size", `${paragraph.defaultTabStop}px`);
     if (bullet) {
@@ -131,19 +121,18 @@ function renderBulletMarker(paragraph: NormalizedTextParagraph & { bullet: NonNu
         css.set("font-family", fontFamilyCSS(firstRun.fontFace));
         css.set("font-size", `${firstRun.fontSize}px`);
         css.set("color", firstRun.color);
-        css.set("line-height", "0");
     }
     return element("span", [["class", "text-bullet"], styleAttribute(css)], escapeText(`${bullet.marker}${BULLET_GAP}`));
 }
 
-function renderParagraph(paragraph: NormalizedTextParagraph, horizontal: boolean): string {
+function renderParagraph(paragraph: NormalizedTextParagraph): string {
     let content = paragraph.bullet ? renderBulletMarker({ ...paragraph, bullet: paragraph.bullet }) : "";
     paragraph.runs.forEach((run, index) => {
         // A soft break separates a run from what precedes it in the paragraph; the bullet marker does not count.
         if (run.softBreakBefore && index > 0) content += voidElement("br", []);
         content += renderRun(run);
     });
-    return element("div", paragraphAttributes(paragraph, horizontal), content);
+    return element("div", paragraphAttributes(paragraph), content);
 }
 
 /** Adds the text box's declarations to `css`, which the caller writes; returns the box's attributes and its content. */
@@ -172,8 +161,7 @@ export function renderText(css: InlineStyle, text: NormalizedTextBox): { attribu
         contentCss.set("text-orientation", text.direction === "stacked" ? "upright" : "mixed");
         contentCss.set("height", "100%");
     }
-    const horizontal = text.direction === "horizontal";
-    const paragraphs = text.paragraphs.map(paragraph => renderParagraph(paragraph, horizontal)).join("");
+    const paragraphs = text.paragraphs.map(renderParagraph).join("");
     return {
         attributes: [
             ["data-text-fit", text.fit],

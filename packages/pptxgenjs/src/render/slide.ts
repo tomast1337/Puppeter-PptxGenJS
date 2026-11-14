@@ -131,10 +131,6 @@ body {
     font-family: ${PPTX_DEFAULTS.text.fontFace}, Arial, Helvetica, sans-serif;
 }
 
-[data-puppeteer-gen-source="true"] {
-    display: none !important;
-}
-
 .slide-container {
     width: ${widthPx}px;
     height: ${heightPx}px;
@@ -181,6 +177,18 @@ body {
 .slide-text > .text-content {
     position: relative;
     z-index: 1;
+}
+
+/* The line-box strut: a 0px font makes each line exactly the paragraph's line-height tall, its baseline
+   in the middle, whatever the fonts' ascent and descent; glyphs with line-height 0 do not size it. The
+   Puppeteer print step then moves the paragraph so the baseline lands on data-line-baseline. */
+.text-paragraph {
+    font-size: 0;
+}
+
+.text-run,
+.text-bullet {
+    line-height: 0;
 }
 
 .slide-shape {

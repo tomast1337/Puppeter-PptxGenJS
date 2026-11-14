@@ -154,13 +154,13 @@ describe("text DOM rendering", () => {
         const runs = box?.querySelectorAll<HTMLElement>(".text-run");
         const link = box?.querySelector<HTMLAnchorElement>("a.text-run");
         expect(paragraph?.dataset.bulletType).toBe("bullet");
-        // 18pt (24px) default: a 28.8px line box, the 0px strut's baseline moved from 14.4px to 24px.
-        expect(paragraph?.style.fontSize).toBe("0px");
+        // 18pt (24px) default: a 28.8px line box with its baseline at 24px. The strut and the shift that
+        // draw it are not in the markup (stylesheet and Puppeteer print step).
         expect(parseFloat(paragraph?.style.lineHeight ?? "")).toBeCloseTo(28.8);
+        expect(Number(paragraph?.dataset.lineBaseline)).toBeCloseTo(24);
         expect(paragraph?.style.getPropertyValue("tab-size")).toBe("96px");
-        expect(parseFloat(paragraph?.style.top ?? "")).toBeCloseTo(9.6);
-        expect(runs?.[0]?.style.lineHeight).toBe("0");
-        expect(paragraph?.querySelector<HTMLElement>(".text-bullet")?.style.lineHeight).toBe("0");
+        expect([paragraph?.style.fontSize, paragraph?.style.top, runs?.[0]?.style.lineHeight]).toEqual(["", "", ""]);
+        expect(paragraph?.querySelector<HTMLElement>(".text-bullet")?.style.lineHeight).toBe("");
         expect(paragraph?.querySelector(".text-bullet")?.textContent).toContain("●");
         expect(paragraph?.querySelectorAll("br")).toHaveLength(1);
         expect(runs?.[0]?.style.fontWeight).toBe("bold");

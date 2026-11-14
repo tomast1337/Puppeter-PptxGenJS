@@ -28,22 +28,18 @@ const PARAGRAPH_ATTRS: &[&str] = &[
     "data-bullet-start",
     "data-bullet-number-type",
 ];
-// `font-size: 0px`, `position`, `top`, `padding-left` and `text-indent` are the line-box strut
-// and bullet indent workarounds, derived from the values read here.
+// `padding-left` and `text-indent` are the bullet indent, derived from the values read here.
 const PARAGRAPH_CSS: &[&str] = &[
     "text-align",
     "direction",
     "margin-top",
     "margin-bottom",
-    "font-size",
     "line-height",
-    "position",
-    "top",
     "tab-size",
     "padding-left",
     "text-indent",
 ];
-const BULLET_CSS: &[&str] = &["display", "width", "font-family", "font-size", "color", "line-height"];
+const BULLET_CSS: &[&str] = &["display", "width", "font-family", "font-size", "color"];
 const RUN_ATTRS: &[&str] = &[
     "lang",
     "href",
@@ -66,7 +62,6 @@ const RUN_CSS: &[&str] = &[
     "text-decoration-line",
     "text-decoration-style",
     "text-decoration-color",
-    "line-height",
     "position",
     "top",
     "letter-spacing",
@@ -299,8 +294,9 @@ mod tests {
     use crate::profile::parse;
     use crate::profile::tests::document;
 
-    const RUN_STYLE: &str = "font-family: &quot;Calibri&quot;, Arial; font-size: 16px; color: #000000; font-weight: normal; font-style: normal; text-decoration-style: solid; line-height: 0;";
-    const PARAGRAPH_STYLE: &str = "text-align: left; direction: ltr; margin-top: 1px; margin-bottom: 2px; font-size: 0px; line-height: 19.2px; position: relative; top: 6.4px; tab-size: 96px;";
+    const RUN_STYLE: &str =
+        "font-family: &quot;Calibri&quot;, Arial; font-size: 16px; color: #000000; font-weight: normal; font-style: normal; text-decoration-style: solid;";
+    const PARAGRAPH_STYLE: &str = "text-align: left; direction: ltr; margin-top: 1px; margin-bottom: 2px; line-height: 19.2px; tab-size: 96px;";
 
     fn text_object(paragraphs: &str) -> Result<TextObject, String> {
         let html = document(&format!(
@@ -315,7 +311,7 @@ mod tests {
     #[test]
     fn reads_paragraphs_bullets_and_runs() {
         let html = format!(
-            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px; line-height: 0;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; position: relative; top: -4.5px; letter-spacing: 1.5px; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
+            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; position: relative; top: -4.5px; letter-spacing: 1.5px; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
         );
         let object = text_object(&html).unwrap();
         let text = object.text.expect("text");
@@ -362,6 +358,8 @@ mod tests {
         };
         for (html, wants) in [
             (run("", " font-variant: small-caps;", "x"), "CSS property 'font-variant'"),
+            // The line-box strut is the stylesheet's, not the profile's.
+            (run("", " line-height: 0;", "x"), "CSS property 'line-height'"),
             (run(" data-empty=\"\"", "", "x"), "U+200B"),
             (run(" data-text-shadow=\"glow\"", "", "x"), "data-text-shadow"),
             (run("", " text-shadow: 1px 1px 1px red;", "x"), "data-text-shadow"),
