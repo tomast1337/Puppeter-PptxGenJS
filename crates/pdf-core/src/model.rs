@@ -27,6 +27,9 @@ pub(crate) struct PageSize {
 }
 
 pub(crate) struct Slide {
+    /// The slide's number from `id="slide-N"`, which slide links name: hidden slides are not in
+    /// the document, so it can be past the slide's position. `None` without an `id`.
+    pub(crate) number: Option<u32>,
     pub(crate) background: String,
     pub(crate) objects: Vec<SlideObject>,
 }
@@ -312,6 +315,7 @@ pub(crate) mod build {
             page_size: PageSize { width: 10.0, height: 5.625 },
             metadata: Metadata::default(),
             slides: vec![Slide {
+                number: None,
                 background: "#FFFFFF".into(),
                 objects,
             }],

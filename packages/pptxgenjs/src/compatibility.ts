@@ -442,6 +442,20 @@ export const COMPATIBILITY = Object.freeze({
             masterSlideName: "unsupported",
         }),
     }),
+    // Slide properties; the fixture's slide-properties pages (populateSlidePropertiesFixture) check the verified ones.
+    slide: Object.freeze<CompatibilityEntry>({
+        status: "implemented",
+        options: Object.freeze({
+            // `background.color`, or the deprecated `background.fill` and string `bkgd`.
+            backgroundColor: "implemented",
+            // `background.path` / `data` (and an object `bkgd`), stretched over the slide under every object.
+            backgroundImage: "verified",
+            color: "implemented",
+            // Left out of the PDF; later slides keep their number.
+            hidden: "verified",
+            slideNumber: "verified",
+        }),
+    }),
 } as const);
 
 /**
@@ -510,6 +524,9 @@ export const WASM_COMPATIBILITY = Object.freeze({
             tabStops: "partial",
         }),
     }),
+    // The background picture is an image object and the slide number a text box, so the WASM slides deck
+    // (tests/visual/wasm/decks.ts) checks them with the shared fixture slides.
+    slide: Object.freeze<CompatibilityEntry>({ status: "implemented", options: COMPATIBILITY.slide.options }),
 } as const);
 
 /**
@@ -578,12 +595,12 @@ export const API_COMPATIBILITY = Object.freeze({
         addShape: { status: "implemented", note: "options in COMPATIBILITY.shape" },
         addTable: { status: "implemented", note: "options in COMPATIBILITY.table" },
         addText: { status: "implemented", note: "options in COMPATIBILITY.text" },
-        background: { status: "partial", note: "a color, also as the deprecated `fill`; an image (`path`, `data`) throws UnsupportedFeatureError" },
-        bkgd: { status: "implemented", note: "deprecated background color" },
+        background: { status: "implemented", note: "a color (also as the deprecated `fill`) or a picture (`path`, `data`) stretched over the slide; `src` is ignored and a picture stays once set, as in PptxGenJS" },
+        bkgd: { status: "implemented", note: "deprecated: a color, or `{ path | data | src }`, which PptxGenJS draws only once `background` is set" },
         color: { status: "implemented", note: "default text color" },
-        hidden: { status: "unsupported", note: "PDF exports leave hidden slides out; `hidden = true` throws, leave the slide out instead" },
+        hidden: { status: "implemented", note: "the slide is left out of the PDF and the HTML; later slides keep their number, and a link to it makes no PDF link" },
         newAutoPagedSlides: { status: "implemented", note: "slides added by autoPage" },
-        slideNumber: { status: "unsupported", note: "add the number with addText()" },
+        slideNumber: { status: "implemented", note: "the slide's position (hidden slides counted) as text, painted last; size, color, font, anchor and insets inherit from the slideNumber set last, as PptxGenJS's master does" },
         addSlide: { status: "internal", note: "auto-paging callback" },
         getSlide: { status: "internal", note: "auto-paging callback" },
     }),

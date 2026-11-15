@@ -19,7 +19,10 @@ their PDFs have no document properties. Puppeteer prints any HTML, so Chromium k
 document's `<title>` as the PDF Title, as before. Version 2 is not released yet (no `@pdfdeck/*` package has
 been published), so its description was corrected in place rather than as a version 3: the elements are
 the same, but `toHtml()` writes only the properties the deck sets (PptxGenJS's defaults are not written)
-and both renderers put `company` and `revision` in the PDF.
+and both renderers put `company` and `revision` in the PDF. For the same reason, hidden slides were also
+corrected in place: `toHtml()` leaves a hidden slide out instead of marking it `data-hidden`, so a slide
+container's `#slide-N` is the slide's number in the deck and can skip one, and a slide link jumps to the
+container with that number ([Slide](#slide)). Readers accept `data-hidden` and give it no meaning.
 
 ## Pipeline
 
@@ -98,7 +101,7 @@ From the maintainer's decisions on #69:
         </style>
     </head>
     <body>
-        <div class="slide-container" id="slide-1" style="background-color: …; --slide-text-color: …" data-hidden="false">
+        <div class="slide-container" id="slide-1" style="background-color: …; --slide-text-color: …">
             <!-- slide objects in insertion (paint) order -->
         </div>
         <!-- one .slide-container per slide -->
@@ -158,8 +161,16 @@ and appears at most once.
 
 ## Slide
 
-`div.slide-container#slide-N` (N from 1) is one page: `position: relative`, `overflow: hidden`, the page
-size from the stylesheet. Children are the slide's objects in model order, which is also paint order.
+`div.slide-container#slide-N` is one page: `position: relative`, `overflow: hidden`, the page size from
+the stylesheet. Children are the slide's objects in model order, which is also paint order.
+
+N is the slide's number in the deck, from 1. A hidden slide is not written, so the numbers can skip one:
+a deck whose second slide is hidden has `#slide-1` and `#slide-3`. A slide link (`href="#slide-N"` and
+`data-slide="N"` on the linked element) jumps to the page of the container `#slide-N`. With no such
+container (the target is hidden) the PDF gets no link there: Chromium writes none for the dangling
+anchor, and the WASM reader reports it through `warnings()`. A container without an `id` takes its
+position as its number; any other `id` than `slide-<n>` is an error. `data-hidden` (written before
+hidden slides were left out) is accepted and ignored.
 
 ## Slide objects
 
@@ -488,7 +499,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `PageSize.width`                  | profile | `@page { size: <width>in … }`; `.slide-container { width: <width × 96>px }`. |
 | `PageSize.height`                 | profile | `@page { size: … <height>in }`; `.slide-container { height }`.               |
 | `PageSize.name`                   | profile | `<meta name="pdfdeck-page-size" content="<name>">` in the head.              |
-| `NormalizedPresentation.slides`   | profile | One `div.slide-container#slide-N` per slide, in order.                       |
+| `NormalizedPresentation.slides`   | profile | One `div.slide-container#slide-N` per slide that is not hidden, in order.    |
 | `NormalizedPresentation.metadata` | profile | The [document properties](#document-properties) in the head (version 2).     |
 | `PresentationMetadata.title`      | profile | `<title>`.                                                                   |
 | `PresentationMetadata.author`     | profile | `<meta name="author" content>`.                                              |
@@ -497,7 +508,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `PresentationMetadata.revision`   | profile | `<meta name="pdfdeck-revision" content>`.                                    |
 | `NormalizedSlide.background`      | profile | `.slide-container` `background-color`.                                       |
 | `NormalizedSlide.color`           | profile | `.slide-container` custom property `--slide-text-color` (verbatim).          |
-| `NormalizedSlide.hidden`          | profile | `.slide-container` `data-hidden="true\|false"`.                              |
+| `NormalizedSlide.hidden`          | profile | A hidden slide has no `.slide-container`; the others keep their number N.    |
 | `NormalizedSlide.objects`         | profile | The container's `.slide-element` children, in paint order.                   |
 
 ### Slide object variants

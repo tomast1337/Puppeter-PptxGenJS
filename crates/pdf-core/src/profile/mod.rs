@@ -19,7 +19,7 @@ mod table;
 mod text;
 
 use dom::{Dom, Element};
-use style::{Style, number, split_top_level};
+use style::{Style, integer, number, split_top_level};
 
 use crate::model::{Metadata, PageSize, Presentation, Slide, SlideObject};
 
@@ -172,6 +172,14 @@ fn read_slide(dom: &Dom<'_>, slide: &Element<'_>) -> Result<Slide, String> {
     }
     let style = Style::of(slide)?;
     allow(slide, &style, &[&["id", "data-hidden"]], &[&["background-color", "--slide-text-color"]])?;
+    let number = slide
+        .attr("id")?
+        .map(|id| {
+            id.strip_prefix("slide-")
+                .ok_or_else(|| format!("id '{id}' is not 'slide-<n>'"))
+                .and_then(|n| integer(n).map_err(|e| format!("id '{id}': {e}")))
+        })
+        .transpose()?;
     let objects = dom
         .elements_of(&slide.children)?
         .into_iter()
@@ -185,6 +193,7 @@ fn read_slide(dom: &Dom<'_>, slide: &Element<'_>) -> Result<Slide, String> {
         })
         .collect::<Result<Vec<SlideObject>, String>>()?;
     Ok(Slide {
+        number,
         background: style.require("background-color")?.to_owned(),
         objects,
     })
@@ -212,6 +221,12 @@ pub(crate) mod tests {
         let [slide] = &model.slides[..] else { panic!("one slide") };
         assert_eq!(slide.background, "#FFFFFF");
         assert!(slide.objects.is_empty());
+        // The number slide links name; a hidden slide before it is not in the document.
+        assert_eq!(slide.number, Some(1));
+        let renumbered = parse(&document("").replace(r#"id="slide-1""#, r#"id="slide-3""#)).unwrap();
+        assert_eq!(renumbered.slides.first().and_then(|s| s.number), Some(3));
+        let unnamed = parse(&document("").replace(r#" id="slide-1""#, "")).unwrap();
+        assert_eq!(unnamed.slides.first().and_then(|s| s.number), None);
     }
 
     #[test]
@@ -272,6 +287,7 @@ pub(crate) mod tests {
             ("@page {", "@media {"),
             ("<style", "<script></script><style"),
             ("data-hidden", "onclick"),
+            (r#"id="slide-1""#, r#"id="intro""#),
             ("background-color: #FFFFFF;", "background-color: #FFFFFF; float: left;"),
             ("<div class=\"slide-container\"", "<p class=\"slide-container\""),
             ("</div></body>", "<span></span></div></body>"),

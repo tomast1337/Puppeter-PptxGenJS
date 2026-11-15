@@ -2,7 +2,7 @@
 // PDF's bytes (pdf-sha256.json); tests/htmlBytes.test.ts pins their toHtml() bytes.
 import type pptxgen from "pptxgenjs";
 import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
-import { populateChartFixture, populateComponentFixture, populateImageFixture } from "../fixture";
+import { populateChartFixture, populateComponentFixture, populateImageFixture, populateSlidePropertiesFixture } from "../fixture";
 import { populateShapeDeck, populateTableDeck, populateTextDeck, SHAPE_PAGES, TABLE_PAGES, TEXT_PAGES } from "./deck";
 import { EFFECT_PAGES, populateEffectDeck } from "./effect-deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
@@ -59,5 +59,15 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
         },
         pages: 1,
         crop: object => object.kind === "component",
+    },
+    // slides: the shared fixture's background picture, hidden slide and slide numbers (two printed pages);
+    // the crops are the titles and the slide numbers, the picture is the page score.
+    slides: {
+        populate: presentation => {
+            populateSlidePropertiesFixture(presentation);
+            return presentation;
+        },
+        pages: 2,
+        crop: isText,
     },
 };
