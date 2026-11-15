@@ -322,7 +322,12 @@ export interface NormalizedSlide {
     /** CSS colors, as applied to the slide container. */
     background: string;
     color: string;
+    /** Left out of the HTML and the PDF; the other slides keep their number. */
     hidden: boolean;
+    /**
+     * In paint order. PptxGenJS's background picture is the first object (an image named "Background" over the whole
+     * slide) and its slide number the last (a text box named "Slide Number").
+     */
     objects: NormalizedSlideObject[];
 }
 

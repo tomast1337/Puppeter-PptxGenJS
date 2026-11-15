@@ -67,7 +67,7 @@ export function renderSlide(slide: NormalizedSlide, index: number, pass: RenderP
         ["background-color", slide.background],
         ["--slide-text-color", slide.color],
     ]);
-    return element("div", [["class", "slide-container"], ["id", `slide-${index + 1}`], styleAttribute(css), ["data-hidden", String(slide.hidden)]], objects);
+    return element("div", [["class", "slide-container"], ["id", `slide-${index + 1}`], styleAttribute(css)], objects);
 }
 
 /** Default document factory for browser runtimes; the Node entry injects jsdom instead. */
@@ -78,14 +78,14 @@ export function createBrowserDocument(): Document {
 }
 
 /**
- * Renders the model's components, in deck order, with their definitions. `getDocument` is called only for a
+ * Renders the components of the printed (not hidden) slides, in deck order, with their definitions. `getDocument` is called only for a
  * component that reads `context.document`, so a deck without one never creates a document.
  */
 export function renderComponents(presentation: NormalizedPresentation, components: ComponentLookup | undefined, getDocument: () => Document): Map<NormalizedSlideObject, RenderedComponent> {
     const rendered = new Map<NormalizedSlideObject, RenderedComponent>();
     presentation.slides.forEach((slide, slideIndex) =>
         slide.objects.forEach((object, objectIndex) => {
-            if (object.kind !== "component") return;
+            if (slide.hidden || object.kind !== "component") return;
             if (!components) throw new Error(`Rendering component ${object.component.type}@${object.component.version} requires its component registry`);
             const definition = components.get(object.component.type, object.component.version);
             rendered.set(object, renderComponent({ input: object.component, style: object.style }, definition, objectIdScope(slideIndex, objectIndex), getDocument));
@@ -107,7 +107,8 @@ export function presentationHtml(presentation: NormalizedPresentation, pass: Ren
     ]);
     // <style> holds raw text: its content is not escaped.
     const style = element("style", [["id", "puppeteer-gen-styles"]], presentationCSS(presentation.pageSize));
-    const slides = presentation.slides.map((slide, index) => renderSlide(slide, index, pass)).join("");
+    // A hidden slide is not printed; the others keep their number in `id`, which slide links jump to.
+    const slides = presentation.slides.map((slide, index) => (slide.hidden ? "" : renderSlide(slide, index, pass))).join("");
     // Standards mode: quirks mode drops the line-box strut that text.ts sizes lines with.
     return `<!DOCTYPE html><html><head>${profile}${pageSize}${metadataHtml(presentation.metadata)}${style}</head><body>${slides}</body></html>`;
 }

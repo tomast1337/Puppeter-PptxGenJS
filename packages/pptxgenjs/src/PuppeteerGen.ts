@@ -5,12 +5,13 @@ import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps } from "./components/types";
 import { PPTX_DEFAULTS, PPTXGENJS_VERSION } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
-import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdfdeck/model";
+import type { NormalizedImage, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/table/html";
 import { normalizeImage, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, straightLineLength } from "./normalize/shape";
+import { normalizeSlideNumber } from "./normalize/slideNumber";
 import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
 import { paginateTableRows } from "./normalize/table/pagination";
@@ -33,6 +34,8 @@ export class PuppeteerSlide implements PptxSlide {
         document: Document,
         private readonly slideIndex: number,
         getContinuationSlide: (offset: number) => PuppeteerSlide,
+        /** PptxGenJS's `setSlideNumber` callback: every slide's `slideNumber` setter also sets the master's. */
+        private readonly setMasterSlideNumber: (props: PptxGenJS.SlideNumberProps | null) => void,
         private readonly components = new ComponentRegistry(),
         /** `pres.theme.bodyFontFace`: the font of text, table cells and chart legends that name none (PowerPoint's `+mn-lt`). */
         private readonly bodyFontFace: () => string = () => PPTX_DEFAULTS.theme.bodyFontFace,
@@ -55,6 +58,9 @@ export class PuppeteerSlide implements PptxSlide {
     private _bkgd: string = PPTX_DEFAULTS.slide.backgroundColor;
     private _color: string = PPTX_DEFAULTS.slide.color;
     private _hidden: boolean = PPTX_DEFAULTS.slide.hidden;
+    private _slideNumber: PptxGenJS.SlideNumberProps | null = null;
+    /** The background picture, checked when it is set; drawn under every object over the whole slide. */
+    private backgroundImage: NormalizedImage | undefined;
     private readonly getContinuationSlide: (offset: number) => PuppeteerSlide;
     newAutoPagedSlides: PptxGenJS.PresSlide[];
     private objectCounts: Record<string, number> = {};
@@ -71,9 +77,13 @@ export class PuppeteerSlide implements PptxSlide {
     }
 
     set background(value: PptxGenJS.BackgroundProps) {
-        if (value?.path || value?.data || value?.src) {
-            throw new UnsupportedFeatureError("slide.background = { path | data }", "Add the picture as the slide's first object instead: slide.addImage({ path, x: 0, y: 0, w: '100%', h: '100%' }).", "property");
-        }
+        // PptxGenJS takes the picture of a deprecated object `bkgd` set before (`src` as `path`) and ignores
+        // `background.src`. A picture stays once set: a later color-only background does not remove it.
+        const bkgd: unknown = this._bkgd;
+        const old = typeof bkgd === "object" && bkgd !== null ? (bkgd as { data?: string; path?: string; src?: string }) : {};
+        const data = old.data || value?.data;
+        const path = old.src || old.path || value?.path;
+        if (data || path) this.backgroundImage = normalizeImage({ ...(data ? { data } : {}), ...(path ? { path } : {}) }, this.pageSize);
         this._background = value;
         // PptxGenJS copies the deprecated `fill` to `color`.
         const color = value?.color ?? value?.fill;
@@ -87,6 +97,8 @@ export class PuppeteerSlide implements PptxSlide {
 
     set bkgd(value: string) {
         this._bkgd = value;
+        // An object (`{ path | data | src }`, deprecated) draws nothing until `background` is set, as in PptxGenJS.
+        if (typeof value !== "string") return;
         this.model.background = normalizeColor(value);
     }
 
@@ -104,21 +116,33 @@ export class PuppeteerSlide implements PptxSlide {
     }
 
     set hidden(value: boolean) {
-        // LibreOffice and PowerPoint leave a hidden slide out of the PDF; both renderers would print it.
-        if (value) throw new UnsupportedFeatureError("slide.hidden = true", "Leave the slide out of the presentation instead of hiding it.", "property");
+        // A hidden slide is left out of the PDF (toHtml() does not write it), as LibreOffice and PowerPoint export it.
         this._hidden = value;
-        this.model.hidden = value;
+        this.model.hidden = Boolean(value);
     }
 
     get slideNumber(): PptxGenJS.SlideNumberProps {
-        // PptxGenJS returns null until a slide number is set; setting one throws here, so it stays null.
-        return null as unknown as PptxGenJS.SlideNumberProps;
+        // PptxGenJS returns null until a slide number is set; its declaration file leaves null out.
+        return this._slideNumber as PptxGenJS.SlideNumberProps;
     }
 
     set slideNumber(value: PptxGenJS.SlideNumberProps) {
-        if (value) {
-            throw new UnsupportedFeatureError("slide.slideNumber", "Add the number as text on each slide: slide.addText(String(slideIndex + 1), { x, y, w, h, fontSize }).", "property");
-        }
+        this._slideNumber = value;
+        this.setMasterSlideNumber(value);
+    }
+
+    /**
+     * The slide's model as getModel() returns it: the background picture first, stretched over `pageSize` (the
+     * presentation's), then the slide's objects, then its number, which PptxGenJS writes last. `masterSlideNumber` is
+     * the `slideNumber` set last on any slide.
+     */
+    toModel(pageSize: PageSize, masterSlideNumber: PptxGenJS.SlideNumberProps | null): NormalizedSlide {
+        const backgroundStyle = () => normalizeObjectStyle({ x: 0, y: 0, w: pageSize.width, h: pageSize.height }, PPTX_DEFAULTS.image, pageSize, PPTX_DEFAULTS.backgroundImage.objectName);
+        const background: NormalizedSlideObject[] = this.backgroundImage ? [{ kind: "image", style: backgroundStyle(), image: this.backgroundImage }] : [];
+        const slideNumber = this._slideNumber ? [normalizeSlideNumber(this._slideNumber, masterSlideNumber ?? {}, this.slideIndex + 1, this.pageSize, this.bodyFontFace())] : [];
+        // PptxGenJS writes the picture alone, so its transparent parts show white (LibreOffice), not the color.
+        const color = this.backgroundImage ? normalizeColor(PPTX_DEFAULTS.slide.backgroundColor) : this.model.background;
+        return { ...this.model, background: color, objects: [...background, ...this.model.objects, ...slideNumber] };
     }
 
     private nextObjectName(kind: string, explicit?: string): string {
@@ -288,6 +312,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     // Only what the caller sets: PptxGenJS's defaults ("PptxGenJS", "PptxGenJS Presentation", "1") are its branding,
     // not the caller's, so an unset one reads "" and reaches neither the HTML nor the PDF (owner decision, #102).
     private metadata: PresentationMetadata = {};
+    /** The `slideNumber` set last on any slide: PptxGenJS writes it to the master, which slide numbers inherit from. */
+    private masterSlideNumber: PptxGenJS.SlideNumberProps | null = null;
     /**
      * Input document for tableToSlides(tableId) only: put the source <table> here. Slides are not written
      * into it, so editing it does not change toHtml() or the PDF (#69). #72 tracks option (b): tableToSlides
@@ -486,7 +512,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
      * `component` objects keep only type, version and props; rendering them needs the registered definitions.
      */
     getModel(): NormalizedPresentation {
-        return structuredClone({ pageSize: this.pageSize, metadata: this.metadata, slides: this.slides.map(slide => slide.model) });
+        return structuredClone({ pageSize: this.pageSize, metadata: this.metadata, slides: this.slides.map(slide => slide.toModel(this.pageSize, this.masterSlideNumber)) });
     }
 
     /** PptxGenJS `stream()`: the PDF as a Node Buffer. `compression` is ignored (zip-only). */
@@ -541,6 +567,9 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
                 const targetIndex = slideIndex + offset;
                 while (this.slides.length <= targetIndex) this.addSlide();
                 return this.slides[targetIndex]!;
+            },
+            props => {
+                this.masterSlideNumber = props;
             },
             this.components,
             () => this.bodyFontFace(),

@@ -145,13 +145,16 @@ returns a `.pptx`:
   PDF's Title, Author, Subject and the custom Company and Revision entries. Only what you set is
   written: PptxGenJS's defaults (`PptxGenJS Presentation`, `PptxGenJS`, revision `1`) are not, and
   an unset property reads `""`.
+- **Hidden slides:** `slide.hidden = true` leaves the slide out of the PDF, as PowerPoint and
+  LibreOffice export it. The other slides keep their numbers, so `slide.slideNumber` prints the
+  same number as with the slide shown, and a link to slide 3 jumps to the page that shows slide 3;
+  a link to the hidden slide jumps nowhere.
 - **Shown nowhere, as in PowerPoint's slide show:** `addNotes()`, `addSection()` and `pres.rtlMode`
   (which orients PowerPoint's editing views) are accepted and change nothing on the page.
 
 **What throws.** pdfdeck fails instead of writing a PDF that silently lacks something:
-`addMedia()`, `defineSlideMaster()`, `slide.slideNumber`, a background picture
-(`slide.background = { path }`) and `slide.hidden = true` throw `UnsupportedFeatureError` with a
-suggested alternative; a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
+`addMedia()` and `defineSlideMaster()` throw `UnsupportedFeatureError` with a suggested
+alternative; a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
 throws before rendering. `API_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs`, lists what pdfdeck
 does with each PptxGenJS presentation and slide member; `COMPATIBILITY` does the same per option.
 

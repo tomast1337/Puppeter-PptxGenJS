@@ -37,7 +37,7 @@ export function unresolvedModelHtml(model: NormalizedPresentation, components?: 
 export async function modelToHtml(model: NormalizedPresentation, options: ModelToHtmlOptions = {}): Promise<HtmlPresentationDocument> {
     const resolveImage = options.resolveImage ?? resolveRemoteImageSource;
     const components = renderComponents(model, options.components, lazyDocument(options.createDocument ?? createBrowserDocument));
-    const modelSources = model.slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "image" && object.image.sourceKind !== "data" ? [object.image.source] : [])));
+    const modelSources = model.slides.flatMap(slide => (slide.hidden ? [] : slide.objects).flatMap(object => (object.kind === "image" && object.image.sourceKind !== "data" ? [object.image.source] : [])));
     const sources = new Set([...modelSources, ...Array.from(components.values()).flatMap(componentImageSources)]);
     // Each distinct source is resolved once.
     const images = new Map(await Promise.all(Array.from(sources, async source => [source, await resolveImage(source)] as const)));

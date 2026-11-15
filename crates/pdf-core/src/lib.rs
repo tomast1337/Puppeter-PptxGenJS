@@ -55,8 +55,9 @@ pub struct Renderer {
     /// Images of the current render by data URI: each distinct picture is decoded once per
     /// document however often it repeats. Cleared per render so a renderer does not pin old images.
     images: HashMap<String, Picture>,
-    /// Slides in the model being rendered: slide links past it are reported, not emitted.
-    page_count: usize,
+    /// The slide number each page shows (its `id`, else its position): a slide link jumps to the
+    /// page showing that slide, and one to a slide no page shows (hidden, or past the last) is reported.
+    page_slides: Vec<u32>,
     /// Link annotations of the page being drawn, attached to it once its surface is finished.
     links: Vec<Annotation>,
     /// Text links of the box being drawn: (paragraph, run) index and its clickable area per glyph run.
@@ -96,7 +97,7 @@ impl Renderer {
             pdf_fonts: HashMap::new(),
             warnings: BTreeSet::new(),
             images: HashMap::new(),
-            page_count: 0,
+            page_slides: Vec::new(),
             links: Vec::new(),
             link_quads: Vec::new(),
             effects: Effects::default(),
@@ -157,7 +158,9 @@ impl Renderer {
         }
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
         let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
-        self.page_count = model.slides.len();
+        self.page_slides.clear();
+        self.page_slides
+            .extend(model.slides.iter().zip(1..).map(|(slide, position)| slide.number.unwrap_or(position)));
         for (index, slide) in model.slides.iter().enumerate() {
             let mut page = document.start_page_with(PageSettings::new(page_size));
             let mut surface = page.surface();
@@ -302,8 +305,8 @@ impl Renderer {
 mod tests {
     use super::*;
     use crate::model::{
-        Bullet, FillModifier, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Table,
-        TableBorder, TableCell, TableObject, TableRow, TextObject, Transform2, build,
+        Bullet, FillModifier, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Slide,
+        Table, TableBorder, TableCell, TableObject, TableRow, TextObject, Transform2, build,
     };
 
     /// Draws an already parsed presentation, as `render_html` does after parsing.
@@ -665,6 +668,44 @@ mod tests {
         assert!(String::from_utf8_lossy(&pdf).contains("/XYZ 0 405 0]"));
     }
 
+    #[test]
+    fn slide_links_jump_to_the_page_showing_that_slide_number() {
+        let mut r = Renderer::new();
+        let upright = || build::style(0.0, 0.0, 0.0, 0.0).transform;
+        let to = |slide: u32| Link {
+            href: format!("#slide-{slide}"),
+            tooltip: None,
+            slide: Some(slide),
+        };
+        // Slide 2 is hidden: the document holds slides 1 and 3, printed as pages 1 and 2.
+        let mut deck = build::deck(vec![linked_rect(to(3), upright()), linked_rect(to(2), upright())]);
+        let first = deck.slides.remove(0);
+        deck.slides = vec![
+            Slide { number: Some(1), ..first },
+            Slide {
+                number: Some(3),
+                background: "#FFFFFF".into(),
+                objects: Vec::new(),
+            },
+        ];
+        let pdf = render(&mut r, &deck).unwrap();
+        assert_eq!(
+            r.warnings(),
+            vec!["link to slide 2 not emitted: no page shows it (hidden, or past the last slide)"]
+        );
+        let links = annotations(&pdf);
+        let [link] = links.as_slice() else {
+            panic!("expected 1 annotation: {links:?}")
+        };
+        // `/Dest <n> 0 R` is the array `[<page> 0 R/XYZ ...]`; its page is the second one /Kids lists.
+        let text = String::from_utf8_lossy(&pdf);
+        let dest = link.split("/Dest ").nth(1).and_then(|d| d.split(" 0 R").next()).unwrap_or_default();
+        let array = text.split(&format!("\n{dest} 0 obj")).nth(1).unwrap_or_default();
+        let page = array.trim_start().trim_start_matches('[').split(" 0 R").next().unwrap_or_default();
+        let kids = text.split("/Kids[").nth(1).and_then(|k| k.split(']').next()).unwrap_or_default();
+        assert_eq!(kids.split(" 0 R").map(str::trim).nth(1), Some(page), "{kids} / {link}");
+    }
+
     /// A filled rect at (10, 20) 200 x 100 px linked to https://example.com, with `shadow`.
     fn linked_rect_with_shadow(shadow: Option<Shadow>) -> Presentation {
         let mut style = build::style(10.0, 20.0, 200.0, 100.0);
@@ -789,7 +830,10 @@ mod tests {
             slide: Some(3),
         };
         let pdf = render(&mut r, &linked(missing)).unwrap();
-        assert_eq!(r.warnings(), vec!["link to slide 3 not emitted: the deck has 1 slides"]);
+        assert_eq!(
+            r.warnings(),
+            vec!["link to slide 3 not emitted: no page shows it (hidden, or past the last slide)"]
+        );
         assert!(annotations(&pdf).is_empty());
     }
 

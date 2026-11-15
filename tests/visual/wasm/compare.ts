@@ -65,7 +65,8 @@ for (const deckName of deckNames) {
     // 2. The same deck through the Puppeteer default and the WASM backend; toPdf() hands both toHtml().
     const deck = populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape));
     writeFileSync(join(out, "puppeteer.pdf"), await deck.toPdf());
-    const model = deck.getModel();
+    // The printed slides: a hidden one has no page.
+    const model = { slides: deck.getModel().slides.filter(slide => !slide.hidden) };
     const renderer = await createRenderer();
     const wasmPdf = await populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf();
     writeFileSync(join(out, "wasm.pdf"), wasmPdf);

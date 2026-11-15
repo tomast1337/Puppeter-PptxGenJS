@@ -68,7 +68,7 @@ const TABLE_TO_SLIDES_OPTION_KEYS = ["tableToSlides", "addImage", "addShape", "a
 
 describe("compatibility manifest", () => {
     test("tracks every active renderer family", () => {
-        expect(Object.keys(COMPATIBILITY)).toEqual(["component", "chart", "text", "image", "shape", "table"]);
+        expect(Object.keys(COMPATIBILITY)).toEqual(["component", "chart", "text", "image", "shape", "table", "slide"]);
     });
 
     test("contains only explicit compatibility states", () => {
@@ -158,6 +158,11 @@ describe("compatibility manifest", () => {
         expect(WASM_COMPATIBILITY.text.options.superscript).toBe("implemented");
         expect(WASM_COMPATIBILITY.text.options.hyperlink).toBe("implemented");
         expect(WASM_COMPATIBILITY.text.options.textDirection).toBe("unsupported");
+    });
+
+    test("tracks the slide properties on both backends", () => {
+        expect(Object.keys(COMPATIBILITY.slide.options).sort()).toEqual(["backgroundColor", "backgroundImage", "color", "hidden", "slideNumber"]);
+        expect(WASM_COMPATIBILITY.slide.options).toEqual(COMPATIBILITY.slide.options);
     });
 
     test("tracks every ShapeProps field and classifies every preset", () => {

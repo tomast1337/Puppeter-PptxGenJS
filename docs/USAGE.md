@@ -337,6 +337,17 @@ Creates a new PuppeteerGen instance with the specified page size (default: 16:9 
 - `addShape(shapeName: SHAPE_NAME, options?: ShapeProps): Slide`
     - Adds a shape to the slide
 
+#### Properties
+
+- `background: BackgroundProps`
+    - `{ color }`, or a picture `{ path }` / `{ data }` stretched over the whole slide under every object
+- `hidden: boolean`
+    - `true` leaves the slide out of the PDF; the other slides keep their numbers
+- `slideNumber: SlideNumberProps`
+    - Prints the slide's number (hidden slides counted) in a text box at `{ x, y, w?, h? }`. As in
+      PptxGenJS, size, color, font, `valign` and `margin` (points) left unset come from the
+      `slideNumber` set last on any slide; see [DEFAULTS.md](./DEFAULTS.md#slide-numbers)
+
 ### Common Options
 
 #### TextPropsOptions

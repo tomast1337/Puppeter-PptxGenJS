@@ -37,7 +37,8 @@ root=$PWD
 # +1,135 B: components made of sized boxes (#69 phase 8c: box reader lowered to the SVG display list; the component warning path goes), 1,043,463 -> 1,044,598 B measured; budget = that size.
 # +1,133 B: document properties (#102: profile v2 <title>, author and description read into krilla's Info dictionary and XMP writer), 1,044,598 -> 1,045,731 B measured; budget = that size.
 # +1,594 B: company and revision as custom Info keys (#102: an incremental update after krilla's output, which has no field for them), 1,045,731 -> 1,047,325 B measured; budget = that size.
-GZIP_BUDGET=1047325
+# +318 B: slide links by the slide number in id="slide-N" (#102: hidden slides are not in the document, so a link to slide N jumps to the page that shows it), 1,047,325 -> 1,047,643 B measured; budget = that size.
+GZIP_BUDGET=1047643
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

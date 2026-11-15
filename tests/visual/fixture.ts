@@ -1,4 +1,6 @@
 import { Buffer } from "node:buffer";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type PptxGenJS from "pptxgenjs";
 import { createElement } from "react";
 import { z } from "zod";
@@ -268,6 +270,9 @@ export const PARITY_REGIONS = [
     { page: 59, name: "html-react-component-bars", x: 1, y: 1, w: 6, h: 2 },
     { page: 12, name: "dashed-arrow-line", x: 6.55, y: 1.6, w: 2.6, h: 0 },
     ...ARROW_HEAD_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.1, y: y - 0.1, w: w + 0.2, h: h + 0.2 })),
+    // populateSlidePropertiesFixture(): the slide numbers, own style and inherited one; its hidden slide prints no page.
+    { page: 61, name: "slide-number-own-style", x: 7.5, y: 4.6, w: 2, h: 0.8 },
+    { page: 62, name: "slide-number-inherited-style", x: 0.5, y: 1.2, w: 2.5, h: 1 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -277,6 +282,10 @@ export const PARITY_REGIONS = [
     w: Math.ceil(inchesToPixels(w)) + 7,
     h: Math.ceil(inchesToPixels(h)) + 7,
 }));
+
+// A PNG as data, so toHtml() needs no file access: PptxGenJS writes a background picture without the
+// SVG-to-PNG fallback it gives addImage(). tests/slide.test.ts covers the path form.
+const SLIDE_BACKGROUND_DATA = `data:image/png;base64,${readFileSync(join(import.meta.dir, "wasm", "images", "sample.png")).toString("base64")}`;
 
 const SAMPLE_IMAGE_DATA = `data:image/svg+xml;base64,${Buffer.from(
     `
@@ -1508,6 +1517,7 @@ export function populateParityFixture(presentation: Presentation): void {
     populateChartFixture(presentation);
     populateComponentFixture(presentation);
     populateArrowHeadFixture(presentation);
+    populateSlidePropertiesFixture(presentation);
 }
 
 /** The parity fixture's image slides (SVG pictures), also the WASM backend's SVG image deck (tests/visual/wasm/decks.ts). */
@@ -1902,4 +1912,27 @@ export function populateComponentFixture(presentation: Presentation): void {
             componentSlide.addShape("rect", { ...box, w: box.w * 0.75, fill: { color: "4472C4" }, line: { transparency: 100 } });
         }
     }
+}
+
+/**
+ * Slide properties (#102): a background picture, a hidden slide and slide numbers, also the WASM backend's slides deck
+ * (tests/visual/wasm/decks.ts). Two printed pages: the hidden slide is in neither PDF, and the slide after it prints
+ * its position, which counts the hidden slide (LibreOffice numbers by position too).
+ */
+export function populateSlidePropertiesFixture(presentation: Presentation): void {
+    const title = { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 } as const;
+    const pictured = presentation.addSlide();
+    // A path picture, stretched from 2:1 over the 16:9 slide; the color under it is not drawn.
+    pictured.background = { data: SLIDE_BACKGROUND_DATA, color: "FF0000" };
+    pictured.addText("Background picture, numbered slides", { ...title, fill: { color: "FFFFFF" } });
+
+    const hidden = presentation.addSlide();
+    hidden.addText("A hidden slide prints no page", title);
+    hidden.hidden = true;
+
+    const numbered = presentation.addSlide();
+    numbered.addText("The slide number below counts the hidden slide", title);
+    // No font, size or color of its own: they, its insets and its anchor come from the slideNumber set last.
+    numbered.slideNumber = { x: 0.5, y: 1.2, w: 2.5, h: 1, align: "left" };
+    pictured.slideNumber = { x: 7.5, y: 4.6, w: 2, h: 0.8, fontFace: "Arial", fontSize: 28, color: "C00000", bold: true, align: "right", valign: "bottom", margin: [0, 12, 6, 0] };
 }

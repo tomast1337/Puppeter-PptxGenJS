@@ -47,6 +47,38 @@ runs inherit. `headFontFace` only reaches title placeholders, which need `define
 `pres.rtlMode` writes `rtl="1"` on `<p:presentation>`, which orients PowerPoint's editing views;
 LibreOffice renders the same slides with or without it, so it changes nothing in the PDF.
 
+A hidden slide is left out of the PDF, as PowerPoint and LibreOffice export it. The other slides
+keep their numbers: a slide link jumps to the page that shows its target, and none is written for
+a hidden target. LibreOffice 26.2 sends a link to slide N to page N whatever is hidden before it,
+one page late per hidden slide; pdfdeck does not copy that.
+
+A background picture (`slide.background = { path | data }`) is stretched over the whole slide,
+under every object, as PptxGenJS's `<a:stretch><a:fillRect/>` asks. PptxGenJS writes the picture
+alone, so a transparent part shows white, as in LibreOffice, not the color. As in PptxGenJS
+4.0.1, a picture stays when a later `background` has only a color,
+`background.src` is ignored, and the deprecated `bkgd = { path | data | src }` adds its picture
+only when `background` is set afterwards.
+
+### Slide numbers
+
+`slide.slideNumber` prints the slide's position in the deck, hidden slides counted (LibreOffice
+prints the same), in a text box drawn after every other object.
+
+| Property              |                                     Default |
+| --------------------- | ------------------------------------------: |
+| Size (`w`, `h`)       |     800000 × 300000 EMU (0.875in × 0.328in) |
+| Alignment, bold       |             The slide's own; left, not bold |
+| Font size             | `fontSize`, 12pt with a font or color, 18pt |
+| Color, font           |                  Black, the theme body font |
+| Vertical alignment    |                                         Top |
+| Insets (`margin`, pt) |         0.1in left/right, 0.05in top/bottom |
+
+PptxGenJS writes the `slideNumber` set last on any slide to the master and default layout, and a
+slide's number inherits from it what its own props leave unset: font size (unless its own
+`fontFace`, `fontSize` or `color` writes one, `fontSize || 12`), color, font, `valign` and
+`margin`. An array `margin` is `[top, right, bottom, left]` here, unlike text boxes. PptxGenJS
+reads no other text option of a slide number.
+
 ## Shared styles
 
 | Area                         |                                                            Default |

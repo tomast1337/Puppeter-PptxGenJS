@@ -311,6 +311,22 @@ export const PPTX_DEFAULTS = Object.freeze({
         hidden: false,
         marginIn: 0.5,
     }),
+    // PptxGenJS 4.0.1's slide-number placeholder (slideObjectToXml, step 4): 800000 x 300000 EMU when `w` or `h` is
+    // unset, left aligned, no anchor (top), and a run size of `fontSize || 12` once `fontFace`, `fontSize` or `color`
+    // is set. With none of them set on the slide or the master, the size is the master's otherStyle 18pt.
+    slideNumber: Object.freeze({
+        wEmu: 800000,
+        hEmu: 300000,
+        align: "left" as const,
+        valign: "top" as const,
+        fontSizePt: 12,
+        objectName: "Slide Number",
+    }),
+    // A background picture (`slide.background = { path | data }`) is stretched over the whole slide (PptxGenJS writes
+    // `<a:stretch><a:fillRect/>` in `<p:bg>`); it is drawn as the slide's first object under this name.
+    backgroundImage: Object.freeze({
+        objectName: "Background",
+    }),
 });
 
 function padding(top: number, right: number, bottom: number, left: number): string {

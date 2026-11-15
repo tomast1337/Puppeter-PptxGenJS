@@ -37,10 +37,9 @@ impl Renderer {
     pub(crate) fn add_link(&mut self, link: &Link, quad: Quadrilateral) -> Result<(), String> {
         let target = match link.slide {
             Some(slide) => {
-                let page = usize::try_from(slide).ok().and_then(|s| s.checked_sub(1)).filter(|&p| p < self.page_count);
-                let Some(page) = page else {
-                    // krilla panics on a destination past the last page.
-                    self.warn(format!("link to slide {slide} not emitted: the deck has {} slides", self.page_count));
+                // krilla panics on a destination past the last page.
+                let Some(page) = self.page_slides.iter().position(|&number| number == slide) else {
+                    self.warn(format!("link to slide {slide} not emitted: no page shows it (hidden, or past the last slide)"));
                     return Ok(());
                 };
                 Target::Destination(XyzDestination::new(page, Point::from_xy(0.0, 0.0)).into())

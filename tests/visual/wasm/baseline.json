@@ -417,5 +417,11 @@
   "components": {
     "p1-Component0": 0.0104,
     "p1-Component1": 0.0078
+  },
+  "slides": {
+    "p1-Text0": 0.1088,
+    "p1-SlideNumber": 0.0238,
+    "p2-Text0": 0.1228,
+    "p2-SlideNumber": 0.0002
   }
 }
