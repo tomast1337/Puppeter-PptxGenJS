@@ -30,6 +30,22 @@ describe("PptxGenJS methods without a PDF rendering", () => {
         expect((error as Error).message).toStartWith("defineSlideMaster() is not supported by PuppeteerGen yet. Set `slide.background`");
     });
 
+    // Layout placeholders and masters need defineSlideMaster(); the options naming them throw instead of drawing a plain object.
+    test("placeholder and masterSlideName throw an UnsupportedFeatureError naming the option and leave the deck unchanged", () => {
+        const pres = new PuppeteerGen();
+        const slide = pres.addSlide();
+        const text = errorFrom(() => slide.addText("Title", { x: 1, y: 1, w: 4, h: 1, placeholder: "title" }));
+        expect(text).toBeInstanceOf(UnsupportedFeatureError);
+        expect(text).toMatchObject({ feature: "addText({ placeholder })" });
+        expect((text as Error).message).toBe("addText({ placeholder }) is not supported by PuppeteerGen yet. Placeholders come from slide layouts, which need defineSlideMaster(), and PdfLapas has no slide masters. Remove `placeholder` and give the object its own x, y, w, h and style.");
+        expect(errorFrom(() => slide.addImage({ data: PNG, x: 1, y: 1, w: 1, h: 1, placeholder: "body" }))).toMatchObject({ feature: "addImage({ placeholder })" });
+        const table = errorFrom(() => pres.tableToSlides("<table><tr><td>A</td></tr></table>", { masterSlideName: "MASTER" }));
+        expect(table).toMatchObject({ feature: "tableToSlides({ masterSlideName })" });
+        expect((table as Error).message).toStartWith("tableToSlides({ masterSlideName }) is not supported by PuppeteerGen yet. Slide masters need defineSlideMaster()");
+        expect(pres.getModel().slides).toHaveLength(1);
+        expect(pres.getModel().slides[0]?.objects).toEqual([]);
+    });
+
     // PptxGenJS stores notes for the notes page only; a slide export never draws them.
     test("addNotes is accepted, chainable and draws nothing on the slide", () => {
         const pres = new PuppeteerGen();

@@ -27,6 +27,11 @@ import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { pixelsToInches } from "./units";
 import { createBrowserDocument, objectIdScope } from "./render/slide";
 
+/** A `placeholder` names one on the slide's layout, which only defineSlideMaster() can define. */
+function placeholderError(method: "addText" | "addImage"): UnsupportedFeatureError {
+    return new UnsupportedFeatureError(`${method}({ placeholder })`, "Placeholders come from slide layouts, which need defineSlideMaster(), and PdfLapas has no slide masters. Remove `placeholder` and give the object its own x, y, w, h and style.", "property");
+}
+
 export class PuppeteerSlide implements PptxSlide {
     /** `document` is the `context.document` of components rendered to check them when they are added; toHtml() does not use it. */
     constructor(
@@ -203,6 +208,7 @@ export class PuppeteerSlide implements PptxSlide {
     }
 
     addImage(options: PptxGenJS.ImageProps): PptxGenJS.Slide {
+        if (options.placeholder !== undefined) throw placeholderError("addImage");
         const image = normalizeImage(options, this.pageSize);
         const { transparency: _imageTransparency, ...opaqueOptions } = options;
         const geometryOptions = options.sizing ? { ...opaqueOptions, w: options.sizing.w, h: options.sizing.h } : opaqueOptions;
@@ -268,6 +274,7 @@ export class PuppeteerSlide implements PptxSlide {
 
     addText(text: TextInput, options?: PptxGenJS.TextPropsOptions | undefined): PptxGenJS.Slide {
         const textOptions = options ?? {};
+        if (textOptions.placeholder !== undefined) throw placeholderError("addText");
         // Text transparency is a run color property, not object opacity.
         const { transparency: _textTransparency, ...boxOptions } = textOptions;
         const textStyle = normalizeObjectStyle(boxOptions, PPTX_DEFAULTS.text, this.pageSize, this.nextObjectName("Text", textOptions.objectName), {
@@ -606,8 +613,11 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
      */
     tableToSlides(source: string | HTMLTableElement, props?: PptxTableToSlidesProps | undefined): void {
         const options = props ?? {};
+        if (options.masterSlideName !== undefined) {
+            throw new UnsupportedFeatureError("tableToSlides({ masterSlideName })", "Slide masters need defineSlideMaster(), and PdfLapas has no slide masters. Remove `masterSlideName` and draw what the master held on each generated slide with the `addImage`, `addShape` and `addText` options.", "property");
+        }
         const table = normalizeHtmlTable(findHtmlTable(source, this.page, this.createDocument), options, this.pageSize);
-        const firstSlide = this.addSlide(options.masterSlideName ? { masterName: options.masterSlideName } : undefined);
+        const firstSlide = this.addSlide();
         firstSlide.addTable(table.rows, {
             ...options,
             x: table.x,
