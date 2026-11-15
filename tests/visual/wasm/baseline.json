@@ -383,5 +383,17 @@
     "p4-Chart0": 0.172,
     "p5-Chart0": 0.1419,
     "p5-Chart1": 0.1287
+  },
+  "svg": {
+    "p1-Image0": 0.0659,
+    "p1-Image1": 0.0046,
+    "p1-Image2": 0.0051,
+    "p1-Image3": 0.0053,
+    "p1-Image4": 0.0037,
+    "p1-Image5": 0.0375,
+    "p2-Roundedsample": 0.0555,
+    "p2-Image1": 0.0068,
+    "p2-Image2": 0.004,
+    "p2-Image3": 0.0971
   }
 }

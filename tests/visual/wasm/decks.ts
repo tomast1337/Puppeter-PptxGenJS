@@ -2,7 +2,7 @@
 // PDF's bytes (pdf-sha256.json); tests/htmlBytes.test.ts pins their toHtml() bytes.
 import type pptxgen from "pptxgenjs";
 import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
-import { populateChartFixture } from "../fixture";
+import { populateChartFixture, populateImageFixture } from "../fixture";
 import { populateShapeDeck, populateTableDeck, populateTextDeck, SHAPE_PAGES, TABLE_PAGES, TEXT_PAGES } from "./deck";
 import { EFFECT_PAGES, populateEffectDeck } from "./effect-deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
@@ -14,7 +14,7 @@ export type SlideObject = ReturnType<PuppeteerGen["getModel"]>["slides"][number]
 const isText = (object: SlideObject) => object.kind === "text";
 // emoji: Noto Color Emoji / Noto Sans CJK fallback (issue #14), installed in the pinned image.
 // `crop` picks the objects that get a crop each: text boxes, for the shapes deck every shape
-// (with or without text), so labels do not dilute the geometry scores, for the images deck every
+// (with or without text), so labels do not dilute the geometry scores, for the images and svg decks every
 // picture, for the tables deck every table and for the charts deck every chart.
 export const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: SlideObject) => boolean }> = {
     text: { populate: populateTextDeck, pages: TEXT_PAGES, crop: isText },
@@ -26,6 +26,15 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
     shapes: { populate: populateShapeDeck, pages: SHAPE_PAGES, crop: object => object.kind === "shape" || (object.kind === "text" && object.shape !== undefined) },
     tables: { populate: populateTableDeck, pages: TABLE_PAGES, crop: object => object.kind === "table" },
     images: { populate: populateImageDeck, pages: IMAGE_PAGES, crop: object => object.kind === "image" },
+    // svg: the shared fixture's two image slides, whose pictures are SVG.
+    svg: {
+        populate: presentation => {
+            populateImageFixture(presentation);
+            return presentation;
+        },
+        pages: 2,
+        crop: object => object.kind === "image",
+    },
     // effects: every shadowed or glowing object; the slide titles sit above y = 0.5in (48px).
     effects: { populate: populateEffectDeck, pages: EFFECT_PAGES, crop: object => object.style.geometry.y > 48 },
     // charts: the shared fixture's chart slides. Pie, doughnut, radar and scatter are left to tests/wasm.test.ts:
