@@ -2,7 +2,7 @@
 
 use super::dom::{Dom, Element};
 use super::style::{Style, integer, number, shadow};
-use super::{allow, chart, image, shape, table, text};
+use super::{allow, chart, component, image, shape, table, text};
 use crate::model::{FillModel, Geometry, LineModel, Link, ObjectStyle, ShapeObject, SlideObject, TableObject, TextObject, Transform2};
 
 /// Attributes every object box may carry.
@@ -34,9 +34,8 @@ pub(crate) fn read(dom: &Dom<'_>, element: &Element<'_>) -> Result<SlideObject, 
     if element.has_class("slide-chart") && element.name == "div" {
         return chart::object(dom, element).map(SlideObject::Svg);
     }
-    if element.has_class("slide-component") {
-        // An opaque subtree: the HTML holds the component's markup, which WASM does not lay out (#69 phase 8c).
-        return Ok(SlideObject::Unsupported("component".to_owned()));
+    if element.has_class("slide-component") && element.name == "div" {
+        return component::object(dom, element).map(SlideObject::Svg);
     }
     if element.has_class("slide-text") && element.name == "div" {
         return text_object(dom, element).map(SlideObject::Text);
@@ -258,12 +257,10 @@ mod tests {
     }
 
     #[test]
-    fn components_are_opaque_and_unsupported() {
+    fn component_markup_must_be_well_formed() {
         let html = r#"<div class="slide-element slide-component" data-object-name="C" style="whatever: 1"><script>if (a < b) document.write("</div>")</script><p>free <b>markup</div></div>"#;
         let error = first(html).err().unwrap_or_default();
         assert!(error.contains("malformed HTML"), "a component must still be well-formed markup: {error}");
-        let html = r#"<div class="slide-element slide-component" style="whatever: 1"><script>if (a < b) x("</div>")</script><p>free <b>markup</b></p></div>"#;
-        assert!(matches!(first(html), Ok(SlideObject::Unsupported(k)) if k == "component"));
     }
 
     #[test]

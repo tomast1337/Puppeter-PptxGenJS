@@ -218,8 +218,12 @@ cell insets and alignment, vertical text, rows grown to fit their text;
 underline styles draw as a single line) and charts (every `addChart()` type and
 `addChartExtension()`, drawn from the chart's SVG in the HTML: paths, gradients,
 clip paths, opacity and text as text; an SVG outside the
-[subset](HTML_PROFILE.md#parsing-wasm) throws, naming the element). Components
-are not drawn yet (issue #17).
+[subset](HTML_PROFILE.md#parsing-wasm) throws, naming the element) and
+components whose markup is nested sized `<div>` boxes (`width`/`height` in px
+or %, a background color), such as a progress bar. A component that needs CSS
+layout (text, siblings, padding, ...) throws, naming the slide, object,
+component and element or property; render it with Puppeteer
+([subset](HTML_PROFILE.md#parsing-wasm), issue #69).
 
 **Shadows and glow:** outer shadows of shapes, text boxes and images and the
 glow of text runs are drawn as blurred rasters (a soft-masked image under the
@@ -243,8 +247,8 @@ and jumps to slides through named destinations. Both backends accept only
 
 **Unsupported content:** by default `toPdf()` throws an error listing
 everything the backend could not draw. Pass `onUnsupported: "warn"` to get the
-PDF anyway; the skipped items are then in `renderer.warnings()`. A component
-is reported as `object kind 'component' not rendered`.
+PDF anyway; the skipped items are then in `renderer.warnings()`. HTML outside
+the profile, including a component that needs layout, is an error either way.
 
 **Fonts:** WASM cannot see system fonts, so you pass font files (TTF/OTF/TTC
 bytes); at least one is required. Office faces fall back to their

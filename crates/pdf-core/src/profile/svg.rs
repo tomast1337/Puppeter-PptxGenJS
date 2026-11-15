@@ -897,7 +897,7 @@ fn font_property(out: &mut Inherited, property: &str, value: &str) -> Result<(),
 }
 
 /// `#rgb`, `#rrggbb`, `rgb(r,g,b)`, `rgba(r,g,b,a)`, a CSS color name or `transparent`.
-fn color_value(value: &str) -> Result<Rgba, String> {
+pub(super) fn color_value(value: &str) -> Result<Rgba, String> {
     let color = match value.strip_prefix('#') {
         Some(hex) if hex.len() == 3 && hex.bytes().all(|b| b.is_ascii_hexdigit()) => {
             let doubled: String = hex.chars().flat_map(|c| [c, c]).collect();

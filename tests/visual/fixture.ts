@@ -1877,7 +1877,7 @@ function populateArrowHeadFixture(presentation: Presentation): void {
     }
 }
 
-function populateComponentFixture(presentation: Presentation): void {
+export function populateComponentFixture(presentation: Presentation): void {
     // HTML extension reference: equivalent PptxGenJS rectangles verify geometry and clipping.
     const componentBoxes = [
         { x: 1, y: 1, w: 4, h: 0.5 },

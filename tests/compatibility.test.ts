@@ -132,6 +132,7 @@ describe("compatibility manifest", () => {
         expect(WASM_COMPATIBILITY.image.options.svg).toBe("unsupported");
         expect(WASM_COMPATIBILITY.image.options.hyperlink).toBe("implemented");
         expect(WASM_COMPATIBILITY.shape.status).toBe("partial");
+        expect(WASM_COMPATIBILITY.component.status).toBe("partial");
         expect(WASM_COMPATIBILITY.shape.options.presetGeometry).toBe("implemented");
         expect(WASM_COMPATIBILITY.shape.options.lineEndArrow).toBe("implemented");
         expect(WASM_COMPATIBILITY.shape.options.shadow).toBe("partial");

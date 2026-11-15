@@ -1,5 +1,5 @@
 //! Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md) straight to PDF: text,
-//! shape, image, table and chart objects.
+//! shape, image, table and chart objects, and components made of sized boxes.
 //!
 //! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen): HTML +
 //! font bytes in, PDF bytes out. `profile` parses the document into the `model` structs (the subset of
@@ -185,10 +185,6 @@ impl Renderer {
             SlideObject::Image(o) => (&o.style, None, None),
             SlideObject::Table(o) => (&o.style, None, Some(&o.table)),
             SlideObject::Svg(o) => (&o.style, None, None),
-            SlideObject::Unsupported(kind) => {
-                self.warn(format!("object kind '{kind}' not rendered"));
-                return Ok(());
-            }
         };
         let g = &style.geometry;
         let (x, y, w) = (g.x, g.y, g.width.unwrap_or(0.0));
@@ -253,7 +249,6 @@ impl Renderer {
             SlideObject::Image(o) => (&o.style, None, None, Some(&o.image), None, None),
             SlideObject::Table(o) => (&o.style, None, None, None, Some(&o.table), None),
             SlideObject::Svg(o) => (&o.style, None, None, None, None, Some(&o.svg)),
-            SlideObject::Unsupported(_) => return Ok(()),
         };
         let t = &style.transform;
         let (cx, cy) = (x + w / 2.0, y + h / 2.0);
@@ -313,12 +308,12 @@ mod tests {
     }
 
     #[test]
-    fn renders_without_fonts_and_reports_skips() {
+    fn renders_without_fonts() {
         let mut r = Renderer::new();
-        let html = profile::tests::document(r#"<div class="slide-element slide-component" data-object-name="Component 1"></div>"#);
+        let html = profile::tests::document(profile::tests::PROGRESS);
         let pdf = r.render_html(&html).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
-        assert_eq!(r.warnings(), vec!["object kind 'component' not rendered".to_string()]);
+        assert_eq!(r.warnings(), Vec::<String>::new());
     }
 
     #[test]

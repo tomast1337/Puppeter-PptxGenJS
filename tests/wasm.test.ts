@@ -104,9 +104,9 @@ describe("WasmRenderer failure behavior", () => {
     });
 
     test('onUnsupported: "warn" returns the PDF and surfaces warnings()', async () => {
-        const renderer = new WasmRenderer(new FakeBinding(["object kind 'component' not rendered"]), "warn");
+        const renderer = new WasmRenderer(new FakeBinding(["inner shadow not rendered"]), "warn");
         expect(ascii(await renderer.render(EMPTY))).toBe("%PDF-fake");
-        expect(renderer.warnings()).toEqual(["object kind 'component' not rendered"]);
+        expect(renderer.warnings()).toEqual(["inner shadow not rendered"]);
     });
 
     test("render() passes the HTML to the binding", async () => {
@@ -178,11 +178,24 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
     test("throws on unsupported objects by default and lists them", async () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
-        pres.registerComponent("test/badge", 1, { schema: z.object({}), render: () => "<b>Badge</b>" });
-        const slide = pres.addSlide();
-        slide.addText("Text", { x: 1, y: 1, w: 3, h: 1 }).addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
-        slide.addComponent({ type: "test/badge", version: 1, props: {} }, { x: 1, y: 2, w: 2, h: 1 });
-        await expect(pres.toPdf()).rejects.toThrow(/inner shadow not rendered[\s\S]*object kind 'component' not rendered/);
+        pres.addSlide()
+            .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
+            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
+        await expect(pres.toPdf()).rejects.toThrow(/inner shadow not rendered/);
+    });
+
+    test("draws components made of sized boxes and names the slide, object and element of one that needs layout", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
+        const drawn = new PuppeteerGen(PAGE, { renderer });
+        drawn.registerComponent("test/bar", 1, { schema: z.object({}), render: () => '<div style="width:50%;height:100%;background:#4472C4"></div>' });
+        drawn.addSlide().addComponent({ type: "test/bar", version: 1, props: {} }, { x: 1, y: 2, w: 2, h: 1 });
+        expect(ascii(await drawn.toPdf()).startsWith("%PDF-")).toBe(true);
+        expect(renderer.warnings()).toEqual([]);
+        // Not skipped even with onUnsupported: "warn": the markup is outside the profile.
+        const text = new PuppeteerGen(PAGE, { renderer });
+        text.registerComponent("test/badge", 1, { schema: z.object({}), render: () => "<b>Badge</b>" });
+        text.addSlide().addComponent({ type: "test/badge", version: 1, props: {} }, { x: 1, y: 2, w: 2, h: 1, objectName: "Badge" });
+        await expect(text.toPdf()).rejects.toThrow("invalid pdfdeck HTML: slide 1: object 'Badge': component 'test/badge' v1: <b> is not in profile v1: component markup is nested <div> boxes");
     });
 
     test("draws every chart type and chart extensions as SVG, with nothing skipped", async () => {

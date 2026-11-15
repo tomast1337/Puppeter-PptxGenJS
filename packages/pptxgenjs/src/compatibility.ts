@@ -450,6 +450,9 @@ export const COMPATIBILITY = Object.freeze({
  * them through `warnings()` (and throws unless `onUnsupported: "warn"`).
  */
 export const WASM_COMPATIBILITY = Object.freeze({
+    // Every input option is read, but only markup made of nested sized <div> boxes is drawn; markup that
+    // needs CSS layout (text, siblings, padding, ...) throws naming the element (docs/HTML_PROFILE.md, #69).
+    component: Object.freeze<CompatibilityEntry>({ status: "partial", options: COMPATIBILITY.component.options }),
     image: Object.freeze<CompatibilityEntry>({
         status: "partial",
         options: Object.freeze({
