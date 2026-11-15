@@ -6,7 +6,6 @@
 //! the normalized model this renderer reads). Units are CSS px at 96 dpi (`PX_PER_IN`); the PDF page is
 //! drawn in px under a `PT_PER_PX` (0.75) scale.
 
-mod chart;
 mod color;
 mod effect;
 mod image;
@@ -15,6 +14,7 @@ mod model;
 mod path;
 mod profile;
 mod shape;
+mod svg;
 mod table;
 mod text;
 
@@ -269,7 +269,7 @@ impl Renderer {
             None => self.draw_geometry(surface, shape, style, x, y, w, h),
         };
         if let Some(chart) = chart {
-            self.draw_chart(surface, chart, x, y, w, h);
+            self.draw_svg(surface, chart, x, y, w, h);
         }
         // The whole object box is clickable, as the Puppeteer renderer's <a> wrapper is. A straight
         // line's box is flat: it gets the stroke's thickness (Chromium's is the SVG's 1px-high box).
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn draws_chart_svg_without_warnings() {
-        use profile::chart::tests::{BAR3D, ECHARTS, chart};
+        use profile::svg::tests::{BAR3D, ECHARTS, chart};
         let mut r = Renderer::new();
         if let Some(font) = liberation_sans() {
             r.add_font(font);

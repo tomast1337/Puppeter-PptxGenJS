@@ -1,8 +1,7 @@
-//! Chart SVG (`render/chart.ts`): the display list `profile::chart` reads from a `.slide-chart`
-//! (ECharts output, the 3D bar renderer or an `addChartExtension()` SVG) and its drawing.
+//! The SVG display list `profile::svg` reads (a chart's SVG) and its drawing.
 //!
 //! Every value is resolved at parse time: inherited paint and font, transforms, path data and
-//! gradient stops. Drawing maps the viewBox onto the object box and replays the list.
+//! gradient stops. Drawing maps the viewBox onto the box and replays the list.
 
 use std::slice;
 
@@ -17,7 +16,7 @@ use crate::color::{Rgba, fill_of, unit};
 use crate::path::{rect_path, to_path};
 use crate::text::layout::{RunPaint, TextStroke};
 
-pub(crate) struct ChartSvg {
+pub(crate) struct Svg {
     /// `viewBox` (min x, min y, width, height), fitted into the box as `xMidYMid meet`; without it
     /// user units are px from the box corner.
     pub(crate) view_box: Option<[f32; 4]>,
@@ -28,7 +27,7 @@ pub(crate) struct ChartSvg {
 
 /// One entry of the display list, in paint order.
 pub(crate) enum Item {
-    /// A `<g>` opens: its opacity below 1 and its clip path (index into `ChartSvg::clips`).
+    /// A `<g>` opens: its opacity below 1 and its clip path (index into `Svg::clips`).
     Group {
         opacity: Option<f32>,
         clip: Option<usize>,
@@ -53,7 +52,7 @@ pub(crate) struct Shape {
 pub(crate) enum Paint {
     /// Opacity (`fill-opacity`) already folded into the alpha.
     Color(Rgba),
-    /// A `linearGradient` (index into `ChartSvg::gradients`) and the fill opacity.
+    /// A `linearGradient` (index into `Svg::gradients`) and the fill opacity.
     Gradient(usize, f32),
 }
 
@@ -95,10 +94,10 @@ fn transform_of(a: Affine) -> Transform {
 }
 
 impl Renderer {
-    /// Draws `chart` over the box `x, y, w, h` (px), clipped to it (`overflow: hidden`).
-    pub(crate) fn draw_chart(&mut self, surface: &mut Surface, chart: &ChartSvg, x: f32, y: f32, w: f32, h: f32) {
+    /// Draws `svg` over the box `x, y, w, h` (px), clipped to it (`overflow: hidden`).
+    pub(crate) fn draw_svg(&mut self, surface: &mut Surface, svg: &Svg, x: f32, y: f32, w: f32, h: f32) {
         let Some(clip) = to_path(&rect_path(x, y, w, h, 0.0)) else { return };
-        let view = match chart.view_box {
+        let view = match svg.view_box {
             Some([min_x, min_y, view_w, view_h]) => {
                 let scale = (w / view_w).min(h / view_h);
                 let (dx, dy) = ((w - view_w * scale) / 2.0, (h - view_h * scale) / 2.0);
@@ -108,18 +107,18 @@ impl Renderer {
         };
         surface.push_clip_path(&clip, &FillRule::NonZero);
         surface.push_transform(&view);
-        for item in &chart.items {
+        for item in &svg.items {
             match item {
                 Item::Group { opacity, clip } => {
                     if let Some(opacity) = opacity {
                         surface.push_opacity(unit(*opacity));
                     }
-                    if let Some(path) = clip.and_then(|c| chart.clips.get(c)) {
+                    if let Some(path) = clip.and_then(|c| svg.clips.get(c)) {
                         surface.push_clip_path(path, &FillRule::NonZero);
                     }
                 }
                 Item::End { pops } => (0..*pops).for_each(|_| surface.pop()),
-                Item::Shape(shape) => self.draw_svg_shape(surface, chart, shape),
+                Item::Shape(shape) => self.draw_svg_shape(surface, svg, shape),
                 Item::Text(text) => self.draw_svg_text(surface, text),
             }
         }
@@ -127,7 +126,7 @@ impl Renderer {
         surface.pop();
     }
 
-    fn draw_svg_shape(&mut self, surface: &mut Surface, chart: &ChartSvg, shape: &Shape) {
+    fn draw_svg_shape(&mut self, surface: &mut Surface, svg: &Svg, shape: &Shape) {
         if let Some(t) = shape.transform {
             surface.push_transform(&transform_of(t));
         }
@@ -136,7 +135,7 @@ impl Renderer {
             Some(Paint::Gradient(index, opacity)) => {
                 // objectBoundingBox units: an element without area has no box and is not filled.
                 let bbox = shape.path.bounding_box();
-                if let (Some(gradient), Some(pdf), true) = (chart.gradients.get(index), to_path(&shape.path), bbox.area() > 0.0) {
+                if let (Some(gradient), Some(pdf), true) = (svg.gradients.get(index), to_path(&shape.path), bbox.area() > 0.0) {
                     self.effects.capture(surface.ctm(), &shape.path, opacity, None);
                     let paint = LinearGradient {
                         x1: gradient.from.0,
@@ -223,7 +222,7 @@ pub(crate) fn stop(offset: f32, color: Rgba) -> Stop {
     }
 }
 
-/// The krilla stroke of a chart path or line.
+/// The krilla stroke of an SVG path or line.
 pub(crate) fn stroke(color: Rgba, width: f32, cap: krilla::paint::LineCap, join: krilla::paint::LineJoin, miter_limit: f32, dash: Option<Vec<f32>>) -> Stroke {
     let Fill { paint, opacity, .. } = fill_of(color);
     Stroke {
