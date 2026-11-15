@@ -1,4 +1,5 @@
 import type { NormalizedObjectStyle, NormalizedShape } from "@pdfdeck/model";
+import { PPTX_DEFAULTS } from "../defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element } from "./markup";
 import { applyGeometry, applyTransform, lineArrowAttributes, shadowInsetAttribute } from "./style";
@@ -12,7 +13,8 @@ const MARKER_ID_MINUS = /-/g;
 const MARKER_ID_OTHER = /\W/g;
 
 function modifyColor(color: string, modifier: ColorModifier): string {
-    const transform = (value: number) => (modifier === "lighten" ? Math.floor(value + (255 - value) * 0.6) : modifier === "lightenLess" ? Math.floor(value + (255 - value) * 0.2) : Math.floor(value * (modifier === "darken" ? 0.6 : 0.8)));
+    const factor = PPTX_DEFAULTS.shape.faceShading[modifier];
+    const transform = (value: number) => Math.floor(modifier === "lighten" || modifier === "lightenLess" ? value + (255 - value) * factor : value * factor);
     const hex = color.match(HEX_COLOR);
     if (hex) {
         const channel = (value: string) => transform(parseInt(value, 16)).toString(16).padStart(2, "0");

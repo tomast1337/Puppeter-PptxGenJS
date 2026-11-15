@@ -304,9 +304,10 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color::Rgba;
     use crate::model::{
-        Bullet, FillModifier, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Slide,
-        Table, TableBorder, TableCell, TableObject, TableRow, TextObject, Transform2, build,
+        Bullet, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Slide, Table,
+        TableBorder, TableCell, TableObject, TableRow, TextObject, Transform2, build,
     };
 
     /// Draws an already parsed presentation, as `render_html` does after parsing.
@@ -477,11 +478,11 @@ mod tests {
             faces: Some(vec![
                 ShapeFace {
                     data: "M 0 0 L 100 0 L 0 50 Z".into(),
-                    fill_modifier: Some(FillModifier::Darken),
+                    fill: Some(Rgba(40, 68, 117, 0.5)),
                 },
                 ShapeFace {
                     data: "M 0 50 L 100 0 L 100 50 Z".into(),
-                    fill_modifier: None,
+                    fill: Some(Rgba(68, 114, 196, 0.5)),
                 },
             ]),
             outline_data: Some("M 0 0 L 100 0 L 100 50 L 0 50 Z".into()),

@@ -190,6 +190,10 @@ export const PPTX_DEFAULTS = Object.freeze({
         // PptxGenJS writes headEnd/tailEnd without w/len, so heads are "med": LibreOffice 26.2 makes them
         // 3 line widths wide and long (3.5 for `arrow`), sized from at least a 0.7 mm line.
         arrowHead: Object.freeze({ widthFactor: 3, openArrowWidthFactor: 3.5, minLineWidthMm: 0.7 }),
+        // The `fill` shading of a multi-face preset's path (can, cube, bevel, ...; presetShapeDefinitions.xml), per
+        // RGB channel: lighten/lightenLess mix that share toward white, darken/darkenLess scale by it, floored.
+        // toHtml() writes each face's shaded fill, which both renderers draw as it is (#43).
+        faceShading: Object.freeze({ lighten: 0.6, lightenLess: 0.2, darken: 0.6, darkenLess: 0.8 }),
     }),
     image: Object.freeze({
         x: 0,

@@ -5,6 +5,7 @@ import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../pack
 import { arrowHeadPath, normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { renderShapeSvg } from "../packages/pptxgenjs/src/render/shape";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
@@ -297,6 +298,18 @@ describe("shape normalization", () => {
 });
 
 describe("SVG shape rendering", () => {
+    test("writes each face's shaded fill, which the renderers draw as it is", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("can", { x: 1, y: 1, w: 2, h: 1, fill: { color: "64C832", transparency: 50 } });
+        const object = presentation.getModel().slides[0]?.objects[0];
+        if (object?.kind !== "shape") throw new Error("expected the can shape");
+        const modifiers = [undefined, "lighten", "lightenLess", "darken", "darkenLess"] as const;
+        const shape = { ...object.shape, geometry: { kind: "path" as const, data: "", faces: modifiers.map(fillModifier => ({ data: "M 0 0 Z", fillModifier })) } };
+        const fills = Array.from(renderShapeSvg(shape, object.style).matchAll(/class="shape-face"[^>]*? fill="([^"]*)"/g), match => match[1]);
+        // PPTX_DEFAULTS.shape.faceShading: lighten mixes 60%/20% toward white, darken scales by 0.6/0.8, floored.
+        expect(fills).toEqual(["rgba(100, 200, 50, 0.5)", "rgba(193, 233, 173, 0.5)", "rgba(131, 211, 91, 0.5)", "rgba(60, 120, 30, 0.5)", "rgba(80, 160, 40, 0.5)"]);
+    });
+
     test("renders rectangles, ellipses, and zero-height arrow lines as SVG", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();

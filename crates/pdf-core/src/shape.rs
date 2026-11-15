@@ -1,4 +1,4 @@
-//! Shape geometry from the model: fills (with multi-face shading), strokes and arrowheads.
+//! Shape geometry from the model: fills (multi-face presets with the shaded fill of each face), strokes and arrowheads.
 //!
 //! The model carries every preset already resolved to SVG path data in the shape's own
 //! coordinate space (`NormalizedShape.width/height`), which the Puppeteer renderer stretches
@@ -12,7 +12,7 @@ use kurbo::{Affine, BezPath, ParamCurve, PathSeg, Shape, Vec2};
 
 use crate::Renderer;
 use crate::color::{Rgba, parse_color, unit};
-use crate::model::{FillModifier, LineModel, ObjectStyle, ShapeGeometry, ShapeModel};
+use crate::model::{LineModel, ObjectStyle, ShapeGeometry, ShapeModel};
 use crate::path::{rect_path, to_path};
 
 /// SVG's `stroke-miterlimit` initial value, which the Puppeteer renderer's shape and chart strokes
@@ -80,8 +80,7 @@ impl Renderer {
                     // Multi-face presets: shaded faces without stroke, then the stroke-only outline.
                     Some(faces) => {
                         for face in faces {
-                            let color = fill.map(|c| face.fill_modifier.map_or(c, |m| modify(c, m)));
-                            if let Some(color) = color {
+                            if let Some(color) = face.fill {
                                 self.fill(surface, &parse(&face.data)?, color);
                             }
                         }
@@ -178,22 +177,6 @@ pub(crate) fn dash_of(css: &str) -> Option<StrokeDash> {
     array.iter().any(|v| *v > 0.0).then_some(StrokeDash { array, offset: 0.0 })
 }
 
-/// DrawingML face shading as the SVG renderer applies it (`modifyColor` in
-/// packages/pptxgenjs/src/render/shape.ts): lighten mixes toward white, darken scales toward black.
-fn modify(c: Rgba, modifier: FillModifier) -> Rgba {
-    let channel = |v: u8| {
-        let v = f32::from(v);
-        let out = match modifier {
-            FillModifier::Lighten => v + (255.0 - v) * 0.6,
-            FillModifier::LightenLess => v + (255.0 - v) * 0.2,
-            FillModifier::Darken => v * 0.6,
-            FillModifier::DarkenLess => v * 0.8,
-        };
-        out.floor() as u8
-    };
-    Rgba(channel(c.0), channel(c.1), channel(c.2), c.3)
-}
-
 /// SVG `matrix(a b c d e f)`, the only transform the model emits.
 fn parse_matrix(css: &str) -> Option<Affine> {
     let inner = css.trim().strip_prefix("matrix(")?.strip_suffix(')')?;
@@ -243,15 +226,6 @@ mod tests {
         for bad in ["rotate(90)", "matrix(1 0 0 1 0)", "matrix(1 0 0 1 0 1e999)", "matrix(1 0 0 1 0 0"] {
             assert_eq!(parse_matrix(bad), None, "{bad}");
         }
-    }
-
-    #[test]
-    fn shades_faces_like_the_svg_renderer() {
-        let c = Rgba(100, 200, 50, 0.5);
-        assert_eq!(modify(c, FillModifier::Lighten), Rgba(193, 233, 173, 0.5));
-        assert_eq!(modify(c, FillModifier::LightenLess), Rgba(131, 211, 91, 0.5));
-        assert_eq!(modify(c, FillModifier::Darken), Rgba(60, 120, 30, 0.5));
-        assert_eq!(modify(c, FillModifier::DarkenLess), Rgba(80, 160, 40, 0.5));
     }
 
     #[test]
