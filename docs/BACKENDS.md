@@ -205,16 +205,19 @@ images must already be `data:` URIs (`toHtml()` inlines them).
 
 **Status:** text boxes (runs, paragraphs, bullets, tab stops, insets, rotation, fit) and
 every preset and custom shape (fills, transparency, multi-face shading, lines,
-dashes, arrowheads, rotation, flips, text in shapes), PNG and JPEG images
+dashes, arrowheads, rotation, flips, text in shapes), PNG, JPEG and SVG images
 (every sizing mode, rounding, transparency, rotation, flips, alpha channels;
 paths and URLs are resolved to data URIs by `toHtml()` before the renderer sees
-the document) and tables (merged cells, fills, per-side solid and dashed borders,
+the document; an SVG is drawn as vectors, sized by its `viewBox`,
+`preserveAspectRatio`, `width` and `height` as Chromium sizes an `<img>`, and one
+outside the [SVG subset](HTML_PROFILE.md#parsing-wasm) throws naming the slide,
+picture and element) and tables (merged cells, fills, per-side solid and dashed borders,
 cell insets and alignment, vertical text, rows grown to fit their text;
 underline styles draw as a single line) and charts (every `addChart()` type and
 `addChartExtension()`, drawn from the chart's SVG in the HTML: paths, gradients,
 clip paths, opacity and text as text; an SVG outside the
-[subset](HTML_PROFILE.md#parsing-wasm) throws, naming the element). GIF, WebP
-and SVG images and components are not drawn yet (issue #17).
+[subset](HTML_PROFILE.md#parsing-wasm) throws, naming the element). GIF and
+WebP images and components are not drawn yet (issue #17).
 
 **Shadows and glow:** outer shadows of shapes, text boxes and images and the
 glow of text runs are drawn as blurred rasters (a soft-masked image under the

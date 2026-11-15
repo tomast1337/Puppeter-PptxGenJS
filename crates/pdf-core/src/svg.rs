@@ -1,4 +1,4 @@
-//! The SVG display list `profile::svg` reads (a chart's SVG) and its drawing.
+//! The SVG display list `profile::svg` reads (a chart's SVG or an SVG image) and its drawing.
 //!
 //! Every value is resolved at parse time: inherited paint and font, transforms, path data and
 //! gradient stops. Drawing maps the viewBox onto the box and replays the list.
@@ -17,18 +17,39 @@ use crate::path::{rect_path, to_path};
 use crate::text::layout::{RunPaint, TextStroke};
 
 pub(crate) struct Svg {
-    /// `viewBox` (min x, min y, width, height), fitted into the box as `xMidYMid meet`; without it
+    /// `viewBox` (min x, min y, width, height), fitted into the box as `fit` says; without it
     /// user units are px from the box corner.
     pub(crate) view_box: Option<[f32; 4]>,
+    pub(crate) fit: Fit,
     pub(crate) items: Vec<Item>,
     pub(crate) gradients: Vec<Gradient>,
     pub(crate) clips: Vec<Path>,
 }
 
+/// `preserveAspectRatio`: how the viewBox maps onto the box.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum Fit {
+    /// `none`: each axis scaled to the box.
+    Stretch,
+    /// One scale for both axes, the smaller (`meet`) or the larger (`slice`); `align` places the
+    /// viewBox in the box per axis: 0 at the start (`Min`), 0.5 centred (`Mid`), 1 at the end (`Max`).
+    Uniform { align: (f32, f32), slice: bool },
+}
+
+impl Fit {
+    /// SVG's initial value, `xMidYMid meet`.
+    pub(crate) const CENTER_MEET: Fit = Fit::Uniform {
+        align: (0.5, 0.5),
+        slice: false,
+    };
+}
+
 /// One entry of the display list, in paint order.
 pub(crate) enum Item {
-    /// A `<g>` opens: its opacity below 1 and its clip path (index into `Svg::clips`).
+    /// A `<g>` opens (or a shape or text with an opacity): its transform, its opacity below 1 and
+    /// its clip path (index into `Svg::clips`), pushed in that order.
     Group {
+        transform: Option<Affine>,
         opacity: Option<f32>,
         clip: Option<usize>,
     },
@@ -45,6 +66,7 @@ pub(crate) struct Shape {
     pub(crate) path: BezPath,
     pub(crate) transform: Option<Affine>,
     pub(crate) fill: Option<Paint>,
+    pub(crate) rule: FillRule,
     pub(crate) stroke: Option<Stroke>,
 }
 
@@ -99,9 +121,16 @@ impl Renderer {
         let Some(clip) = to_path(&rect_path(x, y, w, h, 0.0)) else { return };
         let view = match svg.view_box {
             Some([min_x, min_y, view_w, view_h]) => {
-                let scale = (w / view_w).min(h / view_h);
-                let (dx, dy) = ((w - view_w * scale) / 2.0, (h - view_h * scale) / 2.0);
-                Transform::from_row(scale, 0.0, 0.0, scale, x + dx - min_x * scale, y + dy - min_y * scale)
+                let ((sx, sy), (ax, ay)) = match svg.fit {
+                    Fit::Stretch => ((w / view_w, h / view_h), (0.0, 0.0)),
+                    Fit::Uniform { align, slice } => {
+                        let (fit_w, fit_h) = (w / view_w, h / view_h);
+                        let scale = if slice { fit_w.max(fit_h) } else { fit_w.min(fit_h) };
+                        ((scale, scale), align)
+                    }
+                };
+                let (dx, dy) = ((w - view_w * sx) * ax, (h - view_h * sy) * ay);
+                Transform::from_row(sx, 0.0, 0.0, sy, x + dx - min_x * sx, y + dy - min_y * sy)
             }
             None => Transform::from_translate(x, y),
         };
@@ -109,7 +138,10 @@ impl Renderer {
         surface.push_transform(&view);
         for item in &svg.items {
             match item {
-                Item::Group { opacity, clip } => {
+                Item::Group { transform, opacity, clip } => {
+                    if let Some(t) = transform {
+                        surface.push_transform(&transform_of(*t));
+                    }
                     if let Some(opacity) = opacity {
                         surface.push_opacity(unit(*opacity));
                     }
@@ -131,7 +163,7 @@ impl Renderer {
             surface.push_transform(&transform_of(t));
         }
         match shape.fill {
-            Some(Paint::Color(color)) => self.fill(surface, &shape.path, color),
+            Some(Paint::Color(color)) => self.fill_with_rule(surface, &shape.path, color, shape.rule),
             Some(Paint::Gradient(index, opacity)) => {
                 // objectBoundingBox units: an element without area has no box and is not filled.
                 let bbox = shape.path.bounding_box();
@@ -151,7 +183,7 @@ impl Renderer {
                     surface.set_fill(Some(Fill {
                         paint: paint.into(),
                         opacity: unit(opacity),
-                        rule: FillRule::NonZero,
+                        rule: shape.rule,
                     }));
                     surface.draw_path(&pdf);
                 }

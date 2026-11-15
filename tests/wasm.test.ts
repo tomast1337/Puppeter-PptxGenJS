@@ -210,8 +210,8 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
         // A caller's SVG outside the subset the reader knows is an error naming the place, not a blank box.
         const odd = new PuppeteerGen(PAGE, { renderer });
-        odd.addSlide().addChartEx({ renderer: "svg", svg: '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>' }, { x: 1, y: 1, w: 3, h: 3 });
-        await expect(odd.toPdf()).rejects.toThrow("slide 1: object 'Chart 0': <circle> is not in the chart SVG subset");
+        odd.addSlide().addChartEx({ renderer: "svg", svg: '<svg xmlns="http://www.w3.org/2000/svg"><use href="#a"/></svg>' }, { x: 1, y: 1, w: 3, h: 3 });
+        await expect(odd.toPdf()).rejects.toThrow("slide 1: object 'Chart 0': <use> is not in the SVG subset");
     });
 
     test("makes linked runs, shapes and images clickable", async () => {
@@ -250,12 +250,22 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test('onUnsupported: "warn" renders and reports skipped objects', async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
         const pres = new PuppeteerGen(PAGE, { renderer });
-        pres.addSlide()
-            .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
-            .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 })
-            .addImage({ data: `data:image/svg+xml;base64,${btoa("<svg xmlns='http://www.w3.org/2000/svg'/>")}`, x: 3, y: 2, w: 1, h: 1 });
+        pres.addSlide().addText("Text", { x: 1, y: 1, w: 3, h: 1 }).addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 }).addImage({ data: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", x: 3, y: 2, w: 1, h: 1 });
         expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
-        expect(renderer.warnings()).toEqual(["SVG images not rendered"]);
+        expect(renderer.warnings()).toEqual(["GIF and WebP images not rendered"]);
+    });
+
+    test("draws SVG images and names the slide, picture and element of one outside the subset", async () => {
+        const svg = (body: string) => `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 2">${body}</svg>`)}`;
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const drawn = new PuppeteerGen(PAGE, { renderer });
+        drawn.addSlide().addImage({ data: svg('<circle cx="1" cy="1" r="1" fill="tomato"/>'), x: 1, y: 1, w: 2, h: 1 });
+        expect(ascii(await drawn.toPdf()).startsWith("%PDF-")).toBe(true);
+        expect(renderer.warnings()).toEqual([]);
+        const broken = new PuppeteerGen(PAGE, { renderer });
+        broken.addSlide();
+        broken.addSlide().addImage({ data: svg('<image href="https://example.com/a.png"/>'), x: 1, y: 1, w: 2, h: 1, altText: "Logo" });
+        await expect(broken.toPdf()).rejects.toThrow(/^slide 2: image '[^']+': SVG image: <image> is not in the SVG subset/);
     });
 
     test("draws data, path and repeated images in every sizing mode without warnings", async () => {

@@ -4,6 +4,7 @@
 //! read the same geometry krilla draws.
 
 use krilla::geom::{Path, PathBuilder};
+use krilla::paint::{Fill, FillRule};
 use krilla::surface::Surface;
 use kurbo::{BezPath, PathEl, Point};
 
@@ -18,13 +19,18 @@ const MIN_SIDE: f32 = 0.01;
 impl Renderer {
     /// Fills `path` (current user space) and adds it to the silhouettes being captured.
     pub(crate) fn fill(&mut self, surface: &mut Surface, path: &BezPath, color: Rgba) {
+        self.fill_with_rule(surface, path, color, FillRule::NonZero);
+    }
+
+    /// `fill` with an SVG `fill-rule`.
+    pub(crate) fn fill_with_rule(&mut self, surface: &mut Surface, path: &BezPath, color: Rgba, rule: FillRule) {
         if color.3 <= 0.0 {
             return;
         }
         let Some(pdf) = to_path(path) else { return };
         self.effects.capture(surface.ctm(), path, color.3, None);
         surface.set_stroke(None);
-        surface.set_fill(Some(fill_of(color)));
+        surface.set_fill(Some(Fill { rule, ..fill_of(color) }));
         surface.draw_path(&pdf);
     }
 }
@@ -40,19 +46,33 @@ pub(crate) fn rect_path(x: f32, y: f32, w: f32, h: f32, radius: f32) -> BezPath 
         pb.line_to((x, y + h));
         pb.close_path();
     } else {
-        let k = r * KAPPA;
-        pb.move_to((x + r, y));
-        pb.line_to((x + w - r, y));
-        pb.curve_to((x + w - r + k, y), (x + w, y + r - k), (x + w, y + r));
-        pb.line_to((x + w, y + h - r));
-        pb.curve_to((x + w, y + h - r + k), (x + w - r + k, y + h), (x + w - r, y + h));
-        pb.line_to((x + r, y + h));
-        pb.curve_to((x + r - k, y + h), (x, y + h - r + k), (x, y + h - r));
-        pb.line_to((x, y + r));
-        pb.curve_to((x, y + r - k), (x + r - k, y), (x + r, y));
-        pb.close_path();
+        corners(&mut pb, (x, y, w, h), (r, r));
     }
     pb
+}
+
+/// A rectangle with elliptical corners of radii `(rx, ry)`, each at most half its side (SVG's
+/// `rect` with `rx`/`ry`).
+pub(crate) fn rounded_rect_path(x: f32, y: f32, w: f32, h: f32, (rx, ry): (f32, f32)) -> BezPath {
+    let mut pb = BezPath::new();
+    let side = |v: f32| f64::from(v);
+    corners(&mut pb, (side(x), side(y), side(w), side(h)), (side(rx), side(ry)));
+    pb
+}
+
+/// The outline of a rectangle with elliptical corners, as cubic quarter arcs.
+fn corners(pb: &mut BezPath, (x, y, w, h): (f64, f64, f64, f64), (rx, ry): (f64, f64)) {
+    let (kx, ky) = (rx * KAPPA, ry * KAPPA);
+    pb.move_to((x + rx, y));
+    pb.line_to((x + w - rx, y));
+    pb.curve_to((x + w - rx + kx, y), (x + w, y + ry - ky), (x + w, y + ry));
+    pb.line_to((x + w, y + h - ry));
+    pb.curve_to((x + w, y + h - ry + ky), (x + w - rx + kx, y + h), (x + w - rx, y + h));
+    pb.line_to((x + rx, y + h));
+    pb.curve_to((x + rx - kx, y + h), (x, y + h - ry + ky), (x, y + h - ry));
+    pb.line_to((x, y + ry));
+    pb.curve_to((x, y + ry - ky), (x + rx - kx, y), (x + rx, y));
+    pb.close_path();
 }
 
 /// The ellipse inscribed in the box, as four cubic quarter arcs (the `rect_path` constant).

@@ -295,20 +295,32 @@ backend.
   step's.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
   always inlines images).
-- **Chart SVG is a strict subset.** A `.slide-chart` (from `addChart()` or `addChartExtension()`) is drawn
-  from its one `<svg>`, read once as the subset ECharts, the 3D bar renderer and caller SVGs produce: `g`
-  (`opacity`, `clip-path`, inherited paint and font), `defs` with `clipPath` (`path`, `rect`) and
-  `linearGradient` (bounding-box `x1 y1 x2 y2`, `stop` with `offset`/`stop-color`), `path` (all SVG path
-  commands), `rect` (no `rx`), `polygon`, `polyline`, `line`, `ellipse`, and single-line `text` (`x`, `y`,
-  `text-anchor`, `dominant-baseline` `auto`/`central`, `xml:space`, `paint-order: stroke` halos, one font
-  family, `font-size` in px, `font-weight` normal/bold, `font-style` normal/italic, as attributes or in
-  `style`). Paints are `none`, `#rgb`, `#rrggbb`, `rgb()`/`rgba()` or `url(#id)` (fill only), with
-  `fill-opacity`, `stroke-opacity`, `stroke-width`, `stroke-linecap`, `stroke-linejoin`,
-  `stroke-miterlimit` and `stroke-dasharray`; transforms are one `translate()` or `matrix()`; the
-  `viewBox` maps `xMidYMid meet` into the box. zrender's `pointer-events`, `ecmeta_*` and the 3D
-  renderer's `data-series`/`data-category` are accepted and have no effect. Any other element, attribute
-  or value is an error naming it, never skipped: `<circle>`, `<tspan>`, `<image>`, `<style>`, filters,
-  patterns, radial gradients, `rotate()`/`scale()` and named colors among them.
+- **Chart SVG and SVG images are one strict subset.** A `.slide-chart` (from `addChart()` or
+  `addChartExtension()`) is drawn from its one `<svg>`, and an `image/svg+xml` picture from its decoded
+  document, both read once as the subset ECharts, the 3D bar renderer, caller SVGs and common SVG files
+  use: `g` (`opacity`, `clip-path`, `transform`, inherited paint and font), `defs` with `clipPath`
+  (`path`, `rect`) and `linearGradient` (bounding-box `x1 y1 x2 y2`, `stop` with `offset`/`stop-color`),
+  `path` (all SVG path commands), `rect` (`rx`/`ry`), `circle`, `ellipse`, `polygon`, `polyline`, `line`,
+  and single-line `text` (`x`, `y`, `text-anchor`, `dominant-baseline` `auto`/`central`, `xml:space`,
+  `paint-order: stroke` halos, one font family, `font-size` in px, `font-weight` normal/bold,
+  `font-style` normal/italic). Paints are `none`, `#rgb`, `#rrggbb`, `rgb()`/`rgba()`, the CSS named
+  colors and `transparent`, or `url(#id)` (fill only), with `fill-opacity`, `fill-rule`,
+  `stroke-opacity`, `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`,
+  `stroke-dasharray` and `opacity`, as attributes or in `style`; transforms are lists of `matrix()`,
+  `translate()`, `scale()`, `rotate()` (with an optional centre), `skewX()` and `skewY()`. `title`,
+  `desc`, `metadata` and `id` draw nothing. A chart's `viewBox` maps `xMidYMid meet` into the box. An SVG
+  image's document may start with a byte order mark, an XML declaration, comments and a
+  `<!DOCTYPE svg …>` without an internal subset; its `<svg>` needs `xmlns="http://www.w3.org/2000/svg"`
+  and is sized into the picture's rectangle as Chromium sizes an `<img>`: a `viewBox` maps by
+  `preserveAspectRatio` (any alignment, `meet` or `slice`, or `none`) and ignores `width`/`height`;
+  without one, px `width` and `height` stretch to the rectangle like a raster image, and without those
+  its user units are px from the top-left. The drawing is clipped to the rectangle. zrender's
+  `pointer-events`, `ecmeta_*` and the 3D renderer's `data-series`/`data-category` are accepted and have
+  no effect. Any other element, attribute or value is an error naming the slide, the object and the
+  element, never skipped: `<tspan>`, `<use>`, `<image>`, `<style>`, `href`, `url()` to anything but a
+  local `#id`, filters, masks, patterns, radial gradients, units other than px and editor namespaces
+  (`inkscape:*`, `sodipodi:*`) among them. An SVG image is never fetched from: an external reference is
+  an error.
 - **Components are opaque.** `.slide-component` subtrees are only checked for well-formed markup and
   reported through `warnings()` as `object kind 'component' not rendered`.
 - **Errors name the place.** Every error is prefixed `invalid pdfdeck HTML:` and names the slide, the object

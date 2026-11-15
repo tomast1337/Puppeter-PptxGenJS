@@ -1,8 +1,9 @@
-//! Raster images from the model: data-URI decoding, sizing, rounding and opacity.
+//! Images from the model: data-URI decoding, sizing, rounding and opacity.
 //!
 //! Mirrors the Puppeteer renderer (packages/pptxgenjs/src/render/image.ts): the picture is placed
 //! at the rectangle `NormalizedImageSizing` resolved, clipped to the object box (an ellipse when
-//! `rounding`). PNG and JPEG go through krilla; GIF, WebP and SVG images are reported, not drawn.
+//! `rounding`). PNG and JPEG go through krilla; an SVG image is read as the SVG subset
+//! (`profile::svg`) and drawn as vectors; GIF and WebP images are reported, not drawn.
 //! krilla reads an image's header when it is created and decodes the pixels when the document is
 //! written, so corrupt pixel data fails `render` with a serialization error rather than a panic.
 
@@ -13,11 +14,14 @@ use krilla::geom::{Size, Transform};
 use krilla::image::Image;
 use krilla::paint::FillRule;
 use krilla::surface::Surface;
+use std::rc::Rc;
 
 use crate::Renderer;
 use crate::color::unit;
 use crate::model::{ImageModel, ImageSizing};
 use crate::path::{ellipse_path, rect_path, to_path};
+use crate::profile;
+use crate::svg::Svg;
 
 /// The data-URI payload as the compatibility layer validates it: standard alphabet, padding optional.
 const BASE64: GeneralPurpose = GeneralPurpose::new(
@@ -25,8 +29,15 @@ const BASE64: GeneralPurpose = GeneralPurpose::new(
     GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
 );
 
-/// A decoded data URI: a krilla image, or the reason it is skipped (reported through `warnings()`).
-pub(crate) type Decoded = Result<Image, String>;
+/// A decoded data URI: a raster image or an SVG display list.
+#[derive(Clone)]
+pub(crate) enum Picture {
+    Raster(Image),
+    Svg(Rc<Svg>),
+}
+
+/// A decoded data URI, or the reason it is skipped (reported through `warnings()`).
+pub(crate) type Decoded = Result<Picture, String>;
 
 /// Decodes `data:<mime>;base64,<payload>` by its magic bytes (browsers sniff too, so a mislabelled
 /// PNG still draws). `Err` is a broken input; `Ok(Err(_))` an image kind this backend skips.
@@ -53,12 +64,18 @@ pub(crate) fn decode_data_uri(source: &str) -> Result<Decoded, String> {
         // shortcut: krilla's GIF and WebP decoders add ~62 KB gzip, past GZIP_BUDGET; draw them once the budget allows (#17).
         return Ok(Err("GIF and WebP images not rendered".to_owned()));
     } else if mime.eq_ignore_ascii_case("image/svg+xml") {
-        // shortcut: krilla's svg feature does not fit GZIP_BUDGET; draw SVG images once it does (#17).
-        return Ok(Err("SVG images not rendered".to_owned()));
+        // Outside the SVG subset is an error, as for a chart: nothing is skipped silently.
+        // shortcut: no editor namespaces (inkscape:*, sodipodi:*), <use>, <style> sheets or radial
+        // gradients; add one when a real deck's SVG needs it and its gzip cost is measured (#17).
+        let text = std::str::from_utf8(&bytes).map_err(|e| format!("SVG image is not UTF-8: {e}"))?;
+        let svg = profile::svg::image(text).map_err(|e| format!("SVG image: {e}"))?;
+        return Ok(Ok(Picture::Svg(Rc::new(svg))));
     } else {
         return Err(format!("'{mime}' data is not a PNG or JPEG image"));
     };
-    decoded.map(Ok).map_err(|e| format!("cannot decode {mime} data: {e}"))
+    decoded
+        .map(|image| Ok(Picture::Raster(image)))
+        .map_err(|e| format!("cannot decode {mime} data: {e}"))
 }
 
 /// The rectangle the picture is drawn into, relative to the box origin (px).
@@ -117,9 +134,19 @@ impl Renderer {
         if faded {
             surface.push_opacity(unit(image.opacity));
         }
-        surface.push_transform(&Transform::from_translate(x + px, y + py));
-        surface.draw_image(picture, size);
-        surface.pop();
+        match picture {
+            Picture::Raster(picture) => {
+                surface.push_transform(&Transform::from_translate(x + px, y + py));
+                surface.draw_image(picture, size);
+                surface.pop();
+            }
+            Picture::Svg(svg) => {
+                // The picture's rectangle was captured above: what the SVG draws casts no shadow of its own.
+                self.effects.pause();
+                self.draw_svg(surface, &svg, x + px, y + py, size.width(), size.height());
+                self.effects.resume();
+            }
+        }
         if faded {
             surface.pop();
         }
@@ -137,19 +164,28 @@ mod tests {
 
     #[test]
     fn decodes_by_magic_bytes_not_by_label() {
-        let image = decode_data_uri(&format!("data:image/jpeg;base64,{PNG_1X1}")).unwrap().unwrap();
+        let Ok(Ok(Picture::Raster(image))) = decode_data_uri(&format!("data:image/jpeg;base64,{PNG_1X1}")) else {
+            panic!("a PNG")
+        };
         assert_eq!(image.size(), (1, 1));
         let unpadded = PNG_1X1.trim_end_matches('=');
         assert!(decode_data_uri(&format!("DATA:image/png;base64,\n{unpadded}")).unwrap().is_ok());
     }
 
     #[test]
-    fn skips_svg_and_rejects_broken_data() {
-        let svg = format!("data:image/svg+xml;base64,{}", BASE64.encode("<svg/>"));
-        assert_eq!(decode_data_uri(&svg).unwrap().unwrap_err(), "SVG images not rendered");
+    fn reads_svg_skips_gif_and_rejects_broken_data() {
+        let svg = |text: &str| format!("data:image/svg+xml;base64,{}", BASE64.encode(text));
+        let Ok(Ok(Picture::Svg(drawn))) = decode_data_uri(&svg(r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#)) else {
+            panic!("an SVG")
+        };
+        assert!(drawn.items.is_empty());
         let gif = format!("data:image/gif;base64,{}", BASE64.encode("GIF89a"));
-        assert_eq!(decode_data_uri(&gif).unwrap().unwrap_err(), "GIF and WebP images not rendered");
+        assert!(matches!(decode_data_uri(&gif), Ok(Err(skipped)) if skipped == "GIF and WebP images not rendered"));
+        let outside = svg(r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="https://x.test/a.png"/></svg>"#);
+        let not_utf8 = format!("data:image/svg+xml;base64,{}", BASE64.encode([0xFF, 0xFE, 0x3C]));
         for (source, error) in [
+            (outside.as_str(), "SVG image: <image> is not in the SVG subset"),
+            (not_utf8.as_str(), "SVG image is not UTF-8"),
             ("image.png", "not a data URI"),
             ("data:image/png,abc", "not base64-encoded"),
             ("data:image/png;base64,***", "invalid base64"),
