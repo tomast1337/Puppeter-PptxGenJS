@@ -282,7 +282,9 @@ export const PPTX_DEFAULTS = Object.freeze({
             hidden: false,
             title: "Value Axis",
             titleColor: "000000",
-            titleFontSizePt: 12,
+            // PptxGenJS writes the axis title <a:defRPr> without `sz` unless valAxisTitleFontSize is set; Office then draws
+            // its 10pt axis-title default (LibreOffice oox imports the same 10pt).
+            titleFontSizePt: 10,
             titleRotate: undefined as number | undefined,
             labelColor: "000000",
             labelFontSizePt: 12,
