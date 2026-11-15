@@ -1,7 +1,8 @@
 import { SUPPORTED_CHART_OPTIONS } from "./normalize/chart";
 import { CORE_SVG_SHAPES } from "./normalize/shape";
 
-export type CompatibilityStatus = "unsupported" | "partial" | "implemented" | "verified";
+/** `ignored`: accepted and without effect, because PptxGenJS ignores it too. */
+export type CompatibilityStatus = "unsupported" | "partial" | "implemented" | "verified" | "ignored";
 
 export interface CompatibilityEntry {
     readonly status: CompatibilityStatus;
@@ -205,7 +206,11 @@ const PARTIAL_CHART_OPTIONS = new Set<string>([
     "valAxisMajorTickMark",
     "valAxisMinorTickMark", // `cross` remains explicit unsupported
 ]);
-const CHART_OPTION_COMPATIBILITY = Object.freeze(Object.fromEntries(CHART_OPTION_NAMES.map(name => [name, PARTIAL_CHART_OPTIONS.has(name) ? "partial" : IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported"]))) as Readonly<Record<(typeof CHART_OPTION_NAMES)[number], CompatibilityStatus>>;
+// Declared in IChartOpts but read by no chart writer in PptxGenJS 4.0.1.
+const IGNORED_CHART_OPTIONS = new Set<string>(["fontFace"]);
+const CHART_OPTION_COMPATIBILITY = Object.freeze(Object.fromEntries(CHART_OPTION_NAMES.map(name => [name, IGNORED_CHART_OPTIONS.has(name) ? "ignored" : PARTIAL_CHART_OPTIONS.has(name) ? "partial" : IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported"]))) as Readonly<
+    Record<(typeof CHART_OPTION_NAMES)[number], CompatibilityStatus>
+>;
 
 export const CHART_TYPE_COMPATIBILITY = Object.freeze({
     area: "implemented",
