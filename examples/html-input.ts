@@ -14,7 +14,7 @@ const edited = stored.replace(">Quarterly draft</span>", ">Quarterly report</spa
 //    (stylesheet, insets, line box, fonts, colors) before rendering.
 const handWritten = `<html>
 <head>
-  <meta name="pdfdeck-profile" content="1">
+  <meta name="pdfdeck-profile" content="2">
   <meta name="pdfdeck-page-size" content="Screen 16:9 Landscape">
 </head>
 <body>

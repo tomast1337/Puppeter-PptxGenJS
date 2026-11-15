@@ -20,12 +20,12 @@ describe("htmlDocument() from @pdfdeck/model", () => {
         expect(htmlDocument(head(`<style>@page{size:4in 3in}</style>`)).pageSize).toEqual({ width: 4, height: 3, name: "Custom" });
     });
 
-    test("fills nothing: a missing page size is an error, as is anything that is not a v1 profile document", () => {
+    test("fills nothing: a missing page size is an error, as is anything that is not a profile document", () => {
         expect(() => htmlDocument(head(""))).toThrow("the stylesheet's @page rule has no 'size: <width>in <height>in'");
         expect(() => htmlDocument(head(`<style>@page { size: A4 }</style>`))).toThrow("write the page size in inches");
         expect(() => htmlDocument("  ")).toThrow("expected a non-empty HTML string, got an empty string");
-        expect(() => htmlDocument("<p>Hi</p>")).toThrow('not a pdfdeck profile document: add <meta name="pdfdeck-profile" content="1"> to <head>');
-        expect(() => htmlDocument(`<meta name="pdfdeck-profile" content="2">`)).toThrow("pdfdeck profile version '2' is not supported");
+        expect(() => htmlDocument("<p>Hi</p>")).toThrow('not a pdfdeck profile document: add <meta name="pdfdeck-profile" content="2"> to <head>');
+        expect(() => htmlDocument(`<meta name="pdfdeck-profile" content="3">`)).toThrow("pdfdeck profile version '3' is not supported (this library reads versions 1 and 2)");
     });
 });
 

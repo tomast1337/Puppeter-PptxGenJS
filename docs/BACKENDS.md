@@ -42,14 +42,14 @@ const pdf = await pres.toPdf(); // Uint8Array from the Puppeteer renderer
 Every renderer reads only `{ html, pageSize }`, so HTML that did not come from `toHtml()` in this process
 renders too: a stored document, an edited one, or one written by hand.
 
-| Input                                                                     | Puppeteer | WASM                                   |
-| ------------------------------------------------------------------------- | --------- | -------------------------------------- |
-| `toHtml()` output, stored or edited, through `pptxHtmlDocument()`         | Yes       | Yes                                    |
-| Hand-written [profile v1](./HTML_PROFILE.md) through `pptxHtmlDocument()` | Yes       | Yes                                    |
-| Any other HTML, through `render({ html, pageSize })`                      | Yes       | No: an error names the first violation |
+| Input                                                                           | Puppeteer | WASM                                   |
+| ------------------------------------------------------------------------------- | --------- | -------------------------------------- |
+| `toHtml()` output, stored or edited, through `pptxHtmlDocument()`               | Yes       | Yes                                    |
+| Hand-written [profile v1 or v2](./HTML_PROFILE.md) through `pptxHtmlDocument()` | Yes       | Yes                                    |
+| Any other HTML, through `render({ html, pageSize })`                            | Yes       | No: an error names the first violation |
 
 `pptxHtmlDocument(html)` (from `@pdfdeck/pptxgenjs` or the browser-safe `/html` entry) checks that `html`
-is a profile v1 document (`<meta name="pdfdeck-profile" content="1">`) and fills the values PptxGenJS
+is a profile document (`<meta name="pdfdeck-profile" content="2">`, or `"1"`) and fills the values PptxGenJS
 defaults (insets, line box, font, colors, the stylesheet; the list is in
 [HTML_PROFILE.md](./HTML_PROFILE.md#completion)). It also reads the page size from the document. A
 `toHtml()` result passes through byte for byte. `completeProfileHtml(html)` is the same completion step,
@@ -73,7 +73,7 @@ const printed = printHtml(document.html);
 ```
 
 WASM errors name the place, as in `invalid pdfdeck HTML: slide 1: object 'Title': paragraph 1: run 1: CSS
-property 'font-variant' on <span> is not in profile v1`. `examples/html-input.ts` renders an edited and
+property 'font-variant' on <span> is not in profile v2`. `examples/html-input.ts` renders an edited and
 a hand-written document on both backends.
 
 ## `write()` and `stream()`

@@ -89,7 +89,7 @@ describe("normalized slide-object model", () => {
         presentation.addSlide();
         const { html } = await modelToHtml(presentation.getModel(), { createDocument: createNodeDocument });
         expect(presentation.getModel().pageSize.name).toBe("Poster");
-        expect(html).toContain('<meta name="pdfdeck-profile" content="1"><meta name="pdfdeck-page-size" content="Poster">');
+        expect(html).toContain('<meta name="pdfdeck-profile" content="2"><meta name="pdfdeck-page-size" content="Poster"><title>');
     });
 
     test("records slide properties and returns a detached copy", () => {

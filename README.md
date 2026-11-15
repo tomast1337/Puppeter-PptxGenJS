@@ -94,9 +94,11 @@ local name works. Slide methods chain as in PptxGenJS. Differences to know when 
 - **Not drawn:** `addMedia()`, `defineSlideMaster()`, `slide.slideNumber`, a background picture
   (`slide.background = { path }`) and `slide.hidden = true` throw `UnsupportedFeatureError` with a
   suggested alternative. `addNotes()` and `pres.rtlMode` (which orients PowerPoint's editing views)
-  are accepted and, as on a PowerPoint slide, change nothing shown. Presentation metadata (`title`,
-  `author`, ...) is not part of the API. `API_COMPATIBILITY` lists what pdfdeck does with each
-  PptxGenJS presentation and slide member.
+  are accepted and, as on a PowerPoint slide, change nothing shown. `API_COMPATIBILITY` lists what
+  pdfdeck does with each PptxGenJS presentation and slide member.
+- **Document properties:** `pres.title`, `author` and `subject` become the PDF Title, Author and
+  Subject, with PptxGenJS's defaults (`PptxGenJS Presentation`, `PptxGenJS`). `company` and
+  `revision` stay in the HTML head: a PDF has no field for them.
 
 ### Use it from source today
 

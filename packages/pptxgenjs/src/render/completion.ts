@@ -6,7 +6,7 @@
  * Pure and browser-safe: parse5 finds what is missing, and each missing value is spliced into the original
  * string, so a document that already states everything (every `toHtml()` result) comes back byte-identical.
  */
-import { HTML_PROFILE_VERSION, type HtmlPresentationDocument, htmlDocument } from "@pdfdeck/model";
+import { HTML_PROFILE_VERSION, type HtmlPresentationDocument, htmlDocument, READABLE_HTML_PROFILE_VERSIONS, unsupportedVersionMessage } from "@pdfdeck/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 import { PPTX_DEFAULTS } from "../defaults";
 import { normalizeColor } from "../normalize/style";
@@ -263,9 +263,9 @@ function stylesheet(head: Element): Edit | undefined {
 }
 
 /**
- * Fills the values a profile v1 document may omit (docs/HTML_PROFILE.md, "Completion") with PptxGenJS's
+ * Fills the values a profile document (version 1 or 2) may omit (docs/HTML_PROFILE.md, "Completion") with PptxGenJS's
  * defaults. Throws when `html` is not a profile document: empty, without
- * `<meta name="pdfdeck-profile" content="1">`, or of another version. A complete document, such as any
+ * `<meta name="pdfdeck-profile" content="2">` (or "1"), or of another version. A complete document, such as any
  * `toHtml()` result, is returned unchanged, byte for byte.
  */
 export function completeProfileHtml(html: string): string {
@@ -276,7 +276,7 @@ export function completeProfileHtml(html: string): string {
     if (!head || version === undefined) {
         throw new Error(`invalid pdfdeck HTML: not a pdfdeck profile document: add ${PROFILE_META} to <head>. Puppeteer prints any HTML through renderer.render({ html, pageSize }).`);
     }
-    if (version !== String(HTML_PROFILE_VERSION)) throw new Error(`invalid pdfdeck HTML: pdfdeck profile version '${version}' is not supported (this library reads version ${HTML_PROFILE_VERSION})`);
+    if (!READABLE_HTML_PROFILE_VERSIONS.includes(version)) throw new Error(unsupportedVersionMessage(version));
 
     const sheet = stylesheet(head);
     const edits: Edit[] = sheet ? [sheet] : [];

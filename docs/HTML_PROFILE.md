@@ -1,16 +1,22 @@
-# pdfdeck HTML profile, version 1
+# pdfdeck HTML profile, version 2
 
 This document specifies the HTML that `toHtml()` emits as the mapping from each field of the JSON model
-(`packages/model/src/types.ts`) to the element, class, CSS property or attribute that holds it. Version 1
+(`packages/model/src/types.ts`) to the element, class, CSS property or attribute that holds it. Version 2
 describes that output exactly, including the values it loses.
 
-**Version 1 is frozen** (#69 phase 7). Stored, edited and hand-written documents that declare
-`<meta name="pdfdeck-profile" content="1">` keep rendering the same way. Any change to the markup a
-reader accepts or to what a value means (a new element, attribute, CSS property or enumerated value, a
-changed unit or default) is a new version: `toHtml()` then writes `content="2"`, this document describes
-version 2, and the WASM reader parses both versions before a release writes the new one. Fixes that only
-change error messages stay within version 1, as do changes to the Puppeteer print step and to the shared
-stylesheet outside its `@page` size, since a reader never sees them.
+**Versions are frozen** (#69 phase 7). Any change to the markup a reader accepts or to what a value means
+(a new element, attribute, CSS property or enumerated value, a changed unit or default) is a new version:
+`toHtml()` then writes the next number, this document describes it, and the WASM reader parses every
+version before a release writes the new one. Fixes that only change error messages stay within a version,
+as do changes to the Puppeteer print step and to the shared stylesheet outside its `@page` size, since a
+reader never sees them.
+
+**Version 2** (#102) adds the [document properties](#document-properties): `<title>` and the `author`,
+`description`, `pdfdeck-company` and `pdfdeck-revision` meta tags. Nothing else changed. Documents that
+declare `<meta name="pdfdeck-profile" content="1">` keep rendering the same way: every reader still
+accepts them, and the WASM reader gives their `<title>` and meta tags no meaning, as version 1 did, so
+their PDFs have no document properties. Puppeteer prints any HTML, so Chromium keeps writing a version 1
+document's `<title>` as the PDF Title, as before.
 
 ## Pipeline
 
@@ -79,8 +85,13 @@ From the maintainer's decisions on #69:
 <!DOCTYPE html>
 <html>
     <head>
-        <meta name="pdfdeck-profile" content="1" />
+        <meta name="pdfdeck-profile" content="2" />
         <meta name="pdfdeck-page-size" content="Screen 16:9 Landscape" />
+        <title>PptxGenJS Presentation</title>
+        <meta name="author" content="PptxGenJS" />
+        <meta name="description" content="PptxGenJS Presentation" />
+        <meta name="pdfdeck-company" content="PptxGenJS" />
+        <meta name="pdfdeck-revision" content="1" />
         <style id="puppeteer-gen-styles">
             /* presentationCSS(pageSize), render/slide.ts:103 */
         </style>
@@ -100,12 +111,42 @@ From the maintainer's decisions on #69:
   `.slide-container { width; height }` in px, the defaults for each class (font, color, padding, table
   insets, from `defaults.ts`), the line-box strut and the print rules. It is generated from the page size
   only, so it is the same for every deck of one size.
-- `<meta name="pdfdeck-profile" content="1">` names the profile version this document follows
-  (`HTML_PROFILE_VERSION`, `@pdfdeck/model`).
+- `<meta name="pdfdeck-profile" content="2">` names the profile version this document follows
+  (`HTML_PROFILE_VERSION`, `@pdfdeck/model`; `READABLE_HTML_PROFILE_VERSIONS` lists what readers accept).
 - `<meta name="pdfdeck-page-size">` holds the page size's name (`PageSize.name`, `Custom` when it is
   missing); the size itself is in the stylesheet.
-- There is no `<title>`, `<script>` or external resource. Every image is a `data:` URI by the time
-  `toHtml()` returns (`modelToHtml`, `render/document.ts`).
+- The [document properties](#document-properties) follow the page size. There is no `<script>` or
+  external resource. Every image is a `data:` URI by the time `toHtml()` returns (`modelToHtml`,
+  `render/document.ts`).
+
+### Document properties
+
+Version 2. The presentation's `title`, `author`, `subject`, `company` and `revision`
+(`PresentationMetadata`), which PptxGenJS writes to `docProps/core.xml` and `docProps/app.xml`. Standard
+HTML holds a value where it has a name for it; each element is left out when its value is empty or absent,
+and appears at most once.
+
+| Property   | PptxGenJS (default)                                | HTML                             | PDF                                          |
+| ---------- | -------------------------------------------------- | -------------------------------- | -------------------------------------------- |
+| `title`    | `dc:title` (`PptxGenJS Presentation`)              | `<title>`                        | Info `/Title`, XMP `dc:title`                |
+| `author`   | `dc:creator` and `cp:lastModifiedBy` (`PptxGenJS`) | `<meta name="author">`           | Info `/Author`, XMP `dc:creator`             |
+| `subject`  | `dc:subject` (`PptxGenJS Presentation`)            | `<meta name="description">`      | Info `/Subject`, XMP `dc:description` (WASM) |
+| `company`  | app.xml `Company` (`PptxGenJS`)                    | `<meta name="pdfdeck-company">`  | none                                         |
+| `revision` | `cp:revision` (`1`)                                | `<meta name="pdfdeck-revision">` | none                                         |
+
+- **Subject is `description`.** HTML has no subject meta name; `description` is its free-form summary of
+  the page, which is what a PDF Subject holds, and krilla writes the same value to both Subject and
+  `dc:description`.
+- **Company and revision stay in the HTML.** A PDF has no field for either. LibreOffice's PDF export of
+  the PptxGenJS `.pptx` writes Title, Subject and Author and neither of these (`pdfinfo`: no custom
+  metadata), so pdfdeck does the same.
+- **The title is read as `document.title`:** ASCII whitespace stripped and collapsed.
+- **Each renderer writes them.** WASM sets krilla's metadata (Info dictionary and XMP packet) from a
+  version 2 document. Chromium writes only `/Title`, from `<title>`; the Puppeteer renderer then appends an
+  incremental update (ISO 32000-1 7.5.6, `packages/puppeteer/src/pdfInfo.ts`) whose Info dictionary adds
+  `/Author` and `/Subject` from the `author` and `description` meta tags of any HTML it prints, and keeps
+  Chromium's Creator, Producer and dates. It writes no XMP packet, as Chromium writes none.
+- **Completion adds none of them**: a hand-written document without them gives a PDF without them.
 
 ## Slide
 
@@ -276,12 +317,12 @@ second spelling.
 ## Parsing (WASM)
 
 `Renderer::render_html` (`renderHtml` in `crates/pdf-wasm`, `WasmRenderer.render(document)` in
-`@pdfdeck/wasm`) reads version 1 with a hand-written tokenizer, not a general HTML parser
+`@pdfdeck/wasm`) reads versions 1 and 2 with a hand-written tokenizer, not a general HTML parser
 (`crates/pdf-core/src/profile/`: `dom.rs` tokenizes, `style.rs` reads inline CSS, one file per object kind
 maps the elements onto the `model.rs` structs the drawing code reads). It is the only input of the WASM
 backend.
 
-- **Version.** `<meta name="pdfdeck-profile" content="1">` is required; a missing tag or another version
+- **Version.** `<meta name="pdfdeck-profile" content="2">` (or `"1"`) is required; a missing tag or another version
   is an error.
 - **Markup is what the serializer writes.** Every element is closed by its own end tag, `/>` only ends void
   and SVG elements, attributes are not repeated, character references are `&amp; &lt; &gt; &quot; &apos;
@@ -344,8 +385,8 @@ backend.
   `examples/react-component.ts`) need inline and block layout, so they are errors:
 
     ```text
-    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'test/badge' v1: <strong> is not in profile v1: component markup is nested <div> boxes
-    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'acme/metric' v1: CSS property 'padding' on <div> is not in profile v1
+    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'test/badge' v1: <strong> is not in profile v2: component markup is nested <div> boxes
+    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'acme/metric' v1: CSS property 'padding' on <div> is not in profile v2
     ```
 
 - **Errors name the place.** Every error is prefixed `invalid pdfdeck HTML:` and names the slide, the object
@@ -353,8 +394,8 @@ backend.
   names its byte offset. For example:
 
     ```text
-    invalid pdfdeck HTML: slide 1: object 'Title': CSS property 'filter' on <div> is not in profile v1
-    invalid pdfdeck HTML: pdfdeck profile version '2' is not supported (this renderer reads version 1)
+    invalid pdfdeck HTML: slide 1: object 'Title': CSS property 'filter' on <div> is not in profile v2
+    invalid pdfdeck HTML: pdfdeck profile version '3' is not supported (this renderer reads versions 1 and 2)
     invalid pdfdeck HTML: slide 2: object 'Table 0': row 1: cell 1: attribute 'rowspan' is missing
     invalid pdfdeck HTML: malformed HTML at byte 6488: </body> closes <p>
     ```
@@ -405,7 +446,7 @@ or a `font-size` or `line-height` it needs for a line box that is not in px.
 |                           | `border-top`, `-right`, `-bottom`, `-left`           | `0px none transparent`                                                                               | `table.border.type` (`none`)                          |
 
 **Required**: everything else the reader requires stays required, because it is the deck's content
-rather than a default: `<meta name="pdfdeck-profile" content="1">`; the element structure (`.text-content`,
+rather than a default: `<meta name="pdfdeck-profile" content="2">` (or `"1"`); the element structure (`.text-content`,
 `.slide-image-frame`, `<colgroup>`, `svg.shape-svg` with `<defs>` and `.shape-geometry`); each object's
 `left` and `top`; a shape's `data-shape`, `viewBox` and geometry attributes (`fill`, `stroke`,
 `stroke-width`, `rx`, `d`, …); an image's `src` as a `data:` URI and its box for `contain`, `cover` and
@@ -440,6 +481,12 @@ object-valued field covers the field's presence; its own fields have their own r
 | `PageSize.height`                 | profile | `@page { size: … <height>in }`; `.slide-container { height }`.               |
 | `PageSize.name`                   | profile | `<meta name="pdfdeck-page-size" content="<name>">` in the head.              |
 | `NormalizedPresentation.slides`   | profile | One `div.slide-container#slide-N` per slide, in order.                       |
+| `NormalizedPresentation.metadata` | profile | The [document properties](#document-properties) in the head (version 2).     |
+| `PresentationMetadata.title`      | profile | `<title>`.                                                                   |
+| `PresentationMetadata.author`     | profile | `<meta name="author" content>`.                                              |
+| `PresentationMetadata.subject`    | profile | `<meta name="description" content>`.                                         |
+| `PresentationMetadata.company`    | profile | `<meta name="pdfdeck-company" content>`.                                     |
+| `PresentationMetadata.revision`   | profile | `<meta name="pdfdeck-revision" content>`.                                    |
 | `NormalizedSlide.background`      | profile | `.slide-container` `background-color`.                                       |
 | `NormalizedSlide.color`           | profile | `.slide-container` custom property `--slide-text-color` (verbatim).          |
 | `NormalizedSlide.hidden`          | profile | `.slide-container` `data-hidden="true\|false"`.                              |

@@ -2,7 +2,9 @@ import type { HtmlPresentationDocument } from "./renderer";
 import type { PageSize } from "./types";
 
 /** The pdfdeck HTML profile version (docs/HTML_PROFILE.md) a document follows, in `<meta name="pdfdeck-profile">`. */
-export const HTML_PROFILE_VERSION = 1;
+export const HTML_PROFILE_VERSION = 2;
+/** The profile versions readers accept: version 1 documents keep rendering as before (docs/HTML_PROFILE.md). */
+export const READABLE_HTML_PROFILE_VERSIONS: readonly string[] = Object.freeze(["1", String(HTML_PROFILE_VERSION)]);
 /** `PageSize.name` of a document whose `<meta name="pdfdeck-page-size">` names none. */
 export const CUSTOM_PAGE_SIZE_NAME = "Custom";
 
@@ -23,17 +25,22 @@ function metaContent(html: string, name: string): string | undefined {
 }
 
 /**
- * The renderer input for a complete profile v1 document: checks the version and reads the page size from the
+ * The renderer input for a complete profile document (version 1 or 2): checks the version and reads the page size from the
  * `@page` rule, with the name `<meta name="pdfdeck-page-size">` gives. Fills nothing: a producer completes its own
  * defaults first (PptxGenJS: `pptxHtmlDocument`). Throws when `html` is empty, has no
- * `<meta name="pdfdeck-profile" content="1">`, is of another version or has no `@page { size: <w>in <h>in }`.
+ * `<meta name="pdfdeck-profile" content="2">`, is of another version or has no `@page { size: <w>in <h>in }`.
  */
 export function htmlDocument(html: string): HtmlPresentationDocument {
     if (typeof html !== "string" || !html.trim()) throw new Error(`invalid pdfdeck HTML: expected a non-empty HTML string, got ${typeof html === "string" ? "an empty string" : typeof html}`);
     const version = metaContent(html, "pdfdeck-profile");
     if (version === undefined) throw new Error(`invalid pdfdeck HTML: not a pdfdeck profile document: add ${PROFILE_META} to <head>. Puppeteer prints any HTML through renderer.render({ html, pageSize }).`);
-    if (version !== String(HTML_PROFILE_VERSION)) throw new Error(`invalid pdfdeck HTML: pdfdeck profile version '${version}' is not supported (this library reads version ${HTML_PROFILE_VERSION})`);
+    if (!READABLE_HTML_PROFILE_VERSIONS.includes(version)) throw new Error(unsupportedVersionMessage(version));
     return { html, pageSize: pageSizeOf(html) };
+}
+
+/** The error for a `pdfdeck-profile` version no reader here accepts. */
+export function unsupportedVersionMessage(version: string): string {
+    return `invalid pdfdeck HTML: pdfdeck profile version '${version}' is not supported (this library reads versions ${READABLE_HTML_PROFILE_VERSIONS.join(" and ")})`;
 }
 
 function pageSizeOf(html: string): PageSize {
