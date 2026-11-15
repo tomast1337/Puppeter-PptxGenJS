@@ -2,7 +2,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PuppeteerPdfRenderer } from "@pdfdeck/puppeteer";
+import { PuppeteerPdfRenderer } from "@pdflapas/puppeteer";
 import { JSDOM } from "jsdom";
 import { dataUri, MIME_TYPES, resolveRemoteImageSource } from "./normalize/image";
 import { resolveFileName } from "./output";

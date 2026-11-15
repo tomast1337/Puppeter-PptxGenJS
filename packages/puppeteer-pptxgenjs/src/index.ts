@@ -1,3 +1,3 @@
-// Deprecation shim: "puppeteer-pptxgenjs" moved to "@pdfdeck/pptxgenjs" (issue #22).
-export * from "@pdfdeck/pptxgenjs";
-export { default } from "@pdfdeck/pptxgenjs";
+// Deprecation shim: "puppeteer-pptxgenjs" moved to "@pdflapas/pptxgenjs" (issue #22).
+export * from "@pdflapas/pptxgenjs";
+export { default } from "@pdflapas/pptxgenjs";

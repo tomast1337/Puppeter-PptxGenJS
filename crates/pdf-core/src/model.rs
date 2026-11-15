@@ -1,5 +1,5 @@
 //! The subset of the normalized model (packages/model/src/types.ts) this renderer reads, filled
-//! from the pdfdeck HTML profile by `crate::profile`.
+//! from the PdfLapas HTML profile by `crate::profile`.
 
 use crate::color::Rgba;
 use crate::svg::Svg;
@@ -11,7 +11,7 @@ pub(crate) struct Presentation {
 }
 
 /// `PresentationMetadata`: `<title>`, `<meta name="author">`, `<meta name="description">` (the
-/// subject), `<meta name="pdfdeck-company">` and `<meta name="pdfdeck-revision">`. Read from
+/// subject), `<meta name="pdflapas-company">` and `<meta name="pdflapas-revision">`. Read from
 /// profile version 2 only.
 #[derive(Default)]
 pub(crate) struct Metadata {

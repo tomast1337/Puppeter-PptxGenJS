@@ -1,6 +1,6 @@
 # Components
 
-`addComponent` places application-defined HTML (or React) content on a slide. It is a pdfdeck
+`addComponent` places application-defined HTML (or React) content on a slide. It is a PdfLapas
 extension: standard PptxGenJS has no such method. Components are drawn by the Puppeteer backend and
 the `/html` entry. The WASM backend has no CSS layout: it draws a component only when its markup is
 nested sized boxes, and throws on anything else (see [WASM backend](#wasm-backend)).
@@ -11,7 +11,7 @@ Register versioned application components on each presentation, then place them
 with the same inch-based coordinates used by the standard drawing methods:
 
 ```typescript
-import PuppeteerGen from "@pdfdeck/pptxgenjs";
+import PuppeteerGen from "@pdflapas/pptxgenjs";
 import { z } from "zod";
 
 const metricSchema = z.object({ label: z.string().default("Revenue"), value: z.number() });
@@ -77,17 +77,17 @@ new version and migrate documents explicitly. Standard PptxGenJS has no
 Install matching React 19 packages in the consuming application:
 
 ```sh
-npm install @pdfdeck/react react@19 react-dom@19
+npm install @pdflapas/react react@19 react-dom@19
 # TypeScript applications also need their React types:
 npm install --save-dev @types/react@19 @types/react-dom@19
 ```
 
-The adapter is a separate package, `@pdfdeck/react`. Importing
-`@pdfdeck/pptxgenjs` alone does not load or require React.
+The adapter is a separate package, `@pdflapas/react`. Importing
+`@pdflapas/pptxgenjs` alone does not load or require React.
 
 ```tsx
-import PuppeteerGen from "@pdfdeck/pptxgenjs";
-import { registerReactComponent } from "@pdfdeck/react";
+import PuppeteerGen from "@pdflapas/pptxgenjs";
+import { registerReactComponent } from "@pdflapas/react";
 
 import { z } from "zod";
 

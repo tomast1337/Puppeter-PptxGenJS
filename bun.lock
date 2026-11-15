@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "pdfdeck-workspace",
+      "name": "pdflapas-workspace",
       "devDependencies": {
         "@types/bun": "latest",
         "@types/jsdom": "^21.1.7",
@@ -16,26 +16,26 @@
       },
     },
     "examples": {
-      "name": "@pdfdeck/examples",
+      "name": "@pdflapas/examples",
       "version": "0.0.0",
       "dependencies": {
-        "@pdfdeck/pptxgenjs": "workspace:*",
-        "@pdfdeck/react": "workspace:*",
-        "@pdfdeck/wasm": "workspace:*",
+        "@pdflapas/pptxgenjs": "workspace:*",
+        "@pdflapas/react": "workspace:*",
+        "@pdflapas/wasm": "workspace:*",
         "pptxgenjs": "4.0.1",
         "react": "^19",
       },
     },
     "packages/model": {
-      "name": "@pdfdeck/model",
+      "name": "@pdflapas/model",
       "version": "0.2.0",
     },
     "packages/pptxgenjs": {
-      "name": "@pdfdeck/pptxgenjs",
+      "name": "@pdflapas/pptxgenjs",
       "version": "0.2.0",
       "dependencies": {
-        "@pdfdeck/model": "workspace:*",
-        "@pdfdeck/puppeteer": "workspace:*",
+        "@pdflapas/model": "workspace:*",
+        "@pdflapas/puppeteer": "workspace:*",
         "echarts": "6.1.0",
         "jsdom": "^26.1.0",
         "parse5": "7.3.0",
@@ -43,10 +43,10 @@
       },
     },
     "packages/puppeteer": {
-      "name": "@pdfdeck/puppeteer",
+      "name": "@pdflapas/puppeteer",
       "version": "0.2.0",
       "dependencies": {
-        "@pdfdeck/model": "workspace:*",
+        "@pdflapas/model": "workspace:*",
         "parse5": "7.3.0",
         "puppeteer": "^24.15.0",
       },
@@ -55,16 +55,16 @@
       "name": "puppeteer-pptxgenjs",
       "version": "0.2.0",
       "dependencies": {
-        "@pdfdeck/pptxgenjs": "workspace:*",
-        "@pdfdeck/react": "workspace:*",
-        "@pdfdeck/wasm": "workspace:*",
+        "@pdflapas/pptxgenjs": "workspace:*",
+        "@pdflapas/react": "workspace:*",
+        "@pdflapas/wasm": "workspace:*",
       },
     },
     "packages/react": {
-      "name": "@pdfdeck/react",
+      "name": "@pdflapas/react",
       "version": "0.2.0",
       "dependencies": {
-        "@pdfdeck/pptxgenjs": "workspace:*",
+        "@pdflapas/pptxgenjs": "workspace:*",
         "zod": "4.4.3",
       },
       "peerDependencies": {
@@ -77,10 +77,10 @@
       ],
     },
     "packages/wasm": {
-      "name": "@pdfdeck/wasm",
+      "name": "@pdflapas/wasm",
       "version": "0.2.0",
       "dependencies": {
-        "@pdfdeck/model": "workspace:*",
+        "@pdflapas/model": "workspace:*",
       },
     },
   },
@@ -101,17 +101,17 @@
 
     "@csstools/css-tokenizer": ["@csstools/css-tokenizer@3.0.4", "", {}, "sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw=="],
 
-    "@pdfdeck/examples": ["@pdfdeck/examples@workspace:examples"],
+    "@pdflapas/examples": ["@pdflapas/examples@workspace:examples"],
 
-    "@pdfdeck/model": ["@pdfdeck/model@workspace:packages/model"],
+    "@pdflapas/model": ["@pdflapas/model@workspace:packages/model"],
 
-    "@pdfdeck/pptxgenjs": ["@pdfdeck/pptxgenjs@workspace:packages/pptxgenjs"],
+    "@pdflapas/pptxgenjs": ["@pdflapas/pptxgenjs@workspace:packages/pptxgenjs"],
 
-    "@pdfdeck/puppeteer": ["@pdfdeck/puppeteer@workspace:packages/puppeteer"],
+    "@pdflapas/puppeteer": ["@pdflapas/puppeteer@workspace:packages/puppeteer"],
 
-    "@pdfdeck/react": ["@pdfdeck/react@workspace:packages/react"],
+    "@pdflapas/react": ["@pdflapas/react@workspace:packages/react"],
 
-    "@pdfdeck/wasm": ["@pdfdeck/wasm@workspace:packages/wasm"],
+    "@pdflapas/wasm": ["@pdflapas/wasm@workspace:packages/wasm"],
 
     "@puppeteer/browsers": ["@puppeteer/browsers@2.10.6", "", { "dependencies": { "debug": "^4.4.1", "extract-zip": "^2.0.1", "progress": "^2.0.3", "proxy-agent": "^6.5.0", "semver": "^7.7.2", "tar-fs": "^3.1.0", "yargs": "^17.7.2" }, "bin": { "browsers": "lib/cjs/main-cli.js" } }, "sha512-pHUn6ZRt39bP3698HFQlu2ZHCkS/lPcpv7fVQcGBSzNNygw171UXAKrCUhy+TEMw4lEttOKDgNpb04hwUAJeiQ=="],
 

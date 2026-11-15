@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
-import type { NormalizedTable, NormalizedTableBorder } from "@pdfdeck/model";
+import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
 import { convertToPixels, inchesToPixels, pointsToPixels } from "../../units";
 import { normalizeColor, normalizeFill } from "../style";

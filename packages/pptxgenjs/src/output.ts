@@ -21,7 +21,7 @@ export function resolveOutputType(props?: PptxGenJS.WriteProps | PptxGenJS.WRITE
 /**
  * `writeFile()` file name: `{ fileName }`, or a bare string (deprecated, with PptxGenJS 4.0.1's warning).
  * A trailing ".pptx" (any case) becomes ".pdf", so a migrated "report.pptx" writes "report.pdf"; a name ending in
- * ".pdf" is kept and any other name gets ".pdf" appended. PptxGenJS defaults to "Presentation.pptx"; pdfdeck
+ * ".pdf" is kept and any other name gets ".pdf" appended. PptxGenJS defaults to "Presentation.pptx"; PdfLapas
  * requires a name instead (owner decision, #102). `compression` is ignored (zip-only).
  */
 export function resolveFileName(props?: PptxGenJS.WriteFileProps | string): string {

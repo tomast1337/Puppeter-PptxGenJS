@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
-import type { NormalizedImage, NormalizedImageSizing } from "@pdfdeck/model";
+import type { NormalizedImage, NormalizedImageSizing } from "@pdflapas/model";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../units";
 import { normalizeHyperlink } from "./link";

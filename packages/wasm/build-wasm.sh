@@ -3,7 +3,7 @@
 #
 # Committed outputs: the wasm-bindgen glue (.js/.d.ts), so the TS side typechecks without Rust, and
 # pdf_wasm_bg.wasm.sha256. CI rebuilds and fails on any diff, so a stale glue or a
-# non-reproducible .wasm cannot merge. The .wasm itself is gitignored; CI ships it in @pdfdeck/wasm.
+# non-reproducible .wasm cannot merge. The .wasm itself is gitignored; CI ships it in @pdflapas/wasm.
 #
 # Toolchain: rustc from rust-toolchain.toml; wasm-pack, wasm-bindgen and wasm-opt from
 # crates/wasm-toolchain.env, downloaded and checksum-verified into crates/target/wasm-tools/.
@@ -39,7 +39,8 @@ root=$PWD
 # +1,594 B: company and revision as custom Info keys (#102: an incremental update after krilla's output, which has no field for them), 1,045,731 -> 1,047,325 B measured; budget = that size.
 # +318 B: slide links by the slide number in id="slide-N" (#102: hidden slides are not in the document, so a link to slide N jumps to the page that shows it), 1,047,325 -> 1,047,643 B measured; budget = that size.
 # -561 B: face fills read from the HTML, the Rust copy of the shading factors removed (#43), 1,047,643 -> 1,047,082 B measured; budget = that size.
-GZIP_BUDGET=1047082
+# -13 B: the project renamed to PdfLapas (error messages, the v2 profile meta names beside the frozen v1 ones, the /pdflapas source path remap), 1,047,082 -> 1,047,069 B measured; budget = that size.
+GZIP_BUDGET=1047069
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
@@ -85,7 +86,7 @@ fi
 # wasm-pack uses the wasm-bindgen and wasm-opt it finds on PATH when their versions fit.
 PATH="$root/$tools/bin:$PATH"
 # Panic locations embed source paths: remap them so host, Docker and CI builds hash the same.
-RUSTFLAGS="--remap-path-prefix=$root=/pdfdeck --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
+RUSTFLAGS="--remap-path-prefix=$root=/pdflapas --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
 export PATH RUSTFLAGS
 echo "$(rustc --version), wasm-pack $WASM_PACK_VERSION, wasm-bindgen $WASM_BINDGEN_VERSION, wasm-opt $BINARYEN_VERSION"
 wasm-pack build crates/pdf-wasm --release --target web --no-pack --out-dir pkg

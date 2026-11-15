@@ -1,7 +1,7 @@
 # Spike harness: text-only PDF renderer from `getModel()` (issue #8)
 
 The renderer moved to `crates/` (`pdf-core`, `pdf-wasm`) and ships as the opt-in
-`@pdfdeck/wasm` package (`packages/wasm/`). The napi-rs native addon was dropped:
+`@pdflapas/wasm` package (`packages/wasm/`). The napi-rs native addon was dropped:
 the spike measured ~1.7 ms/render gain against an 8-package release matrix (#8).
 
 The fidelity harness and its decks (text, emoji/CJK) moved to `tests/visual/wasm/`

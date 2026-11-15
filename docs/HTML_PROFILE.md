@@ -1,4 +1,4 @@
-# pdfdeck HTML profile, version 2
+# PdfLapas HTML profile, version 2
 
 This document specifies the HTML that `toHtml()` emits as the mapping from each field of the JSON model
 (`packages/model/src/types.ts`) to the element, class, CSS property or attribute that holds it. Version 2
@@ -12,17 +12,23 @@ as do changes to the Puppeteer print step and to the shared stylesheet outside i
 reader never sees them.
 
 **Version 2** (#102) adds the [document properties](#document-properties): `<title>` and the `author`,
-`description`, `pdfdeck-company` and `pdfdeck-revision` meta tags. Nothing else changed. Documents that
+`description`, `pdflapas-company` and `pdflapas-revision` meta tags. Nothing else changed. Documents that
 declare `<meta name="pdfdeck-profile" content="1">` keep rendering the same way: every reader still
 accepts them, and the WASM reader gives their `<title>` and meta tags no meaning, as version 1 did, so
 their PDFs have no document properties. Puppeteer prints any HTML, so Chromium keeps writing a version 1
-document's `<title>` as the PDF Title, as before. Version 2 is not released yet (no `@pdfdeck/*` package has
+document's `<title>` as the PDF Title, as before. Version 2 is not released yet (no `@pdflapas/*` package has
 been published), so its description was corrected in place rather than as a version 3: the elements are
 the same, but `toHtml()` writes only the properties the deck sets (PptxGenJS's defaults are not written)
 and both renderers put `company` and `revision` in the PDF. For the same reason, hidden slides were also
 corrected in place: `toHtml()` leaves a hidden slide out instead of marking it `data-hidden`, so a slide
 container's `#slide-N` is the slide's number in the deck and can skip one, and a slide link jumps to the
 container with that number ([Slide](#slide)). Readers accept `data-hidden` and give it no meaning.
+
+**Meta names.** The project was called pdfdeck when version 1 was frozen, so a version 1 document spells its
+meta names `pdfdeck-profile` and `pdfdeck-page-size`, and readers keep accepting exactly that. Version 2 was
+renamed in place, still unreleased, to `pdflapas-profile`, `pdflapas-page-size`, `pdflapas-company` and
+`pdflapas-revision`. Each version has one spelling: `<meta name="pdfdeck-profile" content="2">` and
+`<meta name="pdflapas-profile" content="1">` are errors that name both accepted forms.
 
 ## Pipeline
 
@@ -37,15 +43,15 @@ The model is the public schema; the HTML is derived from it by one pure, determi
 both backends read only the HTML.
 
 - **The model is the only source of truth.** Each `add*` call writes only the model. `toHtml()` is
-  `modelToHtml(getModel())` (`render/document.ts`), exported from `@pdfdeck/pptxgenjs/html` for producers
+  `modelToHtml(getModel())` (`render/document.ts`), exported from `@pdflapas/pptxgenjs/html` for producers
   that build the model themselves: it writes the whole document at once as strings, without a DOM,
   inlines images through `resolveImage`, and renders components with the caller's registry. Only a
   component that reads `context.document` gets a document, from the caller's `createDocument`.
   The deprecated `pres.page` is only an input document of `tableToSlides(tableId)`; slides are not written into it,
   so editing it changes neither the HTML nor the PDF.
 - **HTML is also an input.** A stored, edited or hand-written document enters at the HTML stage:
-  `pptxHtmlDocument(html)` (`render/completion.ts`, exported from `@pdfdeck/pptxgenjs` and `/html`) fills
-  the [defaulted values](#completion), then `htmlDocument(html)` (`@pdfdeck/model`) checks the version and
+  `pptxHtmlDocument(html)` (`render/completion.ts`, exported from `@pdflapas/pptxgenjs` and `/html`) fills
+  the [defaulted values](#completion), then `htmlDocument(html)` (`@pdflapas/model`) checks the version and
   reads the page size, and its result goes to either renderer. Puppeteer also prints HTML outside the
   profile through `render({ html, pageSize })`; WASM reads only the profile.
 - **Every renderer reads the HTML.** `toPdf()` hands `toHtml()` to the renderer, whichever it is.
@@ -91,11 +97,11 @@ From the maintainer's decisions on #69:
 <!DOCTYPE html>
 <html>
     <head>
-        <meta name="pdfdeck-profile" content="2" />
-        <meta name="pdfdeck-page-size" content="Screen 16:9 Landscape" />
+        <meta name="pdflapas-profile" content="2" />
+        <meta name="pdflapas-page-size" content="Screen 16:9 Landscape" />
         <!-- the document properties the deck sets, here pres.title and pres.company -->
         <title>Q3 review</title>
-        <meta name="pdfdeck-company" content="Acme" />
+        <meta name="pdflapas-company" content="Acme" />
         <style id="puppeteer-gen-styles">
             /* presentationCSS(pageSize), render/slide.ts:103 */
         </style>
@@ -115,9 +121,9 @@ From the maintainer's decisions on #69:
   `.slide-container { width; height }` in px, the defaults for each class (font, color, padding, table
   insets, from `defaults.ts`), the line-box strut and the print rules. It is generated from the page size
   only, so it is the same for every deck of one size.
-- `<meta name="pdfdeck-profile" content="2">` names the profile version this document follows
-  (`HTML_PROFILE_VERSION`, `@pdfdeck/model`; `READABLE_HTML_PROFILE_VERSIONS` lists what readers accept).
-- `<meta name="pdfdeck-page-size">` holds the page size's name (`PageSize.name`, `Custom` when it is
+- `<meta name="pdflapas-profile" content="2">` names the profile version this document follows
+  (`HTML_PROFILE_VERSION`, `@pdflapas/model`; `READABLE_HTML_PROFILE_VERSIONS` lists what readers accept).
+- `<meta name="pdflapas-page-size">` holds the page size's name (`PageSize.name`, `Custom` when it is
   missing); the size itself is in the stylesheet.
 - The [document properties](#document-properties) follow the page size. There is no `<script>` or
   external resource. Every image is a `data:` URI by the time `toHtml()` returns (`modelToHtml`,
@@ -130,13 +136,13 @@ Version 2. The presentation's `title`, `author`, `subject`, `company` and `revis
 HTML holds a value where it has a name for it; each element is left out when its value is empty or absent,
 and appears at most once.
 
-| Property   | PptxGenJS (its default, not written by pdfdeck)    | HTML                             | PDF Info dictionary (both renderers) | WASM also writes XMP |
-| ---------- | -------------------------------------------------- | -------------------------------- | ------------------------------------ | -------------------- |
-| `title`    | `dc:title` (`PptxGenJS Presentation`)              | `<title>`                        | `/Title`                             | `dc:title`           |
-| `author`   | `dc:creator` and `cp:lastModifiedBy` (`PptxGenJS`) | `<meta name="author">`           | `/Author`                            | `dc:creator`         |
-| `subject`  | `dc:subject` (`PptxGenJS Presentation`)            | `<meta name="description">`      | `/Subject`                           | `dc:description`     |
-| `company`  | app.xml `Company` (`PptxGenJS`)                    | `<meta name="pdfdeck-company">`  | `/Company` (custom key)              | none                 |
-| `revision` | `cp:revision` (`1`)                                | `<meta name="pdfdeck-revision">` | `/Revision` (custom key)             | none                 |
+| Property   | PptxGenJS (its default, not written by PdfLapas)   | HTML                              | PDF Info dictionary (both renderers) | WASM also writes XMP |
+| ---------- | -------------------------------------------------- | --------------------------------- | ------------------------------------ | -------------------- |
+| `title`    | `dc:title` (`PptxGenJS Presentation`)              | `<title>`                         | `/Title`                             | `dc:title`           |
+| `author`   | `dc:creator` and `cp:lastModifiedBy` (`PptxGenJS`) | `<meta name="author">`            | `/Author`                            | `dc:creator`         |
+| `subject`  | `dc:subject` (`PptxGenJS Presentation`)            | `<meta name="description">`       | `/Subject`                           | `dc:description`     |
+| `company`  | app.xml `Company` (`PptxGenJS`)                    | `<meta name="pdflapas-company">`  | `/Company` (custom key)              | none                 |
+| `revision` | `cp:revision` (`1`)                                | `<meta name="pdflapas-revision">` | `/Revision` (custom key)             | none                 |
 
 - **Only what the deck sets.** PptxGenJS fills every property with its own name when the caller sets
   none; those values brand the file rather than describe it, so `toHtml()` writes no element for a property
@@ -317,8 +323,8 @@ raw `style` text, never layout, so it is a pure string transform: the Puppeteer 
 to `setContent`, before fonts are awaited, shrink-to-fit and `page.pdf()`. It adds declarations and
 attributes inside start tags and leaves every other byte as it was; the same input gives the same output,
 and HTML outside the profile passes through unchanged. Opening the HTML in a browser shows the stylesheet
-rules but not the print step; open `printHtml(html)` (`@pdfdeck/puppeteer`, re-exported by
-`@pdfdeck/pptxgenjs`) to see what Chromium prints. Its additions are outside the profile, so it is for
+rules but not the print step; open `printHtml(html)` (`@pdflapas/puppeteer`, re-exported by
+`@pdflapas/pptxgenjs`) to see what Chromium prints. Its additions are outside the profile, so it is for
 Chromium only. A parser of this profile never sees either.
 
 | Workaround     | Derived from                                                       | Where it lives                                                                                                                                                                                                                                     |
@@ -338,12 +344,12 @@ second spelling.
 ## Parsing (WASM)
 
 `Renderer::render_html` (`renderHtml` in `crates/pdf-wasm`, `WasmRenderer.render(document)` in
-`@pdfdeck/wasm`) reads versions 1 and 2 with a hand-written tokenizer, not a general HTML parser
+`@pdflapas/wasm`) reads versions 1 and 2 with a hand-written tokenizer, not a general HTML parser
 (`crates/pdf-core/src/profile/`: `dom.rs` tokenizes, `style.rs` reads inline CSS, one file per object kind
 maps the elements onto the `model.rs` structs the drawing code reads). It is the only input of the WASM
 backend.
 
-- **Version.** `<meta name="pdfdeck-profile" content="2">` (or `"1"`) is required; a missing tag or another version
+- **Version.** `<meta name="pdflapas-profile" content="2">` (or `<meta name="pdfdeck-profile" content="1">`) is required; a missing tag or another version
   is an error.
 - **Markup is what the serializer writes.** Every element is closed by its own end tag, `/>` only ends void
   and SVG elements, attributes are not repeated, character references are `&amp; &lt; &gt; &quot; &apos;
@@ -406,19 +412,19 @@ backend.
   `examples/react-component.ts`) need inline and block layout, so they are errors:
 
     ```text
-    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'test/badge' v1: <strong> is not in profile v2: component markup is nested <div> boxes
-    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'acme/metric' v1: CSS property 'padding' on <div> is not in profile v2
+    invalid PdfLapas HTML: slide 1: object 'Component 0': component 'test/badge' v1: <strong> is not in profile v2: component markup is nested <div> boxes
+    invalid PdfLapas HTML: slide 1: object 'Component 0': component 'acme/metric' v1: CSS property 'padding' on <div> is not in profile v2
     ```
 
-- **Errors name the place.** Every error is prefixed `invalid pdfdeck HTML:` and names the slide, the object
+- **Errors name the place.** Every error is prefixed `invalid PdfLapas HTML:` and names the slide, the object
   (its `data-object-name`, else `#<index>` on the slide) and the attribute or property; malformed markup
   names its byte offset. For example:
 
     ```text
-    invalid pdfdeck HTML: slide 1: object 'Title': CSS property 'filter' on <div> is not in profile v2
-    invalid pdfdeck HTML: pdfdeck profile version '3' is not supported (this renderer reads versions 1 and 2)
-    invalid pdfdeck HTML: slide 2: object 'Table 0': row 1: cell 1: attribute 'rowspan' is missing
-    invalid pdfdeck HTML: malformed HTML at byte 6488: </body> closes <p>
+    invalid PdfLapas HTML: slide 1: object 'Title': CSS property 'filter' on <div> is not in profile v2
+    invalid PdfLapas HTML: profile version '3' in <meta name="pdflapas-profile"> is not supported (this renderer reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)
+    invalid PdfLapas HTML: slide 2: object 'Table 0': row 1: cell 1: attribute 'rowspan' is missing
+    invalid PdfLapas HTML: malformed HTML at byte 6488: </body> closes <p>
     ```
 
 - **No PptxGenJS rules.** A value missing from the HTML is an error, never a default: the defaults are the
@@ -427,47 +433,48 @@ backend.
 
 ## Completion
 
-`completeProfileHtml(html)` (`render/completion.ts`, exported from `@pdfdeck/pptxgenjs/html`) fills the
+`completeProfileHtml(html)` (`render/completion.ts`, exported from `@pdflapas/pptxgenjs/html`) fills the
 values a hand-written or edited document may leave out, with the value PptxGenJS gives the same object
 when its option is not set (`packages/pptxgenjs/src/defaults.ts`). It is pure, deterministic and
 browser-safe (parse5, no DOM): it splices each missing value into the original string, so a document that
 states everything, such as any `toHtml()` result, comes back byte for byte (`tests/htmlBytes.test.ts`
 checks every pinned deck), and completing twice changes nothing. Values already in the document are kept;
 `.slide-chart` and `.slide-component` subtrees are not touched. When it adds the stylesheet for the default
-size, it also adds `<meta name="pdfdeck-page-size" content="Screen 16:9 Landscape">`, so the completed
+size, it also adds `<meta name="pdflapas-page-size" content="Screen 16:9 Landscape">` (`pdfdeck-page-size` in
+version 1), so the completed
 document states its whole page size.
 
 It throws when the input is not a profile document: a non-string or empty input, no
-`<meta name="pdfdeck-profile">`, another version, an unknown `pdfdeck-page-size` without an `@page` rule,
+`<meta name="pdflapas-profile">` (or version 1's `pdfdeck-profile`), another version, an unknown page-size name without an `@page` rule,
 or a `font-size` or `line-height` it needs for a line box that is not in px.
 
-| Element                   | Value                                                | Default                                                                                              | From `PPTX_DEFAULTS`                                  |
-| ------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| document                  | doctype                                              | `<!DOCTYPE html>` first                                                                              | (standards mode, [Document](#document))               |
-| `<head>`                  | the shared stylesheet, when no `<style>` has `@page` | the stylesheet `toHtml()` writes, for the size `pdfdeck-page-size` names, else Screen 16:9 Landscape | `presentation.layout` (`LAYOUT_16x9`)                 |
-| `div.slide-container`     | `background-color`                                   | `#FFFFFF`                                                                                            | `slide.backgroundColor`                               |
-| `.slide-text`             | `padding`                                            | `4.8…px 9.6…px 4.8…px 9.6…px` (0.05in 0.1in)                                                         | `text.marginIn`                                       |
-|                           | `align-items`                                        | `center`                                                                                             | `text.valign` (`middle`)                              |
-|                           | `white-space`, `overflow-wrap`                       | `pre-wrap`, `break-word`                                                                             | `text.wrap`                                           |
-|                           | `data-text-fit`, `data-text-direction`               | `none`, `horizontal`                                                                                 | `text.fit`, `text.textDirection`                      |
-| `.table-cell-text`        | as `.slide-text`, except `padding`                   | `4.8…px 9.6…px 4.8…px 9.6…px`                                                                        | `table.marginIn`                                      |
-|                           | `align-items`                                        | `flex-start`                                                                                         | `table.valign` (`top`)                                |
-| `.text-paragraph`         | `text-align`, `direction`                            | `left`, `ltr`                                                                                        | `text.align`, `text.rtlMode`                          |
-|                           | `margin-top`, `margin-bottom`                        | `0px`                                                                                                | (no `paraSpaceBefore`/`paraSpaceAfter`)               |
-|                           | `tab-size`                                           | `96px`                                                                                               | `text.defaultTabStopIn`                               |
-|                           | `line-height`                                        | 1.2 × the largest run `font-size` (after its own default)                                            | `text.singleLineEm`                                   |
-|                           | `data-line-baseline`                                 | `line-height` − 0.2 × the largest run `font-size`                                                    | `text.lineDescentEm`                                  |
-| `.text-run`               | `font-family`                                        | `"Calibri"`                                                                                          | `text.fontFace`                                       |
-|                           | `font-size`                                          | `24px` (18pt); `16px` (12pt) in a table cell                                                         | `text.fontSizePt`, `table.fontSizePt`                 |
-|                           | `color`                                              | `#000000`; `#0563C1` on `a.text-run`                                                                 | `text.color`, `table.color`, `theme.colors.hyperlink` |
-|                           | `font-weight`, `font-style`                          | `normal`                                                                                             | `text.bold`, `text.italic`                            |
-| `img.slide-image-content` | `data-image-sizing`                                  | `stretch`                                                                                            | (no `sizing` option)                                  |
-|                           | `opacity`                                            | `1`                                                                                                  | `image.transparency`                                  |
-| `td`                      | `colspan`, `rowspan`                                 | `1`                                                                                                  | (no `colspan`/`rowspan`)                              |
-|                           | `border-top`, `-right`, `-bottom`, `-left`           | `0px none transparent`                                                                               | `table.border.type` (`none`)                          |
+| Element                   | Value                                                | Default                                                                                               | From `PPTX_DEFAULTS`                                  |
+| ------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| document                  | doctype                                              | `<!DOCTYPE html>` first                                                                               | (standards mode, [Document](#document))               |
+| `<head>`                  | the shared stylesheet, when no `<style>` has `@page` | the stylesheet `toHtml()` writes, for the size `pdflapas-page-size` names, else Screen 16:9 Landscape | `presentation.layout` (`LAYOUT_16x9`)                 |
+| `div.slide-container`     | `background-color`                                   | `#FFFFFF`                                                                                             | `slide.backgroundColor`                               |
+| `.slide-text`             | `padding`                                            | `4.8…px 9.6…px 4.8…px 9.6…px` (0.05in 0.1in)                                                          | `text.marginIn`                                       |
+|                           | `align-items`                                        | `center`                                                                                              | `text.valign` (`middle`)                              |
+|                           | `white-space`, `overflow-wrap`                       | `pre-wrap`, `break-word`                                                                              | `text.wrap`                                           |
+|                           | `data-text-fit`, `data-text-direction`               | `none`, `horizontal`                                                                                  | `text.fit`, `text.textDirection`                      |
+| `.table-cell-text`        | as `.slide-text`, except `padding`                   | `4.8…px 9.6…px 4.8…px 9.6…px`                                                                         | `table.marginIn`                                      |
+|                           | `align-items`                                        | `flex-start`                                                                                          | `table.valign` (`top`)                                |
+| `.text-paragraph`         | `text-align`, `direction`                            | `left`, `ltr`                                                                                         | `text.align`, `text.rtlMode`                          |
+|                           | `margin-top`, `margin-bottom`                        | `0px`                                                                                                 | (no `paraSpaceBefore`/`paraSpaceAfter`)               |
+|                           | `tab-size`                                           | `96px`                                                                                                | `text.defaultTabStopIn`                               |
+|                           | `line-height`                                        | 1.2 × the largest run `font-size` (after its own default)                                             | `text.singleLineEm`                                   |
+|                           | `data-line-baseline`                                 | `line-height` − 0.2 × the largest run `font-size`                                                     | `text.lineDescentEm`                                  |
+| `.text-run`               | `font-family`                                        | `"Calibri"`                                                                                           | `text.fontFace`                                       |
+|                           | `font-size`                                          | `24px` (18pt); `16px` (12pt) in a table cell                                                          | `text.fontSizePt`, `table.fontSizePt`                 |
+|                           | `color`                                              | `#000000`; `#0563C1` on `a.text-run`                                                                  | `text.color`, `table.color`, `theme.colors.hyperlink` |
+|                           | `font-weight`, `font-style`                          | `normal`                                                                                              | `text.bold`, `text.italic`                            |
+| `img.slide-image-content` | `data-image-sizing`                                  | `stretch`                                                                                             | (no `sizing` option)                                  |
+|                           | `opacity`                                            | `1`                                                                                                   | `image.transparency`                                  |
+| `td`                      | `colspan`, `rowspan`                                 | `1`                                                                                                   | (no `colspan`/`rowspan`)                              |
+|                           | `border-top`, `-right`, `-bottom`, `-left`           | `0px none transparent`                                                                                | `table.border.type` (`none`)                          |
 
 **Required**: everything else the reader requires stays required, because it is the deck's content
-rather than a default: `<meta name="pdfdeck-profile" content="2">` (or `"1"`); the element structure (`.text-content`,
+rather than a default: `<meta name="pdflapas-profile" content="2">` (or `<meta name="pdfdeck-profile" content="1">`); the element structure (`.text-content`,
 `.slide-image-frame`, `<colgroup>`, `svg.shape-svg` with `<defs>` and `.shape-geometry`); each object's
 `left` and `top`; a shape's `data-shape`, `viewBox` and geometry attributes (`fill`, `stroke`,
 `stroke-width`, `rx`, `d`, …); an image's `src` as a `data:` URI and its box for `contain`, `cover` and
@@ -500,14 +507,14 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedPresentation.pageSize` | profile | Stylesheet `@page` and `.slide-container` size.                              |
 | `PageSize.width`                  | profile | `@page { size: <width>in … }`; `.slide-container { width: <width × 96>px }`. |
 | `PageSize.height`                 | profile | `@page { size: … <height>in }`; `.slide-container { height }`.               |
-| `PageSize.name`                   | profile | `<meta name="pdfdeck-page-size" content="<name>">` in the head.              |
+| `PageSize.name`                   | profile | `<meta name="pdflapas-page-size" content="<name>">` in the head.             |
 | `NormalizedPresentation.slides`   | profile | One `div.slide-container#slide-N` per slide that is not hidden, in order.    |
 | `NormalizedPresentation.metadata` | profile | The [document properties](#document-properties) in the head (version 2).     |
 | `PresentationMetadata.title`      | profile | `<title>`.                                                                   |
 | `PresentationMetadata.author`     | profile | `<meta name="author" content>`.                                              |
 | `PresentationMetadata.subject`    | profile | `<meta name="description" content>`.                                         |
-| `PresentationMetadata.company`    | profile | `<meta name="pdfdeck-company" content>`.                                     |
-| `PresentationMetadata.revision`   | profile | `<meta name="pdfdeck-revision" content>`.                                    |
+| `PresentationMetadata.company`    | profile | `<meta name="pdflapas-company" content>`.                                    |
+| `PresentationMetadata.revision`   | profile | `<meta name="pdflapas-revision" content>`.                                   |
 | `NormalizedSlide.background`      | profile | `.slide-container` `background-color`.                                       |
 | `NormalizedSlide.color`           | profile | `.slide-container` custom property `--slide-text-color` (verbatim).          |
 | `NormalizedSlide.hidden`          | profile | A hidden slide has no `.slide-container`; the others keep their number N.    |

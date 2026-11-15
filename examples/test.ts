@@ -1,5 +1,5 @@
 import pptxgen from "pptxgenjs";
-import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
+import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 
 function main(pres: pptxgen | PuppeteerGen) {
     // First slide with simple text

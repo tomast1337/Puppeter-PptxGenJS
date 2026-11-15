@@ -154,7 +154,7 @@ describe("writeFile()", () => {
     });
 
     test("the Node entry writes the PDF under that name and returns it", async () => {
-        const base = join(tmpdir(), `pdfdeck-write-${crypto.randomUUID()}`);
+        const base = join(tmpdir(), `pdflapas-write-${crypto.randomUUID()}`);
         const pres = new NodePuppeteerGen(undefined, { renderer: new FakeRenderer() });
         pres.addSlide();
         try {
@@ -174,14 +174,14 @@ describe("writeFile()", () => {
         const blobs: Blob[] = [];
         const createObjectURL = spyOn(URL, "createObjectURL").mockImplementation(blob => {
             blobs.push(blob as Blob);
-            return "blob:pdfdeck-test";
+            return "blob:pdflapas-test";
         });
         const globals = globalThis as { document?: Document };
         globals.document = window.document;
         try {
             const { pres } = deck();
             expect(await pres.writeFile({ fileName: "deck" })).toBe("deck.pdf");
-            expect(clicked).toEqual([{ download: "deck.pdf", href: "blob:pdfdeck-test", style: "display:none;" }]);
+            expect(clicked).toEqual([{ download: "deck.pdf", href: "blob:pdflapas-test", style: "display:none;" }]);
             expect(blobs[0]?.type).toBe("application/pdf");
             expect([...new Uint8Array((await blobs[0]?.arrayBuffer()) ?? new ArrayBuffer(0))]).toEqual([...BYTES]);
         } finally {

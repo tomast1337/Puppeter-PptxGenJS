@@ -1,12 +1,12 @@
 /**
- * Completes a hand-written or edited pdfdeck HTML profile document (docs/HTML_PROFILE.md, version 1): fills
+ * Completes a hand-written or edited PdfLapas HTML profile document (docs/HTML_PROFILE.md, version 1): fills
  * the values the profile requires that PptxGenJS defines a default for, so both renderers read the same
  * values a PptxGenJS deck would have. The WASM reader has no PptxGenJS rules (#69); the defaults live here.
  *
  * Pure and browser-safe: parse5 finds what is missing, and each missing value is spliced into the original
  * string, so a document that already states everything (every `toHtml()` result) comes back byte-identical.
  */
-import { HTML_PROFILE_VERSION, type HtmlPresentationDocument, htmlDocument, READABLE_HTML_PROFILE_VERSIONS, unsupportedVersionMessage } from "@pdfdeck/model";
+import { type HtmlPresentationDocument, htmlDocument, profileMetaPrefix } from "@pdflapas/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 import { PPTX_DEFAULTS } from "../defaults";
 import { normalizeColor } from "../normalize/style";
@@ -93,7 +93,6 @@ const DEFAULTS = {
 
 /** Subtrees the profile treats as opaque: their markup is the chart's or the component's own. */
 const OPAQUE_CLASSES = ["slide-chart", "slide-component"] as const;
-const PROFILE_META = `<meta name="pdfdeck-profile" content="${HTML_PROFILE_VERSION}">`;
 const PX_LENGTH = /^-?\d+(\.\d+)?(e[+-]?\d+)?px$/i;
 
 interface Edit {
@@ -140,7 +139,7 @@ function styleOf(element: Element): Map<string, string> {
 
 /** `<n>px` as a number, or an error naming the property. */
 function pxValue(value: string, property: string, where: string): number {
-    if (!PX_LENGTH.test(value)) throw new Error(`invalid pdfdeck HTML: ${where}: CSS property '${property}': '${value}' is not a px length; write it in px or leave it out to get the default`);
+    if (!PX_LENGTH.test(value)) throw new Error(`invalid PdfLapas HTML: ${where}: CSS property '${property}': '${value}' is not a px length; write it in px or leave it out to get the default`);
     return Number.parseFloat(value);
 }
 
@@ -149,7 +148,7 @@ function addToElement(element: Element, css: Pairs, attributes: Pairs): Edit | u
     if (!css.length && !attributes.length) return undefined;
     const tag = element.sourceCodeLocation?.startTag;
     // Only elements the parser invented (an implied <tbody>) have no location; the profile never needs to edit one.
-    if (!tag) throw new Error(`invalid pdfdeck HTML: <${element.tagName}> must be written out in the document to be completed`);
+    if (!tag) throw new Error(`invalid PdfLapas HTML: <${element.tagName}> must be written out in the document to be completed`);
     const added = css.map(([property, value]) => `${property}: ${value};`).join(" ");
     const styleAt = element.sourceCodeLocation?.attrs?.style;
     const newAttributes = attributes.map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`).join("");
@@ -244,41 +243,37 @@ function pageSizeNamed(name: string) {
 }
 
 /**
- * The shared stylesheet when no `<style>` has an `@page` rule: for the size `pdfdeck-page-size` names, else
+ * The shared stylesheet when no `<style>` has an `@page` rule: for the size `<prefix>page-size` names, else
  * PptxGenJS's LAYOUT_16x9, whose name it also writes so `htmlDocument` reads the whole page size.
  */
-function stylesheet(head: Element): Edit | undefined {
-    const name = metaContent(head, "pdfdeck-page-size");
+function stylesheet(head: Element, prefix: string): Edit | undefined {
+    const name = metaContent(head, `${prefix}page-size`);
     const styles = head.childNodes.filter(isElement).filter(node => node.tagName === "style");
     if (styles.some(style => style.childNodes.some(text => "value" in text && text.value.includes("@page")))) return undefined;
     const pageSize = name === undefined ? DEFAULT_PAGE_SIZE : pageSizeNamed(name);
     if (!pageSize) {
         const known = Object.values(PAGE_SIZES).flatMap(layout => [layout.landscape.name, layout.portrait.name]);
-        throw new Error(`invalid pdfdeck HTML: page size '${name}' is not a known size (${known.join(", ")}); name one of them in <meta name="pdfdeck-page-size">, or add a <style> with '@page { size: <width>in <height>in }'`);
+        throw new Error(`invalid PdfLapas HTML: page size '${name}' is not a known size (${known.join(", ")}); name one of them in <meta name="${prefix}page-size">, or add a <style> with '@page { size: <width>in <height>in }'`);
     }
     const end = head.sourceCodeLocation?.endTag?.startOffset;
-    if (end === undefined) throw new Error("invalid pdfdeck HTML: the document must write out <head>…</head> to receive the stylesheet");
-    const meta = name === undefined ? `<meta name="pdfdeck-page-size" content="${escapeAttribute(pageSize.name)}">` : "";
+    if (end === undefined) throw new Error("invalid PdfLapas HTML: the document must write out <head>…</head> to receive the stylesheet");
+    const meta = name === undefined ? `<meta name="${prefix}page-size" content="${escapeAttribute(pageSize.name)}">` : "";
     return { start: end, end, text: `${meta}<style id="puppeteer-gen-styles">${presentationCSS(pageSize)}</style>` };
 }
 
 /**
  * Fills the values a profile document (version 1 or 2) may omit (docs/HTML_PROFILE.md, "Completion") with PptxGenJS's
  * defaults. Throws when `html` is not a profile document: empty, without
- * `<meta name="pdfdeck-profile" content="2">` (or "1"), or of another version. A complete document, such as any
- * `toHtml()` result, is returned unchanged, byte for byte.
+ * `<meta name="pdflapas-profile" content="2">` (or `<meta name="pdfdeck-profile" content="1">`), or of another
+ * version. A complete document, such as any `toHtml()` result, is returned unchanged, byte for byte.
  */
 export function completeProfileHtml(html: string): string {
-    if (typeof html !== "string" || !html.trim()) throw new Error(`invalid pdfdeck HTML: expected a non-empty HTML string, got ${typeof html === "string" ? "an empty string" : typeof html}`);
+    if (typeof html !== "string" || !html.trim()) throw new Error(`invalid PdfLapas HTML: expected a non-empty HTML string, got ${typeof html === "string" ? "an empty string" : typeof html}`);
     const document = parse(html, { sourceCodeLocationInfo: true });
     const head = findElement(document, element => element.tagName === "head");
-    const version = head && metaContent(head, "pdfdeck-profile");
-    if (!head || version === undefined) {
-        throw new Error(`invalid pdfdeck HTML: not a pdfdeck profile document: add ${PROFILE_META} to <head>. Puppeteer prints any HTML through renderer.render({ html, pageSize }).`);
-    }
-    if (!READABLE_HTML_PROFILE_VERSIONS.includes(version)) throw new Error(unsupportedVersionMessage(version));
-
-    const sheet = stylesheet(head);
+    // Without a <head> there is no profile <meta>, so profileMetaPrefix throws.
+    const prefix = profileMetaPrefix(name => (head ? metaContent(head, name) : undefined));
+    const sheet = head && stylesheet(head, prefix);
     const edits: Edit[] = sheet ? [sheet] : [];
     const body = findElement(document, element => element.tagName === "body");
     body?.childNodes.filter(isElement).forEach((slide, index) => {
@@ -297,7 +292,7 @@ export function completeProfileHtml(html: string): string {
 /**
  * Builds the renderer input from a stored, edited or hand-written profile v1 document: completes it with
  * PptxGenJS's defaults (`completeProfileHtml`), then checks it and reads its page size (`htmlDocument` from
- * `@pdfdeck/model`). Pass the result to any renderer's `render()`. For HTML outside the profile, call
+ * `@pdflapas/model`). Pass the result to any renderer's `render()`. For HTML outside the profile, call
  * `render({ html, pageSize })` on the Puppeteer renderer directly.
  */
 export function pptxHtmlDocument(html: string): HtmlPresentationDocument {

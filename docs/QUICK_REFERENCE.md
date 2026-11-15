@@ -3,7 +3,7 @@
 ## Import
 
 ```typescript
-import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
+import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 ```
 
 ## Create Presentation
@@ -161,7 +161,7 @@ await pres.writeFile({ fileName: "output.pdf" });
 ## Complete Example
 
 ```typescript
-import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
+import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 

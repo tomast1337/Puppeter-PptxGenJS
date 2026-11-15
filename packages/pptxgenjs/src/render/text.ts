@@ -1,4 +1,4 @@
-import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
+import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, escapeText, voidElement } from "./markup";
 import { shadowInsetAttribute } from "./style";

@@ -1,13 +1,13 @@
 {
-  "name": "@pdfdeck/examples",
+  "name": "@pdflapas/examples",
   "version": "0.0.0",
   "private": true,
-  "description": "Runnable examples that use the @pdfdeck packages the way an application does",
+  "description": "Runnable examples that use the @pdflapas packages the way an application does",
   "type": "module",
   "dependencies": {
-    "@pdfdeck/pptxgenjs": "workspace:*",
-    "@pdfdeck/react": "workspace:*",
-    "@pdfdeck/wasm": "workspace:*",
+    "@pdflapas/pptxgenjs": "workspace:*",
+    "@pdflapas/react": "workspace:*",
+    "@pdflapas/wasm": "workspace:*",
     "pptxgenjs": "4.0.1",
     "react": "^19"
   }

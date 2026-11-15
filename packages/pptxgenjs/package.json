@@ -1,5 +1,5 @@
 {
-  "name": "@pdfdeck/pptxgenjs",
+  "name": "@pdflapas/pptxgenjs",
   "version": "0.2.0",
   "description": "A PptxGenJS-compatible API for generating PDFs with Puppeteer",
   "license": "MIT",
@@ -50,8 +50,8 @@
     "prepack": "bun ../../scripts/build.ts"
   },
   "dependencies": {
-    "@pdfdeck/model": "workspace:*",
-    "@pdfdeck/puppeteer": "workspace:*",
+    "@pdflapas/model": "workspace:*",
+    "@pdflapas/puppeteer": "workspace:*",
     "echarts": "6.1.0",
     "jsdom": "^26.1.0",
     "parse5": "7.3.0",

@@ -29,12 +29,12 @@
     // Workspace packages resolve to their sources, so typecheck, tests and scripts need no build.
     // Must mirror each package.json "exports" map; tests/packages.test.ts checks that.
     "paths": {
-      "@pdfdeck/model": ["./packages/model/src/index.ts"],
-      "@pdfdeck/puppeteer": ["./packages/puppeteer/src/index.ts"],
-      "@pdfdeck/pptxgenjs": ["./packages/pptxgenjs/src/index.ts"],
-      "@pdfdeck/pptxgenjs/html": ["./packages/pptxgenjs/src/html.ts"],
-      "@pdfdeck/wasm": ["./packages/wasm/src/browser.ts"],
-      "@pdfdeck/react": ["./packages/react/src/index.ts"]
+      "@pdflapas/model": ["./packages/model/src/index.ts"],
+      "@pdflapas/puppeteer": ["./packages/puppeteer/src/index.ts"],
+      "@pdflapas/pptxgenjs": ["./packages/pptxgenjs/src/index.ts"],
+      "@pdflapas/pptxgenjs/html": ["./packages/pptxgenjs/src/html.ts"],
+      "@pdflapas/wasm": ["./packages/wasm/src/browser.ts"],
+      "@pdflapas/react": ["./packages/react/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist", "crates"]

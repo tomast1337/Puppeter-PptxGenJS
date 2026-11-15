@@ -4,7 +4,7 @@ import { type EChartsCoreOption, init, use } from "echarts/core";
 import { SVGRenderer } from "echarts/renderers";
 import { formatChartNumber } from "../chart/format";
 import type { ChartExtensionInput } from "../chart/types";
-import type { NormalizedChart, NormalizedObjectStyle } from "@pdfdeck/model";
+import type { NormalizedChart, NormalizedObjectStyle } from "@pdflapas/model";
 import { pointsToPixels } from "../units";
 import { renderBar3DSvg } from "./chart3d";
 import { type InlineStyle, styleAttribute } from "./css";

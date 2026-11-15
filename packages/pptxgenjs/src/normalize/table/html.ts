@@ -1,4 +1,4 @@
-import { POINTS_PER_INCH } from "@pdfdeck/model";
+import { POINTS_PER_INCH } from "@pdflapas/model";
 import type PptxGenJS from "pptxgenjs";
 import type { FourSideMargin } from "../../defaults";
 import type { PageSize } from "../../pageLayouts";
@@ -105,7 +105,7 @@ function tableWithWindow(element: Element | null | undefined): HTMLTableElement 
  * The tableToSlides() source table. A string is PptxGenJS's element id, looked up in `page` (the deprecated
  * `pres.page`) and then in the global document, where PptxGenJS looks, unless it starts with `<`: then it is
  * HTML markup, parsed into a `createDocument()` document, and its first <table> is the source. A <table>
- * element is used as it is. The element and markup forms are pdfdeck's; PptxGenJS 4.0.1 takes only the id.
+ * element is used as it is. The element and markup forms are PdfLapas's; PptxGenJS 4.0.1 takes only the id.
  */
 export function findHtmlTable(source: string | HTMLTableElement, page: Document, createDocument: () => Document): HTMLTableElement {
     if (typeof source !== "string") {

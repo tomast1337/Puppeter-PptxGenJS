@@ -1,7 +1,7 @@
 {
-  "name": "@pdfdeck/react",
+  "name": "@pdflapas/react",
   "version": "0.2.0",
-  "description": "React component adapter for @pdfdeck/pptxgenjs",
+  "description": "React component adapter for @pdflapas/pptxgenjs",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -43,7 +43,7 @@
     "prepack": "bun ../../scripts/build.ts"
   },
   "dependencies": {
-    "@pdfdeck/pptxgenjs": "workspace:*",
+    "@pdflapas/pptxgenjs": "workspace:*",
     "zod": "4.4.3"
   },
   "peerDependencies": {

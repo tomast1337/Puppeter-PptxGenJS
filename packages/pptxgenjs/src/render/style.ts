@@ -1,4 +1,4 @@
-import type { NormalizedGeometry, NormalizedLine, NormalizedObjectStyle, NormalizedShadow, NormalizedTransform } from "@pdfdeck/model";
+import type { NormalizedGeometry, NormalizedLine, NormalizedObjectStyle, NormalizedShadow, NormalizedTransform } from "@pdflapas/model";
 import type { InlineStyle } from "./css";
 import type { Attribute } from "./markup";
 

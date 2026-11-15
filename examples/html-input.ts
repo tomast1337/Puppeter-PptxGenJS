@@ -1,8 +1,8 @@
 // Render stored, edited or hand-written HTML (docs/HTML_PROFILE.md) on both backends.
 // Run: bun run examples/html-input.ts (the WASM half needs `bun run build:wasm` first).
 import { writeFile } from "node:fs/promises";
-import PuppeteerGen, { closeBrowser, pptxHtmlDocument, PuppeteerPdfRenderer, printHtml } from "@pdfdeck/pptxgenjs";
-import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
+import PuppeteerGen, { closeBrowser, pptxHtmlDocument, PuppeteerPdfRenderer, printHtml } from "@pdflapas/pptxgenjs";
+import { createWasmRenderer, loadSystemFonts } from "@pdflapas/wasm";
 
 // 1. Edit a toHtml() result: it is plain HTML, so a string replace (or any HTML tool) changes the deck.
 const pres = new PuppeteerGen();
@@ -14,8 +14,8 @@ const edited = stored.replace(">Quarterly draft</span>", ">Quarterly report</spa
 //    (stylesheet, insets, line box, fonts, colors) before rendering.
 const handWritten = `<html>
 <head>
-  <meta name="pdfdeck-profile" content="2">
-  <meta name="pdfdeck-page-size" content="Screen 16:9 Landscape">
+  <meta name="pdflapas-profile" content="2">
+  <meta name="pdflapas-page-size" content="Screen 16:9 Landscape">
 </head>
 <body>
   <div class="slide-container">

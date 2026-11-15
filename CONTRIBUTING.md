@@ -107,14 +107,14 @@ git diff --check
 ```
 
 `bun run test:package` needs the built `.wasm` (`bun run build:wasm`) and fails
-without it, because a `@pdfdeck/wasm` tarball without the binary is broken.
+without it, because a `@pdflapas/wasm` tarball without the binary is broken.
 
 `bun run build` writes each package's bundled ESM entrypoints, source maps, and
 declaration files to `packages/<name>/dist/`. Runtime dependencies, including
-the other `@pdfdeck` packages, remain external so Puppeteer can locate its
+the other `@pdflapas` packages, remain external so Puppeteer can locate its
 installed browser correctly. The pinned PptxGenJS package is used only while
 developing to audit its API types; the build vendors its declaration file and
-license into `@pdfdeck/pptxgenjs`, so consumers neither install nor execute
+license into `@pdflapas/pptxgenjs`, so consumers neither install nor execute
 PptxGenJS. Package tarballs run this build automatically.
 `bun run test:package` verifies the packed packages, and the
 `puppeteer-pptxgenjs` shim, in clean temporary consumer projects.
@@ -142,7 +142,7 @@ image when one of those changes. To test against a prebuilt image locally, set
 
 ## WASM backend (Rust)
 
-`@pdfdeck/wasm` wraps the Rust renderer in `crates/`. Consumers get the
+`@pdflapas/wasm` wraps the Rust renderer in `crates/`. Consumers get the
 prebuilt `.wasm` in the npm tarball; contributors build it with one command:
 
 ```bash
@@ -213,7 +213,7 @@ Side-by-side crops (`montage-*.png`) land in `.visual-parity/wasm-parity/<deck>/
 
 `.github/workflows/release.yml` (manual, or on a `v*` tag) runs every CI job,
 rebuilds the `.wasm` in Docker and checks it matches CI's build and the
-committed hash, packs every package, checks the `@pdfdeck/wasm` tarball carries
+committed hash, packs every package, checks the `@pdflapas/wasm` tarball carries
 that binary, and runs `npm publish --dry-run`. On a tag it also checks every
 package version matches the tag and creates the GitHub release. It does not
 publish to npm yet.

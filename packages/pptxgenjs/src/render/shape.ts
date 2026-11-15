@@ -1,4 +1,4 @@
-import type { NormalizedObjectStyle, NormalizedShape } from "@pdfdeck/model";
+import type { NormalizedObjectStyle, NormalizedShape } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "../defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element } from "./markup";

@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import type { NormalizedTextLink } from "@pdfdeck/model";
+import type { NormalizedTextLink } from "@pdflapas/model";
 
 /**
  * Schemes a link may open. PptxGenJS writes any `url` into the slide relationships; a PDF link that

@@ -1,4 +1,4 @@
-import type { NormalizedImage, NormalizedObjectStyle } from "@pdfdeck/model";
+import type { NormalizedImage, NormalizedObjectStyle } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, voidElement } from "./markup";
 import { applyObjectStyle } from "./style";

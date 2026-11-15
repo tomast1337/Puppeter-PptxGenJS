@@ -1,1 +1,1 @@
-export * from "@pdfdeck/react";
+export * from "@pdflapas/react";

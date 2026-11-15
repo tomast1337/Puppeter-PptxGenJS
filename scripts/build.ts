@@ -1,5 +1,5 @@
 // Builds every workspace package into packages/<name>/dist, in dependency order: each package's
-// declarations resolve its @pdfdeck/* dependencies from their already-built dist, as consumers will.
+// declarations resolve its @pdflapas/* dependencies from their already-built dist, as consumers will.
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -16,7 +16,7 @@ const PACKAGES = [
     { name: "wasm", entrypoints: ["browser", "node"] },
     { name: "react", entrypoints: ["index"] },
     // Pure re-exports, so transpiled instead of bundled: with the root tsconfig paths, Bun 1.4.0 (CI)
-    // bundles `export { default } from "@pdfdeck/pptxgenjs"` to an export of an undeclared binding.
+    // bundles `export { default } from "@pdflapas/pptxgenjs"` to an export of an undeclared binding.
     { name: "puppeteer-pptxgenjs", entrypoints: ["index", "html", "react", "wasm"], transpileOnly: true },
 ] as { name: string; entrypoints: string[]; transpileOnly?: boolean }[];
 
@@ -34,7 +34,7 @@ async function declarationFiles(directory: string): Promise<string[]> {
     return files.flat();
 }
 
-const configDirectory = await mkdtemp(join(tmpdir(), "pdfdeck-build-"));
+const configDirectory = await mkdtemp(join(tmpdir(), "pdflapas-build-"));
 try {
     for (const { name, entrypoints, transpileOnly } of PACKAGES) {
         const packageDirectory = resolve(packagesDirectory, name);
@@ -55,10 +55,10 @@ try {
                   outdir: outputDirectory,
                   target: "node",
                   format: "esm",
-                  // Dependencies, including the other @pdfdeck packages, stay imports.
+                  // Dependencies, including the other @pdflapas packages, stay imports.
                   packages: "external",
-                  // The root tsconfig maps @pdfdeck/* to sources for development; never inline them.
-                  external: ["@pdfdeck/*"],
+                  // The root tsconfig maps @pdflapas/* to sources for development; never inline them.
+                  external: ["@pdflapas/*"],
                   sourcemap: "inline",
 
                   minify: true,
@@ -70,7 +70,7 @@ try {
             throw new Error(`JavaScript bundle failed for ${name}`);
         }
 
-        // No `paths` here: @pdfdeck/* imports resolve through node_modules to the dist declarations built above.
+        // No `paths` here: @pdflapas/* imports resolve through node_modules to the dist declarations built above.
         const config = join(configDirectory, `${name}.json`);
         await writeFile(
             config,
@@ -134,14 +134,14 @@ for (const { name, entrypoints } of PACKAGES) {
 }
 for (const browserSafe of BROWSER_SAFE) {
     const source = await readFile(resolve(packagesDirectory, browserSafe), "utf8");
-    if (/from\s*["'](?:puppeteer|jsdom|node:|@pdfdeck\/puppeteer)|import\(["'](?:puppeteer|jsdom|node:|@pdfdeck\/puppeteer)|require\(["'](?:puppeteer|jsdom|node:|@pdfdeck\/puppeteer)/.test(source)) {
+    if (/from\s*["'](?:puppeteer|jsdom|node:|@pdflapas\/puppeteer)|import\(["'](?:puppeteer|jsdom|node:|@pdflapas\/puppeteer)|require\(["'](?:puppeteer|jsdom|node:|@pdflapas\/puppeteer)/.test(source)) {
         throw new Error(`The browser-safe ${browserSafe} bundle must not import puppeteer, jsdom or node:* modules`);
     }
 }
 // The WASM loaders resolve the binary next to themselves (dist/). scripts/test-package.ts fails a tarball without it.
 const wasmBinary = resolve(packagesDirectory, "wasm/src/pdf_wasm_bg.wasm");
 if (await Bun.file(wasmBinary).exists()) await copyFile(wasmBinary, resolve(packagesDirectory, "wasm/dist/pdf_wasm_bg.wasm"));
-else console.warn("packages/wasm/src/pdf_wasm_bg.wasm is not built (bun run build:wasm); @pdfdeck/wasm will not work");
+else console.warn("packages/wasm/src/pdf_wasm_bg.wasm is not built (bun run build:wasm); @pdflapas/wasm will not work");
 for (const { name } of PACKAGES) {
     for (const declarationFile of await declarationFiles(resolve(packagesDirectory, name, "dist"))) {
         const source = await readFile(declarationFile, "utf8");

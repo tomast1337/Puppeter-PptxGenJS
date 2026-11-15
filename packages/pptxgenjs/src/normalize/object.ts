@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import type { NormalizedObjectStyle } from "@pdfdeck/model";
+import type { NormalizedObjectStyle } from "@pdflapas/model";
 import type { PageSize } from "../pageLayouts";
 import { normalizeGeometry, normalizeTransform, type PositionOptions, type TransformOptions } from "./geometry";
 import { normalizeFill, normalizeLine, normalizeShadow } from "./style";

@@ -1,4 +1,4 @@
-// Node/Bun WASM text renderer ("@pdfdeck/wasm" under the node/bun conditions):
+// Node/Bun WASM text renderer ("@pdflapas/wasm" under the node/bun conditions):
 // reads the .wasm next to this module and can load fonts from the system font directories.
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";

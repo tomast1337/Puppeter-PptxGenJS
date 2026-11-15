@@ -1,5 +1,5 @@
 /**
- * Chromium-only declarations derived from values the pdfdeck HTML profile states once (docs/HTML_PROFILE.md,
+ * Chromium-only declarations derived from values the PdfLapas HTML profile states once (docs/HTML_PROFILE.md,
  * "Renderer workarounds"), written into the document just before printing so they stay out of `toHtml()`.
  *
  * Every step reads attributes and raw `style` text, never layout, so this is a pure string transform: parse5
@@ -54,7 +54,7 @@ function number(element: Element, value: string | undefined, what: string): numb
     while (named && attribute(named, "data-object-name") === undefined) named = parentElement(named);
     const object = (named && attribute(named, "data-object-name")) ?? "unnamed object";
     const first = classes(element)[0];
-    throw new Error(`Cannot print '${object}': its ${first ? `.${first}` : `<${element.tagName}>`} has no ${what} (pdfdeck HTML profile)`);
+    throw new Error(`Cannot print '${object}': its ${first ? `.${first}` : `<${element.tagName}>`} has no ${what} (PdfLapas HTML profile)`);
 }
 
 const px = (element: Element, pattern: RegExp, property: string) => number(element, attribute(element, "style")?.match(pattern)?.[1], `'${property}: <number>px' in its style attribute`);

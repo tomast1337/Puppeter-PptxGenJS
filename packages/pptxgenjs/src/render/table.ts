@@ -1,4 +1,4 @@
-import type { NormalizedTable, NormalizedTableBorder, NormalizedTableCell } from "@pdfdeck/model";
+import type { NormalizedTable, NormalizedTableBorder, NormalizedTableCell } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, voidElement } from "./markup";
 import { renderText } from "./text";

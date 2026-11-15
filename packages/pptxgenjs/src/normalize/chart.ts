@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { UnsupportedChartError } from "../chart/errors";
 import { isSupportedChartNumberFormat } from "../chart/format";
 import { PPTX_DEFAULTS } from "../defaults";
-import type { NormalizedChart, NormalizedChartSeries, NormalizedChartType } from "@pdfdeck/model";
+import type { NormalizedChart, NormalizedChartSeries, NormalizedChartType } from "@pdflapas/model";
 import { normalizeColor } from "./style";
 
 const SUPPORTED_TYPES = new Set<NormalizedChartType>(["area", "bar", "bar3D", "bubble", "doughnut", "line", "mixed", "pie", "radar", "scatter"]);

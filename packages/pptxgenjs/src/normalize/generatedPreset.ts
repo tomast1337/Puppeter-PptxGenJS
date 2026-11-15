@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { GENERATED_PRESET_SHAPES } from "../generatedPresetShapes";
-import type { NormalizedShape } from "@pdfdeck/model";
+import type { NormalizedShape } from "@pdflapas/model";
 
 type PresetName = PptxGenJS.SHAPE_NAME;
 type PresetDefinition = {

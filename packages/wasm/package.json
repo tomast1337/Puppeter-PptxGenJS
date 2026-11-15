@@ -1,7 +1,7 @@
 {
-  "name": "@pdfdeck/wasm",
+  "name": "@pdflapas/wasm",
   "version": "0.2.0",
-  "description": "Opt-in WebAssembly text renderer for the pdfdeck model (browser, Node and Bun)",
+  "description": "Opt-in WebAssembly text renderer for the PdfLapas model (browser, Node and Bun)",
   "license": "MIT",
   "type": "module",
   "main": "./dist/browser.js",
@@ -45,6 +45,6 @@
     "prepack": "bun ../../scripts/build.ts"
   },
   "dependencies": {
-    "@pdfdeck/model": "workspace:*"
+    "@pdflapas/model": "workspace:*"
   }
 }

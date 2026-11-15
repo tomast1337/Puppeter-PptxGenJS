@@ -2,7 +2,7 @@
 
 How a presentation becomes HTML or PDF: the output methods, the default Puppeteer backend, custom
 renderers, the browser-safe `/html` entry and the opt-in WASM backend. The main class is still named
-`PuppeteerGen` (the default export of `@pdfdeck/pptxgenjs`); the samples below import it under that
+`PuppeteerGen` (the default export of `@pdflapas/pptxgenjs`); the samples below import it under that
 name.
 
 ## HTML only
@@ -21,14 +21,14 @@ input document for `tableToSlides(tableId)`: slides are not written into it, so 
 change `toHtml()` or the PDF.
 
 ```typescript
-import { modelToHtml } from "@pdfdeck/pptxgenjs/html";
+import { modelToHtml } from "@pdflapas/pptxgenjs/html";
 
 // Optional dependencies: { components, resolveImage, createDocument }, with the /html defaults below.
 const { html } = await modelToHtml(model);
 ```
 
 ```typescript
-import PuppeteerGen from "@pdfdeck/pptxgenjs";
+import PuppeteerGen from "@pdflapas/pptxgenjs";
 
 const pres = new PuppeteerGen();
 pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });
@@ -48,18 +48,18 @@ renders too: a stored document, an edited one, or one written by hand.
 | Hand-written [profile v1 or v2](./HTML_PROFILE.md) through `pptxHtmlDocument()` | Yes       | Yes                                    |
 | Any other HTML, through `render({ html, pageSize })`                            | Yes       | No: an error names the first violation |
 
-`pptxHtmlDocument(html)` (from `@pdfdeck/pptxgenjs` or the browser-safe `/html` entry) checks that `html`
-is a profile document (`<meta name="pdfdeck-profile" content="2">`, or `"1"`) and fills the values PptxGenJS
+`pptxHtmlDocument(html)` (from `@pdflapas/pptxgenjs` or the browser-safe `/html` entry) checks that `html`
+is a profile document (`<meta name="pdflapas-profile" content="2">`, or version 1's `<meta name="pdfdeck-profile" content="1">`) and fills the values PptxGenJS
 defaults (insets, line box, font, colors, the stylesheet; the list is in
 [HTML_PROFILE.md](./HTML_PROFILE.md#completion)). It also reads the page size from the document. A
 `toHtml()` result passes through byte for byte. `completeProfileHtml(html)` is the same completion step,
-returning only the string. `htmlDocument(html)` from `@pdfdeck/model` is the step after it, with no
+returning only the string. `htmlDocument(html)` from `@pdflapas/model` is the step after it, with no
 PptxGenJS rules: it checks the version and reads the page size from the `@page` rule, and throws when
 the document has none instead of filling it.
 
 ```typescript
-import { pptxHtmlDocument, PuppeteerPdfRenderer, printHtml } from "@pdfdeck/pptxgenjs";
-import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
+import { pptxHtmlDocument, PuppeteerPdfRenderer, printHtml } from "@pdflapas/pptxgenjs";
+import { createWasmRenderer, loadSystemFonts } from "@pdflapas/wasm";
 
 const document = pptxHtmlDocument(storedHtml.replace(">Draft</span>", ">Final</span>"));
 const viaChromium = await new PuppeteerPdfRenderer().render(document);
@@ -72,7 +72,7 @@ const custom = await new PuppeteerPdfRenderer().render({ html: myHtml, pageSize:
 const printed = printHtml(document.html);
 ```
 
-WASM errors name the place, as in `invalid pdfdeck HTML: slide 1: object 'Title': paragraph 1: run 1: CSS
+WASM errors name the place, as in `invalid PdfLapas HTML: slide 1: object 'Title': paragraph 1: run 1: CSS
 property 'font-variant' on <span> is not in profile v2`. `examples/html-input.ts` renders an edited and
 a hand-written document on both backends.
 
@@ -99,8 +99,8 @@ using `/html`); use another output type there.
 
 ## Puppeteer backend (default)
 
-The Node entry of `@pdfdeck/pptxgenjs` renders through `PuppeteerPdfRenderer`
-from `@pdfdeck/puppeteer`:
+The Node entry of `@pdflapas/pptxgenjs` renders through `PuppeteerPdfRenderer`
+from `@pdflapas/puppeteer`:
 
 1. Builds HTML document with styled elements
 2. Injects CSS for layout and styling
@@ -113,13 +113,13 @@ skips Chromium startup. The browser closes after 1 second idle, so scripts
 exit on their own. Call `closeBrowser()` to shut it down immediately:
 
 ```typescript
-import { closeBrowser } from "@pdfdeck/pptxgenjs";
+import { closeBrowser } from "@pdflapas/pptxgenjs";
 
 await closeBrowser();
 ```
 
-`@pdfdeck/pptxgenjs` installs `@pdfdeck/puppeteer` for its Node entry's
-default renderer; install `@pdfdeck/puppeteer` directly only to use
+`@pdflapas/pptxgenjs` installs `@pdflapas/puppeteer` for its Node entry's
+default renderer; install `@pdflapas/puppeteer` directly only to use
 `PuppeteerPdfRenderer` or `closeBrowser` without the compatibility layer.
 
 ## Custom renderer
@@ -129,7 +129,7 @@ Any object implementing `PresentationRenderer` can turn the HTML into a PDF
 default `PuppeteerPdfRenderer` adapter.
 
 ```typescript
-import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "@pdfdeck/pptxgenjs";
+import PuppeteerGen, { PAGE_SIZES, type HtmlPresentationDocument, type PresentationRenderer } from "@pdflapas/pptxgenjs";
 
 const remoteRenderer: PresentationRenderer = {
     async render({ html, pageSize }: HtmlPresentationDocument): Promise<Uint8Array> {
@@ -144,17 +144,17 @@ const remoteRenderer: PresentationRenderer = {
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer: remoteRenderer });
 ```
 
-The default renderer lives in `@pdfdeck/puppeteer` and works on any
+The default renderer lives in `@pdflapas/puppeteer` and works on any
 `HtmlPresentationDocument`, for example one produced by the `/html` entry:
 
 ```typescript
-import { closeBrowser, PuppeteerPdfRenderer } from "@pdfdeck/puppeteer";
+import { closeBrowser, PuppeteerPdfRenderer } from "@pdflapas/puppeteer";
 
 const pdf = await new PuppeteerPdfRenderer().render(await pres.toHtml());
 await closeBrowser();
 ```
 
-## Browser and other runtimes (`@pdfdeck/pptxgenjs/html`)
+## Browser and other runtimes (`@pdflapas/pptxgenjs/html`)
 
 The `/html` entry exposes the same API without loading Puppeteer, jsdom, or any
 `node:*` module. It uses `document.implementation.createHTMLDocument()` from
@@ -164,7 +164,7 @@ this entry in headless Chromium on every CI run (text, shapes, images, tables,
 charts, components, `toHtml()`, and `toPdf()` with an injected renderer).
 
 ```typescript
-import PuppeteerGen from "@pdfdeck/pptxgenjs/html";
+import PuppeteerGen from "@pdflapas/pptxgenjs/html";
 
 const pres = new PuppeteerGen();
 pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1 });
@@ -191,13 +191,13 @@ jsdom), pass `createDocument`: the constructor creates `pres.page` with it, and 
 the markup into one (it needs a window for computed styles). `toHtml()` and `modelToHtml()`
 build the HTML as strings and call `createDocument` only for a component that reads `context.document`.
 
-## WASM backend (`@pdfdeck/wasm`, opt-in, text, shapes, images and tables)
+## WASM backend (`@pdflapas/wasm`, opt-in, text, shapes, images and tables)
 
 An experimental renderer that parses the `toHtml()` document and draws it to PDF in
 WebAssembly (Rust, `crates/`), without Chromium. Puppeteer stays the
 default; nothing loads the WASM code unless you import this entry, and the
 `.wasm` binary (~2.5 MB, ~1.0 MB gzip) is only fetched by `createWasmRenderer()`.
-The prebuilt binary ships in the `@pdfdeck/wasm` tarball, so installing it
+The prebuilt binary ships in the `@pdflapas/wasm` tarball, so installing it
 needs no Rust toolchain.
 It implements `PresentationRenderer` like the Puppeteer default (it has no model input), so `toPdf()`, `write()`,
 `stream()` and `writeFile()` hand it `toHtml()`, and `renderer.render(await pres.toHtml())` does the
@@ -266,8 +266,8 @@ are ~50 MB together, so in a browser supply your own (ideally subsetted) fonts.
 
 ```typescript
 // Node / Bun
-import PuppeteerGen from "@pdfdeck/pptxgenjs";
-import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
+import PuppeteerGen from "@pdflapas/pptxgenjs";
+import { createWasmRenderer, loadSystemFonts } from "@pdflapas/wasm";
 
 const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
 const pres = new PuppeteerGen(undefined, { renderer });
@@ -277,8 +277,8 @@ await pres.writeFile({ fileName: "hello.pdf" });
 
 ```typescript
 // Browser
-import PuppeteerGen from "@pdfdeck/pptxgenjs/html";
-import { createWasmRenderer } from "@pdfdeck/wasm";
+import PuppeteerGen from "@pdflapas/pptxgenjs/html";
+import { createWasmRenderer } from "@pdflapas/wasm";
 
 const font = new Uint8Array(await (await fetch("/fonts/Carlito-Regular.ttf")).arrayBuffer());
 // `wasm` defaults to pdf_wasm_bg.wasm next to the module; pass a URL or bytes if your bundler moves it.

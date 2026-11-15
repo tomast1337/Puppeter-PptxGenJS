@@ -11,21 +11,29 @@ afterAll(() => closeBrowser());
 
 const ascii = (bytes: Uint8Array) => new TextDecoder("latin1").decode(bytes);
 
-describe("htmlDocument() from @pdfdeck/model", () => {
+describe("htmlDocument() from @pdflapas/model", () => {
     const head = (extra: string) => `<!DOCTYPE html><html><head><meta name="pdfdeck-profile" content="1">${extra}</head><body></body></html>`;
 
-    test("returns the document unchanged with the page size of its @page rule and its pdfdeck-page-size name", () => {
+    test("returns the document unchanged with the page size of its @page rule and its pdfdeck-page-size name (version 1)", () => {
         const named = head(`<meta content='Wide' name=pdfdeck-page-size><style>@page { size: 13.333in 7.5in; margin: 0 }</style>`);
         expect(htmlDocument(named)).toEqual({ html: named, pageSize: { width: 13.333, height: 7.5, name: "Wide" } });
         expect(htmlDocument(head(`<style>@page{size:4in 3in}</style>`)).pageSize).toEqual({ width: 4, height: 3, name: "Custom" });
+        const v2 = `<meta name="pdflapas-profile" content="2"><meta name="pdflapas-page-size" content="Wide"><meta name="pdfdeck-page-size" content="Old"><style>@page { size: 4in 3in }</style>`;
+        expect(htmlDocument(v2).pageSize).toEqual({ width: 4, height: 3, name: "Wide" });
+    });
+
+    test("reads each version under its own meta name: pdfdeck- in version 1, pdflapas- in version 2", () => {
+        const reads = `(this library reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)`;
+        expect(() => htmlDocument(`<meta name="pdfdeck-profile" content="2">`)).toThrow(`profile version '2' in <meta name="pdfdeck-profile"> is not supported ${reads}`);
+        expect(() => htmlDocument(`<meta name="pdflapas-profile" content="1">`)).toThrow(`profile version '1' in <meta name="pdflapas-profile"> is not supported ${reads}`);
     });
 
     test("fills nothing: a missing page size is an error, as is anything that is not a profile document", () => {
         expect(() => htmlDocument(head(""))).toThrow("the stylesheet's @page rule has no 'size: <width>in <height>in'");
         expect(() => htmlDocument(head(`<style>@page { size: A4 }</style>`))).toThrow("write the page size in inches");
         expect(() => htmlDocument("  ")).toThrow("expected a non-empty HTML string, got an empty string");
-        expect(() => htmlDocument("<p>Hi</p>")).toThrow('not a pdfdeck profile document: add <meta name="pdfdeck-profile" content="2"> to <head>');
-        expect(() => htmlDocument(`<meta name="pdfdeck-profile" content="3">`)).toThrow("pdfdeck profile version '3' is not supported (this library reads versions 1 and 2)");
+        expect(() => htmlDocument("<p>Hi</p>")).toThrow('not a PdfLapas profile document: add <meta name="pdflapas-profile" content="2"> to <head>');
+        expect(() => htmlDocument(`<meta name="pdflapas-profile" content="3">`)).toThrow(`profile version '3' in <meta name="pdflapas-profile"> is not supported (this library reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)`);
     });
 });
 
