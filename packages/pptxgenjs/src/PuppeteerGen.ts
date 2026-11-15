@@ -3,7 +3,8 @@ import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 import { normalizeComponent } from "./components/normalize";
 import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps } from "./components/types";
-import { PPTX_DEFAULTS } from "./defaults";
+import { PPTX_DEFAULTS, PPTXGENJS_VERSION } from "./defaults";
+import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/table/html";
@@ -15,7 +16,7 @@ import { normalizeTable } from "./normalize/table";
 import { paginateTableRows } from "./normalize/table/pagination";
 import { normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
-import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE } from "./pageLayouts";
+import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
@@ -33,6 +34,8 @@ export class PuppeteerSlide implements PptxSlide {
         private readonly slideIndex: number,
         getContinuationSlide: (offset: number) => PuppeteerSlide,
         private readonly components = new ComponentRegistry(),
+        /** `pres.theme.bodyFontFace`: the font of text, table cells and chart legends that name none (PowerPoint's `+mn-lt`). */
+        private readonly bodyFontFace: () => string = () => PPTX_DEFAULTS.theme.bodyFontFace,
     ) {
         this.pageSize = pageSize;
         this.document = document;
@@ -147,7 +150,7 @@ export class PuppeteerSlide implements PptxSlide {
             this.pageSize,
             this.nextObjectName("Chart", chartOptions.objectName),
         );
-        const chart = normalizeChart(type, Array.isArray(data) ? (data as PptxGenJS.OptsChartData[]) : [], chartOptions);
+        const chart = normalizeChart(type, Array.isArray(data) ? (data as PptxGenJS.OptsChartData[]) : [], { ...chartOptions, legendFontFace: chartOptions.legendFontFace ?? this.bodyFontFace() });
         chartSize(style);
         return this.addObject({ kind: "chart", style, chart });
     }
@@ -207,7 +210,7 @@ export class PuppeteerSlide implements PptxSlide {
             this.newAutoPagedSlides = continuationSlides as unknown as PptxGenJS.PresSlide[];
             return this;
         }
-        const table = normalizeTable(tableRows, tableOptions, this.pageSize);
+        const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.bodyFontFace() }, this.pageSize);
         const tableStyle = normalizeObjectStyle(
             {
                 ...tableOptions,
@@ -234,7 +237,7 @@ export class PuppeteerSlide implements PptxSlide {
             line: true,
             shadow: true,
         });
-        const normalizedText = normalizeText(text, { color: this.color, ...textOptions });
+        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.bodyFontFace() });
         if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: normalizedText });
         const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
         textStyle.line = normalizeShapeLine(shapeOptions, line => normalizeLine(line, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0)));
@@ -253,8 +256,20 @@ export interface PuppeteerGenOptions {
     createDocument?: () => Document;
 }
 
-export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout" | "AlignH" | "AlignV" | "ChartType" | "OutputType" | "SchemeColor" | "ShapeType" | "PlaceholderType" | "layout" | "rtlMode" | "author" | "company" | "revision" | "subject" | "theme" | "title"> {
+function isBuiltInLayout(name: string): name is keyof typeof PPTX_LAYOUT_PAGE_SIZES {
+    return Object.hasOwn(PPTX_LAYOUT_PAGE_SIZES, name);
+}
+
+// PptxGenJS 4.0.1 declares `PlaceholderType` but its instance has no such member (it reads undefined), so neither has this one.
+export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType" | "author" | "company" | "revision" | "subject" | "title"> {
     private pageSize: PageSize;
+    /** The name last assigned to `layout`; undefined until then, as in PptxGenJS. */
+    private layoutName: string | undefined;
+    private presLayoutName: string;
+    /** `defineLayout()` sizes by name, which `layout` can then select (PptxGenJS's `LAYOUTS`). */
+    private readonly definedLayouts = new Map<string, PageSize>();
+    private themeProps: PptxGenJS.ThemeProps | undefined;
+    private rtl: boolean = PPTX_DEFAULTS.presentation.rtlMode;
     /**
      * Input document for tableToSlides(tableId) only: put the source <table> here. Slides are not written
      * into it, so editing it does not change toHtml() or the PDF (#69). #72 tracks option (b): tableToSlides
@@ -269,10 +284,125 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
 
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE, options: PuppeteerGenOptions = {}) {
         this.pageSize = pageSize;
+        this.presLayoutName = pageSize === DEFAULT_PAGE_SIZE ? PPTX_DEFAULTS.presentation.layouts.LAYOUT_16x9.presLayoutName : pageSize.name;
         this.renderer = options.renderer;
         this.resolveImage = options.resolveImage ?? resolveRemoteImageSource;
         this.createDocument = options.createDocument ?? createBrowserDocument;
         this.page = this.createDocument();
+    }
+
+    get version(): string {
+        return PPTXGENJS_VERSION;
+    }
+
+    /**
+     * PptxGenJS `layout`: LAYOUT_16x9, LAYOUT_16x10, LAYOUT_4x3, LAYOUT_WIDE or a `defineLayout()` name. The page size
+     * applies to every slide, as PptxGenJS writes one slide size; a slide's percentage positions use the size it had when
+     * it was added, as PptxGenJS resolves them against that slide's layout.
+     */
+    get layout(): string {
+        // PptxGenJS returns undefined until a layout is assigned, although its declaration says string.
+        return this.layoutName as string;
+    }
+
+    set layout(name: string) {
+        const defined = this.definedLayouts.get(name);
+        if (defined) {
+            this.pageSize = defined;
+            this.presLayoutName = name;
+        } else if (isBuiltInLayout(name)) {
+            this.pageSize = PPTX_LAYOUT_PAGE_SIZES[name];
+            this.presLayoutName = PPTX_DEFAULTS.presentation.layouts[name].presLayoutName;
+        } else {
+            // PptxGenJS throws Error('UNKNOWN-LAYOUT') here; keep that code and say how to fix it.
+            throw new Error(`UNKNOWN-LAYOUT: '${name}' is not a layout. Use ${Object.keys(PPTX_LAYOUT_PAGE_SIZES).join(", ")}, or call pres.defineLayout({ name: '${name}', width, height }) first.`);
+        }
+        this.layoutName = name;
+    }
+
+    /** PptxGenJS `presLayout`: the current page size in EMU and its PptxGenJS name (`screen16x9`, a `defineLayout()` name). */
+    get presLayout(): PptxGenJS.PresLayout {
+        const emuPerInch = PPTX_DEFAULTS.units.emuPerInch;
+        return { name: this.presLayoutName, width: Math.round(this.pageSize.width * emuPerInch), height: Math.round(this.pageSize.height * emuPerInch) };
+    }
+
+    /**
+     * PptxGenJS `theme`. `bodyFontFace` is the font of text, table cells and chart legends that name none, as PowerPoint
+     * resolves their `+mn-lt` from theme1.xml. `headFontFace` only styles title placeholders, which need a slide master.
+     */
+    get theme(): PptxGenJS.ThemeProps {
+        // PptxGenJS returns undefined until a theme is assigned, although its declaration says ThemeProps.
+        return this.themeProps as PptxGenJS.ThemeProps;
+    }
+
+    set theme(value: PptxGenJS.ThemeProps) {
+        for (const key of ["headFontFace", "bodyFontFace"] as const) {
+            const font: unknown = value?.[key];
+            if (font !== undefined && typeof font !== "string") throw new TypeError(`pres.theme.${key} must be a font name such as "Arial", got ${JSON.stringify(font)}`);
+        }
+        // PptxGenJS treats an empty font name as unset (`theme.bodyFontFace ? ... : Calibri`).
+        const bodyFontFace = value?.bodyFontFace || PPTX_DEFAULTS.theme.bodyFontFace;
+        if (bodyFontFace !== this.bodyFontFace() && this.slides.some(slide => slide.model.objects.length > 0)) {
+            throw new Error(`pres.theme.bodyFontFace "${bodyFontFace}" was set after slide objects were added: pdfdeck resolves an object's default font when it is added, PptxGenJS when it writes the file. Set pres.theme before adding text, tables or charts.`);
+        }
+        this.themeProps = value;
+    }
+
+    /**
+     * PptxGenJS `rtlMode` writes `<p:presentation rtl="1">`, which orients PowerPoint's editing views; slides look the
+     * same, so the PDF does too. Right-to-left text is the `rtlMode` option of addText().
+     */
+    get rtlMode(): boolean {
+        return this.rtl;
+    }
+
+    set rtlMode(value: boolean) {
+        this.rtl = value;
+    }
+
+    // PptxGenJS's enum objects. Each one is a plain object with the enum's keys and values, which tests/presentation.test.ts
+    // compares with the pinned runtime; the declaration file's enum types cannot see that.
+    get AlignH(): typeof PptxGenJS.AlignH {
+        return ALIGN_H as unknown as typeof PptxGenJS.AlignH;
+    }
+
+    get AlignV(): typeof PptxGenJS.AlignV {
+        return ALIGN_V as unknown as typeof PptxGenJS.AlignV;
+    }
+
+    get ChartType(): typeof PptxGenJS.ChartType {
+        return CHART_TYPE as unknown as typeof PptxGenJS.ChartType;
+    }
+
+    get OutputType(): typeof PptxGenJS.OutputType {
+        return OUTPUT_TYPE as unknown as typeof PptxGenJS.OutputType;
+    }
+
+    get SchemeColor(): typeof PptxGenJS.SchemeColor {
+        return SCHEME_COLOR as unknown as typeof PptxGenJS.SchemeColor;
+    }
+
+    get ShapeType(): typeof PptxGenJS.ShapeType {
+        return SHAPE_TYPE as unknown as typeof PptxGenJS.ShapeType;
+    }
+
+    /** @deprecated PptxGenJS's runtime alias of `ChartType`, absent from its types. */
+    get charts(): typeof DEPRECATED_CHART_TYPE {
+        return DEPRECATED_CHART_TYPE;
+    }
+
+    /** @deprecated PptxGenJS's runtime alias of `SchemeColor`, absent from its types. */
+    get colors(): typeof DEPRECATED_SCHEME_COLOR {
+        return DEPRECATED_SCHEME_COLOR;
+    }
+
+    /** @deprecated PptxGenJS's runtime alias of `ShapeType`, absent from its types. */
+    get shapes(): typeof DEPRECATED_SHAPE_TYPE {
+        return DEPRECATED_SHAPE_TYPE;
+    }
+
+    private bodyFontFace(): string {
+        return this.themeProps?.bodyFontFace || PPTX_DEFAULTS.theme.bodyFontFace;
     }
 
     registerComponent<Props extends object = ComponentProps>(type: string, version: number, definition: ComponentDefinition<Props>): this {
@@ -285,6 +415,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
      */
     setPageSize(pageSize: PageSize): void {
         this.pageSize = pageSize;
+        this.presLayoutName = pageSize.name;
     }
 
     /**
@@ -343,6 +474,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
                 return this.slides[targetIndex]!;
             },
             this.components,
+            () => this.bodyFontFace(),
         );
         this.slides.push(slide);
 
@@ -355,15 +487,20 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "version" | "presLayout
         return slide;
     }
 
+    /**
+     * PptxGenJS `defineLayout()`: registers the size under its name for `layout`. Unlike PptxGenJS, it also applies the
+     * size at once, as pdfdeck always has; PptxGenJS code assigns `layout` next, which gives the same page.
+     */
     defineLayout(layout: PptxGenJS.PresLayout): void {
-        // Update page size based on layout
-        if (layout.width && layout.height) {
-            this.pageSize = {
-                width: layout.width,
-                height: layout.height,
-                name: layout.name || CUSTOM_PAGE_SIZE_NAME,
-            };
+        // PptxGenJS warns and writes a NaN slide size; a PDF needs a real one.
+        const width = Number(layout?.width);
+        const height = Number(layout?.height);
+        if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
+            throw new Error(`defineLayout() needs { name, width, height } with width and height in inches greater than zero, got ${JSON.stringify(layout)}`);
         }
+        this.pageSize = { width, height, name: layout.name || CUSTOM_PAGE_SIZE_NAME };
+        this.presLayoutName = this.pageSize.name;
+        if (layout.name) this.definedLayouts.set(layout.name, this.pageSize);
     }
 
     defineSlideMaster(_props: PptxSlideMasterProps): void {

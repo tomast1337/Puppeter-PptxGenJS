@@ -261,12 +261,13 @@ await pres.writeFile({ fileName: "multi-slide.pdf" });
 
 ## Custom Layouts
 
-Define custom page dimensions:
+PptxGenJS's layout names work: `pres.layout = "LAYOUT_WIDE"` (13⅓" × 7.5"), `LAYOUT_4x3`,
+`LAYOUT_16x10` or `LAYOUT_16x9` (the default). Define custom page dimensions:
 
 ```typescript
 const pres = new PuppeteerGen();
 
-// Set custom dimensions (12" wide × 6" tall)
+// Set custom dimensions (12" wide × 6" tall); `pres.layout = "Custom Wide"` selects it again later
 pres.defineLayout({
     name: "Custom Wide",
     width: 12,

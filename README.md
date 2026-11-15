@@ -83,15 +83,18 @@ await pres.writeFile({ fileName: "hello.pdf" }); // a PDF, not a .pptx
 The default export is the class `PuppeteerGen` (it keeps that name until the rename planned in [#22](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/22)); any
 local name works. Slide methods chain as in PptxGenJS. Differences to know when porting:
 
-- **Page size:** there is no `pres.layout = "LAYOUT_..."` property (TypeScript rejects it; plain
-  JavaScript ignores it). Pass a size to the constructor, `new pptxgen(PAGE_SIZES.A4.portrait)`, or
-  call `pres.defineLayout({ name, width, height })`, which applies immediately. The sizes in
-  `PAGE_SIZES` are listed in [docs/USAGE.md](./docs/USAGE.md#page-sizes-and-layouts).
+- **Page size:** `pres.layout = "LAYOUT_WIDE"` (or `LAYOUT_4x3`, `LAYOUT_16x10`, a
+  `defineLayout()` name) works as in PptxGenJS. `pres.defineLayout({ name, width, height })` also
+  applies its size at once, and the constructor takes a size, `new pptxgen(PAGE_SIZES.A4.portrait)`;
+  the sizes in `PAGE_SIZES` are listed in [docs/USAGE.md](./docs/USAGE.md#page-sizes-and-layouts).
+- **Theme:** `pres.theme.bodyFontFace` is the font of text, table cells and chart legends that set
+  none, as in PowerPoint. Set it before adding objects; changing it afterwards throws.
 - **Output:** `writeFile()`, `write()` and `stream()` return PDF bytes; `toPdf()` and `toHtml()`
   are pdfdeck additions. See [docs/BACKENDS.md](./docs/BACKENDS.md).
 - **Not drawn:** `addMedia()` and `defineSlideMaster()` throw `UnsupportedFeatureError` with a
-  suggested alternative; `addNotes()` is accepted and, as on a PowerPoint slide, not shown.
-  Presentation metadata (`title`, `author`, ...) is not part of the API.
+  suggested alternative; `addNotes()` and `pres.rtlMode` (which orients PowerPoint's editing views)
+  are accepted and, as on a PowerPoint slide, change nothing shown. Presentation metadata (`title`,
+  `author`, ...) is not part of the API.
 
 ### Use it from source today
 

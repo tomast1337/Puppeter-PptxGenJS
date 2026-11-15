@@ -33,6 +33,17 @@ instead of receiving an invented value.
 The complete Office theme palette, built-in layout dimensions, units, and
 metadata values are available in the machine-readable contract.
 
+`pres.layout` selects LAYOUT_4x3 (10in × 7.5in), LAYOUT_16x9, LAYOUT_16x10 (10in × 6.25in),
+LAYOUT_WIDE (13⅓in × 7.5in) or a `defineLayout()` name, and an unknown name throws `UNKNOWN-LAYOUT`
+as in PptxGenJS. The page size is the one set last; a slide's percentage positions use the size it
+was added under, as PptxGenJS resolves them against that slide's layout.
+
+`pres.theme.bodyFontFace` replaces Calibri as the font of text boxes, shape text, table cells and
+chart legends that set no `fontFace`: PptxGenJS writes it as the theme's minor font, which their
+runs inherit. `headFontFace` only reaches title placeholders, which need `defineSlideMaster()`.
+`pres.rtlMode` writes `rtl="1"` on `<p:presentation>`, which orients PowerPoint's editing views;
+LibreOffice renders the same slides with or without it, so it changes nothing in the PDF.
+
 ## Shared styles
 
 | Area                         |                                                            Default |

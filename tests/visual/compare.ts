@@ -4,7 +4,6 @@ import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
-import { PAGE_SIZES } from "../../packages/pptxgenjs/src/pageLayouts";
 import { PARITY_REGIONS, populateParityFixture } from "./fixture";
 import { writeVisualGallery } from "./gallery";
 import { PAGE_THRESHOLD } from "./thresholds";
@@ -80,7 +79,10 @@ populateParityFixture(reference);
 progress("write reference pptx");
 await reference.writeFile({ fileName: referencePptx });
 
-const actual = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+// The same layout calls as the reference, so the parity run exercises pres.layout too.
+const actual = new PuppeteerGen();
+actual.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
+actual.layout = "PARITY";
 progress("populate actual");
 populateParityFixture(actual);
 progress("write actual pdf");
