@@ -458,13 +458,15 @@ export const WASM_COMPATIBILITY = Object.freeze({
         options: Object.freeze({
             // The WASM image deck (tests/visual/wasm/image-deck.ts) covers the same sizing, transform and
             // effect options with PNG and JPEG sources (data and path); paths and URLs are resolved to data URIs before rendering.
+            // The gif, webp and svg decks (tests/visual/wasm/format-deck.ts, decks.ts) cover the other formats.
             ...COMPATIBILITY.image.options,
             // The shadow is blurred from the picture box (rounded or cropped), not the PNG alpha.
             shadow: "partial",
-            // No GIF, WebP or SVG decoder: krilla's decoders for them do not fit the wasm size budget (GZIP_BUDGET).
-            gifFirstFrame: "unsupported",
-            svg: "unsupported",
-            webp: "unsupported",
+            // A GIF whose first frame does not cover the logical screen throws instead of being composited.
+            gifFirstFrame: "verified",
+            // Drawn as vectors through the SVG subset (docs/HTML_PROFILE.md); an SVG outside it throws naming the element.
+            svg: "partial",
+            webp: "verified",
         }),
     }),
     shape: Object.freeze<CompatibilityEntry>({
