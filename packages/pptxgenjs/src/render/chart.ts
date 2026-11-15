@@ -267,7 +267,7 @@ function chartOption(chart: NormalizedChart, height: number): EChartsCoreOption 
     }
 
     const categories = chart.series[0]?.labels ?? [];
-    const categoryAxis = { type: "category", data: categories, ...axisStyle } as const;
+    const categoryAxis = { type: "category", data: categories, ...axisStyle, axisTick: tickOption(chart.categoryMajorTickMark, chart.gridLineColor, chart.gridLineWidth) } as const;
     const valueAxes = chart.valueAxes.map((axis, index) => ({
         type: axis.logScaleBase === undefined ? ("value" as const) : ("log" as const),
         logBase: axis.logScaleBase,

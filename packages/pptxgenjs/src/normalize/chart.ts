@@ -434,6 +434,7 @@ export function normalizeChart(type: ChartInputType, data: readonly PptxGenJS.Op
         gridLineColor: normalizeColor(PPTX_DEFAULTS.chart.gridLine.color),
         gridLineWidth: PPTX_DEFAULTS.chart.gridLine.widthPt,
         axisLineVisible: PPTX_DEFAULTS.chart.categoryAxisLineVisible,
+        categoryMajorTickMark: PPTX_DEFAULTS.chart.categoryMajorTickMark,
         valueAxisMinimum: primaryAxis.minimum,
         valueAxisMaximum: primaryAxis.maximum,
         valueAxes,

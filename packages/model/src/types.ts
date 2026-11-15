@@ -289,6 +289,7 @@ export interface NormalizedChart {
     gridLineColor: string;
     gridLineWidth: number;
     axisLineVisible: boolean;
+    categoryMajorTickMark: "none" | "inside" | "outside" | "cross";
     valueAxisMinimum: number;
     valueAxisMaximum: number;
     valueAxes: NormalizedChartValueAxis[];

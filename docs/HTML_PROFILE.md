@@ -765,6 +765,7 @@ The chart's options drive ECharts or the 3D bar renderer; the HTML keeps only th
 | `NormalizedChart.gridLineColor`            | gap     | Not in the HTML: only the drawn SVG (see [Charts](#charts)). |
 | `NormalizedChart.gridLineWidth`            | gap     | Not in the HTML: only the drawn SVG (see [Charts](#charts)). |
 | `NormalizedChart.axisLineVisible`          | gap     | Not in the HTML: only the drawn SVG (see [Charts](#charts)). |
+| `NormalizedChart.categoryMajorTickMark`    | gap     | Not in the HTML: only the drawn SVG (see [Charts](#charts)). |
 | `NormalizedChart.valueAxisMinimum`         | gap     | Not in the HTML: only the drawn SVG (see [Charts](#charts)). |
 | `NormalizedChart.valueAxisMaximum`         | gap     | Not in the HTML: only the drawn SVG (see [Charts](#charts)). |
 | `NormalizedChart.valueAxes`                | gap     | Not in the HTML: only the drawn SVG (see [Charts](#charts)). |

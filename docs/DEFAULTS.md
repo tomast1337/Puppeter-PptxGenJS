@@ -189,6 +189,7 @@ contract includes:
 - Legend keys: a bar, area or pie entry is a filled square at 0.6 of the legend font size (8px at
   10pt), as Office and LibreOffice draw it; a line entry shows its line and marker.
 - Line cap/dash/width, marker shape/size/border, and smoothing.
+- Outside major tick marks on the category axis, which PptxGenJS writes on every chart but scatter.
 - Pie angle, doughnut hole size, radar style, and blank-value behavior.
 - Chart/plot borders, gridline defaults, format codes, and both complete color
   palettes used by PptxGenJS.

@@ -198,6 +198,20 @@ describe("chart normalization and rendering", () => {
         expect([key?.getAttribute("width"), key?.getAttribute("height")]).toEqual(["8", "8"]);
     });
 
+    test("draws outside major tick marks on the category axis, as PptxGenJS writes them", () => {
+        // PptxGenJS 4.0.1: `<c:majorTickMark val="${catAxisMajorTickMark || 'out'}"/>` on every category axis but scatter's.
+        expect(normalizeChart("bar", categoricalData).categoryMajorTickMark).toBe("outside");
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addChart("bar", categoricalData, { x: 0, y: 0, w: 5, h: 3, valAxisMajorTickMark: "none" });
+        const paths = Array.from(renderedPage(presentation).querySelectorAll(".slide-chart path"), path => path.getAttribute("d") ?? "");
+        // A vertical 5px stroke at each of the four category boundaries of three categories.
+        const ticks = paths.filter(d => {
+            const match = d.match(/^M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)$/);
+            return match !== null && match[1] === match[3] && Number(match[4]) - Number(match[2]) === 5;
+        });
+        expect(ticks).toHaveLength(4);
+    });
+
     test("draws the bar3D legend in the legend font, not the axis-label font", () => {
         const legendText = (options: PptxGenJS.IChartOpts) => {
             const presentation = new PuppeteerGen();
