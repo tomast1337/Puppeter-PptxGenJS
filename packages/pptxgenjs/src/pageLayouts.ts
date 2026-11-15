@@ -1,5 +1,6 @@
 // Common page sizes and layouts for presentation/document generation
 import type { PageSize } from "@pdfdeck/model";
+import { PPTX_DEFAULTS } from "./defaults";
 
 export type { PageSize } from "@pdfdeck/model";
 
@@ -60,6 +61,15 @@ export type Orientation = "landscape" | "portrait";
 
 // Default layout (16:9 landscape)
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES.SCREEN_16X9.landscape;
+
+const { LAYOUT_WIDE } = PPTX_DEFAULTS.presentation.layouts;
+/** The page size of each built-in `pres.layout` name (sizes in PPTX_DEFAULTS.presentation.layouts); three are PAGE_SIZES screens. */
+export const PPTX_LAYOUT_PAGE_SIZES: Readonly<Record<keyof typeof PPTX_DEFAULTS.presentation.layouts, PageSize>> = Object.freeze({
+    LAYOUT_4x3: PAGE_SIZES.SCREEN_4X3.landscape,
+    LAYOUT_16x9: PAGE_SIZES.SCREEN_16X9.landscape,
+    LAYOUT_16x10: PAGE_SIZES.SCREEN_16X10.landscape,
+    LAYOUT_WIDE: Object.freeze({ width: LAYOUT_WIDE.width, height: LAYOUT_WIDE.height, name: "Screen Wide Landscape" }),
+});
 
 // The name of a page size given only by its dimensions (`defineLayout()` without a name, an `@page` rule).
 export { CUSTOM_PAGE_SIZE_NAME } from "@pdfdeck/model";

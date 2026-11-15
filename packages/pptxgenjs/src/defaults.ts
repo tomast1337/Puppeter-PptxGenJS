@@ -3,7 +3,9 @@ import { inchesToPixels, pointsToPixels } from "./units";
 
 export type FourSideMargin = [number, number, number, number];
 
-export const PPTX_DEFAULTS_VERSION = "pptxgenjs@4.0.1";
+/** The pinned PptxGenJS release this package reproduces; `pres.version` returns it, as PptxGenJS returns its own. */
+export const PPTXGENJS_VERSION = "4.0.1";
+export const PPTX_DEFAULTS_VERSION = `pptxgenjs@${PPTXGENJS_VERSION}`;
 
 const BAR_CHART_COLORS = Object.freeze(["C0504D", "4F81BD", "9BBB59", "8064A2", "4BACC6", "F79646", "628FC6", "C86360", "C0504D", "4F81BD", "9BBB59", "8064A2", "4BACC6", "F79646", "628FC6", "C86360"] as const);
 
@@ -26,11 +28,13 @@ export const PPTX_DEFAULTS = Object.freeze({
     presentation: Object.freeze({
         layout: "LAYOUT_16x9",
         layoutName: "DEFAULT",
+        // `pres.layout` names; `presLayoutName` is the `presLayout.name` PptxGenJS gives each one.
         layouts: Object.freeze({
-            LAYOUT_4x3: Object.freeze({ width: 10, height: 7.5 }),
-            LAYOUT_16x9: Object.freeze({ width: 10, height: 5.625 }),
-            LAYOUT_16x10: Object.freeze({ width: 10, height: 6.25 }),
-            LAYOUT_WIDE: Object.freeze({ width: 13.333333, height: 7.5 }),
+            LAYOUT_4x3: Object.freeze({ width: 10, height: 7.5, presLayoutName: "screen4x3" }),
+            LAYOUT_16x9: Object.freeze({ width: 10, height: 5.625, presLayoutName: "screen16x9" }),
+            LAYOUT_16x10: Object.freeze({ width: 10, height: 6.25, presLayoutName: "screen16x10" }),
+            // 12192000 x 6858000 EMU: 13 1/3 in wide.
+            LAYOUT_WIDE: Object.freeze({ width: 40 / 3, height: 7.5, presLayoutName: "custom" }),
         }),
         rtlMode: false,
         metadata: Object.freeze({
