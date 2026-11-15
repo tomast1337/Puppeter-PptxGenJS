@@ -575,13 +575,6 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
             () => this.bodyFontFace(),
         );
         this.slides.push(slide);
-
-        if (typeof masterName === "object" && masterName !== null) {
-            const props = masterName as { bkgd?: string; background?: PptxGenJS.BackgroundProps };
-            if (props.background) slide.background = props.background;
-            else if (props.bkgd) slide.bkgd = props.bkgd;
-        }
-
         return slide;
     }
 
