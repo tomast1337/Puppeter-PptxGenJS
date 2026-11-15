@@ -1,14 +1,19 @@
 # pdfdeck
 
-Turn existing PptxGenJS code into PDF. pdfdeck implements the
-[PptxGenJS](https://gitbrent.github.io/PptxGenJS/) 4.0.1 API (`addSlide`, `addText`, `addImage`,
-`addShape`, `addTable`, `addChart`, `writeFile`, ...) and writes a PDF instead of a `.pptx`, so
-layout code you already have keeps working. You choose the backend that draws the PDF:
+Turn existing PptxGenJS code into PDF. pdfdeck is for codebases that use
+[PptxGenJS](https://gitbrent.github.io/PptxGenJS/) only to end up with a PDF: it implements the
+PptxGenJS 4.0.1 API (`addSlide`, `addText`, `addImage`, `addShape`, `addTable`, `addChart`,
+`writeFile`, ...) and writes the PDF directly, with no `.pptx` and no LibreOffice step. Migrating means
+changing the import, not rewriting slide code, so a large codebase can move with a small diff.
 
-- **Puppeteer** (default): renders HTML in headless Chromium. Covers text, images, shapes, tables
-  and charts.
-- **WASM** (opt-in): a Rust renderer compiled to WebAssembly that draws the same model straight to
-  PDF, with no browser, in Node, Bun or a web page. Text and shapes today.
+Every deck goes through standard HTML and CSS, the most widely known layout system: `toHtml()`
+returns it, you can read, diff or edit it, and you can write your own slide content in it
+([components](./docs/COMPONENTS.md)). Two backends turn that HTML into PDF:
+
+- **Puppeteer** (default): headless Chromium. Prints any HTML and CSS.
+- **WASM** (opt-in): a Rust renderer with no browser, for servers first (Node, Bun) and also web
+  pages. Draws text, shapes, images, tables and charts; components only when they are made of sized
+  boxes, so far ([#69](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/69)).
 
 > [!IMPORTANT]
 > **Release status.** The `@pdfdeck/*` packages described here are **not published to npm yet**, and
