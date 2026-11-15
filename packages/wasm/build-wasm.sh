@@ -33,7 +33,8 @@ root=$PWD
 # +7 B: the SVG reader and drawing renamed from chart to svg (#69 phase 8b, shared with SVG images); only embedded source paths change, 975,748 -> 975,755 B measured; budget = that size.
 # +6,425 B: SVG images (#69 phase 8b: data URI reading, viewBox/preserveAspectRatio fit, +2,136 B; the subset's named colors +1,755 B; rotate/skew +47 B; style, circle, rx/ry, opacity, fill-rule, transform lists and the XML prolog +2,487 B), 975,755 -> 982,180 B measured; budget = that size.
 # +16,569 B: GIF images (krilla's GIF decoder, first frame; #17), 982,180 -> 998,749 B measured; budget = that size.
-GZIP_BUDGET=998749
+# +44,714 B: WebP images (krilla's image-webp decoder, lossy and lossless, first frame; #17; the skip warning path goes), 998,749 -> 1,043,463 B measured; budget = that size.
+GZIP_BUDGET=1043463
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

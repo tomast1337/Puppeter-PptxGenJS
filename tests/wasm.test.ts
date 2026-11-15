@@ -254,9 +254,9 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
             .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 })
             .addImage({ data: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==", x: 3, y: 2, w: 1, h: 1 })
-            .addImage({ data: "data:image/webp;base64,UklGRgAAAABXRUJQ", x: 5, y: 2, w: 1, h: 1 });
+            .addShape("ellipse", { x: 5, y: 2, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
         expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
-        expect(renderer.warnings()).toEqual(["WebP images not rendered"]);
+        expect(renderer.warnings()).toEqual(["inner shadow not rendered"]);
     });
 
     test("draws SVG images and names the slide, picture and element of one outside the subset", async () => {
