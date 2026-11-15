@@ -223,6 +223,28 @@ slide.addTable(
 );
 ```
 
+### Tables from HTML (`tableToSlides`)
+
+`tableToSlides()` reads an HTML `<table>` (column widths, colors, fonts, padding and borders from its
+computed styles) and adds as many slides as its rows need, as PptxGenJS does. Besides PptxGenJS's
+element id, pdfdeck takes the `<table>` element or HTML markup holding one:
+
+```typescript
+// PptxGenJS form: the id of a table in the global `document` (the page; in Node, a jsdom you install).
+pres.tableToSlides("orders", { autoPageRepeatHeader: true });
+// The element itself, from any document with a window (the page, jsdom).
+pres.tableToSlides(document.querySelector("table#orders") as HTMLTableElement);
+// HTML markup: a string starting with `<`, parsed with `createDocument` (jsdom in the Node entry).
+pres.tableToSlides(`<table><tr><td style="width:2in">Widget</td><td>$19.99</td></tr></table>`);
+```
+
+The markup form needs a document with a window to compute styles: the Node entry's jsdom has one, a
+browser's default does not, so in a browser insert the table into the page and pass the element or its id.
+
+**`pres.page` is deprecated.** It was the only place `tableToSlides(id)` looked. It still works, but pass
+the element or the HTML instead, or put the table in the global `document` as with PptxGenJS. A later
+major release removes `pres.page` (#72).
+
 ## Multiple Slides
 
 Add multiple slides to create a complete presentation:
@@ -315,6 +337,10 @@ Creates a new PuppeteerGen instance with the specified page size (default: 16:9 
 
 - `setPageSize(pageSize: PageSize): void`
     - Changes the page size of the presentation
+
+- `tableToSlides(source: string | HTMLTableElement, props?: TableToSlidesProps): void`
+    - Adds slides holding an HTML table: its id, the element or HTML markup; see
+      [Tables from HTML](#tables-from-html-tabletoslides)
 
 - `writeFile(props: WriteFileProps): Promise<string>`
     - Writes the PDF to disk (Node) or downloads it (browser) and returns the file name. A trailing

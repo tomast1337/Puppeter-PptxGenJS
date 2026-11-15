@@ -95,11 +95,41 @@ function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
     return options;
 }
 
-export function normalizeHtmlTable(document: Document, elementId: string, options: PptxGenJS.TableToSlidesProps, pageSize: PageSize): NormalizedHtmlTable {
-    const element = document.getElementById(elementId);
-    if (!(element instanceof document.defaultView!.HTMLTableElement)) {
-        throw new Error(`tableToSlides: Table ID "${elementId}" does not exist!`);
+/** The element if it is a <table> in a document with a window, whose computed styles tableToSlides() reads. */
+function tableWithWindow(element: Element | null | undefined): HTMLTableElement | undefined {
+    const view = element?.ownerDocument?.defaultView;
+    return view && element instanceof view.HTMLTableElement ? element : undefined;
+}
+
+/**
+ * The tableToSlides() source table. A string is PptxGenJS's element id, looked up in `page` (the deprecated
+ * `pres.page`) and then in the global document, where PptxGenJS looks, unless it starts with `<`: then it is
+ * HTML markup, parsed into a `createDocument()` document, and its first <table> is the source. A <table>
+ * element is used as it is. The element and markup forms are pdfdeck's; PptxGenJS 4.0.1 takes only the id.
+ */
+export function findHtmlTable(source: string | HTMLTableElement, page: Document, createDocument: () => Document): HTMLTableElement {
+    if (typeof source !== "string") {
+        const table = tableWithWindow(source);
+        if (!table) throw new TypeError("tableToSlides: the element is not a <table> in a document with a window, whose computed styles are read; pass a table of the page (or of a jsdom document), its id, or its HTML");
+        return table;
     }
+    if (source.trimStart().startsWith("<")) {
+        const document = createDocument();
+        if (!document.defaultView) {
+            throw new Error("tableToSlides: parsing an HTML string needs a document with a window to read computed styles, and createDocument() made one without (a browser's createHTMLDocument()); insert the table into the page and pass the element or its id, or pass a createDocument option");
+        }
+        document.body.innerHTML = source;
+        const table = tableWithWindow(document.querySelector("table"));
+        if (!table) throw new Error("tableToSlides: the HTML string has no <table> element");
+        return table;
+    }
+    const globalDocument = (globalThis as { document?: Document }).document;
+    const table = tableWithWindow(page.getElementById(source)) ?? tableWithWindow(globalDocument?.getElementById(source));
+    if (!table) throw new Error(`tableToSlides: Table ID "${source}" does not exist!`);
+    return table;
+}
+
+export function normalizeHtmlTable(element: HTMLTableElement, options: PptxGenJS.TableToSlidesProps, pageSize: PageSize): NormalizedHtmlTable {
     const slideMargin = margins(options.slideMargin);
     const outerWidth = typeof options.w === "number" ? options.w : pageSize.width;
     const usableWidth = outerWidth - slideMargin[1] - slideMargin[3];
