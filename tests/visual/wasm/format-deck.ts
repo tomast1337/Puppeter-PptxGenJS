@@ -1,7 +1,8 @@
 // GIF and WebP decks: one slide per format with the image deck's samples (images/) re-encoded by
 // ImageMagick 7.1: every sizing mode, a transparent picture over a patterned background, and a
 // rotated, transparent, shadowed picture. animated.gif has two full 400x200 frames, the second
-// flopped and negated; Chromium, LibreOffice and WASM all draw the first.
+// flopped and negated; Chromium, LibreOffice and WASM all draw the first. The WebPs are lossless
+// except lossy.webp (quality 75).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type PptxGenJS from "pptxgenjs";
@@ -47,6 +48,8 @@ function populateFormatSlide<T extends PptxGenJS | PuppeteerGen>(presentation: T
     slide.addShape("rect", { x: 0.5, y: 4.1, w: 2.4, h: 0.6, fill: { color: "FFC000" } });
     slide.addImage({ data: dataUri(pictures.badge, mime), x: 1.1, y: 3.5, w: 1.2, h: 1.2, altText: "Transparent" });
     slide.addImage({ path: image(pictures.variant.file), x: 3.6, y: 3.5, w: 2.4, h: 1.2, altText: pictures.variant.label });
+    // LibreOffice draws the WebP one without its shadow, so the WASM crop scores 0.0851 there against
+    // 0.0344 for the same GIF, whose reference has the shadow; the WASM drawing is the same for both.
     slide.addImage({ data: sample, x: 6.8, y: 3.55, w: 2.4, h: 1.1, rotate: -10, flipH: true, transparency: 40, shadow: { type: "outer", color: "000000", opacity: 0.35, blur: 4, offset: 4, angle: 45 }, altText: "Rotated" });
     slide.addText("Transparency", { ...label, x: 0.5, y: 4.85, w: 2.4, h: 0.35 });
     slide.addText(pictures.variant.label, { ...label, x: 3.6, y: 4.85, w: 2.4, h: 0.35 });
@@ -56,4 +59,8 @@ function populateFormatSlide<T extends PptxGenJS | PuppeteerGen>(presentation: T
 
 export function populateGifDeck<T extends PptxGenJS | PuppeteerGen>(presentation: T): T {
     return populateFormatSlide(presentation, { title: "GIF images", sample: "sample.gif", badge: "badge.gif", variant: { file: "animated.gif", label: "Animated" } }, "image/gif");
+}
+
+export function populateWebpDeck<T extends PptxGenJS | PuppeteerGen>(presentation: T): T {
+    return populateFormatSlide(presentation, { title: "WebP images", sample: "sample.webp", badge: "badge.webp", variant: { file: "lossy.webp", label: "Lossy" } }, "image/webp");
 }

@@ -26,6 +26,7 @@ const EXPECTED_SHA256: Record<string, string> = {
     "wasm-charts": "a606f9efc1fded39234fbcd8be43eb28b6dd7a389f318e55d37fffdf4e0b4a73",
     "wasm-svg": "9ec028c4b1fe7450954b7eaef2863d44ac2fa08e2975ca1e01287b7a05b7675b",
     "wasm-gif": "b24c201d54a56fe3c5474c1177276cad1168d7c777abc58add6d46598b955b1a",
+    "wasm-webp": "c73ac60a49080128206c05045ad3223a20e6c67db8c96a21ca9d63a96f2197ed",
 };
 
 describe("toHtml() bytes", () => {

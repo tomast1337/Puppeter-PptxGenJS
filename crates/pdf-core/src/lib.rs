@@ -32,7 +32,7 @@ use parley::{FontContext, LayoutContext};
 
 use crate::color::{parse_color, unit};
 use crate::effect::{Effect, Effects};
-use crate::image::Decoded;
+use crate::image::Picture;
 use crate::link::page_quad;
 use crate::model::{Presentation, SlideObject};
 use crate::path::rect_path;
@@ -53,7 +53,7 @@ pub struct Renderer {
     warnings: BTreeSet<String>,
     /// Images of the current render by data URI: each distinct picture is decoded once per
     /// document however often it repeats. Cleared per render so a renderer does not pin old images.
-    images: HashMap<String, Decoded>,
+    images: HashMap<String, Picture>,
     /// Slides in the model being rendered: slide links past it are reported, not emitted.
     page_count: usize,
     /// Link annotations of the page being drawn, attached to it once its surface is finished.
@@ -565,13 +565,6 @@ mod tests {
         // A second render starts with an empty cache, so old pictures are not kept alive.
         render(&mut r, &build::deck(Vec::new())).unwrap();
         assert!(r.images.is_empty());
-    }
-
-    #[test]
-    fn reports_images_it_does_not_draw() {
-        let mut r = Renderer::new();
-        render(&mut r, &build::deck(vec![picture(build::image("data:image/webp;base64,UklGRgAAAABXRUJQ"))])).unwrap();
-        assert_eq!(r.warnings(), vec!["WebP images not rendered"]);
     }
 
     /// The PDF's annotations, the PDF syntax of one object each.

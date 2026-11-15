@@ -2,9 +2,9 @@
 //!
 //! Mirrors the Puppeteer renderer (packages/pptxgenjs/src/render/image.ts): the picture is placed
 //! at the rectangle `NormalizedImageSizing` resolved, clipped to the object box (an ellipse when
-//! `rounding`). PNG, JPEG and GIF go through krilla (an animated GIF draws its first frame, as
-//! Chromium prints it); an SVG image is read as the SVG subset (`profile::svg`) and drawn as
-//! vectors; WebP images are reported, not drawn.
+//! `rounding`). PNG, JPEG, GIF and WebP go through krilla (an animated GIF or WebP draws its first
+//! frame, as Chromium prints it); an SVG image is read as the SVG subset (`profile::svg`) and drawn
+//! as vectors.
 //! krilla reads an image's header when it is created and decodes the pixels when the document is
 //! written, so corrupt pixel data fails `render` with a serialization error rather than a panic.
 
@@ -37,12 +37,9 @@ pub(crate) enum Picture {
     Svg(Rc<Svg>),
 }
 
-/// A decoded data URI, or the reason it is skipped (reported through `warnings()`).
-pub(crate) type Decoded = Result<Picture, String>;
-
 /// Decodes `data:<mime>;base64,<payload>` by its magic bytes (browsers sniff too, so a mislabelled
-/// PNG still draws). `Err` is a broken input; `Ok(Err(_))` an image kind this backend skips.
-pub(crate) fn decode_data_uri(source: &str) -> Result<Decoded, String> {
+/// PNG still draws). `Err` is a broken or unsupported input.
+pub(crate) fn decode_data_uri(source: &str) -> Result<Picture, String> {
     let (header, payload) = source
         .split_once(',')
         .filter(|(header, _)| header.get(..5).is_some_and(|scheme| scheme.eq_ignore_ascii_case("data:")))
@@ -65,21 +62,18 @@ pub(crate) fn decode_data_uri(source: &str) -> Result<Decoded, String> {
         gif_first_frame_fills_screen(&bytes)?;
         Image::from_gif(bytes.into(), true)
     } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
-        // shortcut: krilla's WebP decoder is not linked yet; draw WebP once its gzip cost is measured (#17).
-        return Ok(Err("WebP images not rendered".to_owned()));
+        Image::from_webp(bytes.into(), true)
     } else if mime.eq_ignore_ascii_case("image/svg+xml") {
         // Outside the SVG subset is an error, as for a chart: nothing is skipped silently.
         // shortcut: no editor namespaces (inkscape:*, sodipodi:*), <use>, <style> sheets or radial
         // gradients; add one when a real deck's SVG needs it and its gzip cost is measured (#17).
         let text = std::str::from_utf8(&bytes).map_err(|e| format!("SVG image is not UTF-8: {e}"))?;
         let svg = profile::svg::image(text).map_err(|e| format!("SVG image: {e}"))?;
-        return Ok(Ok(Picture::Svg(Rc::new(svg))));
+        return Ok(Picture::Svg(Rc::new(svg)));
     } else {
-        return Err(format!("'{mime}' data is not a PNG, JPEG, GIF or SVG image"));
+        return Err(format!("'{mime}' data is not a PNG, JPEG, GIF, WebP or SVG image"));
     };
-    decoded
-        .map(|image| Ok(Picture::Raster(image)))
-        .map_err(|e| format!("cannot decode {mime} data: {e}"))
+    decoded.map(Picture::Raster).map_err(|e| format!("cannot decode {mime} data: {e}"))
 }
 
 /// krilla takes a GIF's first frame as the whole picture, so a first frame smaller than the
@@ -137,13 +131,6 @@ impl Renderer {
                 decoded
             }
         };
-        let picture = match picture {
-            Ok(picture) => picture,
-            Err(skipped) => {
-                self.warn(skipped);
-                return Ok(());
-            }
-        };
         let (px, py, pw, ph) = placement(&image.sizing, w, h);
         let Some(size) = Size::from_wh(pw, ph) else { return Ok(()) };
         // The HTML frame clips to the box (`overflow: hidden`, `border-radius: 50%` when rounded).
@@ -197,23 +184,26 @@ mod tests {
 
     #[test]
     fn decodes_by_magic_bytes_not_by_label() {
-        let Ok(Ok(Picture::Raster(image))) = decode_data_uri(&format!("data:image/jpeg;base64,{PNG_1X1}")) else {
+        let Ok(Picture::Raster(image)) = decode_data_uri(&format!("data:image/jpeg;base64,{PNG_1X1}")) else {
             panic!("a PNG")
         };
         assert_eq!(image.size(), (1, 1));
         let unpadded = PNG_1X1.trim_end_matches('=');
-        assert!(decode_data_uri(&format!("DATA:image/png;base64,\n{unpadded}")).unwrap().is_ok());
+        assert!(decode_data_uri(&format!("DATA:image/png;base64,\n{unpadded}")).is_ok());
+        // A 2x1 lossless WebP (ImageMagick 7.1), labelled PNG.
+        let Ok(Picture::Raster(webp)) = decode_data_uri("data:image/png;base64,UklGRhwAAABXRUJQVlA4TA8AAAAvAQAAAAcQ/Y/+ByKi/wEA") else {
+            panic!("a WebP")
+        };
+        assert_eq!(webp.size(), (2, 1));
     }
 
     #[test]
-    fn reads_svg_skips_gif_and_rejects_broken_data() {
+    fn reads_svg_and_rejects_broken_data() {
         let svg = |text: &str| format!("data:image/svg+xml;base64,{}", BASE64.encode(text));
-        let Ok(Ok(Picture::Svg(drawn))) = decode_data_uri(&svg(r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#)) else {
+        let Ok(Picture::Svg(drawn)) = decode_data_uri(&svg(r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#)) else {
             panic!("an SVG")
         };
         assert!(drawn.items.is_empty());
-        let webp = format!("data:image/webp;base64,{}", BASE64.encode("RIFF\0\0\0\0WEBP"));
-        assert!(matches!(decode_data_uri(&webp), Ok(Err(skipped)) if skipped == "WebP images not rendered"));
         let outside = svg(r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="https://x.test/a.png"/></svg>"#);
         let not_utf8 = format!("data:image/svg+xml;base64,{}", BASE64.encode([0xFF, 0xFE, 0x3C]));
         for (source, error) in [
@@ -222,7 +212,8 @@ mod tests {
             ("image.png", "not a data URI"),
             ("data:image/png,abc", "not base64-encoded"),
             ("data:image/png;base64,***", "invalid base64"),
-            ("data:image/bmp;base64,Qk0=", "not a PNG, JPEG, GIF or SVG"),
+            ("data:image/bmp;base64,Qk0=", "not a PNG, JPEG, GIF, WebP or SVG"),
+            ("data:image/webp;base64,UklGRgAAAABXRUJQ", "cannot decode image/webp"),
             ("data:image/gif;base64,R0lGODlh", "no image descriptor"),
             // PNG signature, truncated header.
             ("data:image/png;base64,iVBORw0KGgoAAAA=", "cannot decode image/png"),
@@ -247,7 +238,7 @@ mod tests {
     #[test]
     fn draws_gifs_whose_first_frame_fills_the_screen() {
         let uri = |bytes: Vec<u8>| format!("data:image/gif;base64,{}", BASE64.encode(bytes));
-        let Ok(Ok(Picture::Raster(image))) = decode_data_uri(&uri(gif(0, 0, 2, 1))) else {
+        let Ok(Picture::Raster(image)) = decode_data_uri(&uri(gif(0, 0, 2, 1))) else {
             panic!("a GIF")
         };
         assert_eq!(image.size(), (2, 1));
