@@ -188,7 +188,8 @@ tables.
 The counts come from `COMPATIBILITY`, `CHART_TYPE_COMPATIBILITY` and
 `SHAPE_GEOMETRY_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs` (source:
 [`compatibility.ts`](./packages/pptxgenjs/src/compatibility.ts)), which track every option as
-unsupported, partial, implemented or visually verified. WASM support for components that need CSS
+unsupported, partial, implemented, visually verified, or ignored (accepted without effect, as in
+PptxGenJS, like the chart `fontFace`). WASM support for components that need CSS
 layout is tracked in
 [#17](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/17) and
 [#69](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/69) (phase 8).

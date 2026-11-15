@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY, WASM_COMPATIBILITY } from "../packages/pptxgenjs/src/compatibility";
 
-const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified"]);
+const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified", "ignored"]);
 const TEXT_OPTION_KEYS = [
     "x",
     "y",
@@ -103,6 +103,8 @@ describe("compatibility manifest", () => {
         expect(COMPATIBILITY.chart.options.valGridLine).toBe("implemented");
         expect(COMPATIBILITY.chart.options.valAxisLabelFormatCode).toBe("partial");
         expect(COMPATIBILITY.chart.options.showDataTable).toBe("unsupported");
+        // PptxGenJS 4.0.1 declares IChartOpts.fontFace but no chart writer reads it.
+        expect(COMPATIBILITY.chart.options.fontFace).toBe("ignored");
         expect(CHART_TYPE_COMPATIBILITY.bar).toBe("implemented");
         expect(CHART_TYPE_COMPATIBILITY.bar3D).toBe("implemented");
         expect(CHART_TYPE_COMPATIBILITY.mixed).toBe("partial");
