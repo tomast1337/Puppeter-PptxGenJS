@@ -105,8 +105,8 @@ npm install /path/to/pdfdeck/tarballs/pdfdeck-{model,puppeteer,pptxgenjs}-0.2.0.
 npm install /path/to/pdfdeck/tarballs/pdfdeck-wasm-0.2.0.tgz   # optional
 ```
 
-Inside this repository the workspace already resolves `@pdfdeck/*`, so `bun run examples/test.ts`
-works after `bun install`. Once the packages are published, this becomes
+Inside this repository the workspace already resolves `@pdfdeck/*`: after `bun install` and
+`bun run build`, `bun run examples/test.ts` uses the built packages as your application would. Once the packages are published, this becomes
 `npm install @pdfdeck/pptxgenjs` (plus `@pdfdeck/wasm` or `@pdfdeck/react` when you need them).
 
 ## Choosing a backend
@@ -226,7 +226,8 @@ pdfdeck reproduces.
 - [docs/IMPLEMENTATION_SUMMARY.md](./docs/IMPLEMENTATION_SUMMARY.md): implementation notes and
   project structure
 
-Runnable examples live in [`examples/`](./examples): `bun run examples/test.ts`,
+Runnable examples live in [`examples/`](./examples), a private workspace package that imports
+`@pdfdeck/*` by name and runs against the built packages (`bun run build` first): `bun run examples/test.ts`,
 `bun run examples/comprehensive-example.ts`, `bun run examples/react-component.ts` and
 `bun run examples/html-input.ts`.
 

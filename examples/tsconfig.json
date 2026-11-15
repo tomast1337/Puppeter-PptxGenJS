@@ -1,0 +1,18 @@
+{
+  // No "paths": the examples resolve @pdfdeck/* through node_modules and each package's "exports", as an
+  // application does, so they run against the built packages (`bun run build` first).
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["bun"]
+  }
+}
