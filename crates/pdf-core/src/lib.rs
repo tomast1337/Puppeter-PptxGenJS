@@ -570,8 +570,8 @@ mod tests {
     #[test]
     fn reports_images_it_does_not_draw() {
         let mut r = Renderer::new();
-        render(&mut r, &build::deck(vec![picture(build::image("data:image/gif;base64,R0lGODlh"))])).unwrap();
-        assert_eq!(r.warnings(), vec!["GIF and WebP images not rendered"]);
+        render(&mut r, &build::deck(vec![picture(build::image("data:image/webp;base64,UklGRgAAAABXRUJQ"))])).unwrap();
+        assert_eq!(r.warnings(), vec!["WebP images not rendered"]);
     }
 
     /// The PDF's annotations, the PDF syntax of one object each.

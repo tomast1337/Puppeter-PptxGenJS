@@ -2,8 +2,9 @@
 //!
 //! Mirrors the Puppeteer renderer (packages/pptxgenjs/src/render/image.ts): the picture is placed
 //! at the rectangle `NormalizedImageSizing` resolved, clipped to the object box (an ellipse when
-//! `rounding`). PNG and JPEG go through krilla; an SVG image is read as the SVG subset
-//! (`profile::svg`) and drawn as vectors; GIF and WebP images are reported, not drawn.
+//! `rounding`). PNG, JPEG and GIF go through krilla (an animated GIF draws its first frame, as
+//! Chromium prints it); an SVG image is read as the SVG subset (`profile::svg`) and drawn as
+//! vectors; WebP images are reported, not drawn.
 //! krilla reads an image's header when it is created and decodes the pixels when the document is
 //! written, so corrupt pixel data fails `render` with a serialization error rather than a panic.
 
@@ -60,9 +61,12 @@ pub(crate) fn decode_data_uri(source: &str) -> Result<Decoded, String> {
         Image::from_png(bytes.into(), true)
     } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
         Image::from_jpeg(bytes.into(), true)
-    } else if bytes.starts_with(b"GIF8") || (bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP")) {
-        // shortcut: krilla's GIF and WebP decoders add ~62 KB gzip, past GZIP_BUDGET; draw them once the budget allows (#17).
-        return Ok(Err("GIF and WebP images not rendered".to_owned()));
+    } else if bytes.starts_with(b"GIF8") {
+        gif_first_frame_fills_screen(&bytes)?;
+        Image::from_gif(bytes.into(), true)
+    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        // shortcut: krilla's WebP decoder is not linked yet; draw WebP once its gzip cost is measured (#17).
+        return Ok(Err("WebP images not rendered".to_owned()));
     } else if mime.eq_ignore_ascii_case("image/svg+xml") {
         // Outside the SVG subset is an error, as for a chart: nothing is skipped silently.
         // shortcut: no editor namespaces (inkscape:*, sodipodi:*), <use>, <style> sheets or radial
@@ -71,11 +75,40 @@ pub(crate) fn decode_data_uri(source: &str) -> Result<Decoded, String> {
         let svg = profile::svg::image(text).map_err(|e| format!("SVG image: {e}"))?;
         return Ok(Ok(Picture::Svg(Rc::new(svg))));
     } else {
-        return Err(format!("'{mime}' data is not a PNG or JPEG image"));
+        return Err(format!("'{mime}' data is not a PNG, JPEG, GIF or SVG image"));
     };
     decoded
         .map(|image| Ok(Picture::Raster(image)))
         .map_err(|e| format!("cannot decode {mime} data: {e}"))
+}
+
+/// krilla takes a GIF's first frame as the whole picture, so a first frame smaller than the
+/// logical screen (later frames drawn over it) would not match the image size it declares.
+fn gif_first_frame_fills_screen(bytes: &[u8]) -> Result<(), String> {
+    let word = |at: usize| bytes.get(at..at + 2).and_then(|b| b.try_into().ok()).map(u16::from_le_bytes);
+    // GIF89a: the logical screen descriptor (width, height, packed flags) follows the 6-byte signature.
+    let screen = (word(6), word(8));
+    let packed = bytes.get(10).copied().unwrap_or(0);
+    let mut at = 13 + if packed & 0x80 != 0 { 3 << ((packed & 7) + 1) } else { 0 };
+    // Extensions (0x21, a label and data sub-blocks up to an empty one) come before the first
+    // image descriptor (0x2C: left, top, width, height).
+    while bytes.get(at) == Some(&0x21) {
+        at += 2;
+        while let Some(&len) = bytes.get(at) {
+            at += 1 + usize::from(len);
+            if len == 0 {
+                break;
+            }
+        }
+    }
+    let frame = (word(at + 1), word(at + 3), word(at + 5), word(at + 7));
+    match (bytes.get(at), frame, screen) {
+        (Some(0x2C), (Some(0), Some(0), Some(w), Some(h)), (Some(sw), Some(sh))) if (w, h) == (sw, sh) => Ok(()),
+        (Some(0x2C), (Some(x), Some(y), Some(w), Some(h)), (Some(sw), Some(sh))) => Err(format!(
+            "the GIF's first frame ({w}x{h} at {x},{y}) does not fill its {sw}x{sh} screen; save it with a full first frame"
+        )),
+        _ => Err("cannot decode image/gif data: no image descriptor".into()),
+    }
 }
 
 /// The rectangle the picture is drawn into, relative to the box origin (px).
@@ -179,8 +212,8 @@ mod tests {
             panic!("an SVG")
         };
         assert!(drawn.items.is_empty());
-        let gif = format!("data:image/gif;base64,{}", BASE64.encode("GIF89a"));
-        assert!(matches!(decode_data_uri(&gif), Ok(Err(skipped)) if skipped == "GIF and WebP images not rendered"));
+        let webp = format!("data:image/webp;base64,{}", BASE64.encode("RIFF\0\0\0\0WEBP"));
+        assert!(matches!(decode_data_uri(&webp), Ok(Err(skipped)) if skipped == "WebP images not rendered"));
         let outside = svg(r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="https://x.test/a.png"/></svg>"#);
         let not_utf8 = format!("data:image/svg+xml;base64,{}", BASE64.encode([0xFF, 0xFE, 0x3C]));
         for (source, error) in [
@@ -189,13 +222,43 @@ mod tests {
             ("image.png", "not a data URI"),
             ("data:image/png,abc", "not base64-encoded"),
             ("data:image/png;base64,***", "invalid base64"),
-            ("data:image/bmp;base64,Qk0=", "not a PNG or JPEG"),
+            ("data:image/bmp;base64,Qk0=", "not a PNG, JPEG, GIF or SVG"),
+            ("data:image/gif;base64,R0lGODlh", "no image descriptor"),
             // PNG signature, truncated header.
             ("data:image/png;base64,iVBORw0KGgoAAAA=", "cannot decode image/png"),
             ("data:", "not a data URI"),
         ] {
             let got = decode_data_uri(source).err().unwrap_or_default();
             assert!(got.contains(error), "{source}: {got}");
+        }
+    }
+
+    /// A GIF89a: a 2x1 screen with a two-color table, an optional graphic control extension, and one
+    /// image descriptor at `(x, y)` of size `w x h`.
+    fn gif(x: u8, y: u8, w: u8, h: u8) -> Vec<u8> {
+        let mut gif = b"GIF89a\x02\x00\x01\x00\x80\x00\x00\xff\x00\x00\x00\x00\xff".to_vec();
+        gif.extend_from_slice(b"\x21\xf9\x04\x00\x00\x00\x00\x00");
+        gif.extend_from_slice(&[0x2C, x, 0, y, 0, w, 0, h, 0, 0]);
+        // LZW minimum code size 2, one data sub-block (clear, 0, 1, end), the block end and the trailer.
+        gif.extend_from_slice(b"\x02\x02\x44\x0a\x00\x3b");
+        gif
+    }
+
+    #[test]
+    fn draws_gifs_whose_first_frame_fills_the_screen() {
+        let uri = |bytes: Vec<u8>| format!("data:image/gif;base64,{}", BASE64.encode(bytes));
+        let Ok(Ok(Picture::Raster(image))) = decode_data_uri(&uri(gif(0, 0, 2, 1))) else {
+            panic!("a GIF")
+        };
+        assert_eq!(image.size(), (2, 1));
+        let error = decode_data_uri(&uri(gif(1, 0, 1, 1))).err().unwrap_or_default();
+        assert!(error.contains("first frame (1x1 at 1,0) does not fill its 2x1 screen"), "{error}");
+        // Cut anywhere before the frame size, the header walk stops at the end of the data (krilla
+        // reads the pixels when the PDF is written).
+        let whole = gif(0, 0, 2, 1);
+        for end in 6..36 {
+            let cut = whole.get(..end).unwrap_or_default().to_vec();
+            assert!(decode_data_uri(&uri(cut)).is_err(), "{end}");
         }
     }
 

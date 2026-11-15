@@ -250,9 +250,13 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test('onUnsupported: "warn" renders and reports skipped objects', async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
         const pres = new PuppeteerGen(PAGE, { renderer });
-        pres.addSlide().addText("Text", { x: 1, y: 1, w: 3, h: 1 }).addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 }).addImage({ data: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", x: 3, y: 2, w: 1, h: 1 });
+        pres.addSlide()
+            .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
+            .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 })
+            .addImage({ data: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==", x: 3, y: 2, w: 1, h: 1 })
+            .addImage({ data: "data:image/webp;base64,UklGRgAAAABXRUJQ", x: 5, y: 2, w: 1, h: 1 });
         expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
-        expect(renderer.warnings()).toEqual(["GIF and WebP images not rendered"]);
+        expect(renderer.warnings()).toEqual(["WebP images not rendered"]);
     });
 
     test("draws SVG images and names the slide, picture and element of one outside the subset", async () => {
