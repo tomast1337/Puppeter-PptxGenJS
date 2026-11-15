@@ -227,6 +227,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         y: 1,
         w: "50%" as const,
         h: "50%" as const,
+        // PptxGenJS writes `<a:latin typeface="${titleFontFace || 'Arial'}">` for the title and axis titles, and
+        // `|| 'Arial'` for axis labels and data labels (gen-charts.ts); only the legend has no default (below).
+        fontFace: "Arial",
         fontSizePt: 12,
         titleFontSizePt: 18,
         border: Object.freeze({ color: "363636", widthPt: 1 }),

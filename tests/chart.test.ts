@@ -29,6 +29,13 @@ describe("chart normalization and rendering", () => {
         expect(chart.valueAxisMaximum).toBe(10);
     });
 
+    test("draws the title, axes and data labels in Arial when no font is set, as PptxGenJS writes them", () => {
+        // PptxGenJS 4.0.1: `<a:latin typeface="${titleFontFace || 'Arial'}">`, and `|| 'Arial'` for axis and data labels.
+        const chart = normalizeChart("bar", categoricalData, { showTitle: true, title: "T", showValAxisTitle: true, valAxisTitle: "V" });
+        expect([chart.fontFace, chart.titleFontFace, chart.valueAxes[0]?.titleFontFace, chart.valueAxes[0]?.labelFontFace]).toEqual(["Arial", "Arial", "Arial", "Arial"]);
+        expect(normalizeChart("bar", categoricalData, { titleFontFace: "Georgia" }).titleFontFace).toBe("Georgia");
+    });
+
     test("legend ignores chart fontFace/fontSize like PptxGenJS and defaults to 10pt body font", () => {
         // PptxGenJS writes legend <c:txPr> only for legendFontFace/legendFontSize/legendColor.
         const inherited = normalizeChart("bar", categoricalData, { showLegend: true, fontFace: "Arial", fontSize: 20 });

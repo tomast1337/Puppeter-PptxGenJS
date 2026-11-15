@@ -176,6 +176,11 @@ contract includes:
 
 - Position `x=1`, `y=1`, size `50% × 50%`.
 - 12pt body text and 18pt titles.
+- Arial for the title, axis titles, axis labels and data labels, which PptxGenJS writes as
+  `<a:latin typeface="Arial">` when no font option is set; the legend, which PptxGenJS writes
+  without a font, uses the theme body font (Calibri), as LibreOffice draws it. Without Microsoft
+  fonts, Arial resolves to the metric-compatible Liberation Sans: through fontconfig in Chromium
+  and LibreOffice, and through the WASM renderer's alias table.
 - Bar direction/grouping, 3D shape, gaps, overlap, and rotations.
 - Legend, data-label, axis visibility, and data-table flags.
 - Line cap/dash/width, marker shape/size/border, and smoothing.
