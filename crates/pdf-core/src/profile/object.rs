@@ -32,7 +32,7 @@ pub(crate) fn read(dom: &Dom<'_>, element: &Element<'_>) -> Result<SlideObject, 
     }
     let linkable = matches!(element.name, "div" | "a");
     if element.has_class("slide-chart") && element.name == "div" {
-        return chart::object(dom, element).map(SlideObject::Chart);
+        return chart::object(dom, element).map(SlideObject::Svg);
     }
     if element.has_class("slide-component") {
         // An opaque subtree: the HTML holds the component's markup, which WASM does not lay out (#69 phase 8c).

@@ -24,13 +24,14 @@ pub(crate) enum SlideObject {
     Shape(ShapeObject),
     Image(ImageObject),
     Table(TableObject),
-    /// A `.slide-chart`: its drawing, the chart SVG (the chart options are not in the HTML).
-    Chart(ChartObject),
+    /// An object drawn from an SVG display list: a `.slide-chart`'s SVG (the chart options are not
+    /// in the HTML).
+    Svg(SvgObject),
     /// A component subtree: reported through `warnings()` instead of failing the document.
     Unsupported(String),
 }
 
-pub(crate) struct ChartObject {
+pub(crate) struct SvgObject {
     pub(crate) style: ObjectStyle,
     pub(crate) svg: Svg,
 }
