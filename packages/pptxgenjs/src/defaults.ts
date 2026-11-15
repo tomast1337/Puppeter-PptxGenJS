@@ -283,6 +283,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         showValue: false,
         showDataTable: false,
         categoryAxisLineVisible: true,
+        // PptxGenJS writes `<c:majorTickMark val="${catAxisMajorTickMark || 'out'}"/>` on the category axis of every
+        // chart but scatter (gen-charts.ts makeCatAxis).
+        categoryMajorTickMark: "outside" as const,
         valueAxisLineVisible: true,
         seriesAxisLineVisible: true,
         valueAxis: Object.freeze({
