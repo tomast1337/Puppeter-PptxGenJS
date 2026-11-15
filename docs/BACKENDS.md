@@ -16,7 +16,7 @@ without touching the filesystem; `writeFile()` is `toPdf()` plus a file write.
 which values it loses today.
 
 The HTML is derived from the model alone: `toHtml()` is `modelToHtml(pres.getModel(), ...)`, and
-`modelToHtml` is exported for producers that build the model JSON themselves. `pres.page` is only the
+`modelToHtml` is exported for producers that build the model JSON themselves. The deprecated `pres.page` is only an
 input document for `tableToSlides(tableId)`: slides are not written into it, so editing it does not
 change `toHtml()` or the PDF.
 
@@ -187,7 +187,8 @@ Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
 In `/html`, `writeFile()` downloads the PDF in a browser, as PptxGenJS downloads its `.pptx`; without a
 global `document` it throws, so use `toPdf()`.
 Without a global DOM (for example a worker or a server runtime without
-jsdom), pass `createDocument`: the constructor creates `pres.page` with it. `toHtml()` and `modelToHtml()`
+jsdom), pass `createDocument`: the constructor creates `pres.page` with it, and `tableToSlides(html)` parses
+the markup into one (it needs a window for computed styles). `toHtml()` and `modelToHtml()`
 build the HTML as strings and call `createDocument` only for a component that reads `context.document`.
 
 ## WASM backend (`@pdfdeck/wasm`, opt-in, text, shapes, images and tables)

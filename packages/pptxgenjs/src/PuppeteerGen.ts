@@ -7,7 +7,7 @@ import { PPTX_DEFAULTS, PPTXGENJS_VERSION } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import type { NormalizedImage, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
-import { normalizeHtmlTable } from "./normalize/table/html";
+import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { normalizeImage, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, straightLineLength } from "./normalize/shape";
@@ -290,7 +290,7 @@ export interface PuppeteerGenOptions {
     renderer?: PresentationRenderer;
     /** Resolves an addImage() path or URL to a data URI before serialization. */
     resolveImage?: (source: string) => Promise<string>;
-    /** Creates `pres.page` (tableToSlides input) and the document components may build elements in. */
+    /** Creates `pres.page`, the documents tableToSlides() parses HTML strings into, and the one components may build elements in. */
     createDocument?: () => Document;
 }
 
@@ -315,9 +315,10 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     /** The `slideNumber` set last on any slide: PptxGenJS writes it to the master, which slide numbers inherit from. */
     private masterSlideNumber: PptxGenJS.SlideNumberProps | null = null;
     /**
-     * Input document for tableToSlides(tableId) only: put the source <table> here. Slides are not written
-     * into it, so editing it does not change toHtml() or the PDF (#69). #72 tracks option (b): tableToSlides
-     * takes an element or HTML string and `page` is deprecated.
+     * Input document for tableToSlides(tableId): a <table> put here is found by its id. Slides are not written
+     * into it, so editing it does not change toHtml() or the PDF (#69).
+     * @deprecated Pass tableToSlides() the <table> element or its HTML instead, or, as with PptxGenJS, put the
+     * table in the global `document` (the page, or jsdom in Node). A later major release removes `page` (#72).
      */
     page: Document;
     private readonly components = new ComponentRegistry();
@@ -598,9 +599,14 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         throw new UnsupportedFeatureError("defineSlideMaster", "Set `slide.background` and add the shared objects to each slide from a helper function instead of a master.");
     }
 
-    tableToSlides(eleId: string, props?: PptxTableToSlidesProps | undefined): void {
+    /**
+     * PptxGenJS `tableToSlides()`: the table, paginated over as many slides as it needs. `source` is the id of a
+     * <table> in the page, as in PptxGenJS (in Node, a global jsdom `document` or the deprecated `pres.page`),
+     * the <table> element itself, or HTML markup holding one (a string starting with `<`).
+     */
+    tableToSlides(source: string | HTMLTableElement, props?: PptxTableToSlidesProps | undefined): void {
         const options = props ?? {};
-        const table = normalizeHtmlTable(this.page, eleId, options, this.pageSize);
+        const table = normalizeHtmlTable(findHtmlTable(source, this.page, this.createDocument), options, this.pageSize);
         const firstSlide = this.addSlide(options.masterSlideName ? { masterName: options.masterSlideName } : undefined);
         firstSlide.addTable(table.rows, {
             ...options,

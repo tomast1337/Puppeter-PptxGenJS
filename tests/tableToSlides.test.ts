@@ -1,14 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
 import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/table/html";
-import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
 function installTable(presentation: PuppeteerGen, rowCount = 2): HTMLTableElement {
     const host = presentation.page.createElement("div");
-    host.innerHTML = `
+    host.innerHTML = tableHtml(rowCount);
+    presentation.page.body.appendChild(host);
+    return presentation.page.getElementById("source") as HTMLTableElement;
+}
+
+function tableHtml(rowCount: number): string {
+    return `
         <table id="source" style="width:600px;border-collapse:collapse;font-family:Arial;font-size:12px;color:rgb(31,78,121)">
             <thead><tr>
                 <th style="width:100px;background:#4472C4;color:white;padding:6px;border:1px solid #17365D">ID</th>
@@ -27,8 +33,6 @@ function installTable(presentation: PuppeteerGen, rowCount = 2): HTMLTableElemen
             </tbody>
             <tfoot><tr><td colspan="3" style="padding:4px;font-weight:bold">Footer</td></tr></tfoot>
         </table>`;
-    presentation.page.body.appendChild(host);
-    return presentation.page.getElementById("source") as HTMLTableElement;
 }
 
 describe("HTML table normalization", () => {
@@ -36,8 +40,7 @@ describe("HTML table normalization", () => {
         const presentation = new PuppeteerGen(PAGE);
         const source = installTable(presentation);
         const table = normalizeHtmlTable(
-            presentation.page,
-            "source",
+            source,
             {
                 w: 10,
                 slideMargin: 0.5,
@@ -67,8 +70,51 @@ describe("HTML table normalization", () => {
         const div = presentation.page.createElement("div");
         div.id = "not-table";
         presentation.page.body.appendChild(div);
-        expect(() => normalizeHtmlTable(presentation.page, "missing", {}, PAGE)).toThrow('Table ID "missing" does not exist');
-        expect(() => normalizeHtmlTable(presentation.page, "not-table", {}, PAGE)).toThrow('Table ID "not-table" does not exist');
+        expect(() => presentation.tableToSlides("missing")).toThrow('tableToSlides: Table ID "missing" does not exist!');
+        expect(() => presentation.tableToSlides("not-table")).toThrow('Table ID "not-table" does not exist');
+        expect(() => presentation.tableToSlides(div as unknown as HTMLTableElement)).toThrow("the element is not a <table>");
+        expect(() => presentation.tableToSlides("<p>no table</p>")).toThrow("the HTML string has no <table> element");
+        expect(presentation.getModel().slides).toHaveLength(0);
+    });
+});
+
+describe("tableToSlides source", () => {
+    const slidesFrom = (populate: (presentation: PuppeteerGen) => void) => {
+        const presentation = new PuppeteerGen(PAGE);
+        populate(presentation);
+        return presentation.getModel().slides;
+    };
+    const fromPage = slidesFrom(presentation => {
+        installTable(presentation, 30);
+        presentation.tableToSlides("source", { autoPageRepeatHeader: true });
+    });
+
+    test("takes the <table> element or HTML markup as well as the id, with the same slides", () => {
+        expect(fromPage.length).toBeGreaterThan(1);
+        const ownDocument = createNodeDocument();
+        ownDocument.body.innerHTML = tableHtml(30);
+        expect(slidesFrom(presentation => presentation.tableToSlides(ownDocument.querySelector("table") as HTMLTableElement, { autoPageRepeatHeader: true }))).toEqual(fromPage);
+        expect(slidesFrom(presentation => presentation.tableToSlides(tableHtml(30), { autoPageRepeatHeader: true }))).toEqual(fromPage);
+        expect(slidesFrom(presentation => presentation.tableToSlides(`  <div>${tableHtml(30)}</div>`, { autoPageRepeatHeader: true }))).toEqual(fromPage);
+    });
+
+    test("finds the id in the global document, where PptxGenJS looks", () => {
+        const global = globalThis as { document?: Document };
+        const previous = global.document;
+        global.document = createNodeDocument();
+        try {
+            global.document.body.innerHTML = tableHtml(30);
+            expect(slidesFrom(presentation => presentation.tableToSlides("source", { autoPageRepeatHeader: true }))).toEqual(fromPage);
+        } finally {
+            global.document = previous;
+        }
+    });
+
+    test("an HTML string needs a createDocument() with a window, and says so", () => {
+        // A browser's default, document.implementation.createHTMLDocument(), has no window to compute styles in.
+        const windowless = () => createNodeDocument().implementation.createHTMLDocument();
+        const presentation = new PuppeteerGen(PAGE, { createDocument: windowless });
+        expect(() => presentation.tableToSlides(tableHtml(1))).toThrow("parsing an HTML string needs a document with a window");
     });
 });
 
