@@ -80,25 +80,7 @@ slide
 await pres.writeFile({ fileName: "hello.pdf" }); // a PDF, not a .pptx
 ```
 
-The default export is the class `PuppeteerGen` (it keeps that name until the rename planned in [#22](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/22)); any
-local name works. Slide methods chain as in PptxGenJS. Differences to know when porting:
-
-- **Page size:** `pres.layout = "LAYOUT_WIDE"` (or `LAYOUT_4x3`, `LAYOUT_16x10`, a
-  `defineLayout()` name) works as in PptxGenJS. `pres.defineLayout({ name, width, height })` also
-  applies its size at once, and the constructor takes a size, `new pptxgen(PAGE_SIZES.A4.portrait)`;
-  the sizes in `PAGE_SIZES` are listed in [docs/USAGE.md](./docs/USAGE.md#page-sizes-and-layouts).
-- **Theme:** `pres.theme.bodyFontFace` is the font of text, table cells and chart legends that set
-  none, as in PowerPoint. Set it before adding objects; changing it afterwards throws.
-- **Output:** `writeFile()`, `write()` and `stream()` return PDF bytes; `toPdf()` and `toHtml()`
-  are pdfdeck additions. See [docs/BACKENDS.md](./docs/BACKENDS.md).
-- **Not drawn:** `addMedia()`, `defineSlideMaster()`, `slide.slideNumber`, a background picture
-  (`slide.background = { path }`) and `slide.hidden = true` throw `UnsupportedFeatureError` with a
-  suggested alternative. `addNotes()` and `pres.rtlMode` (which orients PowerPoint's editing views)
-  are accepted and, as on a PowerPoint slide, change nothing shown. `API_COMPATIBILITY` lists what
-  pdfdeck does with each PptxGenJS presentation and slide member.
-- **Document properties:** `pres.title`, `author` and `subject` become the PDF Title, Author and
-  Subject, with PptxGenJS's defaults (`PptxGenJS Presentation`, `PptxGenJS`). `company` and
-  `revision` stay in the HTML head: a PDF has no field for them.
+Moving existing PptxGenJS code over: [Migrating from PptxGenJS](#migrating-from-pptxgenjs).
 
 ### Use it from source today
 
@@ -120,6 +102,67 @@ npm install /path/to/pdfdeck/tarballs/pdfdeck-wasm-0.2.0.tgz   # optional
 Inside this repository the workspace already resolves `@pdfdeck/*`: after `bun install` and
 `bun run build`, `bun run examples/test.ts` uses the built packages as your application would. Once the packages are published, this becomes
 `npm install @pdfdeck/pptxgenjs` (plus `@pdfdeck/wasm` or `@pdfdeck/react` when you need them).
+
+## Migrating from PptxGenJS
+
+**Change the import.** Slide code stays as it is: the methods, options, defaults and chaining are
+those of PptxGenJS 4.0.1.
+
+```diff
+-import pptxgen from "pptxgenjs";
++import pptxgen from "@pdfdeck/pptxgenjs";
+```
+
+The default export is the class `PuppeteerGen` (it keeps that name until the rename planned in
+[#22](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/22)); any local name works. In a web
+page, import `@pdfdeck/pptxgenjs/html` instead and pass a renderer ([below](#choosing-a-backend)).
+
+**What you get.** The output methods keep PptxGenJS's call shapes and return a PDF where PptxGenJS
+returns a `.pptx`:
+
+- `writeFile({ fileName })` writes the file under Node, downloads it in a browser, and returns the
+  name it used. As PptxGenJS appends `.pptx`, it appends `.pdf` to a name that does not end in it:
+  `"report"` gives `report.pdf`, `"report.pptx"` gives `report.pptx.pdf`, and no name gives
+  `Presentation.pdf`. Rename the `.pptx` in your file names.
+- `write({ outputType })` returns a `blob` by default, or `arraybuffer`, `base64`, `binarystring`,
+  `nodebuffer`, `uint8array` or `STREAM` (a Node Buffer). `stream()` returns a Node Buffer.
+- `compression` is accepted and ignored: it only chooses how the `.pptx` zip is packed.
+- `toPdf()` (the bytes) and `toHtml()` (the HTML document the PDF is drawn from) are additions. See
+  [docs/BACKENDS.md](./docs/BACKENDS.md).
+
+**What differs.**
+
+- **Rendering:** the PDF is drawn by Chromium or the WASM renderer, not PowerPoint, and charts by
+  ECharts. Layout is close, not pixel-identical; [Fidelity](#fidelity) has the measured scores.
+- **Page size:** `pres.layout = "LAYOUT_WIDE"` (or `LAYOUT_4x3`, `LAYOUT_16x10`, a
+  `defineLayout()` name) works as in PptxGenJS. `pres.defineLayout({ name, width, height })` also
+  applies its size at once, and the constructor takes a size, `new pptxgen(PAGE_SIZES.A4.portrait)`;
+  the sizes in `PAGE_SIZES` are listed in [docs/USAGE.md](./docs/USAGE.md#page-sizes-and-layouts).
+- **Theme:** `pres.theme.bodyFontFace` is the font of text, table cells and chart legends that set
+  none, as in PowerPoint. Set it before adding objects; changing it afterwards throws.
+- **Document properties:** `pres.title`, `author` and `subject` become the PDF Title, Author and
+  Subject, with PptxGenJS's defaults (`PptxGenJS Presentation`, `PptxGenJS`). `company` and
+  `revision` stay in the HTML head: a PDF has no field for them.
+- **Shown nowhere, as in PowerPoint's slide show:** `addNotes()`, `addSection()` and `pres.rtlMode`
+  (which orients PowerPoint's editing views) are accepted and change nothing on the page.
+
+**What throws.** pdfdeck fails instead of writing a PDF that silently lacks something:
+`addMedia()`, `defineSlideMaster()`, `slide.slideNumber`, a background picture
+(`slide.background = { path }`) and `slide.hidden = true` throw `UnsupportedFeatureError` with a
+suggested alternative; a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
+throws before rendering. `API_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs`, lists what pdfdeck
+does with each PptxGenJS presentation and slide member; `COMPATIBILITY` does the same per option.
+
+**Using the WASM backend.** Pass its renderer to the constructor; nothing else changes:
+
+```typescript
+import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
+
+const pres = new pptxgen(undefined, { renderer: await createWasmRenderer({ fonts: await loadSystemFonts() }) });
+```
+
+It draws text, shapes, images, tables and charts without a browser and throws on what it cannot
+draw; [Choosing a backend](#choosing-a-backend) says when to pick it.
 
 ## Choosing a backend
 
