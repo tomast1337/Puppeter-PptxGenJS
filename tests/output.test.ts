@@ -1,8 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
+import { readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/html";
-import { convertPdfOutput, resolveOutputType } from "../packages/pptxgenjs/src/output";
+import { PuppeteerGen as NodePuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { convertPdfOutput, resolveFileName, resolveOutputType } from "../packages/pptxgenjs/src/output";
 import type { HtmlPresentationDocument, PresentationRenderer } from "../packages/pptxgenjs/src/render/document";
 
 // Every byte value, so latin1/base64 conversions are checked across the full range.
@@ -106,5 +110,62 @@ describe("write() and stream()", () => {
         const { pres, renderer } = deck();
         await expect(pres.write({ outputType: "pdf" as PptxGenJS.WRITE_OUTPUT_TYPE })).rejects.toThrow("Unsupported outputType 'pdf'");
         expect(renderer.calls).toBe(0);
+    });
+});
+
+describe("writeFile()", () => {
+    test("names the file like PptxGenJS 4.0.1, with .pdf where it uses .pptx", () => {
+        // PptxGenJS: {} -> "Presentation.pptx", "a.PPTX" -> "a.PPTX", "b.pdf" -> "b.pdf.pptx", "c" -> "c.pptx" (with a warning).
+        const warn = spyOn(console, "warn").mockImplementation(() => {});
+        try {
+            expect(resolveFileName()).toBe("Presentation.pdf");
+            expect(resolveFileName({})).toBe("Presentation.pdf");
+            expect(resolveFileName({ fileName: "a.PDF", compression: true })).toBe("a.PDF");
+            expect(resolveFileName({ fileName: "deck.pptx" })).toBe("deck.pptx.pdf");
+            expect(warn).not.toHaveBeenCalled();
+            expect(resolveFileName("c")).toBe("c.pdf");
+            expect(warn).toHaveBeenCalledWith("[WARNING] writeFile(string) is deprecated - pass { fileName } instead.");
+        } finally {
+            warn.mockRestore();
+        }
+        expect(() => resolveFileName({ fileName: 3 as unknown as string })).toThrow('writeFile() fileName must be a string, got number; for example { fileName: "deck.pdf" }');
+    });
+
+    test("the Node entry writes the PDF under that name and returns it", async () => {
+        const base = join(tmpdir(), `pdfdeck-write-${crypto.randomUUID()}`);
+        const pres = new NodePuppeteerGen(undefined, { renderer: new FakeRenderer() });
+        pres.addSlide();
+        try {
+            expect(await pres.writeFile({ fileName: base })).toBe(`${base}.pdf`);
+            expect([...(await readFile(`${base}.pdf`))]).toEqual([...BYTES]);
+        } finally {
+            await rm(`${base}.pdf`, { force: true });
+        }
+    });
+
+    test("in a browser it downloads the PDF through a hidden link, as PptxGenJS downloads its .pptx", async () => {
+        const { window } = new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>");
+        const clicked: { download: string; href: string; style: string | null }[] = [];
+        const click = spyOn(window.HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            clicked.push({ download: this.download, href: this.href, style: this.getAttribute("style") });
+        });
+        const blobs: Blob[] = [];
+        const createObjectURL = spyOn(URL, "createObjectURL").mockImplementation(blob => {
+            blobs.push(blob as Blob);
+            return "blob:pdfdeck-test";
+        });
+        const globals = globalThis as { document?: Document };
+        globals.document = window.document;
+        try {
+            const { pres } = deck();
+            expect(await pres.writeFile({ fileName: "deck" })).toBe("deck.pdf");
+            expect(clicked).toEqual([{ download: "deck.pdf", href: "blob:pdfdeck-test", style: "display:none;" }]);
+            expect(blobs[0]?.type).toBe("application/pdf");
+            expect([...new Uint8Array((await blobs[0]?.arrayBuffer()) ?? new ArrayBuffer(0))]).toEqual([...BYTES]);
+        } finally {
+            delete globals.document;
+            click.mockRestore();
+            createObjectURL.mockRestore();
+        }
     });
 });

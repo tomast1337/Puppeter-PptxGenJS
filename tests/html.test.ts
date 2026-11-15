@@ -83,7 +83,7 @@ describe("browser-safe html entry", () => {
         pres.addSlide().addImage({ path: "images/logo.png", x: 1, y: 1, w: 1, h: 1 });
         expect(pres.toHtml()).rejects.toThrow("Cannot resolve image path 'images/logo.png' without filesystem access");
         expect(pres.toPdf()).rejects.toThrow("toPdf() requires a renderer");
-        expect(pres.writeFile({ fileName: "deck.pdf" })).rejects.toThrow("only available from the Node entry");
+        expect(pres.writeFile({ fileName: "deck.pdf" })).rejects.toThrow("this runtime has neither a document nor a filesystem");
     });
 
     test("encodes base64 without Buffer, including inputs larger than one chunk", () => {

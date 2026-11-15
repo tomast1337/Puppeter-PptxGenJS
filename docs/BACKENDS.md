@@ -184,7 +184,8 @@ Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
 | `resolveImage?: (source: string) => Promise<string>` | data URIs, http(s), file paths relative to `process.cwd()` | data URIs and http(s); file paths throw |
 | `createDocument?: () => Document`                    | jsdom                                                      | global `document`; throws without a DOM |
 
-In `/html`, `writeFile()` throws because it needs a filesystem; use `toPdf()`.
+In `/html`, `writeFile()` downloads the PDF in a browser, as PptxGenJS downloads its `.pptx`; without a
+global `document` it throws, so use `toPdf()`.
 Without a global DOM (for example a worker or a server runtime without
 jsdom), pass `createDocument`: the constructor creates `pres.page` with it. `toHtml()` and `modelToHtml()`
 build the HTML as strings and call `createDocument` only for a component that reads `context.document`.

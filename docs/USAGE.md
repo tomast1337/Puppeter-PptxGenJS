@@ -316,8 +316,9 @@ Creates a new PuppeteerGen instance with the specified page size (default: 16:9 
 - `setPageSize(pageSize: PageSize): void`
     - Changes the page size of the presentation
 
-- `writeFile(props: WriteFileProps): Promise<string>`
-    - Generates the PDF file and writes it to disk
+- `writeFile(props?: WriteFileProps): Promise<string>`
+    - Writes the PDF to disk (Node) or downloads it (browser) and returns the file name. As PptxGenJS
+      appends `.pptx`, it appends `.pdf` to a name that does not end in it; the default is `Presentation.pdf`
 
 ### PuppeteerSlide Class
 
