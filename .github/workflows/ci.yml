@@ -132,6 +132,17 @@ jobs:
       - name: Build packages
         run: bun run build
 
+      # The examples import @pdfdeck/* by name and resolve to the dist files just built, as an application does.
+      # They write their PDFs to the working directory, so run them outside the checkout.
+      - name: Run examples
+        working-directory: ${{ runner.temp }}
+        run: |
+          for example in "$GITHUB_WORKSPACE"/examples/*.ts; do
+            echo "::group::$example"
+            bun run "$example"
+            echo "::endgroup::"
+          done
+
       - name: Create installable tarballs
         run: |
           mkdir -p artifacts
