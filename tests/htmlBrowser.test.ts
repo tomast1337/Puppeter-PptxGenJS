@@ -170,7 +170,7 @@ describe("html entry in Chromium", () => {
             }
         });
         const nodeHtml = (await buildCrossRuntimeDeck(PuppeteerGen, PNG_DATA).toHtml()).html;
-        expect(nodeHtml).toContain('<meta name="pdfdeck-profile" content="1">');
+        expect(nodeHtml).toContain('<meta name="pdfdeck-profile" content="2">');
         // Values the CSSOM would rewrite (#69 finding 4) are written verbatim.
         expect(nodeHtml).toContain("left: 14.399999999999999px;");
         expect(nodeHtml).toContain("font-family: &quot;Arial&quot;;");

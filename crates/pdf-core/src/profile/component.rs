@@ -180,11 +180,11 @@ mod tests {
             // The repo's other components: tests/crossRuntimeDeck.ts, docs/COMPONENTS.md, examples/react-component.ts.
             (
                 r#"<strong style="color: #17365D">Badge</strong>"#,
-                "<strong> is not in profile v1: component markup is nested <div> boxes",
+                "<strong> is not in profile v2: component markup is nested <div> boxes",
             ),
             (
                 r#"<div style="height:100%;padding:16px;box-sizing:border-box;background:#eef2ff;font-family:Arial"><strong>Revenue</strong><div style="font-size:32px">42</div></div>"#,
-                "CSS property 'padding' on <div> is not in profile v1",
+                "CSS property 'padding' on <div> is not in profile v2",
             ),
             ("Badge", "unexpected text 'Badge'"),
             (
@@ -194,11 +194,11 @@ mod tests {
             (r#"<div style="width:1px;height:1px">text</div>"#, "unexpected text 'text'"),
             (
                 r#"<div class="bar" style="width:1px;height:1px"></div>"#,
-                "attribute 'class' on <div> is not in profile v1",
+                "attribute 'class' on <div> is not in profile v2",
             ),
             (
                 r#"<div id="bar" style="width:1px;height:1px"></div>"#,
-                "attribute 'id' on <div> is not in profile v1",
+                "attribute 'id' on <div> is not in profile v2",
             ),
             (r#"<div style="height:1px"></div>"#, "CSS property 'width' is missing"),
             (
@@ -219,9 +219,9 @@ mod tests {
                 r#"<div style="width:1px;height:1px;background:red;background-color:red"></div>"#,
                 "'background' and 'background-color' are both set",
             ),
-            (r#"<svg width="100%" height="100%"></svg>"#, "<svg> is not in profile v1"),
-            (r#"<img src="data:image/png;base64,">"#, "<img> is not in profile v1"),
-            (r#"<script>x()</script>"#, "<script> is not in profile v1"),
+            (r#"<svg width="100%" height="100%"></svg>"#, "<svg> is not in profile v2"),
+            (r#"<img src="data:image/png;base64,">"#, "<img> is not in profile v2"),
+            (r#"<script>x()</script>"#, "<script> is not in profile v2"),
         ] {
             let html = PROGRESS.replace(inner, markup);
             let error = svg(&html).err().unwrap_or_default();

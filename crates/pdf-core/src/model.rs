@@ -5,7 +5,17 @@ use crate::svg::Svg;
 
 pub(crate) struct Presentation {
     pub(crate) page_size: PageSize,
+    pub(crate) metadata: Metadata,
     pub(crate) slides: Vec<Slide>,
+}
+
+/// `PresentationMetadata`, the fields a PDF has a place for: `<title>`, `<meta name="author">` and
+/// `<meta name="description">` (the subject). Read from profile version 2 only.
+#[derive(Default)]
+pub(crate) struct Metadata {
+    pub(crate) title: Option<String>,
+    pub(crate) author: Option<String>,
+    pub(crate) subject: Option<String>,
 }
 
 pub(crate) struct PageSize {
@@ -297,6 +307,7 @@ pub(crate) mod build {
     pub(crate) fn deck(objects: Vec<SlideObject>) -> Presentation {
         Presentation {
             page_size: PageSize { width: 10.0, height: 5.625 },
+            metadata: Metadata::default(),
             slides: vec![Slide {
                 background: "#FFFFFF".into(),
                 objects,

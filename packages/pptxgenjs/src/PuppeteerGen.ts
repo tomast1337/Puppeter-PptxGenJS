@@ -5,7 +5,7 @@ import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps } from "./components/types";
 import { PPTX_DEFAULTS, PPTXGENJS_VERSION } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
-import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
+import type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdfdeck/model";
 import { normalizeChart } from "./normalize/chart";
 import { normalizeHtmlTable } from "./normalize/table/html";
 import { normalizeImage, resolveRemoteImageSource } from "./normalize/image";
@@ -275,7 +275,7 @@ function isBuiltInLayout(name: string): name is keyof typeof PPTX_LAYOUT_PAGE_SI
 }
 
 // PptxGenJS 4.0.1 declares `PlaceholderType` but its instance has no such member (it reads undefined), so neither has this one.
-export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType" | "author" | "company" | "revision" | "subject" | "title"> {
+export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     private pageSize: PageSize;
     /** The name last assigned to `layout`; undefined until then, as in PptxGenJS. */
     private layoutName: string | undefined;
@@ -284,6 +284,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType" | "au
     private readonly definedLayouts = new Map<string, PageSize>();
     private themeProps: PptxGenJS.ThemeProps | undefined;
     private rtl: boolean = PPTX_DEFAULTS.presentation.rtlMode;
+    // PptxGenJS writes these to docProps/core.xml and app.xml; toHtml() writes them to <head> and the renderers to the PDF.
+    private metadata: Required<PresentationMetadata> = { ...PPTX_DEFAULTS.presentation.metadata };
     /**
      * Input document for tableToSlides(tableId) only: put the source <table> here. Slides are not written
      * into it, so editing it does not change toHtml() or the PDF (#69). #72 tracks option (b): tableToSlides
@@ -374,6 +376,51 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType" | "au
         this.rtl = value;
     }
 
+    get author(): string {
+        return this.metadata.author;
+    }
+
+    set author(value: string) {
+        this.setMetadata("author", value);
+    }
+
+    get company(): string {
+        return this.metadata.company;
+    }
+
+    set company(value: string) {
+        this.setMetadata("company", value);
+    }
+
+    get revision(): string {
+        return this.metadata.revision;
+    }
+
+    set revision(value: string) {
+        this.setMetadata("revision", value);
+    }
+
+    get subject(): string {
+        return this.metadata.subject;
+    }
+
+    set subject(value: string) {
+        this.setMetadata("subject", value);
+    }
+
+    get title(): string {
+        return this.metadata.title;
+    }
+
+    set title(value: string) {
+        this.setMetadata("title", value);
+    }
+
+    private setMetadata(key: keyof PresentationMetadata, value: unknown): void {
+        if (typeof value !== "string") throw new TypeError(`pres.${key} must be a string, got ${value === null ? "null" : typeof value}; an empty string leaves it out of the PDF`);
+        this.metadata = { ...this.metadata, [key]: value };
+    }
+
     // PptxGenJS's enum objects. Each one is a plain object with the enum's keys and values, which tests/presentation.test.ts
     // compares with the pinned runtime; the declaration file's enum types cannot see that.
     get AlignH(): typeof PptxGenJS.AlignH {
@@ -437,7 +484,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType" | "au
      * `component` objects keep only type, version and props; rendering them needs the registered definitions.
      */
     getModel(): NormalizedPresentation {
-        return structuredClone({ pageSize: this.pageSize, slides: this.slides.map(slide => slide.model) });
+        return structuredClone({ pageSize: this.pageSize, metadata: this.metadata, slides: this.slides.map(slide => slide.model) });
     }
 
     /** PptxGenJS `stream()`: the PDF as a Node Buffer. `compression` is ignored (zip-only). */

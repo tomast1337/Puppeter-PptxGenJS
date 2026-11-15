@@ -516,10 +516,9 @@ export const WASM_COMPATIBILITY = Object.freeze({
  * - implemented: the member exists and behaves as in PptxGenJS.
  * - partial: some values work; the others throw UnsupportedFeatureError.
  * - unsupported: using it throws UnsupportedFeatureError with a workaround.
- * - pending: accepted, not yet acted on (#102).
  * - internal: a runtime helper absent from PptxGenJS's index.d.ts; pdfdeck need not provide it.
  */
-export type ApiStatus = "implemented" | "partial" | "unsupported" | "pending" | "internal";
+export type ApiStatus = "implemented" | "partial" | "unsupported" | "internal";
 export interface ApiEntry {
     readonly status: ApiStatus;
     readonly note: string;
@@ -546,11 +545,11 @@ export const API_COMPATIBILITY = Object.freeze({
         presLayout: { status: "implemented", note: "the page size in EMU" },
         theme: { status: "implemented", note: "bodyFontFace is the default font; headFontFace only styles title placeholders" },
         rtlMode: { status: "implemented", note: "orients PowerPoint's editing views; draws nothing" },
-        author: { status: "pending", note: "PDF metadata" },
-        company: { status: "pending", note: "PDF metadata" },
-        revision: { status: "pending", note: "PDF metadata" },
-        subject: { status: "pending", note: "PDF metadata" },
-        title: { status: "pending", note: "PDF metadata" },
+        author: { status: "implemented", note: "PDF Author" },
+        company: { status: "implemented", note: "in the HTML; a PDF has no company field (LibreOffice writes none either)" },
+        revision: { status: "implemented", note: "in the HTML; a PDF has no revision field (LibreOffice writes none either)" },
+        subject: { status: "implemented", note: "PDF Subject" },
+        title: { status: "implemented", note: "PDF Title" },
         addSection: { status: "implemented", note: "sections draw nothing; PptxGenJS's input warnings are kept" },
         addSlide: { status: "implemented", note: "a masterName finds no master, as in PptxGenJS without defineSlideMaster()" },
         defineLayout: { status: "implemented", note: "also applies the size at once" },

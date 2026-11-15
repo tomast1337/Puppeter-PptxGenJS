@@ -326,7 +326,20 @@ export interface NormalizedSlide {
     objects: NormalizedSlideObject[];
 }
 
+/**
+ * Document properties, as PptxGenJS writes them to docProps/core.xml (title, subject, author as dc:creator, revision)
+ * and docProps/app.xml (company). An absent or empty one is not written.
+ */
+export interface PresentationMetadata {
+    title?: string;
+    author?: string;
+    subject?: string;
+    company?: string;
+    revision?: string;
+}
+
 export interface NormalizedPresentation {
     pageSize: PageSize;
+    metadata?: PresentationMetadata;
     slides: NormalizedSlide[];
 }

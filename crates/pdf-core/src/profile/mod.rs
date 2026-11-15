@@ -1,4 +1,4 @@
-//! Reads a pdfdeck HTML profile document (docs/HTML_PROFILE.md, version 1), the output of
+//! Reads a pdfdeck HTML profile document (docs/HTML_PROFILE.md, versions 1 and 2), the output of
 //! `toHtml()`, into the `crate::model` structs the drawing code reads.
 //!
 //! Every value comes from the one place the profile puts it, verbatim; nothing is defaulted here
@@ -21,10 +21,13 @@ mod text;
 use dom::{Dom, Element};
 use style::{Style, number, split_top_level};
 
-use crate::model::{PageSize, Presentation, Slide, SlideObject};
+use crate::model::{Metadata, PageSize, Presentation, Slide, SlideObject};
 
-/// The profile version this reader implements (`<meta name="pdfdeck-profile" content="1">`).
-const PROFILE_VERSION: &str = "1";
+/// The profile version this reader implements (`<meta name="pdfdeck-profile" content="2">`). It also
+/// reads version 1, whose documents have no metadata: version 2 only added `<title>` and the
+/// `author`, `description`, `pdfdeck-company` and `pdfdeck-revision` meta tags.
+const PROFILE_VERSION: &str = "2";
+const PROFILE_VERSION_1: &str = "1";
 
 /// Parses a profile document into the presentation it describes.
 pub(crate) fn parse(html: &str) -> Result<Presentation, String> {
@@ -38,14 +41,14 @@ pub(crate) fn parse(html: &str) -> Result<Presentation, String> {
     };
     expect_name(head, "head")?;
     expect_name(body, "body")?;
-    let page_size = read_head(&dom, head)?;
+    let (page_size, metadata) = read_head(&dom, head)?;
     let slides = dom
         .elements_of(&body.children)?
         .into_iter()
         .enumerate()
         .map(|(index, slide)| read_slide(&dom, slide).map_err(|e| format!("slide {}: {e}", index + 1)))
         .collect::<Result<_, _>>()?;
-    Ok(Presentation { page_size, slides })
+    Ok(Presentation { page_size, metadata, slides })
 }
 
 fn expect_name(element: &Element<'_>, name: &str) -> Result<(), String> {
@@ -71,17 +74,23 @@ pub(crate) fn allow(element: &Element<'_>, style: &Style<'_>, attrs: &[&[&str]],
     Ok(())
 }
 
-/// Checks the profile version and reads the page size from the stylesheet's `@page` rule.
-fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<PageSize, String> {
+/// Checks the profile version, reads the page size from the stylesheet's `@page` rule and, in
+/// version 2, the metadata.
+fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<(PageSize, Metadata), String> {
     let mut version = None;
     let mut page_size = None;
+    let mut metadata = Metadata::default();
     for element in dom.elements_of(&head.children)? {
         match element.name {
             "meta" => {
                 let style = Style::of(element)?;
                 allow(element, &style, &[&["name", "content", "charset"]], &[])?;
-                if element.attr("name")?.as_deref() == Some("pdfdeck-profile") {
-                    version = Some(element.attr("content")?.unwrap_or_default().into_owned());
+                let content = || element.attr("content").map(|c| c.unwrap_or_default().into_owned());
+                match element.attr("name")?.as_deref() {
+                    Some("pdfdeck-profile") => version = Some(content()?),
+                    Some("author") => set_once(&mut metadata.author, r#"<meta name="author">"#, content()?)?,
+                    Some("description") => set_once(&mut metadata.subject, r#"<meta name="description">"#, content()?)?,
+                    _ => {}
                 }
             }
             "style" => {
@@ -92,20 +101,36 @@ fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<PageSize, String> {
                     page_size = Some(size);
                 }
             }
-            "title" => {}
+            // As `document.title`: ASCII whitespace stripped and collapsed.
+            "title" => {
+                let title = dom.text_of(element)?.split_ascii_whitespace().collect::<Vec<_>>().join(" ");
+                set_once(&mut metadata.title, "<title>", title)?;
+            }
             name => return Err(format!("<{name}> in <head> is not in profile v{PROFILE_VERSION}")),
         }
     }
     match version.as_deref() {
         Some(PROFILE_VERSION) => {}
+        // Version 1 gave <title> and other meta tags no meaning, so its PDFs stay without metadata.
+        Some(PROFILE_VERSION_1) => metadata = Metadata::default(),
         Some(other) => {
             return Err(format!(
-                "pdfdeck profile version '{other}' is not supported (this renderer reads version {PROFILE_VERSION})"
+                "pdfdeck profile version '{other}' is not supported (this renderer reads versions {PROFILE_VERSION_1} and {PROFILE_VERSION})"
             ));
         }
-        None => return Err(r#"not a pdfdeck profile document: <meta name="pdfdeck-profile" content="1"> is missing"#.into()),
+        None => return Err(r#"not a pdfdeck profile document: <meta name="pdfdeck-profile" content="2"> is missing"#.into()),
     }
-    page_size.ok_or_else(|| "the stylesheet has no '@page { size: <width>in <height>in }' rule".into())
+    let page_size = page_size.ok_or("the stylesheet has no '@page { size: <width>in <height>in }' rule")?;
+    Ok((page_size, metadata))
+}
+
+/// Stores a metadata value, empty as absent; a second element for the same field is an error.
+fn set_once(field: &mut Option<String>, element: &str, value: String) -> Result<(), String> {
+    if field.is_some() {
+        return Err(format!("<head> has more than one {element}"));
+    }
+    *field = Some(value).filter(|v| !v.is_empty());
+    Ok(())
 }
 
 /// The `size` of a stylesheet's `@page` rule, in inches.
@@ -170,7 +195,7 @@ pub(crate) mod tests {
     /// A one-slide profile document around `objects`.
     pub(crate) fn document(objects: &str) -> String {
         format!(
-            r#"<!DOCTYPE html><html><head><meta name="pdfdeck-profile" content="1"><meta name="pdfdeck-page-size" content="T"><style id="s">@page {{
+            r#"<!DOCTYPE html><html><head><meta name="pdfdeck-profile" content="2"><meta name="pdfdeck-page-size" content="T"><style id="s">@page {{
     size: 10in 5.625in;
     margin: 0;
 }}
@@ -190,12 +215,42 @@ pub(crate) mod tests {
     #[test]
     fn requires_a_known_profile_version() {
         let html = document("");
-        let missing = parse(&html.replace(r#"<meta name="pdfdeck-profile" content="1">"#, ""))
+        let missing = parse(&html.replace(r#"<meta name="pdfdeck-profile" content="2">"#, ""))
             .err()
             .unwrap_or_default();
         assert!(missing.contains("not a pdfdeck profile document"), "{missing}");
-        let unknown = parse(&html.replace(r#"content="1""#, r#"content="2""#)).err().unwrap_or_default();
-        assert!(unknown.contains("version '2' is not supported"), "{unknown}");
+        let unknown = parse(&html.replace(r#"content="2""#, r#"content="3""#)).err().unwrap_or_default();
+        assert_eq!(unknown, "pdfdeck profile version '3' is not supported (this renderer reads versions 1 and 2)");
+    }
+
+    /// `document("")` with `head` written after the version and page-size meta tags.
+    fn with_head(version: &str, head: &str) -> String {
+        document("").replace(
+            r#"<meta name="pdfdeck-profile" content="2">"#,
+            &format!(r#"<meta name="pdfdeck-profile" content="{version}">{head}"#),
+        )
+    }
+
+    #[test]
+    fn reads_the_metadata_of_version_2() {
+        let head = r#"<title>  Q3 &amp;
+ plan </title><meta name="author" content="Ana &quot;A&quot;"><meta name="description" content="Sales"><meta name="pdfdeck-company" content="Co"><meta name="pdfdeck-revision" content="4">"#;
+        let Metadata { title, author, subject } = parse(&with_head("2", head)).map(|p| p.metadata).unwrap();
+        assert_eq!(title.as_deref(), Some("Q3 & plan"));
+        assert_eq!(author.as_deref(), Some(r#"Ana "A""#));
+        assert_eq!(subject.as_deref(), Some("Sales"));
+
+        let empty = parse(&with_head("2", r#"<title></title><meta name="author" content="">"#)).unwrap().metadata;
+        assert!(empty.title.is_none() && empty.author.is_none() && empty.subject.is_none());
+        let twice = parse(&with_head("2", "<title>a</title><title>b</title>")).err().unwrap_or_default();
+        assert_eq!(twice, "<head> has more than one <title>");
+    }
+
+    #[test]
+    fn reads_version_1_without_metadata() {
+        let old = parse(&with_head("1", r#"<title>T</title><meta name="author" content="A">"#)).unwrap();
+        assert!(old.metadata.title.is_none() && old.metadata.author.is_none());
+        assert_eq!(old.slides.len(), 1);
     }
 
     #[test]

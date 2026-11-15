@@ -1170,7 +1170,7 @@ pub(crate) mod tests {
             ),
             (
                 r#"<path d="M0 0" filter="url(#f)"></path>"#,
-                "attribute 'filter' on <path> is not in profile v1",
+                "attribute 'filter' on <path> is not in profile v2",
             ),
             (r#"<path d="M0 0" style="filter: none"></path>"#, "CSS property 'filter' on <path>"),
             (r#"<path d="M0 0" fill="reddish"></path>"#, "attribute 'fill': 'reddish' is not a #rgb"),

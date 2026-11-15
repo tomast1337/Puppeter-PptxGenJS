@@ -1,6 +1,6 @@
 import type { ComponentRegistry } from "../components/registry";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "../defaults";
-import { HTML_PROFILE_VERSION, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject } from "@pdfdeck/model";
+import { HTML_PROFILE_VERSION, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, type PresentationMetadata } from "@pdfdeck/model";
 import { normalizeColor } from "../normalize/style";
 import type { PageSize } from "../pageLayouts";
 import { inchesToPixels, pointsToPixels } from "../units";
@@ -8,7 +8,7 @@ import { renderChart, renderChartExtension } from "./chart";
 import { componentHtml, type RenderedComponent, renderComponent } from "./component";
 import { type InlineStyle, styleAttribute } from "./css";
 import { renderImage } from "./image";
-import { element, voidElement } from "./markup";
+import { element, escapeText, voidElement } from "./markup";
 import { renderShape, renderShapeSvg } from "./shape";
 import { applyObjectStyle } from "./style";
 import { renderTable } from "./table";
@@ -109,7 +109,20 @@ export function presentationHtml(presentation: NormalizedPresentation, pass: Ren
     const style = element("style", [["id", "puppeteer-gen-styles"]], presentationCSS(presentation.pageSize));
     const slides = presentation.slides.map((slide, index) => renderSlide(slide, index, pass)).join("");
     // Standards mode: quirks mode drops the line-box strut that text.ts sizes lines with.
-    return `<!DOCTYPE html><html><head>${profile}${pageSize}${style}</head><body>${slides}</body></html>`;
+    return `<!DOCTYPE html><html><head>${profile}${pageSize}${metadataHtml(presentation.metadata)}${style}</head><body>${slides}</body></html>`;
+}
+
+/** Document properties: standard HTML where it has a name for one, `pdfdeck-*` meta otherwise; empty ones are left out. */
+function metadataHtml({ title, author, subject, company, revision }: PresentationMetadata = {}): string {
+    const meta = (name: string, content: string | undefined) =>
+        content
+            ? voidElement("meta", [
+                  ["name", name],
+                  ["content", content],
+              ])
+            : "";
+    // `description` is HTML's "free-form string describing the page", the PDF Subject's meaning (krilla writes it there too).
+    return `${title ? element("title", [], escapeText(title)) : ""}${meta("author", author)}${meta("description", subject)}${meta("pdfdeck-company", company)}${meta("pdfdeck-revision", revision)}`;
 }
 
 /** The shared stylesheet: generated from the page size only. */

@@ -151,6 +151,9 @@ impl Renderer {
 
     fn draw_presentation(&mut self, model: &Presentation) -> Result<Vec<u8>, String> {
         let mut document = Document::new();
+        if let Some(metadata) = pdf_metadata(&model.metadata) {
+            document.set_metadata(metadata);
+        }
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
         let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
         self.page_count = model.slides.len();
@@ -293,6 +296,27 @@ impl Renderer {
     }
 }
 
+/// The PDF Info dictionary and XMP packet for `metadata`: Title, Author and Subject (krilla's
+/// `description`, written as /Subject and dc:description). None without any, so a document
+/// without metadata is written as before.
+fn pdf_metadata(metadata: &model::Metadata) -> Option<krilla::metadata::Metadata> {
+    let model::Metadata { title, author, subject } = metadata;
+    if title.is_none() && author.is_none() && subject.is_none() {
+        return None;
+    }
+    let mut pdf = krilla::metadata::Metadata::new();
+    if let Some(title) = title {
+        pdf = pdf.title(title.clone());
+    }
+    if let Some(author) = author {
+        pdf = pdf.authors(vec![author.clone()]);
+    }
+    if let Some(subject) = subject {
+        pdf = pdf.description(subject.clone());
+    }
+    Some(pdf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,6 +338,17 @@ mod tests {
         let pdf = r.render_html(&html).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
         assert_eq!(r.warnings(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn writes_the_metadata_to_the_info_dictionary_and_none_without_it() {
+        let mut r = Renderer::new();
+        let plain = profile::tests::document("");
+        let with = plain.replace("<style", r#"<title>Deck</title><meta name="author" content="Ana"><style"#);
+        let contains = |pdf: &[u8], needle: &[u8]| pdf.windows(needle.len()).any(|w| w == needle);
+        let pdf = r.render_html(&with).unwrap();
+        assert!(contains(&pdf, b"<</Title(Deck)/Author(Ana)>>"));
+        assert!(!contains(&r.render_html(&plain).unwrap(), b"/Title"));
     }
 
     #[test]
