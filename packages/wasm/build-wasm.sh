@@ -30,7 +30,8 @@ root=$PWD
 # +93 B: the table offset leaves the table allow-list (#69 phase 6); raw -26 B, gzip packs it worse, 957,960 -> 958,053 B measured; budget = that size.
 # -112 B: font-family is exactly one quoted family; the bullet copy is checked too (#69 phase 7), 958,053 -> 957,941 B measured; budget = that size.
 # +17,807 B: chart SVG (#69 phase 8a: strict SVG subset reader, gradients, clip paths, SVG text), 957,941 -> 975,748 B measured; budget = that size.
-GZIP_BUDGET=975748
+# +7 B: the SVG reader and drawing renamed from chart to svg (#69 phase 8b, shared with SVG images); only embedded source paths change, 975,748 -> 975,755 B measured; budget = that size.
+GZIP_BUDGET=975755
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
