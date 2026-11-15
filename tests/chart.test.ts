@@ -45,6 +45,15 @@ describe("chart normalization and rendering", () => {
         expect([axes.valueAxes[0]?.titleFontFace, axes.valueAxes[0]?.labelFontFace]).toEqual(["Courier New", "Verdana"]);
     });
 
+    test("ignores the chart-level fontSize, which PptxGenJS reads for no chart text", () => {
+        // PptxGenJS 4.0.1 writes catAxisLabelFontSize, valAxisLabelFontSize and dataLabelFontSize `|| 12`, titleFontSize
+        // `|| 18`, and legendFontSize only when set: chart XML with `fontSize: 31` is byte-identical to chart XML without.
+        const chart = normalizeChart("bar", categoricalData, { fontSize: 31, showTitle: true, title: "T", showValAxisTitle: true, valAxisTitle: "V" });
+        expect([chart.fontSize, chart.titleFontSize, chart.valueAxes[0]?.titleFontSize, chart.valueAxes[0]?.labelFontSize, chart.legendFontSize]).toEqual([12, 18, 12, 12, 10]);
+        const axes = normalizeChart("bar", categoricalData, { fontSize: 31, valAxisLabelFontSize: 9, titleFontSize: 20 });
+        expect([axes.valueAxes[0]?.labelFontSize, axes.titleFontSize]).toEqual([9, 20]);
+    });
+
     test("legend ignores chart fontFace/fontSize like PptxGenJS and defaults to 10pt body font", () => {
         // PptxGenJS writes legend <c:txPr> only for legendFontFace/legendFontSize/legendColor.
         const inherited = normalizeChart("bar", categoricalData, { showLegend: true, fontFace: "Arial", fontSize: 20 });

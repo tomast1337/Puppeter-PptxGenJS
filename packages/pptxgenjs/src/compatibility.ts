@@ -207,7 +207,7 @@ const PARTIAL_CHART_OPTIONS = new Set<string>([
     "valAxisMinorTickMark", // `cross` remains explicit unsupported
 ]);
 // Declared in IChartOpts but read by no chart writer in PptxGenJS 4.0.1.
-const IGNORED_CHART_OPTIONS = new Set<string>(["fontFace"]);
+const IGNORED_CHART_OPTIONS = new Set<string>(["fontFace", "fontSize"]);
 const CHART_OPTION_COMPATIBILITY = Object.freeze(Object.fromEntries(CHART_OPTION_NAMES.map(name => [name, IGNORED_CHART_OPTIONS.has(name) ? "ignored" : PARTIAL_CHART_OPTIONS.has(name) ? "partial" : IMPLEMENTED_CHART_OPTIONS.has(name) ? "implemented" : "unsupported"]))) as Readonly<
     Record<(typeof CHART_OPTION_NAMES)[number], CompatibilityStatus>
 >;
