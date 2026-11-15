@@ -11,6 +11,13 @@ The compatibility baseline is the exact `pptxgenjs` version pinned in `package.j
 the HTML document, derived from the model, into PDF: Chromium through Puppeteer (`@pdfdeck/puppeteer`,
 the default) and a Rust renderer compiled to WebAssembly (`@pdfdeck/wasm`, from `crates/`).
 
+**Who it is for.** Codebases that use PptxGenJS only to produce PDFs and want to keep their calls:
+migrating must be a change of import with a small diff, not a rewrite. That makes API compatibility the
+first priority, ahead of new backends or a native API: an option that is silently ignored breaks a
+migration without anyone noticing. The main runtime is a server (Node, Bun); the browser build of the
+WASM renderer is a bonus, so the wasm size budget guards against accidental growth and a measured,
+justified increase for a real feature is acceptable.
+
 **HTML is a first-class output, whichever backend draws the PDF.** `toHtml()` returns the deck as one
 self-contained HTML document, the one the renderers draw, so a user can read it, check
 that the text is what they expect, and diff two versions of a deck without touching a PDF. Keep it that
