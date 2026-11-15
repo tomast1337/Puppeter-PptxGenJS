@@ -1,6 +1,6 @@
 // Browser-safe entry: must not load puppeteer, jsdom or node:* modules (enforced by tests/html.test.ts and scripts/build.ts).
 import { UnsupportedChartError } from "./chart/errors";
-import { CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
+import { API_COMPATIBILITY, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
 import { parseComponentProps } from "./components/schema";
 import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
 import { PuppeteerGen } from "./PuppeteerGen";
@@ -15,6 +15,7 @@ import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } f
 
 export {
     alignToCSS,
+    API_COMPATIBILITY,
     CHART_TYPE_COMPATIBILITY,
     COMPATIBILITY,
     colorToCSS,
@@ -47,7 +48,7 @@ export default PuppeteerGen;
 
 export type { UnsupportedChartDetails, UnsupportedChartReason } from "./chart/errors";
 export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
-export type { CompatibilityEntry, CompatibilityStatus } from "./compatibility";
+export type { ApiEntry, ApiStatus, CompatibilityEntry, CompatibilityStatus } from "./compatibility";
 export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
 export type { FourSideMargin } from "./defaults";
 export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";

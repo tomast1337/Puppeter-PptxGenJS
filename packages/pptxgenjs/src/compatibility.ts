@@ -511,3 +511,81 @@ export const WASM_COMPATIBILITY = Object.freeze({
         }),
     }),
 } as const);
+
+/**
+ * - implemented: the member exists and behaves as in PptxGenJS.
+ * - partial: some values work; the others throw UnsupportedFeatureError.
+ * - unsupported: using it throws UnsupportedFeatureError with a workaround.
+ * - pending: accepted, not yet acted on (#102).
+ * - internal: a runtime helper absent from PptxGenJS's index.d.ts; pdfdeck need not provide it.
+ */
+export type ApiStatus = "implemented" | "partial" | "unsupported" | "pending" | "internal";
+export interface ApiEntry {
+    readonly status: ApiStatus;
+    readonly note: string;
+}
+
+/**
+ * What pdfdeck does with each public member of a pptxgenjs 4.0.1 presentation and slide, as its runtime enumerates
+ * them (names starting with `_` are PptxGenJS's private state). tests/pptxgenjsSurface.test.ts fails when the pinned
+ * runtime has a member this table does not classify.
+ */
+export const API_COMPATIBILITY = Object.freeze({
+    presentation: Object.freeze<Record<string, ApiEntry>>({
+        AlignH: { status: "implemented", note: "the same enum object" },
+        AlignV: { status: "implemented", note: "the same enum object" },
+        ChartType: { status: "implemented", note: "the same enum object" },
+        OutputType: { status: "implemented", note: "the same enum object" },
+        SchemeColor: { status: "implemented", note: "the same enum object" },
+        ShapeType: { status: "implemented", note: "the same enum object" },
+        charts: { status: "implemented", note: "deprecated alias of ChartType" },
+        colors: { status: "implemented", note: "deprecated alias of SchemeColor" },
+        shapes: { status: "implemented", note: "deprecated alias of ShapeType" },
+        version: { status: "implemented", note: "the pinned PptxGenJS version" },
+        layout: { status: "implemented", note: "the page size of every slide" },
+        presLayout: { status: "implemented", note: "the page size in EMU" },
+        theme: { status: "implemented", note: "bodyFontFace is the default font; headFontFace only styles title placeholders" },
+        rtlMode: { status: "implemented", note: "orients PowerPoint's editing views; draws nothing" },
+        author: { status: "pending", note: "PDF metadata" },
+        company: { status: "pending", note: "PDF metadata" },
+        revision: { status: "pending", note: "PDF metadata" },
+        subject: { status: "pending", note: "PDF metadata" },
+        title: { status: "pending", note: "PDF metadata" },
+        addSection: { status: "implemented", note: "sections draw nothing; PptxGenJS's input warnings are kept" },
+        addSlide: { status: "implemented", note: "a masterName finds no master, as in PptxGenJS without defineSlideMaster()" },
+        defineLayout: { status: "implemented", note: "also applies the size at once" },
+        defineSlideMaster: { status: "unsupported", note: "set slide.background and add the shared objects to each slide" },
+        tableToSlides: { status: "implemented", note: "reads the table from pres.page" },
+        stream: { status: "implemented", note: "the PDF as a Node Buffer" },
+        write: { status: "implemented", note: "the PDF in the requested outputType" },
+        writeFile: { status: "implemented", note: "writes the PDF (Node entry)" },
+        LAYOUTS: { status: "internal", note: "built-in sizes are PPTX_DEFAULTS.presentation.layouts; defineLayout() adds names" },
+        slides: { status: "internal", note: "getModel() is the public view of the slides" },
+        sections: { status: "internal", note: "sections draw nothing" },
+        masterSlide: { status: "internal", note: "masters are unsupported" },
+        slideLayouts: { status: "internal", note: "masters are unsupported" },
+        addNewSlide: { status: "internal", note: "auto-paging callback" },
+        getSlide: { status: "internal", note: "auto-paging callback" },
+        setSlideNumber: { status: "internal", note: "slide-number callback" },
+        createChartMediaRels: { status: "internal", note: "PPTX zip writer" },
+        exportPresentation: { status: "internal", note: "PPTX zip writer" },
+        writeFileToBrowser: { status: "internal", note: "PPTX download helper" },
+    }),
+    slide: Object.freeze<Record<string, ApiEntry>>({
+        addChart: { status: "implemented", note: "options in COMPATIBILITY.chart" },
+        addImage: { status: "implemented", note: "options in COMPATIBILITY.image" },
+        addMedia: { status: "unsupported", note: "a PDF cannot play media; add a poster image" },
+        addNotes: { status: "implemented", note: "notes are not on the slide, as in PowerPoint" },
+        addShape: { status: "implemented", note: "options in COMPATIBILITY.shape" },
+        addTable: { status: "implemented", note: "options in COMPATIBILITY.table" },
+        addText: { status: "implemented", note: "options in COMPATIBILITY.text" },
+        background: { status: "partial", note: "a color, also as the deprecated `fill`; an image (`path`, `data`) throws UnsupportedFeatureError" },
+        bkgd: { status: "implemented", note: "deprecated background color" },
+        color: { status: "implemented", note: "default text color" },
+        hidden: { status: "unsupported", note: "PDF exports leave hidden slides out; `hidden = true` throws, leave the slide out instead" },
+        newAutoPagedSlides: { status: "implemented", note: "slides added by autoPage" },
+        slideNumber: { status: "unsupported", note: "add the number with addText()" },
+        addSlide: { status: "internal", note: "auto-paging callback" },
+        getSlide: { status: "internal", note: "auto-paging callback" },
+    }),
+});

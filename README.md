@@ -91,10 +91,12 @@ local name works. Slide methods chain as in PptxGenJS. Differences to know when 
   none, as in PowerPoint. Set it before adding objects; changing it afterwards throws.
 - **Output:** `writeFile()`, `write()` and `stream()` return PDF bytes; `toPdf()` and `toHtml()`
   are pdfdeck additions. See [docs/BACKENDS.md](./docs/BACKENDS.md).
-- **Not drawn:** `addMedia()` and `defineSlideMaster()` throw `UnsupportedFeatureError` with a
-  suggested alternative; `addNotes()` and `pres.rtlMode` (which orients PowerPoint's editing views)
+- **Not drawn:** `addMedia()`, `defineSlideMaster()`, `slide.slideNumber`, a background picture
+  (`slide.background = { path }`) and `slide.hidden = true` throw `UnsupportedFeatureError` with a
+  suggested alternative. `addNotes()` and `pres.rtlMode` (which orients PowerPoint's editing views)
   are accepted and, as on a PowerPoint slide, change nothing shown. Presentation metadata (`title`,
-  `author`, ...) is not part of the API.
+  `author`, ...) is not part of the API. `API_COMPATIBILITY` lists what pdfdeck does with each
+  PptxGenJS presentation and slide member.
 
 ### Use it from source today
 
