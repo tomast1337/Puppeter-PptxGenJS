@@ -161,6 +161,18 @@ describe("chart normalization and rendering", () => {
         }
     });
 
+    test("draws the bar3D legend in the legend font, not the axis-label font", () => {
+        const legendText = (options: PptxGenJS.IChartOpts) => {
+            const presentation = new PuppeteerGen();
+            presentation.addSlide().addChart("bar3D", categoricalData, { x: 0, y: 0, w: 5, h: 3, showLegend: true, ...options });
+            const text = renderedPage(presentation).querySelector(".bar3d-legend");
+            return [text?.getAttribute("font-family"), text?.getAttribute("font-size"), text?.getAttribute("fill")];
+        };
+        // PptxGenJS writes no legend <c:txPr> by default: Office's 10pt chart text in the body font.
+        expect(legendText({})).toEqual(["Calibri", "13.33", "#000000"]);
+        expect(legendText({ legendFontFace: "Georgia", legendFontSize: 14, legendColor: "C00000" })).toEqual(["Georgia", "18.67", "#C00000"]);
+    });
+
     test("normalizes and renders primary-axis bar, line, and area combinations", () => {
         const mixed: PptxGenJS.IChartMulti[] = [
             { type: "bar", data: [categoricalData[0]!], options: {} },

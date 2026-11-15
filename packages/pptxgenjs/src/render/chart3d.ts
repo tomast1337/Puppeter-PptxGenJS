@@ -182,6 +182,8 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
             return `<text class="bar3d-series-label" x="${n(point.x + 12)}" y="${n(point.y + 5)}">${escapeXml(series.name)}</text>`;
         })
         .join("");
+    // The legend has its own font (legendFontFace/legendFontSize/legendColor), not the axis-label font of the <g>.
+    const legendFont = ` font-family="${escapeXml(chart.legendFontFace)}" font-size="${n(pointsToPixels(chart.legendFontSize))}" fill="${chart.legendColor}"`;
     const legend = chart.showLegend
         ? chart.series
               .map((series, index) => {
@@ -189,7 +191,7 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
                   const x = width / 2 + (index - (chart.series.length - 1) / 2) * itemWidth;
                   const y = height - 12;
                   const color = chart.colors[index % chart.colors.length] ?? "#4472C4";
-                  return `<rect x="${n(x - 34)}" y="${n(y - 8)}" width="12" height="8" fill="${color}"/>` + `<text class="bar3d-legend" x="${n(x - 17)}" y="${n(y)}">${escapeXml(series.name)}</text>`;
+                  return `<rect x="${n(x - 34)}" y="${n(y - 8)}" width="12" height="8" fill="${color}"/>` + `<text class="bar3d-legend" x="${n(x - 17)}" y="${n(y)}"${legendFont}>${escapeXml(series.name)}</text>`;
               })
               .join("")
         : "";
