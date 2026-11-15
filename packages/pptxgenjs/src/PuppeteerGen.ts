@@ -46,9 +46,6 @@ export class PuppeteerSlide implements PptxSlide {
         };
         this.color = PPTX_DEFAULTS.slide.color;
         this.hidden = false;
-        this.slideNumber = {
-            margin: 0,
-        };
         this.newAutoPagedSlides = [];
         this.bkgd = PPTX_DEFAULTS.slide.backgroundColor;
     }
@@ -59,7 +56,6 @@ export class PuppeteerSlide implements PptxSlide {
     private _color: string = PPTX_DEFAULTS.slide.color;
     private _hidden: boolean = PPTX_DEFAULTS.slide.hidden;
     private readonly getContinuationSlide: (offset: number) => PuppeteerSlide;
-    slideNumber: PptxGenJS.SlideNumberProps;
     newAutoPagedSlides: PptxGenJS.PresSlide[];
     private objectCounts: Record<string, number> = {};
     /** Normalized, JSON-serializable record of this slide; toHtml() renders the slide from it alone. */
@@ -75,9 +71,14 @@ export class PuppeteerSlide implements PptxSlide {
     }
 
     set background(value: PptxGenJS.BackgroundProps) {
+        if (value?.path || value?.data || value?.src) {
+            throw new UnsupportedFeatureError("slide.background = { path | data }", "Add the picture as the slide's first object instead: slide.addImage({ path, x: 0, y: 0, w: '100%', h: '100%' }).", "property");
+        }
         this._background = value;
-        if (!value?.color) return;
-        this.model.background = normalizeColor(value);
+        // PptxGenJS copies the deprecated `fill` to `color`.
+        const color = value?.color ?? value?.fill;
+        if (!color) return;
+        this.model.background = normalizeColor({ ...value, color });
     }
 
     get bkgd(): string {
@@ -103,8 +104,21 @@ export class PuppeteerSlide implements PptxSlide {
     }
 
     set hidden(value: boolean) {
+        // LibreOffice and PowerPoint leave a hidden slide out of the PDF; both renderers would print it.
+        if (value) throw new UnsupportedFeatureError("slide.hidden = true", "Leave the slide out of the presentation instead of hiding it.", "property");
         this._hidden = value;
         this.model.hidden = value;
+    }
+
+    get slideNumber(): PptxGenJS.SlideNumberProps {
+        // PptxGenJS returns null until a slide number is set; setting one throws here, so it stays null.
+        return null as unknown as PptxGenJS.SlideNumberProps;
+    }
+
+    set slideNumber(value: PptxGenJS.SlideNumberProps) {
+        if (value) {
+            throw new UnsupportedFeatureError("slide.slideNumber", "Add the number as text on each slide: slide.addText(String(slideIndex + 1), { x, y, w, h, fontSize }).", "property");
+        }
     }
 
     private nextObjectName(kind: string, explicit?: string): string {

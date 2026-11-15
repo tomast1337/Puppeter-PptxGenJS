@@ -26,7 +26,8 @@ function representativeDeck(): PuppeteerGen {
         { x: 0.5, y: 1.6, w: 4, h: 2, valign: "bottom", rotate: 15, shadow: { type: "outer", color: "000000", opacity: 0.4, blur: 3, offset: 2, angle: 45 } },
     );
     text.addText("In a shape", { shape: "roundRect", x: 5, y: 0.5, w: 3, h: 2, fill: { color: "4472C4" }, rectRadius: 0.2, align: "center" });
-    text.hidden = true;
+    // slide.hidden = true throws (a PDF export would leave the slide out); other model producers may still set it.
+    text.model.hidden = true;
 
     const shapes = pres.addSlide();
     shapes.bkgd = "112233";
