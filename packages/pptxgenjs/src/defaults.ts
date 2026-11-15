@@ -69,9 +69,10 @@ export const PPTX_DEFAULTS = Object.freeze({
         outputType: "blob",
         fileName: "Presentation.pptx",
         // PptxGenJS 4.0.1 writeFile() appends ".pptx" to a name that does not end in it (any case) and defaults
-        // to fileName; pdfdeck writes a PDF, so it does the same with ".pdf".
+        // to fileName. pdfdeck replaces a trailing ".pptx" with ".pdf", appends ".pdf" to other names and
+        // requires a name (resolveFileName in output.ts).
+        pptxExtension: ".pptx",
         pdfExtension: ".pdf",
-        pdfFileName: "Presentation.pdf",
     }),
     fill: Object.freeze({ whenProvidedType: "solid" as const, transparency: 0 }),
     border: Object.freeze({ whenProvidedType: "solid" as const, color: "666666", widthPt: 1 }),

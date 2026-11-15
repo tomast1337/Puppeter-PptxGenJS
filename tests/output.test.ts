@@ -114,21 +114,43 @@ describe("write() and stream()", () => {
 });
 
 describe("writeFile()", () => {
-    test("names the file like PptxGenJS 4.0.1, with .pdf where it uses .pptx", () => {
-        // PptxGenJS: {} -> "Presentation.pptx", "a.PPTX" -> "a.PPTX", "b.pdf" -> "b.pdf.pptx", "c" -> "c.pptx" (with a warning).
+    test("turns a .pptx name into .pdf, keeps .pdf and appends .pdf to any other name", () => {
+        // PptxGenJS: "a.PPTX" -> "a.PPTX", "b.pdf" -> "b.pdf.pptx", "c" -> "c.pptx" (with a warning). A migrated
+        // "report.pptx" must write "report.pdf", so the .pptx extension is replaced rather than kept.
         const warn = spyOn(console, "warn").mockImplementation(() => {});
         try {
-            expect(resolveFileName()).toBe("Presentation.pdf");
-            expect(resolveFileName({})).toBe("Presentation.pdf");
+            expect(resolveFileName({ fileName: "report.pptx" })).toBe("report.pdf");
+            expect(resolveFileName({ fileName: "a.PPTX" })).toBe("a.pdf");
             expect(resolveFileName({ fileName: "a.PDF", compression: true })).toBe("a.PDF");
-            expect(resolveFileName({ fileName: "deck.pptx" })).toBe("deck.pptx.pdf");
+            expect(resolveFileName({ fileName: "deck" })).toBe("deck.pdf");
+            expect(resolveFileName({ fileName: "deck.pptx.bak" })).toBe("deck.pptx.bak.pdf");
             expect(warn).not.toHaveBeenCalled();
-            expect(resolveFileName("c")).toBe("c.pdf");
+            expect(resolveFileName("c.pptx")).toBe("c.pdf");
             expect(warn).toHaveBeenCalledWith("[WARNING] writeFile(string) is deprecated - pass { fileName } instead.");
         } finally {
             warn.mockRestore();
         }
-        expect(() => resolveFileName({ fileName: 3 as unknown as string })).toThrow('writeFile() fileName must be a string, got number; for example { fileName: "deck.pdf" }');
+    });
+
+    test("requires a file name, unlike PptxGenJS's Presentation.pptx default", () => {
+        const fix = 'pass one, for example writeFile({ fileName: "deck.pdf" })';
+        expect(() => resolveFileName()).toThrow(new TypeError(`writeFile() needs a file name, got undefined; ${fix}`));
+        expect(() => resolveFileName({})).toThrow(`got undefined; ${fix}`);
+        expect(() => resolveFileName({ fileName: "" })).toThrow(`got an empty string; ${fix}`);
+        expect(() => resolveFileName({ fileName: 3 as unknown as string })).toThrow(`got number; ${fix}`);
+        const warn = spyOn(console, "warn").mockImplementation(() => {});
+        try {
+            expect(() => resolveFileName("")).toThrow(`got an empty string; ${fix}`);
+        } finally {
+            warn.mockRestore();
+        }
+    });
+
+    test("writeFile() with no argument rejects before rendering", async () => {
+        const { pres, renderer } = deck();
+        await expect(pres.writeFile()).rejects.toThrow(TypeError);
+        await expect(new NodePuppeteerGen(undefined, { renderer }).writeFile()).rejects.toThrow("writeFile() needs a file name");
+        expect(renderer.calls).toBe(0);
     });
 
     test("the Node entry writes the PDF under that name and returns it", async () => {

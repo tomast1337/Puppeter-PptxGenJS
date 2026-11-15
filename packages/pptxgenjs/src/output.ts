@@ -19,16 +19,20 @@ export function resolveOutputType(props?: PptxGenJS.WriteProps | PptxGenJS.WRITE
 }
 
 /**
- * PptxGenJS 4.0.1 `writeFile()` file name: `{ fileName }`, or a bare string (deprecated, with PptxGenJS's warning).
- * No name gives "Presentation.pdf", and ".pdf" is appended unless the name ends in it (any case): "deck.pptx"
- * becomes "deck.pptx.pdf", as PptxGenJS turns "deck.pdf" into "deck.pdf.pptx". `compression` is ignored (zip-only).
+ * `writeFile()` file name: `{ fileName }`, or a bare string (deprecated, with PptxGenJS 4.0.1's warning).
+ * A trailing ".pptx" (any case) becomes ".pdf", so a migrated "report.pptx" writes "report.pdf"; a name ending in
+ * ".pdf" is kept and any other name gets ".pdf" appended. PptxGenJS defaults to "Presentation.pptx"; pdfdeck
+ * requires a name instead (owner decision, #102). `compression` is ignored (zip-only).
  */
 export function resolveFileName(props?: PptxGenJS.WriteFileProps | string): string {
     if (typeof props === "string") console.warn("[WARNING] writeFile(string) is deprecated - pass { fileName } instead.");
-    const name: unknown = (typeof props === "string" ? props : props?.fileName) ?? PPTX_DEFAULTS.write.pdfFileName;
-    if (typeof name !== "string") throw new TypeError(`writeFile() fileName must be a string, got ${typeof name}; for example { fileName: "deck.pdf" }`);
-    const { pdfExtension } = PPTX_DEFAULTS.write;
-    return name.toLowerCase().endsWith(pdfExtension) ? name : `${name}${pdfExtension}`;
+    const name: unknown = typeof props === "string" ? props : props?.fileName;
+    if (typeof name !== "string" || name === "") {
+        throw new TypeError(`writeFile() needs a file name, got ${name === "" ? "an empty string" : typeof name}; pass one, for example writeFile({ fileName: "deck.pdf" })`);
+    }
+    const { pdfExtension, pptxExtension } = PPTX_DEFAULTS.write;
+    const base = name.toLowerCase().endsWith(pptxExtension) ? name.slice(0, -pptxExtension.length) : name;
+    return base.toLowerCase().endsWith(pdfExtension) ? base : `${base}${pdfExtension}`;
 }
 
 /** PptxGenJS 4.0.1 `writeFileToBrowser()`: a hidden download link clicked once, released 100 ms later (Firefox needs the delay). */
