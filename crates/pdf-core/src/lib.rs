@@ -184,7 +184,7 @@ impl Renderer {
             SlideObject::Shape(o) => (&o.style, None, None),
             SlideObject::Image(o) => (&o.style, None, None),
             SlideObject::Table(o) => (&o.style, None, Some(&o.table)),
-            SlideObject::Chart(o) => (&o.style, None, None),
+            SlideObject::Svg(o) => (&o.style, None, None),
             SlideObject::Unsupported(kind) => {
                 self.warn(format!("object kind '{kind}' not rendered"));
                 return Ok(());
@@ -252,7 +252,7 @@ impl Renderer {
             SlideObject::Shape(o) => (&o.style, o.shape.as_ref(), None, None, None, None),
             SlideObject::Image(o) => (&o.style, None, None, Some(&o.image), None, None),
             SlideObject::Table(o) => (&o.style, None, None, None, Some(&o.table), None),
-            SlideObject::Chart(o) => (&o.style, None, None, None, None, Some(&o.svg)),
+            SlideObject::Svg(o) => (&o.style, None, None, None, None, Some(&o.svg)),
             SlideObject::Unsupported(_) => return Ok(()),
         };
         let t = &style.transform;

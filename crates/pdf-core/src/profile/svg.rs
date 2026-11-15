@@ -1059,7 +1059,7 @@ pub(crate) mod tests {
 
     fn read(svg_body: &str) -> Result<Svg, String> {
         match parse(&document(&chart(svg_body)))?.slides.pop().and_then(|mut s| s.objects.pop()) {
-            Some(SlideObject::Chart(object)) => Ok(object.svg),
+            Some(SlideObject::Svg(object)) => Ok(object.svg),
             _ => Err("not a chart".into()),
         }
     }
@@ -1151,7 +1151,7 @@ pub(crate) mod tests {
     #[test]
     fn reads_a_caller_svg_without_a_view_box() {
         let html = document(&chart(r##"<path d="M0 0L10 10" stroke="#000"></path>"##).replace(r#" viewBox="0 0 422.4 393.6""#, ""));
-        let Some(SlideObject::Chart(object)) = parse(&html).unwrap().slides.pop().and_then(|mut s| s.objects.pop()) else {
+        let Some(SlideObject::Svg(object)) = parse(&html).unwrap().slides.pop().and_then(|mut s| s.objects.pop()) else {
             panic!("chart")
         };
         assert_eq!(object.svg.view_box, None);
