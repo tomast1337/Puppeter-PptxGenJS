@@ -5,7 +5,8 @@ use super::allow;
 use super::dom::{Dom, Element};
 use super::object::link;
 use super::style::{Style, number, shadow};
-use crate::model::{FillModel, FillModifier, LineModel, ObjectStyle, ShapeFace, ShapeGeometry, ShapeModel};
+use crate::color::parse_color;
+use crate::model::{FillModel, LineModel, ObjectStyle, ShapeFace, ShapeGeometry, ShapeModel};
 
 const SVG_ATTRS: &[&str] = &[
     "viewBox",
@@ -143,30 +144,21 @@ fn read_geometry<'e, 'a>(
 }
 
 /// A multi-face preset: `path.shape-face` children with their final fills, then an optional
-/// stroke-only `path.shape-outline`.
+/// stroke-only `path.shape-outline`. The faces carry the fills, so the shape itself has none.
 fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<(ShapeGeometry, Option<FillModel>, &'e Element<'a>), String> {
     let mut faces = Vec::new();
-    let mut fills = Vec::new();
     let mut outline = None;
     for child in dom.elements_of(&group.children)? {
         let css = Style::of(child)?;
+        // `data-fill-modifier` only names the shading: toHtml() already applied it to `fill` (#43).
         allow(child, &css, &[GEOMETRY_ATTRS, PAINT_ATTRS, &["data-fill-modifier"]], &[])?;
         let data = child.attr("d")?.ok_or("attribute 'd' is missing")?.into_owned();
         if child.name == "path" && child.has_class("shape-face") && outline.is_none() {
-            let modifier = match child.attr("data-fill-modifier")?.as_deref() {
+            let fill = match paint(child, "fill")? {
+                Some(fill) => Some(parse_color(&fill.color).ok_or_else(|| format!("attribute 'fill': '{}' is not a color", fill.color))?),
                 None => None,
-                Some("darken") => Some(FillModifier::Darken),
-                Some("darkenLess") => Some(FillModifier::DarkenLess),
-                Some("lighten") => Some(FillModifier::Lighten),
-                Some("lightenLess") => Some(FillModifier::LightenLess),
-                Some(other) => {
-                    return Err(format!(
-                        "attribute 'data-fill-modifier': '{other}' is not darken, darkenLess, lighten or lightenLess"
-                    ));
-                }
             };
-            fills.push((modifier.is_none(), paint(child, "fill")?));
-            faces.push(ShapeFace { data, fill_modifier: modifier });
+            faces.push(ShapeFace { data, fill });
         } else if child.name == "path" && child.has_class("shape-outline") && outline.is_none() {
             outline = Some((data, child));
         } else {
@@ -176,17 +168,6 @@ fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<(ShapeGeome
     if faces.is_empty() {
         return Err("g.shape-geometry must hold at least one path.shape-face".into());
     }
-    // Faces carry the shaded fill; the renderer shades the base fill itself, which an unshaded face holds.
-    // shortcut: a preset whose every face is shaded has no base fill in the HTML; read the face fills directly once #43 lands.
-    let fill = if fills.iter().all(|(_, fill)| fill.is_none()) {
-        None
-    } else {
-        let base = fills
-            .into_iter()
-            .find_map(|(plain, fill)| plain.then_some(fill).flatten())
-            .ok_or("every path.shape-face has a data-fill-modifier, so the base fill is not in the HTML (#43)")?;
-        Some(base)
-    };
     let (outline_data, stroke_target) = match outline {
         Some((data, element)) => (Some(data), element),
         None => (None, group),
@@ -198,7 +179,7 @@ fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<(ShapeGeome
         faces: Some(faces),
         outline_data,
     };
-    Ok((geometry, fill, stroke_target))
+    Ok((geometry, None, stroke_target))
 }
 
 fn number_attr(element: &Element<'_>, name: &str) -> Result<f32, String> {
@@ -264,7 +245,8 @@ fn line(svg: &Element<'_>, target: &Element<'_>, heads: &[(String, String)]) -> 
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{FillModifier, ShapeGeometry, ShapeObject, SlideObject};
+    use crate::color::Rgba;
+    use crate::model::{ShapeGeometry, ShapeObject, SlideObject};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -326,13 +308,13 @@ mod tests {
         else {
             panic!("faces")
         };
-        assert!(matches!(f[..], [ref a, ref b] if a.fill_modifier.is_some_and(|m| matches!(m, FillModifier::Lighten)) && b.fill_modifier.is_none()));
-        assert_eq!((outline_data.as_deref(), transform.as_deref()), (Some("M 2 2 Z"), Some("matrix(1 0 0 1 0 0)")));
         assert_eq!(
-            can.style.fill.as_ref().map(|f| f.color.as_str()),
-            Some("#FF0000"),
-            "the unshaded face holds the base fill"
+            f.iter().map(|face| face.fill).collect::<Vec<_>>(),
+            [Some(Rgba(255, 153, 153, 1.0)), Some(Rgba(255, 0, 0, 1.0))],
+            "each face is drawn in its own fill"
         );
+        assert_eq!((outline_data.as_deref(), transform.as_deref()), (Some("M 2 2 Z"), Some("matrix(1 0 0 1 0 0)")));
+        assert!(can.style.fill.is_none(), "the faces carry the fills");
         assert_eq!(can.style.line.as_ref().map(|l| l.width), Some(2.0));
     }
 

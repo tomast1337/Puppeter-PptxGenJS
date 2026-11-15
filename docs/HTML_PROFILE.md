@@ -239,8 +239,10 @@ with `data-underline-style`, and `data-empty` on an empty run (its text is U+200
 
 `render/shape.ts`. Fill, line and shadow live on the SVG, not in CSS. Geometry: `rect` with `rx`/`ry`,
 `ellipse`, a `path` for lines (`M 0 0 L W H`, or `M 0 H L W 0` when inverse) and preset or custom paths
-(`d`, optional `transform`). A multi-face preset is a `g` with one `path.shape-face` per face (its final
-fill already computed, plus `data-fill-modifier`) and a `path.shape-outline` that carries the stroke.
+(`d`, optional `transform`). A multi-face preset is a `g` with one `path.shape-face` per face and a
+`path.shape-outline` that carries the stroke. A face's `fill` is final: `toHtml()` shades it with
+`PPTX_DEFAULTS.shape.faceShading`, and `data-fill-modifier` only names the shading, which renderers do not
+apply again (#43).
 Arrow heads are markers whose id spells out the color and path, so equal heads share one id.
 
 A text object with a shape is a `.slide-text` with `data-shape` whose first child is the same

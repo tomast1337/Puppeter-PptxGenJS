@@ -1,6 +1,7 @@
 //! The subset of the normalized model (packages/model/src/types.ts) this renderer reads, filled
 //! from the pdfdeck HTML profile by `crate::profile`.
 
+use crate::color::Rgba;
 use crate::svg::Svg;
 
 pub(crate) struct Presentation {
@@ -209,18 +210,10 @@ pub(crate) enum ShapeGeometry {
     },
 }
 
+/// One face of a multi-face preset (can, cube, bevel, ...), with the shaded fill the HTML gives it.
 pub(crate) struct ShapeFace {
     pub(crate) data: String,
-    pub(crate) fill_modifier: Option<FillModifier>,
-}
-
-/// DrawingML path `fill` shading for one face of a multi-face preset (can, cube, bevel, ...).
-#[derive(Clone, Copy)]
-pub(crate) enum FillModifier {
-    Darken,
-    DarkenLess,
-    Lighten,
-    LightenLess,
+    pub(crate) fill: Option<Rgba>,
 }
 
 pub(crate) struct TextBox {
