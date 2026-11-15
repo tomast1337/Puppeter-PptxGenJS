@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../defaults";
-import type { NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdfdeck/model";
+import type { NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdflapas/model";
 import { colorToCSS } from "../color";
 import { millimetersToPixels, pointsToPixels } from "../units";
 

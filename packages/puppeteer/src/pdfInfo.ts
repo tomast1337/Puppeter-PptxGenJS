@@ -1,6 +1,6 @@
 /**
  * Document information entries (ISO 32000-1, 14.3.3) set from the HTML's `<title>` and its `author`, `description`,
- * `pdfdeck-company` and `pdfdeck-revision` meta tags. Company and Revision are not standard keys: 14.3.3 allows other
+ * `pdflapas-company` and `pdflapas-revision` meta tags. Company and Revision are not standard keys: 14.3.3 allows other
  * keys (pdfinfo -custom lists them); the WASM renderer writes the same ones.
  */
 export interface DocumentInfo {

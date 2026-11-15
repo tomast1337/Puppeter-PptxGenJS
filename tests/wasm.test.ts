@@ -195,7 +195,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const text = new PuppeteerGen(PAGE, { renderer });
         text.registerComponent("test/badge", 1, { schema: z.object({}), render: () => "<b>Badge</b>" });
         text.addSlide().addComponent({ type: "test/badge", version: 1, props: {} }, { x: 1, y: 2, w: 2, h: 1, objectName: "Badge" });
-        await expect(text.toPdf()).rejects.toThrow("invalid pdfdeck HTML: slide 1: object 'Badge': component 'test/badge' v1: <b> is not in profile v2: component markup is nested <div> boxes");
+        await expect(text.toPdf()).rejects.toThrow("invalid PdfLapas HTML: slide 1: object 'Badge': component 'test/badge' v1: <b> is not in profile v2: component markup is nested <div> boxes");
     });
 
     test("draws every chart type and chart extensions as SVG, with nothing skipped", async () => {
@@ -376,7 +376,9 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
         const { html, pageSize } = await pres.toHtml();
         const tampered = html.replace('style="left: 96px;', 'style="filter: blur(2px); left: 96px;');
         await expect(renderer.render({ html: tampered, pageSize })).rejects.toThrow("slide 1: object 'Title': CSS property 'filter'");
-        await expect(renderer.render({ html: html.replace('<meta name="pdfdeck-profile" content="2">', '<meta name="pdfdeck-profile" content="3">'), pageSize })).rejects.toThrow("pdfdeck profile version '3' is not supported (this renderer reads versions 1 and 2)");
+        await expect(renderer.render({ html: html.replace('<meta name="pdflapas-profile" content="2">', '<meta name="pdflapas-profile" content="3">'), pageSize })).rejects.toThrow(
+            `profile version '3' in <meta name="pdflapas-profile"> is not supported (this renderer reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)`,
+        );
     });
 
     test("writes title, author and subject to the PDF Info dictionary; a version 1 document gets none", async () => {
@@ -389,7 +391,7 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
         const text = (pdf: Uint8Array) => Buffer.from(pdf).toString("latin1");
         expect(text(await pres.toPdf())).toContain("<</Title(Q3 plan)/Subject(Sales)/Author(Ana)>>");
         const { html, pageSize } = await pres.toHtml();
-        const v1 = await renderer.render({ html: html.replace('<meta name="pdfdeck-profile" content="2">', '<meta name="pdfdeck-profile" content="1">'), pageSize });
+        const v1 = await renderer.render({ html: html.replace('<meta name="pdflapas-profile" content="2">', '<meta name="pdfdeck-profile" content="1">'), pageSize });
         expect(text(v1)).not.toContain("/Title");
     });
 
@@ -400,7 +402,7 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
             expect({ kind, pdf: ascii(pdf.subarray(0, 5)) }).toEqual({ kind, pdf: "%PDF-" });
         }
         // Without completion the reader names the first value the profile requires.
-        await expect(renderer.render({ html: handWrittenDocument(HAND_WRITTEN_OBJECTS.text), pageSize: PAGE })).rejects.toThrow("invalid pdfdeck HTML: the stylesheet has no '@page");
+        await expect(renderer.render({ html: handWrittenDocument(HAND_WRITTEN_OBJECTS.text), pageSize: PAGE })).rejects.toThrow("invalid PdfLapas HTML: the stylesheet has no '@page");
     });
 
     test("an edited toHtml() document renders through pptxHtmlDocument() and draws the edit", async () => {
@@ -417,7 +419,7 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
     test("an out-of-profile hand-written document fails naming the slide, the object and the property", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const render = (object: string) => renderer.render({ html: completeProfileHtml(handWrittenDocument(object)), pageSize: PAGE });
-        await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-variant: small-caps;"))).rejects.toThrow("invalid pdfdeck HTML: slide 1: object 'Title': paragraph 1: run 1: CSS property 'font-variant' on <span> is not in profile v2");
+        await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-variant: small-caps;"))).rejects.toThrow("invalid PdfLapas HTML: slide 1: object 'Title': paragraph 1: run 1: CSS property 'font-variant' on <span> is not in profile v2");
         await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-family: &quot;Calibri&quot;, Arial;"))).rejects.toThrow("font-family '\"Calibri\", Arial' is not one quoted family");
     });
 });

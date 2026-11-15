@@ -28,7 +28,7 @@ export {
     // The model -> HTML step for producers that build the JSON model themselves (#69).
     modelToHtml,
     PAGE_SIZES,
-    // For @pdfdeck/react, which applies component schemas the same way as the registry.
+    // For @pdflapas/react, which applies component schemas the same way as the registry.
     parseComponentProps,
     PPTX_DEFAULTS,
     PPTX_DEFAULTS_VERSION,
@@ -51,7 +51,7 @@ export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 export type { ApiEntry, ApiStatus, CompatibilityEntry, CompatibilityStatus } from "./compatibility";
 export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
 export type { FourSideMargin } from "./defaults";
-export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdfdeck/model";
+export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdflapas/model";
 export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeteerGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
 export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";

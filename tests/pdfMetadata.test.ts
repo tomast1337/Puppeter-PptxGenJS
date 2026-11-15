@@ -19,7 +19,7 @@ afterAll(closeBrowser);
 
 /** The PDF's document information dictionary as pdfinfo -custom prints it (standard and custom keys), and qpdf's check. */
 async function documentInfo(pdf: Uint8Array): Promise<Record<string, string>> {
-    const directory = await mkdtemp(join(tmpdir(), "pdfdeck-info-"));
+    const directory = await mkdtemp(join(tmpdir(), "pdflapas-info-"));
     try {
         const path = join(directory, "deck.pdf");
         await writeFile(path, pdf);
@@ -87,13 +87,13 @@ describe("presentation metadata", () => {
         pres.revision = "7";
         pres.addSlide();
         const { html } = await pres.toHtml();
-        expect(html).toContain('<meta name="pdfdeck-profile" content="2">');
-        expect(html).toContain('<title>Q3 &lt;plan&gt; &amp; review</title><meta name="author" content="Ana &quot;A&quot;"><meta name="pdfdeck-company" content="Acme"><meta name="pdfdeck-revision" content="7"><style');
+        expect(html).toContain('<meta name="pdflapas-profile" content="2">');
+        expect(html).toContain('<title>Q3 &lt;plan&gt; &amp; review</title><meta name="author" content="Ana &quot;A&quot;"><meta name="pdflapas-company" content="Acme"><meta name="pdflapas-revision" content="7"><style');
         expect(html).not.toContain('name="description"');
 
         const unset = new PuppeteerGen();
         unset.addSlide();
-        expect((await unset.toHtml()).html).toMatch(/<meta name="pdfdeck-page-size" content="[^"]*"><style/);
+        expect((await unset.toHtml()).html).toMatch(/<meta name="pdflapas-page-size" content="[^"]*"><style/);
     });
 });
 

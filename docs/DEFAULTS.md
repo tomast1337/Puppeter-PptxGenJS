@@ -34,7 +34,7 @@ available in the machine-readable contract.
 Document properties (`title`, `author`, `subject`, `company`, `revision`) have
 no default: PptxGenJS writes `PptxGenJS Presentation`, `PptxGenJS` and revision
 `1` when they are unset, which brands the file rather than describes it, so
-pdfdeck writes only the values a deck sets and an unset one reads `""`.
+PdfLapas writes only the values a deck sets and an unset one reads `""`.
 
 `pres.layout` selects LAYOUT_4x3 (10in × 7.5in), LAYOUT_16x9, LAYOUT_16x10 (10in × 6.25in),
 LAYOUT_WIDE (13⅓in × 7.5in) or a `defineLayout()` name, and an unknown name throws `UNKNOWN-LAYOUT`
@@ -50,7 +50,7 @@ LibreOffice renders the same slides with or without it, so it changes nothing in
 A hidden slide is left out of the PDF, as PowerPoint and LibreOffice export it. The other slides
 keep their numbers: a slide link jumps to the page that shows its target, and none is written for
 a hidden target. LibreOffice 26.2 sends a link to slide N to page N whatever is hidden before it,
-one page late per hidden slide; pdfdeck does not copy that.
+one page late per hidden slide; PdfLapas does not copy that.
 
 A background picture (`slide.background = { path | data }`) is stretched over the whole slide,
 under every object, as PptxGenJS's `<a:stretch><a:fillRect/>` asks. PptxGenJS writes the picture

@@ -28,7 +28,7 @@ export class Renderer {
         return this;
     }
     /**
-     * Renders a pdfdeck HTML profile document (`toHtml().html`).
+     * Renders a PdfLapas HTML profile document (`toHtml().html`).
      * @param {string} html
      * @returns {Uint8Array}
      */

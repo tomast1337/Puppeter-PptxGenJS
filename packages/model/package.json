@@ -1,7 +1,7 @@
 {
-  "name": "@pdfdeck/model",
+  "name": "@pdflapas/model",
   "version": "0.2.0",
-  "description": "Normalized presentation model and renderer interfaces shared by pdfdeck front ends and renderers",
+  "description": "Normalized presentation model and renderer interfaces shared by PdfLapas front ends and renderers",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

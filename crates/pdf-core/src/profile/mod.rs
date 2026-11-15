@@ -1,4 +1,4 @@
-//! Reads a pdfdeck HTML profile document (docs/HTML_PROFILE.md, versions 1 and 2), the output of
+//! Reads a PdfLapas HTML profile document (docs/HTML_PROFILE.md, versions 1 and 2), the output of
 //! `toHtml()`, into the `crate::model` structs the drawing code reads.
 //!
 //! Every value comes from the one place the profile puts it, verbatim; nothing is defaulted here
@@ -23,11 +23,15 @@ use style::{Style, integer, number, split_top_level};
 
 use crate::model::{Metadata, PageSize, Presentation, Slide, SlideObject};
 
-/// The profile version this reader implements (`<meta name="pdfdeck-profile" content="2">`). It also
+/// The profile version this reader implements (`<meta name="pdflapas-profile" content="2">`). It also
 /// reads version 1, whose documents have no metadata: version 2 only added `<title>` and the
-/// `author`, `description`, `pdfdeck-company` and `pdfdeck-revision` meta tags.
+/// `author`, `description`, `pdflapas-company` and `pdflapas-revision` meta tags.
 const PROFILE_VERSION: &str = "2";
 const PROFILE_VERSION_1: &str = "1";
+/// The `<meta>` that declares the version. Version 1 is frozen with the project's former name, so its
+/// documents keep `pdfdeck-profile`; version 2 is read only from `pdflapas-profile`.
+const PROFILE_META: &str = "pdflapas-profile";
+const PROFILE_META_1: &str = "pdfdeck-profile";
 
 /// Parses a profile document into the presentation it describes.
 pub(crate) fn parse(html: &str) -> Result<Presentation, String> {
@@ -78,6 +82,7 @@ pub(crate) fn allow(element: &Element<'_>, style: &Style<'_>, attrs: &[&[&str]],
 /// version 2, the metadata.
 fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<(PageSize, Metadata), String> {
     let mut version = None;
+    let mut version_1 = None;
     let mut page_size = None;
     let mut metadata = Metadata::default();
     for element in dom.elements_of(&head.children)? {
@@ -87,11 +92,12 @@ fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<(PageSize, Metadata), 
                 allow(element, &style, &[&["name", "content", "charset"]], &[])?;
                 let content = || element.attr("content").map(|c| c.unwrap_or_default().into_owned());
                 match element.attr("name")?.as_deref() {
-                    Some("pdfdeck-profile") => version = Some(content()?),
+                    Some(PROFILE_META) => version = Some(content()?),
+                    Some(PROFILE_META_1) => version_1 = Some(content()?),
                     Some("author") => set_once(&mut metadata.author, r#"<meta name="author">"#, content()?)?,
                     Some("description") => set_once(&mut metadata.subject, r#"<meta name="description">"#, content()?)?,
-                    Some("pdfdeck-company") => set_once(&mut metadata.company, r#"<meta name="pdfdeck-company">"#, content()?)?,
-                    Some("pdfdeck-revision") => set_once(&mut metadata.revision, r#"<meta name="pdfdeck-revision">"#, content()?)?,
+                    Some("pdflapas-company") => set_once(&mut metadata.company, r#"<meta name="pdflapas-company">"#, content()?)?,
+                    Some("pdflapas-revision") => set_once(&mut metadata.revision, r#"<meta name="pdflapas-revision">"#, content()?)?,
                     _ => {}
                 }
             }
@@ -111,16 +117,25 @@ fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<(PageSize, Metadata), 
             name => return Err(format!("<{name}> in <head> is not in profile v{PROFILE_VERSION}")),
         }
     }
-    match version.as_deref() {
-        Some(PROFILE_VERSION) => {}
+    let unsupported = match (version.as_deref(), version_1.as_deref()) {
+        (Some(PROFILE_VERSION), _) => None,
         // Version 1 gave <title> and other meta tags no meaning, so its PDFs stay without metadata.
-        Some(PROFILE_VERSION_1) => metadata = Metadata::default(),
-        Some(other) => {
+        (None, Some(PROFILE_VERSION_1)) => {
+            metadata = Metadata::default();
+            None
+        }
+        (Some(other), _) => Some((PROFILE_META, other)),
+        (None, Some(other)) => Some((PROFILE_META_1, other)),
+        (None, None) => {
             return Err(format!(
-                "pdfdeck profile version '{other}' is not supported (this renderer reads versions {PROFILE_VERSION_1} and {PROFILE_VERSION})"
+                r#"not a PdfLapas profile document: <meta name="{PROFILE_META}" content="{PROFILE_VERSION}"> is missing"#
             ));
         }
-        None => return Err(r#"not a pdfdeck profile document: <meta name="pdfdeck-profile" content="2"> is missing"#.into()),
+    };
+    if let Some((name, other)) = unsupported {
+        return Err(format!(
+            r#"profile version '{other}' in <meta name="{name}"> is not supported (this renderer reads <meta name="{PROFILE_META_1}" content="{PROFILE_VERSION_1}"> and <meta name="{PROFILE_META}" content="{PROFILE_VERSION}">)"#
+        ));
     }
     let page_size = page_size.ok_or("the stylesheet has no '@page { size: <width>in <height>in }' rule")?;
     Ok((page_size, metadata))
@@ -206,7 +221,7 @@ pub(crate) mod tests {
     /// A one-slide profile document around `objects`.
     pub(crate) fn document(objects: &str) -> String {
         format!(
-            r#"<!DOCTYPE html><html><head><meta name="pdfdeck-profile" content="2"><meta name="pdfdeck-page-size" content="T"><style id="s">@page {{
+            r#"<!DOCTYPE html><html><head><meta name="pdflapas-profile" content="2"><meta name="pdflapas-page-size" content="T"><style id="s">@page {{
     size: 10in 5.625in;
     margin: 0;
 }}
@@ -232,26 +247,45 @@ pub(crate) mod tests {
     #[test]
     fn requires_a_known_profile_version() {
         let html = document("");
-        let missing = parse(&html.replace(r#"<meta name="pdfdeck-profile" content="2">"#, ""))
+        let missing = parse(&html.replace(r#"<meta name="pdflapas-profile" content="2">"#, ""))
             .err()
             .unwrap_or_default();
-        assert!(missing.contains("not a pdfdeck profile document"), "{missing}");
+        assert!(missing.contains("not a PdfLapas profile document"), "{missing}");
         let unknown = parse(&html.replace(r#"content="2""#, r#"content="3""#)).err().unwrap_or_default();
-        assert_eq!(unknown, "pdfdeck profile version '3' is not supported (this renderer reads versions 1 and 2)");
+        let reads = r#"(this renderer reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)"#;
+        assert_eq!(
+            unknown,
+            format!(r#"profile version '3' in <meta name="pdflapas-profile"> is not supported {reads}"#)
+        );
+        // Each version has one spelling: version 1 the former name's, version 2 the current one.
+        let renamed_1 = parse(&with_head("1", "").replace("pdfdeck-profile", "pdflapas-profile"))
+            .err()
+            .unwrap_or_default();
+        assert_eq!(
+            renamed_1,
+            format!(r#"profile version '1' in <meta name="pdflapas-profile"> is not supported {reads}"#)
+        );
+        let old_name_2 = parse(&html.replace("pdflapas-profile", "pdfdeck-profile")).err().unwrap_or_default();
+        assert_eq!(
+            old_name_2,
+            format!(r#"profile version '2' in <meta name="pdfdeck-profile"> is not supported {reads}"#)
+        );
     }
 
-    /// `document("")` with `head` written after the version and page-size meta tags.
+    /// `document("")` with `head` written after the version and page-size meta tags; version 1 under its
+    /// own meta name.
     fn with_head(version: &str, head: &str) -> String {
+        let meta = if version == PROFILE_VERSION_1 { PROFILE_META_1 } else { PROFILE_META };
         document("").replace(
-            r#"<meta name="pdfdeck-profile" content="2">"#,
-            &format!(r#"<meta name="pdfdeck-profile" content="{version}">{head}"#),
+            r#"<meta name="pdflapas-profile" content="2">"#,
+            &format!(r#"<meta name="{meta}" content="{version}">{head}"#),
         )
     }
 
     #[test]
     fn reads_the_metadata_of_version_2() {
         let head = r#"<title>  Q3 &amp;
- plan </title><meta name="author" content="Ana &quot;A&quot;"><meta name="description" content="Sales"><meta name="pdfdeck-company" content="Co"><meta name="pdfdeck-revision" content="4">"#;
+ plan </title><meta name="author" content="Ana &quot;A&quot;"><meta name="description" content="Sales"><meta name="pdflapas-company" content="Co"><meta name="pdflapas-revision" content="4">"#;
         let Metadata {
             title,
             author,

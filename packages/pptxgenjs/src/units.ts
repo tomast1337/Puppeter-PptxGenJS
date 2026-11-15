@@ -1,4 +1,4 @@
-import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdfdeck/model";
+import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdflapas/model";
 
 /**
  * Converts inches to CSS pixels

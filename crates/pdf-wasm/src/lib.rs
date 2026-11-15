@@ -18,7 +18,7 @@ impl Renderer {
         self.0.add_font(data)
     }
 
-    /// Renders a pdfdeck HTML profile document (`toHtml().html`).
+    /// Renders a PdfLapas HTML profile document (`toHtml().html`).
     #[wasm_bindgen(js_name = renderHtml)]
     pub fn render_html(&mut self, html: &str) -> Result<Vec<u8>, JsError> {
         self.0.render_html(html).map_err(|e| JsError::new(&e))

@@ -1,4 +1,4 @@
-import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdfdeck/model";
+import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "./units";
 
 export type FourSideMargin = [number, number, number, number];
@@ -38,7 +38,7 @@ export const PPTX_DEFAULTS = Object.freeze({
         }),
         rtlMode: false,
         // No metadata defaults: PptxGenJS's title, author, subject, company and revision defaults are its branding,
-        // so pdfdeck writes only the values the caller sets (owner decision, #102; PuppeteerGen.metadata).
+        // so PdfLapas writes only the values the caller sets (owner decision, #102; PuppeteerGen.metadata).
     }),
     theme: Object.freeze({
         headFontFace: "Calibri Light",
@@ -64,7 +64,7 @@ export const PPTX_DEFAULTS = Object.freeze({
         outputType: "blob",
         fileName: "Presentation.pptx",
         // PptxGenJS 4.0.1 writeFile() appends ".pptx" to a name that does not end in it (any case) and defaults
-        // to fileName. pdfdeck replaces a trailing ".pptx" with ".pdf", appends ".pdf" to other names and
+        // to fileName. PdfLapas replaces a trailing ".pptx" with ".pdf", appends ".pdf" to other names and
         // requires a name (resolveFileName in output.ts).
         pptxExtension: ".pptx",
         pdfExtension: ".pdf",

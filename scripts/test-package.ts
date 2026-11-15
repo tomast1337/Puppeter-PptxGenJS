@@ -5,10 +5,10 @@ import { join, resolve } from "node:path";
 const PACKAGES = ["model", "puppeteer", "pptxgenjs", "wasm", "react", "puppeteer-pptxgenjs"];
 
 const projectRoot = resolve(import.meta.dir, "..");
-const temporaryRoot = await mkdtemp(join(tmpdir(), "pdfdeck-consumer-"));
+const temporaryRoot = await mkdtemp(join(tmpdir(), "pdflapas-consumer-"));
 const rootMetadata = (await Bun.file(resolve(projectRoot, "package.json")).json()) as { devDependencies: Record<string, string> };
 
-/** Import specifiers of the four public entries, so the same consumer checks run against @pdfdeck/* and the legacy shim. */
+/** Import specifiers of the four public entries, so the same consumer checks run against @pdflapas/* and the legacy shim. */
 interface EntryNames {
     main: string;
     html: string;
@@ -41,7 +41,7 @@ async function checkConsumer(consumerDirectory: string, dependencies: string[], 
                 private: true,
                 type: "module",
                 dependencies: Object.fromEntries(dependencies.map(name => [name, `file:${tarballs[name]}`])),
-                // The @pdfdeck/* versions are not on npm yet: resolve them all from the packed tarballs.
+                // The @pdflapas/* versions are not on npm yet: resolve them all from the packed tarballs.
                 overrides: Object.fromEntries(Object.entries(tarballs).map(([name, tarball]) => [name, `file:${tarball}`])),
             },
             null,
@@ -228,7 +228,7 @@ console.log(\`WASM package consumer generated a PDF under \${"Bun" in globalThis
     const wasmBrowserBundle = await Bun.build({ entrypoints: [wasmBrowserPath], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0]);
     if (!wasmBrowserBundle.success) throw new AggregateError(wasmBrowserBundle.logs, "The packed wasm entry failed to bundle for the browser");
     const wasmInputs = Object.keys((wasmBrowserBundle as unknown as { metafile: { inputs: Record<string, unknown> } }).metafile.inputs);
-    if (!wasmInputs.some(path => path.endsWith("@pdfdeck/wasm/dist/browser.js")) || wasmInputs.some(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path))) {
+    if (!wasmInputs.some(path => path.endsWith("@pdflapas/wasm/dist/browser.js")) || wasmInputs.some(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path))) {
         throw new Error(`The packed wasm entry's browser condition is not browser-safe: ${wasmInputs.join(", ")}`);
     }
     const wasmConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
@@ -283,23 +283,23 @@ try {
         tarballs[manifest.name] = tarball;
         // workspace:* must become the real version in the published manifest.
         const packed = JSON.parse(await output(["tar", "-xzOf", tarball, "package/package.json"], temporaryRoot)) as Record<string, unknown>;
-        const workspaceDependencies = Object.entries({ ...(packed.dependencies as object), ...(packed.peerDependencies as object) }).filter(([dependency]) => dependency.startsWith("@pdfdeck/"));
+        const workspaceDependencies = Object.entries({ ...(packed.dependencies as object), ...(packed.peerDependencies as object) }).filter(([dependency]) => dependency.startsWith("@pdflapas/"));
         if (JSON.stringify(packed).includes("workspace:") || workspaceDependencies.some(([, version]) => version !== manifest.version)) {
             throw new Error(`${manifest.name} was packed with unresolved workspace dependencies: ${JSON.stringify(workspaceDependencies)}`);
         }
         const files = (await output(["tar", "-tzf", tarball], temporaryRoot)).split("\n");
         if (!files.some(file => file.startsWith("package/dist/") && file.endsWith(".d.ts"))) throw new Error(`${manifest.name} was packed without its dist`);
         // Consumers never build Rust: the tarball must carry the prebuilt binary (bun run build:wasm, or CI's "WASM build" job).
-        if (manifest.name === "@pdfdeck/wasm" && !files.includes("package/dist/pdf_wasm_bg.wasm")) throw new Error("@pdfdeck/wasm was packed without dist/pdf_wasm_bg.wasm (run bun run build:wasm first)");
-        if (manifest.name === "@pdfdeck/pptxgenjs" && !files.includes("package/dist/pptxgenjs.d.ts")) throw new Error("@pdfdeck/pptxgenjs was packed without the vendored pptxgenjs types");
+        if (manifest.name === "@pdflapas/wasm" && !files.includes("package/dist/pdf_wasm_bg.wasm")) throw new Error("@pdflapas/wasm was packed without dist/pdf_wasm_bg.wasm (run bun run build:wasm first)");
+        if (manifest.name === "@pdflapas/pptxgenjs" && !files.includes("package/dist/pptxgenjs.d.ts")) throw new Error("@pdflapas/pptxgenjs was packed without the vendored pptxgenjs types");
         console.log(`packed ${manifest.name}@${manifest.version} (${workspaceDependencies.map(entry => entry.join("@")).join(", ") || "no workspace dependencies"})`);
     }
 
-    await checkConsumer(join(temporaryRoot, "pdfdeck-consumer"), ["@pdfdeck/pptxgenjs", "@pdfdeck/wasm", "@pdfdeck/react"], {
-        main: "@pdfdeck/pptxgenjs",
-        html: "@pdfdeck/pptxgenjs/html",
-        wasm: "@pdfdeck/wasm",
-        react: "@pdfdeck/react",
+    await checkConsumer(join(temporaryRoot, "pdflapas-consumer"), ["@pdflapas/pptxgenjs", "@pdflapas/wasm", "@pdflapas/react"], {
+        main: "@pdflapas/pptxgenjs",
+        html: "@pdflapas/pptxgenjs/html",
+        wasm: "@pdflapas/wasm",
+        react: "@pdflapas/react",
     });
     // The deprecation shim runs the consumer sources unchanged from the single-package release: a drop-in proof.
     await checkConsumer(join(temporaryRoot, "legacy-consumer"), ["puppeteer-pptxgenjs"], {

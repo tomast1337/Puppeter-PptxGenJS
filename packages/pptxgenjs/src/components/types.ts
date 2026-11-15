@@ -1,8 +1,8 @@
-import type { ComponentProps } from "@pdfdeck/model";
+import type { ComponentProps } from "@pdflapas/model";
 import type { z } from "zod";
 
 // The saved wire types are part of the model contract.
-export type { ComponentInput, ComponentProps, ComponentValue } from "@pdfdeck/model";
+export type { ComponentInput, ComponentProps, ComponentValue } from "@pdflapas/model";
 
 /** Geometry is explicit, in inches. HTML inside this box owns its own layout. */
 export interface ComponentOptions {

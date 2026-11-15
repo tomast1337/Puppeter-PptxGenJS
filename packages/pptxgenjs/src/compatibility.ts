@@ -466,7 +466,7 @@ export const COMPATIBILITY = Object.freeze({
 } as const);
 
 /**
- * What the WASM backend (`@pdfdeck/wasm`, crates/pdf-core) draws, per family and option, against the
+ * What the WASM backend (`@pdflapas/wasm`, crates/pdf-core) draws, per family and option, against the
  * same option surface as `COMPATIBILITY`. Families not listed here are not drawn: the backend reports
  * them through `warnings()` (and throws unless `onUnsupported: "warn"`).
  */
@@ -540,7 +540,7 @@ export const WASM_COMPATIBILITY = Object.freeze({
  * - implemented: the member exists and behaves as in PptxGenJS.
  * - partial: some values work; the others throw UnsupportedFeatureError.
  * - unsupported: using it throws UnsupportedFeatureError with a workaround.
- * - internal: a runtime helper absent from PptxGenJS's index.d.ts; pdfdeck need not provide it.
+ * - internal: a runtime helper absent from PptxGenJS's index.d.ts; PdfLapas need not provide it.
  */
 export type ApiStatus = "implemented" | "partial" | "unsupported" | "internal";
 export interface ApiEntry {
@@ -549,7 +549,7 @@ export interface ApiEntry {
 }
 
 /**
- * What pdfdeck does with each public member of a pptxgenjs 4.0.1 presentation and slide, as its runtime enumerates
+ * What PdfLapas does with each public member of a pptxgenjs 4.0.1 presentation and slide, as its runtime enumerates
  * them (names starting with `_` are PptxGenJS's private state). tests/pptxgenjsSurface.test.ts fails when the pinned
  * runtime has a member this table does not classify.
  */

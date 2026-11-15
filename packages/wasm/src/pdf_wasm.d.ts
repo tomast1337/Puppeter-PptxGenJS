@@ -7,7 +7,7 @@ export class Renderer {
     addFont(data: Uint8Array | number[]): number;
     constructor();
     /**
-     * Renders a pdfdeck HTML profile document (`toHtml().html`).
+     * Renders a PdfLapas HTML profile document (`toHtml().html`).
      */
     renderHtml(html: string): Uint8Array;
     warnings(): string[];

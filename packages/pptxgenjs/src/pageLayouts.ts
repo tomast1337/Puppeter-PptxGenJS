@@ -1,8 +1,8 @@
 // Common page sizes and layouts for presentation/document generation
-import type { PageSize } from "@pdfdeck/model";
+import type { PageSize } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "./defaults";
 
-export type { PageSize } from "@pdfdeck/model";
+export type { PageSize } from "@pdflapas/model";
 
 export interface PageLayout {
     landscape: PageSize;
@@ -72,4 +72,4 @@ export const PPTX_LAYOUT_PAGE_SIZES: Readonly<Record<keyof typeof PPTX_DEFAULTS.
 });
 
 // The name of a page size given only by its dimensions (`defineLayout()` without a name, an `@page` rule).
-export { CUSTOM_PAGE_SIZE_NAME } from "@pdfdeck/model";
+export { CUSTOM_PAGE_SIZE_NAME } from "@pdflapas/model";

@@ -8,13 +8,13 @@ const PACKAGES_DIR = resolve(import.meta.dir, "../packages");
 // Puppeteer only for its Node entry's default renderer. Anything else is a layering regression.
 const ALLOWED: Record<string, string[]> = {
     model: [],
-    puppeteer: ["@pdfdeck/model"],
-    wasm: ["@pdfdeck/model"],
-    pptxgenjs: ["@pdfdeck/model", "@pdfdeck/puppeteer"],
-    react: ["@pdfdeck/pptxgenjs"],
-    "puppeteer-pptxgenjs": ["@pdfdeck/pptxgenjs", "@pdfdeck/react", "@pdfdeck/wasm"],
+    puppeteer: ["@pdflapas/model"],
+    wasm: ["@pdflapas/model"],
+    pptxgenjs: ["@pdflapas/model", "@pdflapas/puppeteer"],
+    react: ["@pdflapas/pptxgenjs"],
+    "puppeteer-pptxgenjs": ["@pdflapas/pptxgenjs", "@pdflapas/react", "@pdflapas/wasm"],
 };
-const NODE_ONLY: Record<string, string[]> = { "@pdfdeck/puppeteer": ["pptxgenjs/src/index.ts", "pptxgenjs/src/node.ts"] };
+const NODE_ONLY: Record<string, string[]> = { "@pdflapas/puppeteer": ["pptxgenjs/src/index.ts", "pptxgenjs/src/node.ts"] };
 
 async function sources(directory: string): Promise<string[]> {
     const entries = await readdir(directory, { withFileTypes: true });
@@ -35,7 +35,7 @@ async function imports(): Promise<{ pkg: string; file: string; specifier: string
     return found;
 }
 
-const workspaceName = (specifier: string) => specifier.match(/^(@pdfdeck\/[^/]+|puppeteer-pptxgenjs)(\/|$)/)?.[1];
+const workspaceName = (specifier: string) => specifier.match(/^(@pdflapas\/[^/]+|puppeteer-pptxgenjs)(\/|$)/)?.[1];
 
 describe("workspace packages", () => {
     test("import other workspace packages only in the allowed direction", async () => {
@@ -81,7 +81,7 @@ describe("workspace packages", () => {
         expect(Object.fromEntries(Object.entries(paths).map(([name, [path]]) => [name, path]))).toEqual(expected);
     });
 
-    test("@pdfdeck/model bundles for the browser without importing anything outside itself", async () => {
+    test("@pdflapas/model bundles for the browser without importing anything outside itself", async () => {
         const config = { entrypoints: [join(PACKAGES_DIR, "model/src/index.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0];
         const build = (await Bun.build(config)) as Awaited<ReturnType<typeof Bun.build>> & { metafile: { inputs: Record<string, { imports: { path: string }[] }> } };
         expect(build.success).toBe(true);

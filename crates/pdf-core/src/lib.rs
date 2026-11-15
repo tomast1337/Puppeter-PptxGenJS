@@ -1,7 +1,7 @@
-//! Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md) straight to PDF: text,
+//! Renders a PdfLapas HTML profile document (`toHtml()`, docs/HTML_PROFILE.md) straight to PDF: text,
 //! shape, image, table and chart objects, and components made of sized boxes.
 //!
-//! Pure core of the `@pdfdeck/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen): HTML +
+//! Pure core of the `@pdflapas/wasm` backend, wrapped by `crates/pdf-wasm` (wasm-bindgen): HTML +
 //! font bytes in, PDF bytes out. `profile` parses the document into the `model` structs (the subset of
 //! the normalized model this renderer reads). Units are CSS px at 96 dpi (`PX_PER_IN`); the PDF page is
 //! drawn in px under a `PT_PER_PX` (0.75) scale.
@@ -130,17 +130,17 @@ impl Renderer {
     }
 
     /// Features of the last rendered document that were not drawn (unsupported object kinds,
-    /// effects, options), deduplicated and sorted. `@pdfdeck/wasm` throws on them unless the caller passes
+    /// effects, options), deduplicated and sorted. `@pdflapas/wasm` throws on them unless the caller passes
     /// `onUnsupported: "warn"`.
     pub fn warnings(&self) -> Vec<String> {
         self.warnings.iter().cloned().collect()
     }
 
-    /// Renders a pdfdeck HTML profile document (`toHtml()`, docs/HTML_PROFILE.md): parses it into
+    /// Renders a PdfLapas HTML profile document (`toHtml()`, docs/HTML_PROFILE.md): parses it into
     /// the `model` structs once, then draws them.
     pub fn render_html(&mut self, html: &str) -> Result<Vec<u8>, String> {
         self.reset();
-        let model = profile::parse(html).map_err(|e| format!("invalid pdfdeck HTML: {e}"))?;
+        let model = profile::parse(html).map_err(|e| format!("invalid PdfLapas HTML: {e}"))?;
         self.draw_presentation(&model)
     }
 
@@ -337,7 +337,7 @@ mod tests {
         assert!(!contains(&r.render_html(&plain).unwrap(), b"/Title"));
 
         let company = r
-            .render_html(&with.replace("<style", r#"<meta name="pdfdeck-company" content="Acme"><style"#))
+            .render_html(&with.replace("<style", r#"<meta name="pdflapas-company" content="Acme"><style"#))
             .unwrap();
         assert!(contains(
             &company,
@@ -363,7 +363,7 @@ mod tests {
         let broken = html.replace(PNG_DATA, "data:image/png;base64,\u{e9}\u{fffd}==");
         assert!(r.render_html(&broken).is_err());
         let error = r.render_html("<html></html>").unwrap_err();
-        assert!(error.starts_with("invalid pdfdeck HTML: "), "{error}");
+        assert!(error.starts_with("invalid PdfLapas HTML: "), "{error}");
     }
 
     #[test]

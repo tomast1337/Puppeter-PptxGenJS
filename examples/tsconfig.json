@@ -1,5 +1,5 @@
 {
-  // No "paths": the examples resolve @pdfdeck/* through node_modules and each package's "exports", as an
+  // No "paths": the examples resolve @pdflapas/* through node_modules and each package's "exports", as an
   // application does, so they run against the built packages (`bun run build` first).
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],

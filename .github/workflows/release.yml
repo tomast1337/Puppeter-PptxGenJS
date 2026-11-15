@@ -85,9 +85,9 @@ jobs:
           cd release
           sha256sum *.tgz > SHA256SUMS
 
-      - name: Verify the @pdfdeck/wasm tarball ships the built binary
+      - name: Verify the @pdflapas/wasm tarball ships the built binary
         run: |
-          tarball=$(ls release/pdfdeck-wasm-*.tgz)
+          tarball=$(ls release/pdflapas-wasm-*.tgz)
           tar -xzOf "$tarball" package/dist/pdf_wasm_bg.wasm > "$RUNNER_TEMP/packed.wasm"
           expected=$(cut -d' ' -f1 packages/wasm/src/pdf_wasm_bg.wasm.sha256)
           actual=$(sha256sum "$RUNNER_TEMP/packed.wasm" | cut -d' ' -f1)
@@ -101,7 +101,7 @@ jobs:
             npm publish --dry-run "./$tarball"
           done
 
-      # TODO(publish): nothing is published to npm yet; no token or @pdfdeck org exists. Once they
+      # TODO(publish): nothing is published to npm yet; no token or @pdflapas org exists. Once they
       # do, add a tag-only step here that runs `npm publish --provenance` for each tarball, gated on
       # the token secret (or npm trusted publishing via the id-token permission above).
 

@@ -1,4 +1,4 @@
-import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type PresentationRenderer } from "@pdfdeck/model";
+import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type PresentationRenderer } from "@pdflapas/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { type DocumentInfo, withDocumentInfo } from "./pdfInfo";
@@ -120,7 +120,7 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
     // Chromium writes only the Title (from <title>); the meta tags become Author, Subject, Company and Revision.
     const info = await page.evaluate((): DocumentInfo => {
         const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
-        return { Title: document.title, Author: meta("author"), Subject: meta("description"), Company: meta("pdfdeck-company"), Revision: meta("pdfdeck-revision") };
+        return { Title: document.title, Author: meta("author"), Subject: meta("description"), Company: meta("pdflapas-company"), Revision: meta("pdflapas-revision") };
     });
     return withDocumentInfo(pdf, info);
 }

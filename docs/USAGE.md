@@ -23,7 +23,7 @@ bun install
 ## Quick Start
 
 ```typescript
-import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
+import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 
 // Create a new presentation
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
@@ -51,7 +51,7 @@ PuppeteerGen supports multiple predefined page sizes in both landscape and portr
 ### Available Page Sizes
 
 ```typescript
-import { PAGE_SIZES } from "@pdfdeck/pptxgenjs";
+import { PAGE_SIZES } from "@pdflapas/pptxgenjs";
 
 // Presentation formats
 PAGE_SIZES.SCREEN_4X3.landscape; // 10" × 7.5"
@@ -227,7 +227,7 @@ slide.addTable(
 
 `tableToSlides()` reads an HTML `<table>` (column widths, colors, fonts, padding and borders from its
 computed styles) and adds as many slides as its rows need, as PptxGenJS does. Besides PptxGenJS's
-element id, pdfdeck takes the `<table>` element or HTML markup holding one:
+element id, PdfLapas takes the `<table>` element or HTML markup holding one:
 
 ```typescript
 // PptxGenJS form: the id of a table in the global `document` (the page; in Node, a jsdom you install).

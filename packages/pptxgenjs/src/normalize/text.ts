@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
-import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdfdeck/model";
+import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "../units";
 import { normalizeHyperlink } from "./link";
 import { normalizeColor, normalizeShadow } from "./style";

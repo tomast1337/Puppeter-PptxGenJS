@@ -184,8 +184,8 @@ The generated CSS includes:
 
 ```
 ├── packages/
-│   ├── model/src/         # @pdfdeck/model: normalized model types and renderer interfaces
-│   ├── pptxgenjs/src/     # @pdfdeck/pptxgenjs
+│   ├── model/src/         # @pdflapas/model: normalized model types and renderer interfaces
+│   ├── pptxgenjs/src/     # @pdflapas/pptxgenjs
 │   │   ├── PuppeteerGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
 │   │   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
 │   │   ├── output.ts          # write()/stream() outputType conversion of PDF bytes
@@ -195,11 +195,11 @@ The generated CSS includes:
 │   │   ├── alignment.ts       # PptxGenJS alignment to CSS
 │   │   ├── pageCss.ts         # Page and slide CSS
 │   │   ├── pptx.ts            # Type definitions
-│   │   ├── html.ts            # Browser-safe entry (@pdfdeck/pptxgenjs/html)
-│   │   └── index.ts           # Node entry (@pdfdeck/pptxgenjs)
-│   ├── puppeteer/src/     # @pdfdeck/puppeteer: PuppeteerPdfRenderer and the shared browser
-│   ├── wasm/src/          # @pdfdeck/wasm: WASM backend loaders + wasm-bindgen glue
-│   ├── react/src/         # @pdfdeck/react: React component adapter
+│   │   ├── html.ts            # Browser-safe entry (@pdflapas/pptxgenjs/html)
+│   │   └── index.ts           # Node entry (@pdflapas/pptxgenjs)
+│   ├── puppeteer/src/     # @pdflapas/puppeteer: PuppeteerPdfRenderer and the shared browser
+│   ├── wasm/src/          # @pdflapas/wasm: WASM backend loaders + wasm-bindgen glue
+│   ├── react/src/         # @pdflapas/react: React component adapter
 │   └── puppeteer-pptxgenjs/src/  # Deprecation shim re-exporting the packages above
 ├── crates/                # Rust workspace: pdf-core (model -> PDF) and pdf-wasm (wasm-bindgen)
 ├── examples/
@@ -260,7 +260,7 @@ Generated Files:
 ### Simple Example
 
 ```typescript
-import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
+import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 
 const pres = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 const slide = pres.addSlide();

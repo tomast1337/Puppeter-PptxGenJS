@@ -62,6 +62,13 @@ describe("completeProfileHtml()", () => {
         expect(completed).toContain("size: 10in 5.625in;");
         const a4 = completeProfileHtml(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><meta name="pdfdeck-page-size" content="A4 Portrait">`));
         expect(a4).toContain("size: 8.27in 11.69in;");
+        // The page-size meta it writes is spelled as the version's: pdfdeck- in version 1, pdflapas- in version 2.
+        expect(completed).toContain('<meta name="pdfdeck-page-size" content="Screen 16:9 Landscape">');
+        const v2 = handWrittenDocument("", `<meta name="pdflapas-profile" content="2">`);
+        expect(completeProfileHtml(v2)).toContain('<meta name="pdflapas-page-size" content="Screen 16:9 Landscape">');
+        const a4v2 = handWrittenDocument("", `<meta name="pdflapas-profile" content="2"><meta name="pdflapas-page-size" content="A4 Portrait">`);
+        expect(completeProfileHtml(a4v2)).toContain("size: 8.27in 11.69in;");
+        expect(() => completeProfileHtml(handWrittenDocument("", `<meta name="pdfdeck-profile" content="2">`))).toThrow(`profile version '2' in <meta name="pdfdeck-profile"> is not supported`);
         // A stylesheet with its own @page is kept as it is.
         const own = handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><style>@page { size: 4in 3in; }</style>`);
         expect(completeProfileHtml(own)).not.toContain("puppeteer-gen-styles");
@@ -87,8 +94,8 @@ describe("completeProfileHtml()", () => {
     test("rejects input that is not a profile document, naming the fix", () => {
         expect(() => completeProfileHtml("")).toThrow("expected a non-empty HTML string, got an empty string");
         expect(() => completeProfileHtml(42 as unknown as string)).toThrow("expected a non-empty HTML string, got number");
-        expect(() => completeProfileHtml("<html><body><p>Hi</p></body></html>")).toThrow('not a pdfdeck profile document: add <meta name="pdfdeck-profile" content="2"> to <head>');
-        expect(() => completeProfileHtml(handWrittenDocument("", `<meta name="pdfdeck-profile" content="3">`))).toThrow("pdfdeck profile version '3' is not supported (this library reads versions 1 and 2)");
+        expect(() => completeProfileHtml("<html><body><p>Hi</p></body></html>")).toThrow('not a PdfLapas profile document: add <meta name="pdflapas-profile" content="2"> to <head>');
+        expect(() => completeProfileHtml(handWrittenDocument("", `<meta name="pdflapas-profile" content="3">`))).toThrow(`profile version '3' in <meta name="pdflapas-profile"> is not supported (this library reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)`);
         expect(() => completeProfileHtml(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><meta name="pdfdeck-page-size" content="Huge">`))).toThrow("page size 'Huge' is not a known size");
         const em = handWrittenDocument(`<div class="slide-element slide-text" data-object-name="T"><div class="text-content"><div class="text-paragraph"><span class="text-run" style="font-size: 2em;">x</span></div></div></div>`);
         expect(() => completeProfileHtml(em)).toThrow("slide 1: object 'T': CSS property 'font-size': '2em' is not a px length");

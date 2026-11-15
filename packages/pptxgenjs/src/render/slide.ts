@@ -1,6 +1,6 @@
 import type { ComponentRegistry } from "../components/registry";
 import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "../defaults";
-import { HTML_PROFILE_VERSION, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, type PresentationMetadata } from "@pdfdeck/model";
+import { HTML_PROFILE_VERSION, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, type PresentationMetadata } from "@pdflapas/model";
 import { normalizeColor } from "../normalize/style";
 import type { PageSize } from "../pageLayouts";
 import { inchesToPixels, pointsToPixels } from "../units";
@@ -97,12 +97,12 @@ export function renderComponents(presentation: NormalizedPresentation, component
 /** The model's whole HTML document, written as a string: the pure render pass, no DOM. */
 export function presentationHtml(presentation: NormalizedPresentation, pass: RenderPass): string {
     const profile = voidElement("meta", [
-        ["name", "pdfdeck-profile"],
+        ["name", "pdflapas-profile"],
         ["content", String(HTML_PROFILE_VERSION)],
     ]);
     // The size itself is in the stylesheet; its name ("Screen 16:9 Landscape", a defineLayout() name) is not.
     const pageSize = voidElement("meta", [
-        ["name", "pdfdeck-page-size"],
+        ["name", "pdflapas-page-size"],
         ["content", presentation.pageSize.name],
     ]);
     // <style> holds raw text: its content is not escaped.
@@ -113,7 +113,7 @@ export function presentationHtml(presentation: NormalizedPresentation, pass: Ren
     return `<!DOCTYPE html><html><head>${profile}${pageSize}${metadataHtml(presentation.metadata)}${style}</head><body>${slides}</body></html>`;
 }
 
-/** Document properties: standard HTML where it has a name for one, `pdfdeck-*` meta otherwise; empty ones are left out. */
+/** Document properties: standard HTML where it has a name for one, `pdflapas-*` meta otherwise; empty ones are left out. */
 function metadataHtml({ title, author, subject, company, revision }: PresentationMetadata = {}): string {
     const meta = (name: string, content: string | undefined) =>
         content
@@ -123,7 +123,7 @@ function metadataHtml({ title, author, subject, company, revision }: Presentatio
               ])
             : "";
     // `description` is HTML's "free-form string describing the page", the PDF Subject's meaning (krilla writes it there too).
-    return `${title ? element("title", [], escapeText(title)) : ""}${meta("author", author)}${meta("description", subject)}${meta("pdfdeck-company", company)}${meta("pdfdeck-revision", revision)}`;
+    return `${title ? element("title", [], escapeText(title)) : ""}${meta("author", author)}${meta("description", subject)}${meta("pdflapas-company", company)}${meta("pdflapas-revision", revision)}`;
 }
 
 /** The shared stylesheet: generated from the page size only. */

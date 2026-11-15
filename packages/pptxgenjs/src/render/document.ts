@@ -1,10 +1,10 @@
-import type { HtmlPresentationDocument, NormalizedPresentation } from "@pdfdeck/model";
+import type { HtmlPresentationDocument, NormalizedPresentation } from "@pdflapas/model";
 import { resolveRemoteImageSource } from "../normalize/image";
 import { componentImageSources } from "./component";
 import { type ComponentLookup, createBrowserDocument, presentationHtml, renderComponents } from "./slide";
 
 // The renderer interfaces are the model package's contract; re-exported for existing imports.
-export type { HtmlPresentationDocument, PresentationRenderer } from "@pdfdeck/model";
+export type { HtmlPresentationDocument, PresentationRenderer } from "@pdflapas/model";
 
 /** What modelToHtml() needs besides the model; each one is supplied by the caller (the Node entry passes jsdom and file paths). */
 export interface ModelToHtmlOptions {

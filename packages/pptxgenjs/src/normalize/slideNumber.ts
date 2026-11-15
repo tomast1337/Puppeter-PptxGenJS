@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import type { NormalizedSlideObject } from "@pdfdeck/model";
+import type { NormalizedSlideObject } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "../defaults";
 import type { FourSideMargin } from "../defaults";
 import type { PageSize } from "../pageLayouts";

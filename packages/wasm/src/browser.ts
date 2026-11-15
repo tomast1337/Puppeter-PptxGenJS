@@ -1,6 +1,6 @@
-// Browser-safe WASM text renderer ("@pdfdeck/wasm" under the browser/default conditions).
+// Browser-safe WASM text renderer ("@pdflapas/wasm" under the browser/default conditions).
 // Must not load node:* modules, puppeteer or jsdom (enforced by tests/wasm.test.ts and scripts/build.ts).
-import type { HtmlPresentationDocument, PresentationRenderer } from "@pdfdeck/model";
+import type { HtmlPresentationDocument, PresentationRenderer } from "@pdflapas/model";
 import init, { Renderer } from "./pdf_wasm.js";
 
 /** The wasm-bindgen surface the loader relies on; tests/wasm.test.ts checks the generated class against it. */
@@ -34,7 +34,7 @@ export interface SystemFontOptions {
 }
 
 /**
- * PDF backend in WebAssembly instead of Chromium: renders the pdfdeck HTML profile document
+ * PDF backend in WebAssembly instead of Chromium: renders the PdfLapas HTML profile document
  * `toHtml()` returns (docs/HTML_PROFILE.md).
  */
 export class WasmRenderer implements PresentationRenderer {

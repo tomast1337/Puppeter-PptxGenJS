@@ -5,7 +5,7 @@ import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps } from "./components/types";
 import { PPTX_DEFAULTS, PPTXGENJS_VERSION } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
-import type { NormalizedImage, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdfdeck/model";
+import type { NormalizedImage, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdflapas/model";
 import { normalizeChart } from "./normalize/chart";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { normalizeImage, resolveRemoteImageSource } from "./normalize/image";
@@ -388,7 +388,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         // PptxGenJS treats an empty font name as unset (`theme.bodyFontFace ? ... : Calibri`).
         const bodyFontFace = value?.bodyFontFace || PPTX_DEFAULTS.theme.bodyFontFace;
         if (bodyFontFace !== this.bodyFontFace() && this.slides.some(slide => slide.model.objects.length > 0)) {
-            throw new Error(`pres.theme.bodyFontFace "${bodyFontFace}" was set after slide objects were added: pdfdeck resolves an object's default font when it is added, PptxGenJS when it writes the file. Set pres.theme before adding text, tables or charts.`);
+            throw new Error(`pres.theme.bodyFontFace "${bodyFontFace}" was set after slide objects were added: PdfLapas resolves an object's default font when it is added, PptxGenJS when it writes the file. Set pres.theme before adding text, tables or charts.`);
         }
         this.themeProps = value;
     }
@@ -581,7 +581,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     /**
      * PptxGenJS `defineLayout()`: registers the size under its name for `layout`. Unlike PptxGenJS, it also applies the
-     * size at once, as pdfdeck always has; PptxGenJS code assigns `layout` next, which gives the same page.
+     * size at once, as PdfLapas always has; PptxGenJS code assigns `layout` next, which gives the same page.
      */
     defineLayout(layout: PptxGenJS.PresLayout): void {
         // PptxGenJS warns and writes a NaN slide size; a PDF needs a real one.

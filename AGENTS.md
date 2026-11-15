@@ -6,10 +6,10 @@ issue tracks it; do not copy a violation because it already exists.
 
 ## Objective
 
-PuppeteerGen (published as `@pdfdeck/*`) exposes the PptxGenJS API and produces PDF instead of PPTX.
+PuppeteerGen (published as `@pdflapas/*`) exposes the PptxGenJS API and produces PDF instead of PPTX.
 The compatibility baseline is the exact `pptxgenjs` version pinned in `package.json`. Two backends turn
-the HTML document, derived from the model, into PDF: Chromium through Puppeteer (`@pdfdeck/puppeteer`,
-the default) and a Rust renderer compiled to WebAssembly (`@pdfdeck/wasm`, from `crates/`).
+the HTML document, derived from the model, into PDF: Chromium through Puppeteer (`@pdflapas/puppeteer`,
+the default) and a Rust renderer compiled to WebAssembly (`@pdflapas/wasm`, from `crates/`).
 
 **Who it is for.** Codebases that use PptxGenJS only to produce PDFs and want to keep their calls:
 migrating must be a change of import with a small diff, not a rewrite. That makes API compatibility the
@@ -61,11 +61,11 @@ depend on them being in a fresh checkout and do not link them from committed doc
 ## Architecture
 
 ```text
-PptxGenJS-compatible API        @pdfdeck/pptxgenjs  (PuppeteerGen)
-  -> pure option normalization  @pdfdeck/pptxgenjs  src/normalize/
-  -> normalized slide model     @pdfdeck/model      (plain, serializable data: the public JSON IR)
-  -> modelToHtml                @pdfdeck/pptxgenjs  (HTML profile, docs/HTML_PROFILE.md)
-  -> renderer                   @pdfdeck/puppeteer, or @pdfdeck/wasm (crates/), reading only the HTML
+PptxGenJS-compatible API        @pdflapas/pptxgenjs  (PuppeteerGen)
+  -> pure option normalization  @pdflapas/pptxgenjs  src/normalize/
+  -> normalized slide model     @pdflapas/model      (plain, serializable data: the public JSON IR)
+  -> modelToHtml                @pdflapas/pptxgenjs  (HTML profile, docs/HTML_PROFILE.md)
+  -> renderer                   @pdflapas/puppeteer, or @pdflapas/wasm (crates/), reading only the HTML
   -> PDF bytes
 ```
 
@@ -76,7 +76,7 @@ PptxGenJS-compatible API        @pdfdeck/pptxgenjs  (PuppeteerGen)
 - Resolve images before PDF generation; output must not depend on an accidental browser base URL or
   external network availability.
 
-**Packages depend in one direction.** `@pdfdeck/model` has no dependencies. Renderers (`puppeteer`,
+**Packages depend in one direction.** `@pdflapas/model` has no dependencies. Renderers (`puppeteer`,
 `wasm`) depend only on `model`. The compatibility layer (`pptxgenjs`) maps PptxGenJS input onto the
 model, never the other way round, and nothing below it imports PptxGenJS types or defaults. A package
 imports another only through its package name; a relative import never crosses `packages/<name>/`.
@@ -100,7 +100,7 @@ must be testable without Chromium. A class is fine when something has identity, 
 mutable state: the `PuppeteerGen` presentation, `WasmRenderer` (owns a wasm instance and its fonts),
 `ComponentRegistry`, the Rust `Renderer` (font collection and caches). Use inheritance only for real
 polymorphism. Add an interface when two implementations exist or when it is a published contract for
-third parties: `PresentationRenderer` in `@pdfdeck/model` qualifies.
+third parties: `PresentationRenderer` in `@pdflapas/model` qualifies.
 
 **Explicit state by default.** Prefer state that is created by the caller and passed down, so a
 function's inputs are visible at its call site. Module-level mutable state (`let` at module scope, a
@@ -136,7 +136,7 @@ only for a file whose single export is a class) and snake_case in Rust.
 
 **Product code and fixtures stay apart.** Library code lives in `packages/*/src` and `crates/*/src`;
 tests in `tests/` (visual fixtures and their scoring in `tests/visual/`); scripts in `scripts/`;
-examples in `examples/`, a private workspace package that imports `@pdfdeck/*` by package name only, as an
+examples in `examples/`, a private workspace package that imports `@pdflapas/*` by package name only, as an
 application does, and runs against the built packages (its own `tsconfig.json` has no `paths`). Rust unit tests may sit in a `#[cfg(test)]` module beside the code. `spike/` is
 exploratory: nothing in `packages/`, `crates/` or `tests/` imports from it, and code that graduates is
 moved, not referenced.

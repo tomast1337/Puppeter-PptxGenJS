@@ -1,4 +1,4 @@
-import type { Coord, NormalizedGeometry, NormalizedTransform } from "@pdfdeck/model";
+import type { Coord, NormalizedGeometry, NormalizedTransform } from "@pdflapas/model";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../units";
 

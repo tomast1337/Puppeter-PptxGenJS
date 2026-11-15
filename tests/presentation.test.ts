@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { NormalizedSlideObject } from "@pdfdeck/model";
+import type { NormalizedSlideObject } from "@pdflapas/model";
 import pptxgen from "pptxgenjs";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";

@@ -1,6 +1,8 @@
-# pdfdeck
+# PdfLapas
 
-Turn existing PptxGenJS code into PDF. pdfdeck is for codebases that use
+PdfLapas: PDF + Lithuanian _lapas_, "sheet, page".
+
+Turn existing PptxGenJS code into PDF. PdfLapas is for codebases that use
 [PptxGenJS](https://gitbrent.github.io/PptxGenJS/) only to end up with a PDF: it implements the
 PptxGenJS 4.0.1 API (`addSlide`, `addText`, `addImage`, `addShape`, `addTable`, `addChart`,
 `writeFile`, ...) and writes the PDF directly, with no `.pptx` and no LibreOffice step. Migrating means
@@ -16,8 +18,8 @@ returns it, you can read, diff or edit it, and you can write your own slide cont
   boxes, so far ([#69](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/69)).
 
 > [!IMPORTANT]
-> **Release status.** The `@pdfdeck/*` packages described here are **not published to npm yet**, and
-> the `@pdfdeck` npm scope is not claimed. The only release on npm is
+> **Release status.** The `@pdflapas/*` packages described here are **not published to npm yet**, and
+> the `@pdflapas` npm scope is not claimed. The only release on npm is
 > [`puppeteer-pptxgenjs`](https://www.npmjs.com/package/puppeteer-pptxgenjs) 0.1.1: a single
 > package with the Puppeteer backend only. It has no `/html`, `/wasm` or `/react` entries, no
 > constructor options (custom renderer, image resolver), no `toPdf()`, `toHtml()` or `getModel()`,
@@ -27,27 +29,27 @@ returns it, you can read, diff or edit it, and you can write your own slide cont
 
 ## Packages
 
-| Package               | What it is                                                                                                    | Entries                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `@pdfdeck/pptxgenjs`  | The PptxGenJS-compatible API (class `PuppeteerGen`), defaults, normalization, HTML renderers                  | `.` (Node), `./html` (browser-safe)    |
-| `@pdfdeck/model`      | The normalized presentation model and the renderer interface (`PresentationRenderer`)                         | `.` (types only)                       |
-| `@pdfdeck/puppeteer`  | `PuppeteerPdfRenderer`, the default backend, and the shared Chromium (`closeBrowser`)                         | `.` (Node)                             |
-| `@pdfdeck/wasm`       | `createWasmRenderer`, the opt-in WebAssembly backend                                                          | `.` (browser, Node and Bun conditions) |
-| `@pdfdeck/react`      | `registerReactComponent`, for React components on slides                                                      | `.`                                    |
-| `puppeteer-pptxgenjs` | Deprecation shim: re-exports `@pdfdeck/pptxgenjs` and its `/html`, `/react` and `/wasm` subpaths at old names | `.`, `./html`, `./react`, `./wasm`     |
+| Package               | What it is                                                                                                     | Entries                                |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `@pdflapas/pptxgenjs` | The PptxGenJS-compatible API (class `PuppeteerGen`), defaults, normalization, HTML renderers                   | `.` (Node), `./html` (browser-safe)    |
+| `@pdflapas/model`     | The normalized presentation model and the renderer interface (`PresentationRenderer`)                          | `.` (types only)                       |
+| `@pdflapas/puppeteer` | `PuppeteerPdfRenderer`, the default backend, and the shared Chromium (`closeBrowser`)                          | `.` (Node)                             |
+| `@pdflapas/wasm`      | `createWasmRenderer`, the opt-in WebAssembly backend                                                           | `.` (browser, Node and Bun conditions) |
+| `@pdflapas/react`     | `registerReactComponent`, for React components on slides                                                       | `.`                                    |
+| `puppeteer-pptxgenjs` | Deprecation shim: re-exports `@pdflapas/pptxgenjs` and its `/html`, `/react` and `/wasm` subpaths at old names | `.`, `./html`, `./react`, `./wasm`     |
 
-Every package in this repository is at 0.2.0 and unpublished. `@pdfdeck/pptxgenjs` depends on
-`@pdfdeck/model`, and its Node entry on `@pdfdeck/puppeteer`; the renderers depend only on
-`@pdfdeck/model`; `@pdfdeck/react` takes `react` and `react-dom` 19 as peers. Node.js 22 or newer and
+Every package in this repository is at 0.2.0 and unpublished. `@pdflapas/pptxgenjs` depends on
+`@pdflapas/model`, and its Node entry on `@pdflapas/puppeteer`; the renderers depend only on
+`@pdflapas/model`; `@pdflapas/react` takes `react` and `react-dom` 19 as peers. Node.js 22 or newer and
 Bun 1.2 or newer are supported.
 
 ## How they fit
 
 ```text
 your PptxGenJS code
-  -> @pdfdeck/pptxgenjs   PptxGenJS-compatible API and option normalization
-  -> @pdfdeck/model       normalized slide model (plain, serializable data)
-  -> renderer             HTML + @pdfdeck/puppeteer (Chromium), or @pdfdeck/wasm (Rust, no browser)
+  -> @pdflapas/pptxgenjs   PptxGenJS-compatible API and option normalization
+  -> @pdflapas/model       normalized slide model (plain, serializable data)
+  -> renderer             HTML + @pdflapas/puppeteer (Chromium), or @pdflapas/wasm (Rust, no browser)
   -> PDF bytes
 ```
 
@@ -57,14 +59,14 @@ backends draw the same model. `getModel()` returns it as JSON-serializable data.
 ## Quick start
 
 ```typescript
-import pptxgen from "@pdfdeck/pptxgenjs";
+import pptxgen from "@pdflapas/pptxgenjs";
 
 const pres = new pptxgen(); // 10 x 5.625 in, the same size as PptxGenJS's default LAYOUT_16x9
 
 const slide = pres.addSlide();
 slide.background = { color: "F1F1F1" };
 slide
-    .addText("Hello from pdfdeck", { x: 0.5, y: 0.5, w: 9, h: 1, fontSize: 32, bold: true, color: "363636" })
+    .addText("Hello from PdfLapas", { x: 0.5, y: 0.5, w: 9, h: 1, fontSize: 32, bold: true, color: "363636" })
     .addShape("roundRect", { x: 0.5, y: 2, w: 4, h: 2, fill: { color: "0088CC" }, rectRadius: 0.2 })
     .addTable(
         [
@@ -84,24 +86,24 @@ Moving existing PptxGenJS code over: [Migrating from PptxGenJS](#migrating-from-
 
 ### Use it from source today
 
-Until `@pdfdeck/*` is published, build the packages and install them as tarballs:
+Until `@pdflapas/*` is published, build the packages and install them as tarballs:
 
 ```bash
-git clone https://github.com/tomast1337/Puppeter-PptxGenJS.git pdfdeck
-cd pdfdeck
+git clone https://github.com/tomast1337/Puppeter-PptxGenJS.git pdflapas
+cd pdflapas
 bun install
-bun run build:wasm   # only for @pdfdeck/wasm: pinned Rust toolchain, or Docker when it is missing
+bun run build:wasm   # only for @pdflapas/wasm: pinned Rust toolchain, or Docker when it is missing
 bun run build
 for p in model puppeteer pptxgenjs wasm; do (cd packages/$p && bun pm pack --destination ../../tarballs); done
 
 cd /path/to/your-app
-npm install /path/to/pdfdeck/tarballs/pdfdeck-{model,puppeteer,pptxgenjs}-0.2.0.tgz
-npm install /path/to/pdfdeck/tarballs/pdfdeck-wasm-0.2.0.tgz   # optional
+npm install /path/to/pdflapas/tarballs/pdflapas-{model,puppeteer,pptxgenjs}-0.2.0.tgz
+npm install /path/to/pdflapas/tarballs/pdflapas-wasm-0.2.0.tgz   # optional
 ```
 
-Inside this repository the workspace already resolves `@pdfdeck/*`: after `bun install` and
+Inside this repository the workspace already resolves `@pdflapas/*`: after `bun install` and
 `bun run build`, `bun run examples/test.ts` uses the built packages as your application would. Once the packages are published, this becomes
-`npm install @pdfdeck/pptxgenjs` (plus `@pdfdeck/wasm` or `@pdfdeck/react` when you need them).
+`npm install @pdflapas/pptxgenjs` (plus `@pdflapas/wasm` or `@pdflapas/react` when you need them).
 
 ## Migrating from PptxGenJS
 
@@ -110,12 +112,12 @@ those of PptxGenJS 4.0.1.
 
 ```diff
 -import pptxgen from "pptxgenjs";
-+import pptxgen from "@pdfdeck/pptxgenjs";
++import pptxgen from "@pdflapas/pptxgenjs";
 ```
 
 The default export is the class `PuppeteerGen` (it keeps that name until the rename planned in
 [#22](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/22)); any local name works. In a web
-page, import `@pdfdeck/pptxgenjs/html` instead and pass a renderer ([below](#choosing-a-backend)).
+page, import `@pdflapas/pptxgenjs/html` instead and pass a renderer ([below](#choosing-a-backend)).
 
 **What you get.** The output methods keep PptxGenJS's call shapes and return a PDF where PptxGenJS
 returns a `.pptx`:
@@ -152,16 +154,16 @@ returns a `.pptx`:
 - **Shown nowhere, as in PowerPoint's slide show:** `addNotes()`, `addSection()` and `pres.rtlMode`
   (which orients PowerPoint's editing views) are accepted and change nothing on the page.
 
-**What throws.** pdfdeck fails instead of writing a PDF that silently lacks something:
+**What throws.** PdfLapas fails instead of writing a PDF that silently lacks something:
 `addMedia()` and `defineSlideMaster()` throw `UnsupportedFeatureError` with a suggested
 alternative; a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
-throws before rendering. `API_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs`, lists what pdfdeck
+throws before rendering. `API_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs`, lists what PdfLapas
 does with each PptxGenJS presentation and slide member; `COMPATIBILITY` does the same per option.
 
 **Using the WASM backend.** Pass its renderer to the constructor; nothing else changes:
 
 ```typescript
-import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
+import { createWasmRenderer, loadSystemFonts } from "@pdflapas/wasm";
 
 const pres = new pptxgen(undefined, { renderer: await createWasmRenderer({ fonts: await loadSystemFonts() }) });
 ```
@@ -186,7 +188,7 @@ tables.
 | Media, slide masters  | Throw `UnsupportedFeatureError`                                          | Same                                                                                               |
 
 The counts come from `COMPATIBILITY`, `CHART_TYPE_COMPATIBILITY` and
-`SHAPE_GEOMETRY_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs` (source:
+`SHAPE_GEOMETRY_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs` (source:
 [`compatibility.ts`](./packages/pptxgenjs/src/compatibility.ts)), which track every option as
 unsupported, partial, implemented, visually verified, or ignored (accepted without effect, as in
 PptxGenJS, like the chart `fontFace` and `fontSize`). WASM support for components that need CSS
@@ -200,8 +202,8 @@ skipped objects. It needs font files (it cannot see system fonts); `loadSystemFo
 metric-compatible Office substitutes (Carlito, Liberation, DejaVu) under Node and Bun.
 
 ```typescript
-import pptxgen from "@pdfdeck/pptxgenjs";
-import { createWasmRenderer, loadSystemFonts } from "@pdfdeck/wasm";
+import pptxgen from "@pdflapas/pptxgenjs";
+import { createWasmRenderer, loadSystemFonts } from "@pdflapas/wasm";
 
 const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
 const pres = new pptxgen(undefined, { renderer });
@@ -217,8 +219,8 @@ In a web page, import the browser-safe entry, which loads no Puppeteer, jsdom or
 and pass font bytes yourself:
 
 ```typescript
-import pptxgen from "@pdfdeck/pptxgenjs/html";
-import { createWasmRenderer } from "@pdfdeck/wasm";
+import pptxgen from "@pdflapas/pptxgenjs/html";
+import { createWasmRenderer } from "@pdflapas/wasm";
 
 const font = new Uint8Array(await (await fetch("/fonts/Carlito-Regular.ttf")).arrayBuffer());
 const renderer = await createWasmRenderer({ fonts: [font] });
@@ -236,13 +238,13 @@ constructor options, fonts and bundling: [docs/BACKENDS.md](./docs/BACKENDS.md).
 `toHtml()` is the exact document both backends draw ([docs/HTML_PROFILE.md](./docs/HTML_PROFILE.md)),
 so you can store it, edit it or write one by hand, and render it later. `pptxHtmlDocument(html)` checks
 the document, fills the values PptxGenJS would default (text insets, line box, font, colors) and reads
-its page size. `htmlDocument(html)` from `@pdfdeck/model` does the same without filling anything, for a
+its page size. `htmlDocument(html)` from `@pdflapas/model` does the same without filling anything, for a
 document that already states every value. Either result goes to either renderer. Puppeteer also prints
 any other HTML through `render({ html, pageSize })`. WASM reads only the profile and names the slide, the
 object and the property it rejects.
 
 ```typescript
-import { pptxHtmlDocument, PuppeteerPdfRenderer } from "@pdfdeck/pptxgenjs";
+import { pptxHtmlDocument, PuppeteerPdfRenderer } from "@pdflapas/pptxgenjs";
 
 const edited = (await pres.toHtml()).html.replace(">Draft</span>", ">Final</span>");
 const pdf = await new PuppeteerPdfRenderer().render(pptxHtmlDocument(edited)); // or a WasmRenderer
@@ -255,7 +257,7 @@ and `examples/html-input.ts`.
 
 Compatible does not mean pixel-identical: PowerPoint, LibreOffice and Chromium lay out and rasterize
 text differently, and output depends on the fonts installed where it renders. Parity is measured, not
-assumed: CI builds the same fixture deck through PptxGenJS and through pdfdeck, converts the `.pptx`
+assumed: CI builds the same fixture deck through PptxGenJS and through PdfLapas, converts the `.pptx`
 to PDF with LibreOffice in a pinned Docker image, rasterizes both PDFs and compares them with
 normalized RMSE. Every page must score at or below **0.12**; per-feature crops target **0.08**. The
 WASM backend is scored against the same references and gated by a no-regression baseline per crop.
@@ -273,7 +275,7 @@ Text crops are the weakest area on both backends: in the Puppeteer renderer glyp
 higher than in LibreOffice ([#49](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/49)). Charts are drawn with ECharts and SVG, not Office's chart engine:
 data, series and options carry over, but they look different by design. Chart slides count toward
 the page limit but have no per-feature crops. [docs/DEFAULTS.md](./docs/DEFAULTS.md) lists the PptxGenJS and PowerPoint defaults
-pdfdeck reproduces.
+PdfLapas reproduces.
 
 ## Documentation
 
@@ -290,7 +292,7 @@ pdfdeck reproduces.
   project structure
 
 Runnable examples live in [`examples/`](./examples), a private workspace package that imports
-`@pdfdeck/*` by name and runs against the built packages (`bun run build` first): `bun run examples/test.ts`,
+`@pdflapas/*` by name and runs against the built packages (`bun run build` first): `bun run examples/test.ts`,
 `bun run examples/comprehensive-example.ts`, `bun run examples/react-component.ts` and
 `bun run examples/html-input.ts`.
 

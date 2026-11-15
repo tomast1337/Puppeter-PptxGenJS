@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import type { NormalizedLine, NormalizedShape, NormalizedTextBox } from "@pdfdeck/model";
+import type { NormalizedLine, NormalizedShape, NormalizedTextBox } from "@pdflapas/model";
 import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../units";
 import { GENERATED_PRESET_NAMES, generatedPresetGeometry } from "./generatedPreset";

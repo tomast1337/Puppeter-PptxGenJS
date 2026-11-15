@@ -1,7 +1,7 @@
 {
-  "name": "@pdfdeck/puppeteer",
+  "name": "@pdflapas/puppeteer",
   "version": "0.2.0",
-  "description": "Puppeteer renderer for pdfdeck: prints the HTML presentation document to PDF in Chromium",
+  "description": "Puppeteer renderer for PdfLapas: prints the HTML presentation document to PDF in Chromium",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -43,7 +43,7 @@
     "prepack": "bun ../../scripts/build.ts"
   },
   "dependencies": {
-    "@pdfdeck/model": "workspace:*",
+    "@pdflapas/model": "workspace:*",
     "parse5": "7.3.0",
     "puppeteer": "^24.15.0"
   }

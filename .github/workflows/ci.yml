@@ -132,7 +132,7 @@ jobs:
       - name: Build packages
         run: bun run build
 
-      # The examples import @pdfdeck/* by name and resolve to the dist files just built, as an application does.
+      # The examples import @pdflapas/* by name and resolve to the dist files just built, as an application does.
       # They write their PDFs to the working directory, so run them outside the checkout.
       - name: Run examples
         working-directory: ${{ runner.temp }}

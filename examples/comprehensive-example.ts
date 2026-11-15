@@ -1,5 +1,5 @@
 import pptxgen from "pptxgenjs";
-import { PAGE_SIZES, PuppeteerGen } from "@pdfdeck/pptxgenjs";
+import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 
 // Example 1: Using different page sizes
 async function examplePageSizes() {

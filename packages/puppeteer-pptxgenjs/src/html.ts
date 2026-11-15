@@ -1,2 +1,2 @@
-export * from "@pdfdeck/pptxgenjs/html";
-export { default } from "@pdfdeck/pptxgenjs/html";
+export * from "@pdflapas/pptxgenjs/html";
+export { default } from "@pdflapas/pptxgenjs/html";
