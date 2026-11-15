@@ -121,9 +121,10 @@ page, import `@pdfdeck/pptxgenjs/html` instead and pass a renderer ([below](#cho
 returns a `.pptx`:
 
 - `writeFile({ fileName })` writes the file under Node, downloads it in a browser, and returns the
-  name it used. As PptxGenJS appends `.pptx`, it appends `.pdf` to a name that does not end in it:
-  `"report"` gives `report.pdf`, `"report.pptx"` gives `report.pptx.pdf`, and no name gives
-  `Presentation.pdf`. Rename the `.pptx` in your file names.
+  name it used. A trailing `.pptx` becomes `.pdf`, so `"report.pptx"` writes `report.pdf` and the
+  call needs no change; `"report.pdf"` is kept and `"report"` gives `report.pdf`. Unlike PptxGenJS,
+  which falls back to `Presentation.pptx`, a file name is required: `writeFile()` without one throws
+  a `TypeError`.
 - `write({ outputType })` returns a `blob` by default, or `arraybuffer`, `base64`, `binarystring`,
   `nodebuffer`, `uint8array` or `STREAM` (a Node Buffer). `stream()` returns a Node Buffer.
 - `compression` is accepted and ignored: it only chooses how the `.pptx` zip is packed.

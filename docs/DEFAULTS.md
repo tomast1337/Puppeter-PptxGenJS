@@ -156,7 +156,9 @@ the type comments.
 PptxGenJS defaults are recorded as compression disabled, `blob` output, and
 `Presentation.pptx`. PuppeteerGen's `write()` defaults to a `blob` of the PDF,
 `stream()` returns a Node `Buffer`, and `compression` is accepted but ignored
-because it only selects zip DEFLATE vs STORE.
+because it only selects zip DEFLATE vs STORE. `writeFile()` has no default file
+name: it requires `fileName`, replaces a trailing `.pptx` with `.pdf` and
+appends `.pdf` to any other name that does not end in it.
 
 ## Other mapped defaults
 
