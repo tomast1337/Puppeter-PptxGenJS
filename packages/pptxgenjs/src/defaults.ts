@@ -253,6 +253,10 @@ export const PPTX_DEFAULTS = Object.freeze({
         // OOXML has no legend key size: Office and LibreOffice draw the square key of a bar, area or pie entry at
         // 0.6 of the legend font size (LibreOffice chart2 VLegend: `nSymbolHeight = fViewFontSize * 0.6`).
         legendKeyFontRatio: 0.6,
+        // PptxGenJS writes `<c:layout/>`: the application lays out the plot area. OOXML and PptxGenJS give no spacing;
+        // LibreOffice (the visual reference) keeps 2% of the chart height between the chart edge, the legend and the
+        // axis labels (chart2 lcl_getPageLayoutDistancePercentage), so the bands keep their text size as the chart grows.
+        plotAreaGapRatio: 0.02,
         displayBlanksAs: "span" as const,
         radarStyle: "standard" as const,
         chartAreaRoundedCorners: true,

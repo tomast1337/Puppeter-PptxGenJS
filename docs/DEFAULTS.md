@@ -175,6 +175,8 @@ Chart defaults are fully mapped even though chart rendering is pending. The
 contract includes:
 
 - Position `x=1`, `y=1`, size `50% × 50%`.
+- Automatic plot area (PptxGenJS writes `<c:layout/>`): 2% of the chart height between the edge, the
+  legend and the axis labels, plus a 1.2em line per legend and label row, as LibreOffice lays it out.
 - 12pt axis labels, 18pt titles, and 10pt value-axis titles and legend, which PptxGenJS writes without
   a size, so Office draws its 10pt chart text default.
 - Arial for the title, axis titles, axis labels and data labels, which PptxGenJS writes as

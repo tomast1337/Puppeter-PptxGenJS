@@ -46,11 +46,16 @@ function lineCap(cap: "flat" | "round" | "square"): "butt" | "round" | "square" 
     return cap === "flat" ? "butt" : cap;
 }
 
+/** Tick length in px; a cross tick spans both sides of the axis. */
+const TICK_LENGTH = 5;
+/** ECharts' default axisLabel.margin, the px between a tick and its label. */
+const AXIS_LABEL_MARGIN = 8;
+
 function tickOption(mark: NormalizedChart["valueAxes"][number]["majorTickMark"], color: string, width: number) {
     return {
         show: mark !== "none",
         inside: mark === "inside",
-        length: mark === "cross" ? 10 : 5,
+        length: mark === "cross" ? TICK_LENGTH * 2 : TICK_LENGTH,
         lineStyle: { color, width: pointsToPixels(width) },
     };
 }
@@ -132,13 +137,24 @@ function chartTitle(chart: NormalizedChart): Record<string, unknown> {
     };
 }
 
-function chartGrid(chart: NormalizedChart) {
-    const bottom = chart.showLegend && chart.legendPosition === "b" ? (chart.valueAxes.length > 1 ? "21%" : "17%") : "10%";
+/**
+ * The automatic plot area (PptxGenJS writes `<c:layout/>`) in text-sized bands, not fractions of the chart height:
+ * a gap, the legend line and a gap below it, then the ticks, the label margin and one label line; above it a gap
+ * and half a value label, which is centered on the top gridline.
+ */
+function chartGrid(chart: NormalizedChart, height: number) {
+    const gap = height * PPTX_DEFAULTS.chart.plotAreaGapRatio;
+    const horizontal = chart.type === "bar" && chart.barDirection === "bar";
+    const valueLabelPx = pointsToPixels(chart.valueAxes[0]?.labelFontSize ?? chart.fontSize);
+    const bottomLabelPx = horizontal ? valueLabelPx : pointsToPixels(chart.fontSize);
+    const sideLabelPx = horizontal ? pointsToPixels(chart.fontSize) : valueLabelPx;
+    const lineEm = PPTX_DEFAULTS.text.singleLineEm;
+    const legendBand = chart.showLegend && chart.legendPosition === "b" ? pointsToPixels(chart.legendFontSize) * lineEm + gap : 0;
     return {
         left: valueAxisGutter(chart),
         right: chart.valueAxes.length > 1 ? "14%" : "2%",
-        top: chart.showTitle ? "14%" : "4%",
-        bottom,
+        top: chart.showTitle ? "14%" : gap + sideLabelPx / 2,
+        bottom: gap + legendBand + TICK_LENGTH + AXIS_LABEL_MARGIN + bottomLabelPx * lineEm,
         outerBoundsMode: "none",
     } as const;
 }
@@ -156,7 +172,7 @@ function legendData(chart: NormalizedChart): { name: string; icon?: string }[] |
     return chart.series.map(series => (series.type === "line" ? { name: series.name } : { name: series.name, icon: LEGEND_SQUARE_ICON }));
 }
 
-function chartOption(chart: NormalizedChart): EChartsCoreOption {
+function chartOption(chart: NormalizedChart, height: number): EChartsCoreOption {
     const keySize = Math.round(pointsToPixels(chart.legendFontSize) * PPTX_DEFAULTS.chart.legendKeyFontRatio);
     const hasLineKey = chart.type === "radar" || chart.series.some(series => series.type === "line");
     const legend = {
@@ -196,7 +212,7 @@ function chartOption(chart: NormalizedChart): EChartsCoreOption {
             lineStyle: { color: chart.gridLineColor, width: pointsToPixels(chart.gridLineWidth) },
         },
     };
-    const grid = chartGrid(chart);
+    const grid = chartGrid(chart, height);
 
     if (chart.type === "pie" || chart.type === "doughnut") {
         const [series] = chart.series;
@@ -411,7 +427,7 @@ export function chartSize(style: NormalizedObjectStyle): { width: number; height
 
 export function renderChart(chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): string {
     const { width, height } = chartSize(style);
-    const source = chart.type === "bar3D" ? renderBar3DSvg(width, height, chart) : renderEChartsSvg(width, height, chartOption(chart));
+    const source = chart.type === "bar3D" ? renderBar3DSvg(width, height, chart) : renderEChartsSvg(width, height, chartOption(chart, height));
     return chartContainer(source, style, chart.altText, idScope);
 }
 
