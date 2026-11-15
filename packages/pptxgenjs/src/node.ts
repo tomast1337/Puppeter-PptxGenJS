@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PuppeteerPdfRenderer } from "@pdfdeck/puppeteer";
 import { JSDOM } from "jsdom";
 import { dataUri, MIME_TYPES, resolveRemoteImageSource } from "./normalize/image";
+import { resolveFileName } from "./output";
 import type { PageSize } from "./pageLayouts";
 import type { PptxWriteFileProps } from "./pptx";
 import { PuppeteerGen as CorePuppeteerGen, type PuppeteerGenOptions } from "./PuppeteerGen";
@@ -37,10 +38,9 @@ export class PuppeteerGen extends CorePuppeteerGen {
         });
     }
 
-    override async writeFile({ fileName }: PptxWriteFileProps): Promise<string> {
-        if (!fileName) {
-            throw new Error("fileName is required");
-        }
+    /** PptxGenJS `writeFile()`: writes the PDF to disk and returns the file name it used. */
+    override async writeFile(props?: PptxWriteFileProps | string): Promise<string> {
+        const fileName = resolveFileName(props);
         await writeFile(fileName, await this.toPdf());
         return fileName;
     }

@@ -557,7 +557,7 @@ export const API_COMPATIBILITY = Object.freeze({
         tableToSlides: { status: "implemented", note: "reads the table from pres.page" },
         stream: { status: "implemented", note: "the PDF as a Node Buffer" },
         write: { status: "implemented", note: "the PDF in the requested outputType" },
-        writeFile: { status: "implemented", note: "writes the PDF (Node entry)" },
+        writeFile: { status: "implemented", note: "writes the PDF to disk (Node entry) or downloads it (browser); appends .pdf as PptxGenJS appends .pptx" },
         LAYOUTS: { status: "internal", note: "built-in sizes are PPTX_DEFAULTS.presentation.layouts; defineLayout() adds names" },
         slides: { status: "internal", note: "getModel() is the public view of the slides" },
         sections: { status: "internal", note: "sections draw nothing" },

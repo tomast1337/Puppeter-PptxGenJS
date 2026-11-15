@@ -21,7 +21,7 @@ import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, Ppt
 import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
 import { type HtmlPresentationDocument, modelToHtml, type PresentationRenderer } from "./render/document";
-import { convertPdfOutput, resolveOutputType } from "./output";
+import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { pixelsToInches } from "./units";
 import { createBrowserDocument, objectIdScope } from "./render/slide";
@@ -511,8 +511,14 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         return this.renderer.render(await this.toHtml());
     }
 
-    async writeFile(_props: PptxWriteFileProps): Promise<string> {
-        throw new Error('writeFile() needs filesystem access and is only available from the Node entry ("puppeteer-pptxgenjs"); use toPdf() or toHtml() instead');
+    /** PptxGenJS `writeFile()`: in a browser, downloads the PDF as PptxGenJS downloads its .pptx; returns the file name. */
+    async writeFile(props?: PptxWriteFileProps | string): Promise<string> {
+        const fileName = resolveFileName(props);
+        if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
+            throw new Error('writeFile() downloads the PDF in a browser, or writes it to disk from the Node entry ("puppeteer-pptxgenjs"); this runtime has neither a document nor a filesystem, so use toPdf() or toHtml() instead');
+        }
+        downloadPdf(document, fileName, await this.toPdf());
+        return fileName;
     }
 
     addSection(props: PptxSectionProps): void {

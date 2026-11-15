@@ -18,6 +18,35 @@ export function resolveOutputType(props?: PptxGenJS.WriteProps | PptxGenJS.WRITE
     return outputType;
 }
 
+/**
+ * PptxGenJS 4.0.1 `writeFile()` file name: `{ fileName }`, or a bare string (deprecated, with PptxGenJS's warning).
+ * No name gives "Presentation.pdf", and ".pdf" is appended unless the name ends in it (any case): "deck.pptx"
+ * becomes "deck.pptx.pdf", as PptxGenJS turns "deck.pdf" into "deck.pdf.pptx". `compression` is ignored (zip-only).
+ */
+export function resolveFileName(props?: PptxGenJS.WriteFileProps | string): string {
+    if (typeof props === "string") console.warn("[WARNING] writeFile(string) is deprecated - pass { fileName } instead.");
+    const name: unknown = (typeof props === "string" ? props : props?.fileName) ?? PPTX_DEFAULTS.write.pdfFileName;
+    if (typeof name !== "string") throw new TypeError(`writeFile() fileName must be a string, got ${typeof name}; for example { fileName: "deck.pdf" }`);
+    const { pdfExtension } = PPTX_DEFAULTS.write;
+    return name.toLowerCase().endsWith(pdfExtension) ? name : `${name}${pdfExtension}`;
+}
+
+/** PptxGenJS 4.0.1 `writeFileToBrowser()`: a hidden download link clicked once, released 100 ms later (Firefox needs the delay). */
+export function downloadPdf(document: Document, fileName: string, bytes: Uint8Array): void {
+    const link = document.createElement("a");
+    link.setAttribute("style", "display:none;");
+    link.dataset.interception = "off"; // SharePoint would intercept the click otherwise
+    document.body.appendChild(link);
+    const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" }));
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    setTimeout(() => {
+        URL.revokeObjectURL(url);
+        link.remove();
+    }, 100);
+}
+
 /** Converts PDF bytes the way PptxGenJS converts its zip: STREAM -> nodebuffer, no type -> blob. */
 export function convertPdfOutput(bytes: Uint8Array, outputType: PptxGenJS.WRITE_OUTPUT_TYPE | null): WriteOutput {
     switch (outputType ?? PPTX_DEFAULTS.write.outputType) {
