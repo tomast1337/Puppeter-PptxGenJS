@@ -100,7 +100,8 @@ function inheritedCellOptions(table: PptxGenJS.TableProps, cell: PptxGenJS.Table
     if (inherited.fontSize === undefined) inherited.fontSize = PPTX_DEFAULTS.table.fontSizePt;
     if (inherited.valign === undefined) inherited.valign = PPTX_DEFAULTS.table.valign;
     if (inherited.margin === undefined) inherited.margin = PPTX_DEFAULTS.table.marginIn;
-    if (inherited.color === undefined) inherited.color = PPTX_DEFAULTS.table.color;
+    // PptxGenJS writes no color for an uncolored linked cell, so it takes the theme's hyperlink color (LibreOffice).
+    if (inherited.color === undefined && !inherited.hyperlink) inherited.color = PPTX_DEFAULTS.table.color;
     return inherited as PptxGenJS.TableCellProps;
 }
 
