@@ -294,7 +294,10 @@ backend.
   (`"Calibri"`), as `toHtml()` writes it: a fallback list is an error, since fallbacks are the print
   step's.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
-  always inlines images).
+  always inlines images). PNG, JPEG and GIF are recognized by their bytes, whatever the media type says,
+  as browsers sniff them; an animated GIF draws its first frame, and a GIF whose first frame does not fill
+  its logical screen is an error. `image/svg+xml` is read as the SVG subset below. WebP is reported
+  through `warnings()`, not drawn. Anything else is an error.
 - **Chart SVG and SVG images are one strict subset.** A `.slide-chart` (from `addChart()` or
   `addChartExtension()`) is drawn from its one `<svg>`, and an `image/svg+xml` picture from its decoded
   document, both read once as the subset ECharts, the 3D bar renderer, caller SVGs and common SVG files

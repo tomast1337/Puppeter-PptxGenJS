@@ -6,6 +6,7 @@ import { populateChartFixture, populateImageFixture } from "../fixture";
 import { populateShapeDeck, populateTableDeck, populateTextDeck, SHAPE_PAGES, TABLE_PAGES, TEXT_PAGES } from "./deck";
 import { EFFECT_PAGES, populateEffectDeck } from "./effect-deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
+import { FORMAT_PAGES, populateGifDeck } from "./format-deck";
 import { IMAGE_PAGES, populateImageDeck } from "./image-deck";
 import { LAYOUT_PAGES, populateLayoutDeck } from "./layout-deck";
 
@@ -14,8 +15,8 @@ export type SlideObject = ReturnType<PuppeteerGen["getModel"]>["slides"][number]
 const isText = (object: SlideObject) => object.kind === "text";
 // emoji: Noto Color Emoji / Noto Sans CJK fallback (issue #14), installed in the pinned image.
 // `crop` picks the objects that get a crop each: text boxes, for the shapes deck every shape
-// (with or without text), so labels do not dilute the geometry scores, for the images and svg decks every
-// picture, for the tables deck every table and for the charts deck every chart.
+// (with or without text), so labels do not dilute the geometry scores, for the images, svg and gif decks
+// every picture, for the tables deck every table and for the charts deck every chart.
 export const DECKS: Record<string, { populate: Populate; pages: number; crop: (object: SlideObject) => boolean }> = {
     text: { populate: populateTextDeck, pages: TEXT_PAGES, crop: isText },
     emoji: { populate: populateEmojiDeck, pages: EMOJI_PAGES, crop: isText },
@@ -35,6 +36,7 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
         pages: 2,
         crop: object => object.kind === "image",
     },
+    gif: { populate: populateGifDeck, pages: FORMAT_PAGES, crop: object => object.kind === "image" },
     // effects: every shadowed or glowing object; the slide titles sit above y = 0.5in (48px).
     effects: { populate: populateEffectDeck, pages: EFFECT_PAGES, crop: object => object.style.geometry.y > 48 },
     // charts: the shared fixture's chart slides. Pie, doughnut, radar and scatter are left to tests/wasm.test.ts:
