@@ -154,7 +154,7 @@ impl Renderer {
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
         let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
         self.page_count = model.slides.len();
-        for slide in &model.slides {
+        for (index, slide) in model.slides.iter().enumerate() {
             let mut page = document.start_page_with(PageSettings::new(page_size));
             let mut surface = page.surface();
             surface.push_transform(&Transform::from_scale(PT_PER_PX, PT_PER_PX));
@@ -169,7 +169,7 @@ impl Renderer {
                 page.add_annotation(link);
             }
             page.finish();
-            drawn?;
+            drawn.map_err(|e| format!("slide {}: {e}", index + 1))?;
         }
         document.finish().map_err(|e| format!("PDF serialization failed: {e:?}"))
     }
@@ -570,8 +570,8 @@ mod tests {
     #[test]
     fn reports_images_it_does_not_draw() {
         let mut r = Renderer::new();
-        render(&mut r, &build::deck(vec![picture(build::image("data:image/svg+xml;base64,PHN2Zy8+"))])).unwrap();
-        assert_eq!(r.warnings(), vec!["SVG images not rendered"]);
+        render(&mut r, &build::deck(vec![picture(build::image("data:image/gif;base64,R0lGODlh"))])).unwrap();
+        assert_eq!(r.warnings(), vec!["GIF and WebP images not rendered"]);
     }
 
     /// The PDF's annotations, the PDF syntax of one object each.
@@ -768,7 +768,7 @@ mod tests {
             slide: None,
         };
         let error = render(&mut r, &linked(script)).unwrap_err();
-        assert_eq!(error, "'Picture 1': link 'javascript:alert(1)' is not an http, https or mailto URL");
+        assert_eq!(error, "slide 1: 'Picture 1': link 'javascript:alert(1)' is not an http, https or mailto URL");
         let missing = Link {
             href: "#slide-3".into(),
             tooltip: None,
@@ -783,7 +783,38 @@ mod tests {
     fn rejects_undecodable_image_data_by_object_name() {
         let mut r = Renderer::new();
         let error = render(&mut r, &build::deck(vec![picture(build::image("data:image/png;base64,iVBORw0KGgoAAAA="))])).unwrap_err();
-        assert!(error.starts_with("image 'Picture 1': cannot decode image/png data"), "{error}");
+        assert!(error.starts_with("slide 1: image 'Picture 1': cannot decode image/png data"), "{error}");
+    }
+
+    /// An SVG image of `body` in a 100 x 50 viewBox.
+    fn svg_image(body: &str) -> String {
+        use base64::Engine;
+        let svg = format!(r#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50">{body}</svg>"#);
+        format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(svg))
+    }
+
+    #[test]
+    fn draws_svg_images_as_vectors_and_names_what_it_cannot_read() {
+        let mut r = Renderer::new();
+        let blank = render(&mut r, &build::deck(vec![picture(build::image(&svg_image("")))])).unwrap();
+        let shapes =
+            svg_image(r##"<rect width="100" height="50" rx="8" fill="navy"/><circle cx="50" cy="25" r="20" style="fill: #fff; stroke: red" opacity=".5"/>"##);
+        let mut shadowed = picture(build::image(&shapes));
+        if let SlideObject::Image(object) = &mut shadowed {
+            object.style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.3)", 4.0, 3.0, false));
+        }
+        let pdf = render(&mut r, &build::deck(vec![picture(build::image(&shapes)), shadowed])).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        assert_eq!(r.images.len(), 1, "one distinct source, read once");
+        // Vectors, not an image: the only image XObjects are the shadow's colour and soft mask.
+        assert_eq!(pdf.windows(14).filter(|w| w == b"/Subtype/Image").count(), 2);
+        assert!(pdf.len() > blank.len() + 500, "{} vs {}", pdf.len(), blank.len());
+
+        let error = render(&mut r, &build::deck(vec![picture(build::image(&svg_image(r##"<use href="#a"/>"##)))])).unwrap_err();
+        assert!(
+            error.starts_with("slide 1: image 'Picture 1': SVG image: <use> is not in the SVG subset"),
+            "{error}"
+        );
     }
 
     /// A text-in-shape object whose fill, line, run, outline, highlight and

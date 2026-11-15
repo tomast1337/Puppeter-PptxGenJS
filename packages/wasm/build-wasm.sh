@@ -31,7 +31,8 @@ root=$PWD
 # -112 B: font-family is exactly one quoted family; the bullet copy is checked too (#69 phase 7), 958,053 -> 957,941 B measured; budget = that size.
 # +17,807 B: chart SVG (#69 phase 8a: strict SVG subset reader, gradients, clip paths, SVG text), 957,941 -> 975,748 B measured; budget = that size.
 # +7 B: the SVG reader and drawing renamed from chart to svg (#69 phase 8b, shared with SVG images); only embedded source paths change, 975,748 -> 975,755 B measured; budget = that size.
-GZIP_BUDGET=975755
+# +6,425 B: SVG images (#69 phase 8b: data URI reading, viewBox/preserveAspectRatio fit, +2,136 B; the subset's named colors +1,755 B; rotate/skew +47 B; style, circle, rx/ry, opacity, fill-rule, transform lists and the XML prolog +2,487 B), 975,755 -> 982,180 B measured; budget = that size.
+GZIP_BUDGET=982180
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

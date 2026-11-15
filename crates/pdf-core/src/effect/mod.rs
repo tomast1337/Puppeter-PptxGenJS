@@ -108,6 +108,8 @@ struct Capture {
 #[derive(Default)]
 pub(crate) struct Effects {
     active: Vec<Capture>,
+    /// The active captures while `pause`d.
+    paused: Vec<Capture>,
     spare: Vec<Capture>,
     cells: Vec<f32>,
     mask: Vec<f32>,
@@ -121,6 +123,15 @@ fn affine_of(t: Transform) -> Affine {
 impl Effects {
     pub(crate) fn capturing(&self) -> bool {
         !self.active.is_empty()
+    }
+
+    /// Stops capturing until `resume`: for drawing whose silhouette was captured as a whole.
+    pub(crate) fn pause(&mut self) {
+        std::mem::swap(&mut self.active, &mut self.paused);
+    }
+
+    pub(crate) fn resume(&mut self) {
+        std::mem::swap(&mut self.active, &mut self.paused);
     }
 
     /// Adds `path`, filled with `alpha` under the device transform `ctm`, to the active captures

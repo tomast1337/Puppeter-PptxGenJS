@@ -1,22 +1,27 @@
 //! The SVG subset WASM draws, read once into a `crate::svg::Svg` display list: a chart's `<svg>`
-//! (`profile::chart`).
+//! (`profile::chart`) or an SVG image's document (`crate::image`).
 //!
 //! The subset is what ECharts (`renderEChartsSvg`), the 3D bar renderer (`render/chart3d.ts`) and
-//! `addChartExtension()` callers produce for every chart the PptxGenJS options reach: `g`, `defs`
-//! with `clipPath` and `linearGradient`, `path`, `rect`, `polygon`, `polyline`, `line`, `ellipse`
-//! and single-line `text`, painted with colors, gradients, opacity, strokes and fonts. Any other
-//! element, attribute or value is an error, never skipped.
+//! `addChartExtension()` callers produce for every chart the PptxGenJS options reach, plus what
+//! hand-written and optimized (svgo) SVG files commonly use: `g`, `defs` with `clipPath` and
+//! `linearGradient`, `path`, `rect` (with `rx`/`ry`), `circle`, `ellipse`, `line`, `polyline`,
+//! `polygon` and single-line `text`, painted with colors (CSS names too), gradients, opacity,
+//! strokes, fill rules and fonts, given as attributes or `style` declarations, under transform
+//! lists. `title`, `desc` and `metadata` draw nothing and are skipped. Any other element,
+//! attribute or value is an error, never skipped: external references (`<image>`, `<use>`,
+//! `href`, `url()` other than `url(#id)`) included.
 
-use krilla::paint::{LineCap, LineJoin};
+use krilla::paint::{FillRule, LineCap, LineJoin};
 use kurbo::{Affine, BezPath, PathEl};
 
 use super::allow;
-use super::dom::{Dom, Element};
-use super::style::{Style, number};
+use super::dom::{self, Dom, Element};
+use super::style::Style;
 use crate::color::{Rgba, parse_color};
+use crate::path::rounded_rect_path;
 use crate::path::{ellipse_path, rect_path, to_path};
 use crate::shape::SVG_MITER_LIMIT;
-use crate::svg::{Anchor, Gradient, Item, Paint, Shape, Svg, Text, stop, stroke};
+use crate::svg::{Anchor, Fit, Gradient, Item, Paint, Shape, Svg, Text, stop, stroke};
 use crate::text::layout::TextStroke;
 
 const SVG_ATTRS: &[&str] = &[
@@ -30,9 +35,23 @@ const SVG_ATTRS: &[&str] = &[
     "data-chart-type",
     "data-bar3d-shape",
 ];
-/// Metadata that does not change the drawing: zrender's hit testing and series markers, the 3D
-/// renderer's data attributes.
+/// The root `<svg>` of an SVG image; `x` and `y` do not move an outermost `<svg>`.
+const IMAGE_SVG_ATTRS: &[&str] = &[
+    "width",
+    "height",
+    "viewBox",
+    "preserveAspectRatio",
+    "xmlns",
+    "xmlns:xlink",
+    "version",
+    "baseProfile",
+    "x",
+    "y",
+];
+/// Metadata that does not change the drawing: ids nothing references, zrender's hit testing and
+/// series markers, the 3D renderer's data attributes.
 const INERT_ATTRS: &[&str] = &[
+    "id",
     "pointer-events",
     "ecmeta_series_index",
     "ecmeta_data_index",
@@ -41,18 +60,170 @@ const INERT_ATTRS: &[&str] = &[
     "data-series",
     "data-category",
 ];
-const FILL_ATTRS: &[&str] = &["fill", "fill-opacity"];
+const FILL_ATTRS: &[&str] = &["fill", "fill-opacity", "fill-rule"];
 const STROKE_ATTRS: &[&str] = &["stroke", "stroke-width", "stroke-opacity", "stroke-miterlimit"];
 /// Stroke properties a glyph outline does not take.
 const LINE_ATTRS: &[&str] = &["stroke-linecap", "stroke-linejoin", "stroke-dasharray"];
-/// As attributes, and as `style` properties of `<text>`.
 const FONT_PROPERTIES: &[&str] = &["font-family", "font-size", "font-weight", "font-style"];
 const TEXT_ATTRS: &[&str] = &["x", "y", "transform", "text-anchor", "dominant-baseline", "paint-order", "xml:space"];
+/// `opacity`, which is not inherited, as an attribute or a `style` property.
+const OPACITY: &[&str] = &["opacity"];
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 /// Deepest `<g>` nesting read (the renderers nest two levels): deeper input is an error rather
 /// than a deep recursion.
 const MAX_DEPTH: usize = 32;
-const ELEMENTS: &str = "g, defs, path, rect, polygon, polyline, line, ellipse, text";
+const ELEMENTS: &str = "g, defs, path, rect, circle, ellipse, line, polyline, polygon, text, title, desc, metadata";
+/// The CSS named colors (CSS Color 4) and their sRGB values.
+const NAMED_COLORS: [(&str, u32); 148] = [
+    ("aliceblue", 0xf0f8ff),
+    ("antiquewhite", 0xfaebd7),
+    ("aqua", 0x00ffff),
+    ("aquamarine", 0x7fffd4),
+    ("azure", 0xf0ffff),
+    ("beige", 0xf5f5dc),
+    ("bisque", 0xffe4c4),
+    ("black", 0x000000),
+    ("blanchedalmond", 0xffebcd),
+    ("blue", 0x0000ff),
+    ("blueviolet", 0x8a2be2),
+    ("brown", 0xa52a2a),
+    ("burlywood", 0xdeb887),
+    ("cadetblue", 0x5f9ea0),
+    ("chartreuse", 0x7fff00),
+    ("chocolate", 0xd2691e),
+    ("coral", 0xff7f50),
+    ("cornflowerblue", 0x6495ed),
+    ("cornsilk", 0xfff8dc),
+    ("crimson", 0xdc143c),
+    ("cyan", 0x00ffff),
+    ("darkblue", 0x00008b),
+    ("darkcyan", 0x008b8b),
+    ("darkgoldenrod", 0xb8860b),
+    ("darkgray", 0xa9a9a9),
+    ("darkgreen", 0x006400),
+    ("darkgrey", 0xa9a9a9),
+    ("darkkhaki", 0xbdb76b),
+    ("darkmagenta", 0x8b008b),
+    ("darkolivegreen", 0x556b2f),
+    ("darkorange", 0xff8c00),
+    ("darkorchid", 0x9932cc),
+    ("darkred", 0x8b0000),
+    ("darksalmon", 0xe9967a),
+    ("darkseagreen", 0x8fbc8f),
+    ("darkslateblue", 0x483d8b),
+    ("darkslategray", 0x2f4f4f),
+    ("darkslategrey", 0x2f4f4f),
+    ("darkturquoise", 0x00ced1),
+    ("darkviolet", 0x9400d3),
+    ("deeppink", 0xff1493),
+    ("deepskyblue", 0x00bfff),
+    ("dimgray", 0x696969),
+    ("dimgrey", 0x696969),
+    ("dodgerblue", 0x1e90ff),
+    ("firebrick", 0xb22222),
+    ("floralwhite", 0xfffaf0),
+    ("forestgreen", 0x228b22),
+    ("fuchsia", 0xff00ff),
+    ("gainsboro", 0xdcdcdc),
+    ("ghostwhite", 0xf8f8ff),
+    ("gold", 0xffd700),
+    ("goldenrod", 0xdaa520),
+    ("gray", 0x808080),
+    ("green", 0x008000),
+    ("greenyellow", 0xadff2f),
+    ("grey", 0x808080),
+    ("honeydew", 0xf0fff0),
+    ("hotpink", 0xff69b4),
+    ("indianred", 0xcd5c5c),
+    ("indigo", 0x4b0082),
+    ("ivory", 0xfffff0),
+    ("khaki", 0xf0e68c),
+    ("lavender", 0xe6e6fa),
+    ("lavenderblush", 0xfff0f5),
+    ("lawngreen", 0x7cfc00),
+    ("lemonchiffon", 0xfffacd),
+    ("lightblue", 0xadd8e6),
+    ("lightcoral", 0xf08080),
+    ("lightcyan", 0xe0ffff),
+    ("lightgoldenrodyellow", 0xfafad2),
+    ("lightgray", 0xd3d3d3),
+    ("lightgreen", 0x90ee90),
+    ("lightgrey", 0xd3d3d3),
+    ("lightpink", 0xffb6c1),
+    ("lightsalmon", 0xffa07a),
+    ("lightseagreen", 0x20b2aa),
+    ("lightskyblue", 0x87cefa),
+    ("lightslategray", 0x778899),
+    ("lightslategrey", 0x778899),
+    ("lightsteelblue", 0xb0c4de),
+    ("lightyellow", 0xffffe0),
+    ("lime", 0x00ff00),
+    ("limegreen", 0x32cd32),
+    ("linen", 0xfaf0e6),
+    ("magenta", 0xff00ff),
+    ("maroon", 0x800000),
+    ("mediumaquamarine", 0x66cdaa),
+    ("mediumblue", 0x0000cd),
+    ("mediumorchid", 0xba55d3),
+    ("mediumpurple", 0x9370db),
+    ("mediumseagreen", 0x3cb371),
+    ("mediumslateblue", 0x7b68ee),
+    ("mediumspringgreen", 0x00fa9a),
+    ("mediumturquoise", 0x48d1cc),
+    ("mediumvioletred", 0xc71585),
+    ("midnightblue", 0x191970),
+    ("mintcream", 0xf5fffa),
+    ("mistyrose", 0xffe4e1),
+    ("moccasin", 0xffe4b5),
+    ("navajowhite", 0xffdead),
+    ("navy", 0x000080),
+    ("oldlace", 0xfdf5e6),
+    ("olive", 0x808000),
+    ("olivedrab", 0x6b8e23),
+    ("orange", 0xffa500),
+    ("orangered", 0xff4500),
+    ("orchid", 0xda70d6),
+    ("palegoldenrod", 0xeee8aa),
+    ("palegreen", 0x98fb98),
+    ("paleturquoise", 0xafeeee),
+    ("palevioletred", 0xdb7093),
+    ("papayawhip", 0xffefd5),
+    ("peachpuff", 0xffdab9),
+    ("peru", 0xcd853f),
+    ("pink", 0xffc0cb),
+    ("plum", 0xdda0dd),
+    ("powderblue", 0xb0e0e6),
+    ("purple", 0x800080),
+    ("rebeccapurple", 0x663399),
+    ("red", 0xff0000),
+    ("rosybrown", 0xbc8f8f),
+    ("royalblue", 0x4169e1),
+    ("saddlebrown", 0x8b4513),
+    ("salmon", 0xfa8072),
+    ("sandybrown", 0xf4a460),
+    ("seagreen", 0x2e8b57),
+    ("seashell", 0xfff5ee),
+    ("sienna", 0xa0522d),
+    ("silver", 0xc0c0c0),
+    ("skyblue", 0x87ceeb),
+    ("slateblue", 0x6a5acd),
+    ("slategray", 0x708090),
+    ("slategrey", 0x708090),
+    ("snow", 0xfffafa),
+    ("springgreen", 0x00ff7f),
+    ("steelblue", 0x4682b4),
+    ("tan", 0xd2b48c),
+    ("teal", 0x008080),
+    ("thistle", 0xd8bfd8),
+    ("tomato", 0xff6347),
+    ("turquoise", 0x40e0d0),
+    ("violet", 0xee82ee),
+    ("wheat", 0xf5deb3),
+    ("white", 0xffffff),
+    ("whitesmoke", 0xf5f5f5),
+    ("yellow", 0xffff00),
+    ("yellowgreen", 0x9acd32),
+];
 
 /// A chart's `<svg>`: `width` and `height` at 100% of the chart box.
 pub(crate) fn chart(dom: &Dom<'_>, svg: &Element<'_>) -> Result<Svg, String> {
@@ -71,10 +242,52 @@ pub(crate) fn chart(dom: &Dom<'_>, svg: &Element<'_>) -> Result<Svg, String> {
     {
         return Err(format!("attribute 'xmlns': '{namespace}' is not the SVG namespace"));
     }
+    let view_box = svg.attr("viewBox")?.map(|v| view_box(&v)).transpose()?;
+    read(dom, svg, view_box, Fit::CENTER_MEET, false)
+}
+
+/// An SVG image: the decoded `data:image/svg+xml` document. Its root `<svg>` is sized into the
+/// picture's rectangle as Chromium sizes an `<img>`'s SVG.
+pub(crate) fn image(text: &str) -> Result<Svg, String> {
+    let dom = dom::parse(markup(text)?)?;
+    let [svg] = dom.elements_of(&dom.children)?[..] else {
+        return Err("the document must hold one <svg> element".into());
+    };
+    if svg.name != "svg" {
+        return Err(format!("the root element is <{}>, not <svg>", svg.name));
+    }
+    let css = Style::of(svg)?;
+    allow(
+        svg,
+        &css,
+        &[IMAGE_SVG_ATTRS, FILL_ATTRS, STROKE_ATTRS, LINE_ATTRS, FONT_PROPERTIES],
+        &[FILL_ATTRS, STROKE_ATTRS, LINE_ATTRS, FONT_PROPERTIES],
+    )?;
+    // Browsers draw nothing for an <svg> outside the SVG namespace.
+    if svg.attr("xmlns")?.as_deref() != Some(SVG_NAMESPACE) {
+        return Err(format!(r#"the <svg> must have xmlns="{SVG_NAMESPACE}""#));
+    }
+    let (view_box, fit) = match svg.attr("viewBox")? {
+        Some(value) => (Some(view_box(&value)?), fit(svg.attr("preserveAspectRatio")?.as_deref())?),
+        // Chromium scales an SVG without a viewBox from its width and height to the picture, like a
+        // raster image; without them, its user units are px.
+        None => match (size(svg, "width")?, size(svg, "height")?) {
+            (Some(w), Some(h)) => (Some([0.0, 0.0, w, h]), Fit::Stretch),
+            (None, None) => (None, Fit::CENTER_MEET),
+            _ => return Err("an <svg> without a viewBox must have both width and height in px, or neither".into()),
+        },
+    };
+    read(&dom, svg, view_box, fit, true)
+}
+
+/// The display list of `svg`'s content; `root_paint` when the `<svg>`'s own fill, stroke and font
+/// are inherited.
+fn read(dom: &Dom<'_>, svg: &Element<'_>, view_box: Option<[f32; 4]>, fit: Fit, root_paint: bool) -> Result<Svg, String> {
     let mut reader = Reader {
         dom,
         svg: Svg {
-            view_box: svg.attr("viewBox")?.map(|v| view_box(&v)).transpose()?,
+            view_box,
+            fit,
             items: Vec::new(),
             gradients: Vec::new(),
             clips: Vec::new(),
@@ -84,8 +297,75 @@ pub(crate) fn chart(dom: &Dom<'_>, svg: &Element<'_>) -> Result<Svg, String> {
     };
     // References may point forward (ECharts writes its <defs> last), so definitions go first.
     reader.definitions(svg, 0)?;
-    reader.children(svg, &Inherited::default(), 0)?;
+    let inherited = if root_paint {
+        reader.inherit(svg, &Style::of(svg)?, &Inherited::default())?
+    } else {
+        Inherited::default()
+    };
+    reader.children(svg, &inherited, 0)?;
     Ok(reader.svg)
+}
+
+/// The markup of an SVG file after the XML declaration, doctype and comments before its root,
+/// which the profile tokenizer does not read.
+fn markup(text: &str) -> Result<&str, String> {
+    let mut rest = text.strip_prefix('\u{feff}').unwrap_or(text);
+    loop {
+        rest = rest.trim_ascii_start();
+        // `<?xml-stylesheet …?>` is no declaration: the tokenizer rejects it.
+        let declaration = rest.strip_prefix("<?xml").is_some_and(|r| r.starts_with(|c: char| c.is_ascii_whitespace()));
+        let (end, what) = if declaration {
+            ("?>", "XML declaration")
+        } else if rest.starts_with("<!--") {
+            ("-->", "comment")
+        } else if rest.starts_with("<!DOCTYPE svg") {
+            (">", "doctype")
+        } else {
+            return Ok(rest);
+        };
+        let (head, tail) = rest.split_once(end).ok_or_else(|| format!("unterminated {what}"))?;
+        if what == "doctype" && head.contains('[') {
+            return Err("a doctype with an internal subset (entity declarations) is not read".into());
+        }
+        rest = tail;
+    }
+}
+
+/// `width` or `height` of an SVG image's root: a px length (unit optional), or `None` when it is
+/// missing or a percentage, which gives the picture no size of its own.
+fn size(svg: &Element<'_>, name: &str) -> Result<Option<f32>, String> {
+    let Some(value) = svg.attr(name)? else { return Ok(None) };
+    if value.ends_with('%') {
+        return Ok(None);
+    }
+    match svg_number(value.strip_suffix("px").unwrap_or(&value)) {
+        Ok(size) if size > 0.0 => Ok(Some(size)),
+        _ => Err(format!("attribute '{name}': '{value}' is not a positive px length or a percentage")),
+    }
+}
+
+/// `preserveAspectRatio`: `none`, or `x(Min|Mid|Max)Y(Min|Mid|Max)` and an optional `meet` or `slice`.
+fn fit(value: Option<&str>) -> Result<Fit, String> {
+    let Some(value) = value else { return Ok(Fit::CENTER_MEET) };
+    let axis = |part: Option<&str>| match part {
+        Some("Min") => Some(0.0),
+        Some("Mid") => Some(0.5),
+        Some("Max") => Some(1.0),
+        _ => None,
+    };
+    let fit = match value.split_ascii_whitespace().collect::<Vec<_>>()[..] {
+        ["none"] | ["none", "meet" | "slice"] => Some(Fit::Stretch),
+        [align] => align_of(align, axis).map(|align| Fit::Uniform { align, slice: false }),
+        [align, mode @ ("meet" | "slice")] => align_of(align, axis).map(|align| Fit::Uniform { align, slice: mode == "slice" }),
+        _ => None,
+    };
+    fit.ok_or_else(|| format!("attribute 'preserveAspectRatio': '{value}' is not none or x(Min|Mid|Max)Y(Min|Mid|Max) [meet|slice]"))
+}
+
+/// `xMidYMax` as (0.5, 1.0), each axis read by `axis`.
+fn align_of(align: &str, axis: impl Fn(Option<&str>) -> Option<f32>) -> Option<(f32, f32)> {
+    let rest = align.strip_prefix('x')?;
+    Some((axis(rest.get(..3))?, axis(rest.get(4..).filter(|_| rest.get(3..4) == Some("Y")))?))
 }
 
 struct Reader<'d, 'a> {
@@ -108,6 +388,7 @@ struct Inherited {
     join: LineJoin,
     miter_limit: f32,
     dash: Option<Vec<f32>>,
+    even_odd: bool,
     font_family: Option<String>,
     font_size: Option<f32>,
     bold: bool,
@@ -134,6 +415,7 @@ impl Default for Inherited {
             join: LineJoin::Miter,
             miter_limit: SVG_MITER_LIMIT,
             dash: None,
+            even_odd: false,
             font_family: None,
             font_size: None,
             bold: false,
@@ -155,7 +437,7 @@ impl Reader<'_, '_> {
                     }
                 }
                 "g" if depth < MAX_DEPTH => self.definitions(child, depth + 1)?,
-                "g" => return Err(format!("chart SVG groups nest deeper than {MAX_DEPTH} levels")),
+                "g" => return Err(format!("SVG groups nest deeper than {MAX_DEPTH} levels")),
                 _ => {}
             }
         }
@@ -178,7 +460,7 @@ impl Reader<'_, '_> {
                     allow(shape, &css, &[&["d", "x", "y", "width", "height"], FILL_ATTRS], &[])?;
                     let path = match shape.name {
                         "path" | "rect" => self.geometry(shape)?,
-                        name => return Err(format!("<{name}> in a <clipPath> is not in the chart SVG subset (path, rect)")),
+                        name => return Err(format!("<{name}> in a <clipPath> is not in the SVG subset (path, rect)")),
                     };
                     clip.extend(path);
                 }
@@ -213,7 +495,7 @@ impl Reader<'_, '_> {
                 });
                 self.gradient_ids.push(id);
             }
-            name => return Err(format!("<{name}> in <defs> is not in the chart SVG subset (clipPath, linearGradient)")),
+            name => return Err(format!("<{name}> in <defs> is not in the SVG subset (clipPath, linearGradient)")),
         }
         Ok(())
     }
@@ -223,10 +505,12 @@ impl Reader<'_, '_> {
             match child.name {
                 // Read by `definitions`.
                 "defs" => {}
+                // Metadata: drawn by nobody.
+                "title" | "desc" | "metadata" => {}
                 "g" => self.group(child, inherited, depth)?,
-                "path" | "rect" | "polygon" | "polyline" | "line" | "ellipse" => self.shape(child, inherited)?,
+                "path" | "rect" | "circle" | "polygon" | "polyline" | "line" | "ellipse" => self.shape(child, inherited)?,
                 "text" => self.text(child, inherited)?,
-                name => return Err(format!("<{name}> is not in the chart SVG subset ({ELEMENTS})")),
+                name => return Err(format!("<{name}> is not in the SVG subset ({ELEMENTS})")),
             }
         }
         Ok(())
@@ -234,24 +518,33 @@ impl Reader<'_, '_> {
 
     fn group(&mut self, g: &Element<'_>, parent: &Inherited, depth: usize) -> Result<(), String> {
         if depth >= MAX_DEPTH {
-            return Err(format!("chart SVG groups nest deeper than {MAX_DEPTH} levels"));
+            return Err(format!("SVG groups nest deeper than {MAX_DEPTH} levels"));
         }
         let css = Style::of(g)?;
         allow(
             g,
             &css,
-            &[&["clip-path", "opacity"], FILL_ATTRS, STROKE_ATTRS, LINE_ATTRS, FONT_PROPERTIES, INERT_ATTRS],
-            &[],
+            &[
+                &["clip-path", "transform"],
+                OPACITY,
+                FILL_ATTRS,
+                STROKE_ATTRS,
+                LINE_ATTRS,
+                FONT_PROPERTIES,
+                INERT_ATTRS,
+            ],
+            &[OPACITY, FILL_ATTRS, STROKE_ATTRS, LINE_ATTRS, FONT_PROPERTIES],
         )?;
-        let inherited = self.inherit(g, None, parent)?;
-        let opacity = optional_number(g, "opacity")?.map(|o| o.clamp(0.0, 1.0)).filter(|o| *o < 1.0);
+        let inherited = self.inherit(g, &css, parent)?;
+        let opacity = opacity(g, &css)?;
         let clip = match g.attr("clip-path")? {
             Some(value) => Some(self.reference(&value, "clip-path", &self.clip_ids)?),
             None => None,
         };
-        let pops = u8::from(opacity.is_some()) + u8::from(clip.is_some());
+        let transform = transform_attr(g)?;
+        let pops = u8::from(transform.is_some()) + u8::from(opacity.is_some()) + u8::from(clip.is_some());
         if pops > 0 {
-            self.svg.items.push(Item::Group { opacity, clip });
+            self.svg.items.push(Item::Group { transform, opacity, clip });
         }
         self.children(g, &inherited, depth + 1)?;
         if pops > 0 {
@@ -264,7 +557,8 @@ impl Reader<'_, '_> {
         let css = Style::of(element)?;
         let geometry: &[&str] = match element.name {
             "path" => &["d"],
-            "rect" => &["x", "y", "width", "height"],
+            "rect" => &["x", "y", "width", "height", "rx", "ry"],
+            "circle" => &["cx", "cy", "r"],
             "polygon" | "polyline" => &["points"],
             "line" => &["x1", "y1", "x2", "y2"],
             _ => &["cx", "cy", "rx", "ry"],
@@ -272,13 +566,13 @@ impl Reader<'_, '_> {
         allow(
             element,
             &css,
-            &[geometry, &["transform"], FILL_ATTRS, STROKE_ATTRS, LINE_ATTRS, INERT_ATTRS],
-            &[],
+            &[geometry, &["transform"], OPACITY, FILL_ATTRS, STROKE_ATTRS, LINE_ATTRS, INERT_ATTRS],
+            &[OPACITY, FILL_ATTRS, STROKE_ATTRS, LINE_ATTRS],
         )?;
         if let Some(child) = self.dom.elements_of(&element.children)?.first() {
-            return Err(format!("<{}> inside <{}> is not in the chart SVG subset", child.name, element.name));
+            return Err(format!("<{}> inside <{}> is not in the SVG subset", child.name, element.name));
         }
-        let paint = self.inherit(element, None, parent)?;
+        let paint = self.inherit(element, &css, parent)?;
         let fill = match paint.fill {
             // A line has no inside.
             _ if element.name == "line" => None,
@@ -302,13 +596,30 @@ impl Reader<'_, '_> {
         if fill.is_none() && stroke.is_none() {
             return Ok(());
         }
-        self.svg.items.push(Item::Shape(Shape {
+        let shape = Item::Shape(Shape {
             path: self.geometry(element)?,
             transform: transform_attr(element)?,
             fill,
+            rule: if paint.even_odd { FillRule::EvenOdd } else { FillRule::NonZero },
             stroke,
-        }));
+        });
+        self.push_with_opacity(shape, opacity(element, &css)?);
         Ok(())
+    }
+
+    /// Pushes `item`, in a group of its own when its `opacity` is below 1 (fill and stroke fade together).
+    fn push_with_opacity(&mut self, item: Item, opacity: Option<f32>) {
+        if opacity.is_some() {
+            self.svg.items.push(Item::Group {
+                transform: None,
+                opacity,
+                clip: None,
+            });
+        }
+        self.svg.items.push(item);
+        if opacity.is_some() {
+            self.svg.items.push(Item::End { pops: 1 });
+        }
     }
 
     fn text(&mut self, element: &Element<'_>, parent: &Inherited) -> Result<(), String> {
@@ -316,10 +627,10 @@ impl Reader<'_, '_> {
         allow(
             element,
             &css,
-            &[TEXT_ATTRS, FILL_ATTRS, STROKE_ATTRS, FONT_PROPERTIES, INERT_ATTRS],
-            &[FONT_PROPERTIES],
+            &[TEXT_ATTRS, OPACITY, FILL_ATTRS, STROKE_ATTRS, FONT_PROPERTIES, INERT_ATTRS],
+            &[OPACITY, FILL_ATTRS, STROKE_ATTRS, FONT_PROPERTIES],
         )?;
-        let paint = self.inherit(element, Some(&css), parent)?;
+        let paint = self.inherit(element, &css, parent)?;
         let fill = match paint.fill {
             Fill::Color(Rgba(r, g, b, a)) => Rgba(r, g, b, a * paint.fill_opacity),
             Fill::None | Fill::Gradient(_) => return Err("the fill of a <text> must be a color".into()),
@@ -360,7 +671,7 @@ impl Reader<'_, '_> {
             None | Some("default") => raw.split_ascii_whitespace().collect::<Vec<_>>().join(" "),
             Some(other) => return Err(format!("attribute 'xml:space': '{other}' is not default or preserve")),
         };
-        self.svg.items.push(Item::Text(Text {
+        let text = Item::Text(Text {
             text,
             x: optional_number(element, "x")?.unwrap_or(0.0),
             y: optional_number(element, "y")?.unwrap_or(0.0),
@@ -373,7 +684,8 @@ impl Reader<'_, '_> {
             italic: paint.italic,
             fill,
             stroke,
-        }));
+        });
+        self.push_with_opacity(text, opacity(element, &css)?);
         Ok(())
     }
 
@@ -394,8 +706,20 @@ impl Reader<'_, '_> {
                 BezPath::from_svg(&d).map_err(|e| format!("attribute 'd': invalid path data: {e}"))?
             }
             "rect" => match (length("width")?, length("height")?) {
-                (w, h) if w > 0.0 && h > 0.0 => rect_path(number("x")?, number("y")?, w, h, 0.0),
+                // A missing or negative radius takes the other one's value, as in SVG; both are
+                // clamped to half the side.
+                (w, h) if w > 0.0 && h > 0.0 => match (optional_number(element, "rx")?, optional_number(element, "ry")?) {
+                    (None, None) => rect_path(number("x")?, number("y")?, w, h, 0.0),
+                    (rx, ry) => {
+                        let (rx, ry) = (rx.or(ry).unwrap_or(0.0).max(0.0), ry.or(rx).unwrap_or(0.0).max(0.0));
+                        rounded_rect_path(number("x")?, number("y")?, w, h, (rx.min(w / 2.0), ry.min(h / 2.0)))
+                    }
+                },
                 // Zero width or height disables the rect.
+                _ => BezPath::new(),
+            },
+            "circle" => match length("r")? {
+                r if r > 0.0 => ellipse_path(number("cx")? - r, number("cy")? - r, r * 2.0, r * 2.0),
                 _ => BezPath::new(),
             },
             "ellipse" => match (length("rx")?, length("ry")?) {
@@ -437,80 +761,102 @@ impl Reader<'_, '_> {
 
     /// `parent`'s properties with the element's own: presentation attributes, then `style`
     /// properties, which take precedence as in CSS.
-    fn inherit(&self, element: &Element<'_>, css: Option<&Style<'_>>, parent: &Inherited) -> Result<Inherited, String> {
+    fn inherit(&self, element: &Element<'_>, css: &Style<'_>, parent: &Inherited) -> Result<Inherited, String> {
         let mut out = parent.clone();
-        let attr = |name: &str| element.attr(name).map(|v| v.map(|v| v.into_owned()));
-        if let Some(fill) = attr("fill")? {
+        let get = |name: &str| property(element, css, name);
+        if let Some((fill, place)) = get("fill")? {
             out.fill = match fill.as_str() {
                 "none" => Fill::None,
                 value if value.starts_with("url(") => Fill::Gradient(self.reference(value, "fill", &self.gradient_ids)?),
-                value => Fill::Color(color_value(value).map_err(|e| format!("attribute 'fill': {e}"))?),
+                value => Fill::Color(color_value(value).map_err(|e| format!("{place} 'fill': {e}"))?),
             };
         }
-        if let Some(stroke) = attr("stroke")? {
+        if let Some((stroke, place)) = get("stroke")? {
             out.stroke = match stroke.as_str() {
                 "none" => None,
-                value => Some(color_value(value).map_err(|e| format!("attribute 'stroke': {e}"))?),
+                value => Some(color_value(value).map_err(|e| format!("{place} 'stroke': {e}"))?),
             };
         }
         for (name, target) in [("fill-opacity", &mut out.fill_opacity), ("stroke-opacity", &mut out.stroke_opacity)] {
-            if let Some(value) = optional_number(element, name)? {
+            if let Some(value) = number_property(element, css, name)? {
                 *target = value.clamp(0.0, 1.0);
             }
         }
-        if let Some(width) = optional_number(element, "stroke-width")? {
+        if let Some((width, place)) = get("stroke-width")? {
+            let width = svg_number(width.strip_suffix("px").unwrap_or(&width)).map_err(|e| format!("{place} 'stroke-width': {e}"))?;
             if width < 0.0 {
-                return Err(format!("attribute 'stroke-width': {width} is negative"));
+                return Err(format!("{place} 'stroke-width': {width} is negative"));
             }
             out.stroke_width = width;
         }
-        if let Some(limit) = optional_number(element, "stroke-miterlimit")? {
+        if let Some(limit) = number_property(element, css, "stroke-miterlimit")? {
             if limit < 1.0 {
-                return Err(format!("attribute 'stroke-miterlimit': {limit} is below 1"));
+                return Err(format!("stroke-miterlimit {limit} is below 1"));
             }
             out.miter_limit = limit;
         }
-        if let Some(cap) = attr("stroke-linecap")? {
+        if let Some((cap, place)) = get("stroke-linecap")? {
             out.cap = match cap.as_str() {
                 "butt" => LineCap::Butt,
                 "round" => LineCap::Round,
                 "square" => LineCap::Square,
-                other => return Err(format!("attribute 'stroke-linecap': '{other}' is not butt, round or square")),
+                other => return Err(format!("{place} 'stroke-linecap': '{other}' is not butt, round or square")),
             };
         }
-        if let Some(join) = attr("stroke-linejoin")? {
+        if let Some((join, place)) = get("stroke-linejoin")? {
             out.join = match join.as_str() {
                 "miter" => LineJoin::Miter,
                 "round" => LineJoin::Round,
                 "bevel" => LineJoin::Bevel,
-                other => return Err(format!("attribute 'stroke-linejoin': '{other}' is not miter, round or bevel")),
+                other => return Err(format!("{place} 'stroke-linejoin': '{other}' is not miter, round or bevel")),
             };
         }
-        if let Some(dash) = attr("stroke-dasharray")? {
+        if let Some((dash, place)) = get("stroke-dasharray")? {
             out.dash = match dash.as_str() {
                 "none" => None,
                 value => {
-                    let array = numbers(value).map_err(|e| format!("attribute 'stroke-dasharray': {e}"))?;
+                    let array = numbers(value).map_err(|e| format!("{place} 'stroke-dasharray': {e}"))?;
                     if array.iter().any(|v| *v < 0.0) {
-                        return Err(format!("attribute 'stroke-dasharray': '{value}' has a negative length"));
+                        return Err(format!("{place} 'stroke-dasharray': '{value}' has a negative length"));
                     }
                     // As in SVG, an all-zero pattern draws the line solid.
                     array.iter().any(|v| *v > 0.0).then_some(array)
                 }
             };
         }
-        for property in FONT_PROPERTIES {
-            let from_css = css.and_then(|css| css.get(property));
-            let value = match from_css {
-                Some(value) => Some(value.to_owned()),
-                None => attr(property)?,
+        if let Some((rule, place)) = get("fill-rule")? {
+            out.even_odd = match rule.as_str() {
+                "nonzero" => false,
+                "evenodd" => true,
+                other => return Err(format!("{place} 'fill-rule': '{other}' is not nonzero or evenodd")),
             };
-            let Some(value) = value else { continue };
-            let place = if from_css.is_some() { "CSS property" } else { "attribute" };
+        }
+        for property in FONT_PROPERTIES {
+            let Some((value, place)) = get(property)? else { continue };
             font_property(&mut out, property, &value).map_err(|e| format!("{place} '{property}': {e}"))?;
         }
         Ok(out)
     }
+}
+
+/// A presentation property of `element`: its `style` declaration, which wins as in CSS, or its
+/// attribute, with where it was found for error messages.
+fn property(element: &Element<'_>, css: &Style<'_>, name: &str) -> Result<Option<(String, &'static str)>, String> {
+    if let Some(value) = css.get(name) {
+        return Ok(Some((value.to_owned(), "CSS property")));
+    }
+    Ok(element.attr(name)?.map(|value| (value.into_owned(), "attribute")))
+}
+
+fn number_property(element: &Element<'_>, css: &Style<'_>, name: &str) -> Result<Option<f32>, String> {
+    property(element, css, name)?
+        .map(|(value, place)| svg_number(&value).map_err(|e| format!("{place} '{name}': {e}")))
+        .transpose()
+}
+
+/// `opacity` below 1 (clamped to [0, 1]); `None` when it is 1 or missing.
+fn opacity(element: &Element<'_>, css: &Style<'_>) -> Result<Option<f32>, String> {
+    Ok(number_property(element, css, "opacity")?.map(|o| o.clamp(0.0, 1.0)).filter(|o| *o < 1.0))
 }
 
 fn font_property(out: &mut Inherited, property: &str, value: &str) -> Result<(), String> {
@@ -526,7 +872,7 @@ fn font_property(out: &mut Inherited, property: &str, value: &str) -> Result<(),
             out.font_family = Some(family.to_owned());
         }
         "font-size" => {
-            let size = number(value.strip_suffix("px").unwrap_or(value))?;
+            let size = svg_number(value.strip_suffix("px").unwrap_or(value))?;
             if size < 0.0 {
                 return Err(format!("'{value}' is negative"));
             }
@@ -550,7 +896,7 @@ fn font_property(out: &mut Inherited, property: &str, value: &str) -> Result<(),
     Ok(())
 }
 
-/// `#rgb`, `#rrggbb`, `rgb(r,g,b)` or `rgba(r,g,b,a)`.
+/// `#rgb`, `#rrggbb`, `rgb(r,g,b)`, `rgba(r,g,b,a)`, a CSS color name or `transparent`.
 fn color_value(value: &str) -> Result<Rgba, String> {
     let color = match value.strip_prefix('#') {
         Some(hex) if hex.len() == 3 && hex.bytes().all(|b| b.is_ascii_hexdigit()) => {
@@ -563,10 +909,32 @@ fn color_value(value: &str) -> Result<Rgba, String> {
             .strip_prefix("rgba(")
             .or_else(|| value.strip_prefix("rgb("))
             .and_then(|v| v.strip_suffix(')'))
-            .filter(|inner| inner.split(',').all(|part| number(part.trim_ascii()).is_ok()))
-            .and_then(|_| parse_color(value)),
+            .filter(|inner| inner.split(',').all(|part| svg_number(part.trim_ascii()).is_ok()))
+            .and_then(|_| parse_color(value))
+            .or_else(|| named_color(value)),
     };
-    color.ok_or_else(|| format!("'{value}' is not a #rgb, #rrggbb, rgb() or rgba() color"))
+    color.ok_or_else(|| format!("'{value}' is not a #rgb, #rrggbb, rgb(), rgba() or named color"))
+}
+
+/// A CSS color keyword, matched without regard to case.
+fn named_color(value: &str) -> Option<Rgba> {
+    if value.eq_ignore_ascii_case("transparent") {
+        return Some(Rgba(0, 0, 0, 0.0));
+    }
+    let (_, rgb) = NAMED_COLORS.iter().find(|(name, _)| name.eq_ignore_ascii_case(value))?;
+    Some(Rgba((rgb >> 16) as u8, (rgb >> 8) as u8, *rgb as u8, 1.0))
+}
+
+/// An SVG number: digits with an optional sign, fraction (`.5` and `5.` too) and exponent.
+fn svg_number(text: &str) -> Result<f32, String> {
+    let digits = !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit() || matches!(b, b'+' | b'-' | b'.' | b'e' | b'E'));
+    // Through f64, as the profile's numbers are, so a chart reads the same value as before.
+    let value = text.parse::<f64>().ok().filter(|_| digits).map(|v| v as f32);
+    match value {
+        Some(v) if v.is_finite() => Ok(v),
+        Some(_) => Err(format!("'{text}' is out of range")),
+        None => Err(format!("'{text}' is not a number")),
+    }
 }
 
 /// Numbers separated by commas and/or whitespace.
@@ -574,14 +942,14 @@ fn numbers(value: &str) -> Result<Vec<f32>, String> {
     value
         .split(|c: char| c == ',' || c.is_ascii_whitespace())
         .filter(|v| !v.is_empty())
-        .map(number)
+        .map(svg_number)
         .collect()
 }
 
 fn optional_number(element: &Element<'_>, name: &str) -> Result<Option<f32>, String> {
     element
         .attr(name)?
-        .map(|v| number(&v).map_err(|e| format!("attribute '{name}': {e}")))
+        .map(|v| svg_number(&v).map_err(|e| format!("attribute '{name}': {e}")))
         .transpose()
 }
 
@@ -597,32 +965,39 @@ fn view_box(value: &str) -> Result<[f32; 4], String> {
     }
 }
 
-/// `transform`: one `translate(x [y])` or `matrix(a b c d e f)`, the functions zrender writes.
+/// `transform`: a list of `matrix`, `translate`, `scale`, `rotate`, `skewX` and `skewY`, applied
+/// in order.
 fn transform_attr(element: &Element<'_>) -> Result<Option<Affine>, String> {
     let Some(value) = element.attr("transform")? else { return Ok(None) };
-    let parsed = value
-        .trim_ascii()
-        .strip_suffix(')')
-        .and_then(|v| v.split_once('('))
-        .and_then(|(name, args)| Some((name.trim_ascii(), numbers(args).ok()?)));
-    let affine = match parsed
-        .as_ref()
-        .map(|(name, args)| (*name, args.iter().map(|v| f64::from(*v)).collect::<Vec<_>>()))
-    {
-        Some(("translate", args)) => match args[..] {
-            [x] => Some(Affine::translate((x, 0.0))),
-            [x, y] => Some(Affine::translate((x, y))),
-            _ => None,
-        },
-        Some(("matrix", args)) => match args[..] {
-            [a, b, c, d, e, f] => Some(Affine::new([a, b, c, d, e, f])),
-            _ => None,
-        },
-        _ => None,
-    };
-    affine
+    transform_list(&value)
         .map(Some)
-        .ok_or_else(|| format!("attribute 'transform': '{value}' is not translate(<x> <y>) or matrix(<a> <b> <c> <d> <e> <f>)"))
+        .ok_or_else(|| format!("attribute 'transform': '{value}' is not a list of matrix(), translate(), scale(), rotate(), skewX() and skewY()"))
+}
+
+fn transform_list(value: &str) -> Option<Affine> {
+    let mut affine: Option<Affine> = None;
+    let mut rest = value.trim_ascii();
+    while !rest.is_empty() {
+        let (name, tail) = rest.split_once('(')?;
+        let (args, tail) = tail.split_once(')')?;
+        let args: Vec<f64> = numbers(args).ok()?.into_iter().map(f64::from).collect();
+        let next = match (name.trim_ascii(), &args[..]) {
+            ("matrix", &[a, b, c, d, e, f]) => Affine::new([a, b, c, d, e, f]),
+            ("translate", &[x]) => Affine::translate((x, 0.0)),
+            ("translate", &[x, y]) => Affine::translate((x, y)),
+            ("scale", &[s]) => Affine::scale(s),
+            ("scale", &[x, y]) => Affine::scale_non_uniform(x, y),
+            ("rotate", &[angle]) => Affine::rotate(angle.to_radians()),
+            ("rotate", &[angle, x, y]) => Affine::rotate_about(angle.to_radians(), (x, y)),
+            ("skewX", &[angle]) => Affine::skew(angle.to_radians().tan(), 0.0),
+            ("skewY", &[angle]) => Affine::skew(0.0, angle.to_radians().tan()),
+            _ => return None,
+        };
+        // The first function alone is taken as is, so one translate() keeps its exact coefficients.
+        affine = Some(affine.map_or(next, |a| a * next));
+        rest = tail.trim_start_matches(|c: char| c.is_ascii_whitespace() || c == ',');
+    }
+    affine
 }
 
 #[cfg(test)]
@@ -631,7 +1006,9 @@ pub(crate) mod tests {
     use crate::model::SlideObject;
     use crate::profile::parse;
     use crate::profile::tests::document;
-    use crate::svg::{Anchor, Item, Paint, Svg};
+    use krilla::paint::FillRule;
+
+    use crate::svg::{Anchor, Fit, Item, Paint, Svg};
 
     /// A chart object around `svg_body`, as `toHtml()` writes it.
     pub(crate) fn chart(svg_body: &str) -> String {
@@ -719,7 +1096,14 @@ pub(crate) mod tests {
         let Some(Item::Shape(bar)) = chart.items.get(4) else { panic!("bar") };
         assert!(matches!(bar.fill, Some(Paint::Color(Rgba(0x44, 0x72, 0xC4, a))) if a == 0.5));
         assert!(bar.stroke.is_none());
-        assert!(matches!(chart.items.get(5), Some(Item::Group { opacity: None, clip: Some(0) })));
+        assert!(matches!(
+            chart.items.get(5),
+            Some(Item::Group {
+                transform: None,
+                opacity: None,
+                clip: Some(0)
+            })
+        ));
         assert!(matches!(chart.items.get(7), Some(Item::End { pops: 1 })));
 
         let Some(Item::Text(title)) = chart.items.get(3) else { panic!("axis title") };
@@ -754,7 +1138,7 @@ pub(crate) mod tests {
             (tick.font_family.as_str(), tick.font_size, tick.fill, tick.anchor, tick.central),
             ("Arial", 14.67, Rgba(0, 0, 0, 1.0), Anchor::End, false)
         );
-        assert!(matches!(chart.items.get(3), Some(Item::Group { opacity: Some(o), clip: None }) if *o == 0.5));
+        assert!(matches!(chart.items.get(3), Some(Item::Group { transform: None, opacity: Some(o), clip: None }) if *o == 0.5));
         let Some(Item::Shape(front)) = chart.items.get(4) else { panic!("front") };
         assert!(matches!(front.fill, Some(Paint::Gradient(0, o)) if o == 1.0));
         let Some(Item::Text(title)) = chart.items.last() else { panic!("title") };
@@ -777,9 +1161,9 @@ pub(crate) mod tests {
     #[test]
     fn rejects_svg_outside_the_subset_naming_the_place() {
         for (body, message) in [
-            (r#"<circle cx="1" cy="1" r="1"></circle>"#, "<circle> is not in the chart SVG subset"),
-            (r#"<image href="data:image/png;base64,AA=="></image>"#, "<image> is not in the chart SVG subset"),
-            (r#"<style>path { fill: red }</style>"#, "<style> is not in the chart SVG subset"),
+            (r##"<use href="#a"></use>"##, "<use> is not in the SVG subset"),
+            (r#"<image href="data:image/png;base64,AA=="></image>"#, "<image> is not in the SVG subset"),
+            (r#"<style>path { fill: red }</style>"#, "<style> is not in the SVG subset"),
             (
                 r#"<text font-family="Arial" font-size="12">a<tspan>b</tspan></text>"#,
                 "unexpected <tspan> inside <text>",
@@ -788,15 +1172,19 @@ pub(crate) mod tests {
                 r#"<path d="M0 0" filter="url(#f)"></path>"#,
                 "attribute 'filter' on <path> is not in profile v1",
             ),
-            (r#"<path d="M0 0" style="fill: red"></path>"#, "CSS property 'fill' on <path>"),
-            (r#"<path d="M0 0" fill="red"></path>"#, "attribute 'fill': 'red' is not a #rgb"),
+            (r#"<path d="M0 0" style="filter: none"></path>"#, "CSS property 'filter' on <path>"),
+            (r#"<path d="M0 0" fill="reddish"></path>"#, "attribute 'fill': 'reddish' is not a #rgb"),
+            (r#"<path d="M0 0" style="stroke: reddish"></path>"#, "CSS property 'stroke': 'reddish' is not"),
+            (r#"<path d="M0 0" fill="url(https://x.test/a.svg#g)"></path>"#, "is not url(#id)"),
+            (r#"<path d="M0 0" fill-rule="odd"></path>"#, "'odd' is not nonzero or evenodd"),
+            (r#"<path d="M0 0" opacity="half"></path>"#, "attribute 'opacity': 'half' is not a number"),
             (r##"<path d="M0 0" fill="#12345"></path>"##, "attribute 'fill': '#12345' is not"),
             (r#"<path d="M0 0" fill="rgb(1,x,2)"></path>"#, "is not a #rgb"),
             (r#"<path d="M0 0" stroke="url(#g)"></path>"#, "attribute 'stroke': 'url(#g)' is not"),
             (r#"<path d="M0 0" fill="url(#missing)"></path>"#, "no definition with id 'missing'"),
             (r##"<path d="M0 0 X 1" fill="#000"></path>"##, "attribute 'd': invalid path data"),
-            (r#"<path d="M0 0" transform="rotate(45)"></path>"#, "attribute 'transform': 'rotate(45)'"),
-            (r#"<path d="M0 0" transform="translate(1 2) scale(2)"></path>"#, "attribute 'transform'"),
+            (r#"<path d="M0 0" transform="rotate(1 2)"></path>"#, "attribute 'transform': 'rotate(1 2)'"),
+            (r#"<path d="M0 0" transform="translate(1 2) perspective(2)"></path>"#, "attribute 'transform'"),
             (r#"<path d="M0 0" stroke-linejoin="arcs"></path>"#, "'arcs' is not miter, round or bevel"),
             (r#"<path d="M0 0" stroke-dasharray="4 -1"></path>"#, "has a negative length"),
             (r#"<polygon points="1 2 3"></polygon>"#, "odd number of coordinates"),
@@ -832,9 +1220,9 @@ pub(crate) mod tests {
                 r#"<text font-family="Arial" font-size="12" x="1 2">x</text>"#,
                 "attribute 'x': '1 2' is not a number",
             ),
-            (r#"<g transform="translate(1 2)"></g>"#, "attribute 'transform' on <g> is not in profile v1"),
+            (r#"<g transform="translate(1 2"></g>"#, "attribute 'transform': 'translate(1 2'"),
             (r#"<g clip-path="url(#c)"></g>"#, "attribute 'clip-path': no definition with id 'c'"),
-            (r#"<defs><filter id="f"></filter></defs>"#, "<filter> in <defs> is not in the chart SVG subset"),
+            (r#"<defs><filter id="f"></filter></defs>"#, "<filter> in <defs> is not in the SVG subset"),
             (r#"<defs><clipPath id="c"></clipPath></defs>"#, "holds no finite path or rect"),
             (
                 r#"<defs><clipPath id="c"><circle r="1"></circle></clipPath></defs>"#,
@@ -859,6 +1247,127 @@ pub(crate) mod tests {
         }
         let deep = format!("{}{}", "<g>".repeat(40), "</g>".repeat(40));
         assert!(read(&deep).err().unwrap_or_default().contains("nest deeper than 32 levels"));
+    }
+
+    #[test]
+    fn reads_the_common_svg_file_features() {
+        let svg = read(
+            r##"<title>Icon</title><desc>d</desc>
+<g id="layer" transform="translate(10 0) rotate(90)" style="fill: navy; stroke-width: 2px">
+<rect width="10" height="4" rx="1"></rect>
+<circle id="dot" cx="5" cy="5" r="2" style="fill: Transparent; stroke: rgb(0,128,0)" opacity=".5"></circle>
+<path d="M0 0h4v4h-4z M1 1h2v2h-2z" fill-rule="evenodd" transform="scale(2) skewX(10)"></path>
+</g>"##,
+        )
+        .unwrap();
+        assert_eq!(kinds(&svg), ["group", "shape", "group", "shape", "end", "shape", "end"]);
+        let Some(Item::Group {
+            transform: Some(t),
+            opacity: None,
+            clip: None,
+        }) = svg.items.first()
+        else {
+            panic!("group")
+        };
+        let expected = [0.0, 1.0, -1.0, 0.0, 10.0, 0.0];
+        assert!(t.as_coeffs().iter().zip(expected).all(|(a, b)| (a - b).abs() < 1e-12), "{t:?}");
+        let Some(Item::Shape(rect)) = svg.items.get(1) else { panic!("rect") };
+        assert!(matches!(rect.fill, Some(Paint::Color(Rgba(0, 0, 0x80, 1.0)))) && rect.stroke.is_none());
+        assert!(
+            rect.path.elements().iter().any(|el| matches!(el, kurbo::PathEl::CurveTo(..))),
+            "rounded corners"
+        );
+        assert!(matches!(svg.items.get(2), Some(Item::Group { transform: None, opacity: Some(o), clip: None }) if *o == 0.5));
+        let Some(Item::Shape(dot)) = svg.items.get(3) else { panic!("circle") };
+        assert!(dot.fill.is_none(), "transparent fills nothing");
+        assert_eq!(dot.stroke.as_ref().map(|s| s.width), Some(2.0));
+        let Some(Item::Shape(ring)) = svg.items.get(5) else { panic!("path") };
+        assert_eq!(ring.rule, FillRule::EvenOdd);
+        assert!(ring.transform.is_some());
+    }
+
+    /// An SVG image's document as editors write it: `attrs` on the `<svg>`, `body` inside.
+    fn image_svg(attrs: &str, body: &str) -> Result<Svg, String> {
+        super::image(&format!(
+            "\u{feff}<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- Generator: x -->\n<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n<svg {attrs}>{body}</svg>\n"
+        ))
+    }
+
+    const NS: &str = r#"xmlns="http://www.w3.org/2000/svg""#;
+
+    #[test]
+    fn sizes_an_svg_image_as_chromium_sizes_an_img() {
+        for (attrs, view_box, fit) in [
+            (format!(r#"{NS} viewBox="0 0 400 200""#), Some([0.0, 0.0, 400.0, 200.0]), Fit::CENTER_MEET),
+            (
+                format!(r#"{NS} width="400" height="200" viewBox="1 2 40 20" preserveAspectRatio="none""#),
+                Some([1.0, 2.0, 40.0, 20.0]),
+                Fit::Stretch,
+            ),
+            (
+                format!(r#"{NS} viewBox="0 0 4 2" preserveAspectRatio="xMinYMax slice""#),
+                Some([0.0, 0.0, 4.0, 2.0]),
+                Fit::Uniform {
+                    align: (0.0, 1.0),
+                    slice: true,
+                },
+            ),
+            // No viewBox: scaled from width and height like a raster image, or 1:1 without them.
+            (
+                format!(r#"{NS} width="40px" height="20" preserveAspectRatio="xMinYMin""#),
+                Some([0.0, 0.0, 40.0, 20.0]),
+                Fit::Stretch,
+            ),
+            (format!(r#"{NS} width="100%" height="100%" x="0px" y="0px""#), None, Fit::CENTER_MEET),
+            (NS.to_owned(), None, Fit::CENTER_MEET),
+        ] {
+            let svg = image_svg(&attrs, "").unwrap();
+            assert_eq!((svg.view_box, svg.fit), (view_box, fit), "{attrs}");
+        }
+        // The root's paint is inherited.
+        let svg = image_svg(&format!(r#"{NS} fill="red""#), r#"<rect width="1" height="1"/>"#).unwrap();
+        assert!(matches!(svg.items.first(), Some(Item::Shape(s)) if matches!(s.fill, Some(Paint::Color(Rgba(255, 0, 0, 1.0))))));
+    }
+
+    #[test]
+    fn rejects_svg_images_outside_the_subset() {
+        for (attrs, body, message) in [
+            (String::new(), "", "must have xmlns"),
+            (r#"xmlns="urn:x""#.to_owned(), "", "must have xmlns"),
+            (NS.to_owned(), r#"<image href="https://x.test/a.png"/>"#, "<image> is not in the SVG subset"),
+            (
+                NS.to_owned(),
+                r#"<rect xlink:href="a.svg" width="1" height="1"/>"#,
+                "attribute 'xlink:href' on <rect>",
+            ),
+            (NS.to_owned(), r#"<style>@import url(a.css);</style>"#, "<style> is not in the SVG subset"),
+            (format!(r#"{NS} width="10cm" height="5cm""#), "", "'10cm' is not a positive px length"),
+            (format!(r#"{NS} width="10""#), "", "both width and height in px, or neither"),
+            (
+                format!(r#"{NS} viewBox="0 0 1 1" preserveAspectRatio="xMidYMid crop""#),
+                "",
+                "attribute 'preserveAspectRatio'",
+            ),
+            (
+                format!(r#"{NS} viewBox="0 0 1 1" preserveAspectRatio="xMidYMed""#),
+                "",
+                "attribute 'preserveAspectRatio'",
+            ),
+            (format!(r#"{NS} onload="x()""#), "", "attribute 'onload' on <svg>"),
+        ] {
+            let error = image_svg(&attrs, body).err().unwrap_or_default();
+            assert!(error.contains(message), "{attrs} {body}: {error}");
+        }
+        for (document, message) in [
+            ("<?xml version=\"1.0\"", "unterminated XML declaration"),
+            ("<!DOCTYPE svg [<!ENTITY a \"b\">]><svg/>", "internal subset"),
+            ("<?xml-stylesheet href=\"a.css\"?><svg/>", "malformed"),
+            ("<svg xmlns=\"http://www.w3.org/2000/svg\"/><svg/>", "one <svg> element"),
+            ("<html></html>", "root element is <html>"),
+        ] {
+            let error = super::image(document).err().unwrap_or_default();
+            assert!(error.contains(message), "{document}: {error}");
+        }
     }
 
     #[test]
