@@ -1,0 +1,14 @@
+{
+  "name": "@pdfdeck/examples",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable examples that use the @pdfdeck packages the way an application does",
+  "type": "module",
+  "dependencies": {
+    "@pdfdeck/pptxgenjs": "workspace:*",
+    "@pdfdeck/react": "workspace:*",
+    "@pdfdeck/wasm": "workspace:*",
+    "pptxgenjs": "4.0.1",
+    "react": "^19"
+  }
+}

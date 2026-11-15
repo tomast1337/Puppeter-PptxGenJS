@@ -15,6 +15,17 @@
         "typescript": "^5",
       },
     },
+    "examples": {
+      "name": "@pdfdeck/examples",
+      "version": "0.0.0",
+      "dependencies": {
+        "@pdfdeck/pptxgenjs": "workspace:*",
+        "@pdfdeck/react": "workspace:*",
+        "@pdfdeck/wasm": "workspace:*",
+        "pptxgenjs": "4.0.1",
+        "react": "^19",
+      },
+    },
     "packages/model": {
       "name": "@pdfdeck/model",
       "version": "0.2.0",
@@ -89,6 +100,8 @@
     "@csstools/css-parser-algorithms": ["@csstools/css-parser-algorithms@3.0.5", "", { "peerDependencies": { "@csstools/css-tokenizer": "^3.0.4" } }, "sha512-DaDeUkXZKjdGhgYaHNJTV9pV7Y9B3b644jCLs9Upc3VeNGg6LWARAT6O+Q+/COo+2gg/bM5rhpMAtf70WqfBdQ=="],
 
     "@csstools/css-tokenizer": ["@csstools/css-tokenizer@3.0.4", "", {}, "sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw=="],
+
+    "@pdfdeck/examples": ["@pdfdeck/examples@workspace:examples"],
 
     "@pdfdeck/model": ["@pdfdeck/model@workspace:packages/model"],
 

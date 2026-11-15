@@ -1,6 +1,6 @@
 import { createElement } from "react";
-import PuppeteerGen from "../packages/pptxgenjs/src/index";
-import { registerReactComponent } from "../packages/react/src/index";
+import PuppeteerGen from "@pdfdeck/pptxgenjs";
+import { registerReactComponent } from "@pdfdeck/react";
 
 function MetricCard({ label, value }: { label: string; value: number }) {
     return createElement(
