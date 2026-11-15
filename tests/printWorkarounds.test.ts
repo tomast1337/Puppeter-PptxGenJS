@@ -106,6 +106,23 @@ describe("Puppeteer print workarounds", () => {
         expect(printed).toContain('style="overflow: visible; transform: translate(-0.2px, -0.4px);"');
     });
 
+    test("keeps data: URI payloads byte for byte while it skips them in the parse", async () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        slide.addImage({ data: png, x: 1, y: 1, w: 1, h: 1 });
+        slide.addImage({ data: png.replace("iVBOR", "iVBOr"), x: 3, y: 1, w: 1, h: 1 });
+        // Text that looks like a src attribute is escaped text, not an attribute, and stays as written.
+        slide.addText('a src="data:x,y<b>z</b>', { x: 1, y: 3, w: 4, h: 1 });
+        const html = (await presentation.toHtml()).html;
+        const printed = printHtml(html);
+        const uris = (markup: string) => [...markup.matchAll(/src="(data:[^"]*)"/g)].map(match => match[1]);
+        expect(uris(printed)).toEqual(uris(html));
+        expect(uris(printed)).toHaveLength(2);
+        expect(new JSDOM(printed).window.document.querySelector(".text-run")?.textContent).toBe('a src="data:x,y<b>z</b>');
+        expect(printed).toContain("position: relative; top:");
+    });
+
     test("passes HTML outside the profile through unchanged", () => {
         const html = `<!DOCTYPE html><html><head><style>h1 { color: red }</style></head><body><h1 class="title" style="top: 1.5px;">Any HTML</h1><svg><path stroke-dasharray="0 2 4"/></svg></body></html>`;
         expect(printHtml(html)).toBe(html);
