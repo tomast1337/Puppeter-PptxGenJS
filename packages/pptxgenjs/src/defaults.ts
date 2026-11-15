@@ -316,6 +316,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         v3DRightAngleAxes: false,
         v3DRotationX: 30,
         v3DRotationY: 30,
+        // PptxGenJS writes no plot-area layout for bar3D either. LibreOffice centers the projected 3D box with 12.5%
+        // of the chart width on each side (fixture bar3D chart, 576px wide: box from x=70.5 to 501.5).
+        bar3DSideMarginRatio: 0.125,
         bar3DLighting: Object.freeze({
             topLighten: 0.18,
             sideDarken: 0.16,

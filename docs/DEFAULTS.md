@@ -191,6 +191,8 @@ contract includes:
 - Line cap/dash/width, marker shape/size/border, and smoothing.
 - Outside major tick marks on the category axis, which PptxGenJS writes on every chart but scatter.
 - Pie angle, doughnut hole size, radar style, and blank-value behavior.
+- bar3D view: `rotX` 30, `rotY` 30 and perspective 30 (a 15° field of view) project the box, with one
+  slot per category and per series, centered with 12.5% of the chart width on each side.
 - Chart/plot borders, gridline defaults, format codes, and both complete color
   palettes used by PptxGenJS.
 

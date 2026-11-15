@@ -162,6 +162,33 @@ describe("chart normalization and rendering", () => {
         }
     });
 
+    test("projects bar3D through the view3D camera PptxGenJS writes", () => {
+        const walls = (options: PptxGenJS.IChartOpts) => {
+            const presentation = new PuppeteerGen();
+            presentation.addSlide().addChart("bar3D", categoricalData, { x: 0, y: 0, w: 6, h: 3.3, ...options });
+            const page = renderedPage(presentation);
+            const corners = (element: Element | undefined) => (element?.getAttribute("points") ?? "").split(" ").map(pair => pair.split(",").map(Number) as [number, number]);
+            const side = page.querySelectorAll(".slide-chart .bar3d-wall")[1];
+            const xs = Array.from(page.querySelectorAll(".slide-chart .bar3d-wall, .slide-chart .bar3d-floor")).flatMap(polygon => corners(polygon).map(([x]) => x));
+            // Side wall: front bottom, back bottom, back top, front top.
+            const [frontBottom, backBottom, backTop, frontTop] = corners(side);
+            return { sideX: Math.min(...corners(side).map(([x]) => x)), frontEdge: (frontBottom?.[1] ?? 0) - (frontTop?.[1] ?? 0), backEdge: (backBottom?.[1] ?? 0) - (backTop?.[1] ?? 0), left: Math.min(...xs), right: Math.max(...xs) };
+        };
+        // `<c:view3D><c:rotX val="30"/><c:rotY val="30"/><c:rAngAx val="0"/><c:perspective val="30"/></c:view3D>`: a 15° field
+        // of view makes the far edge of the side wall shorter; the box is centered with 12.5% of the width on each side.
+        const perspective = walls({});
+        expect(perspective.backEdge).toBeLessThan(perspective.frontEdge * 0.97);
+        expect(perspective.left).toBeCloseTo(576 * 0.125, 0);
+        expect(perspective.right).toBeCloseTo(576 * 0.875, 0);
+        // Right-angle axes ignore the perspective: parallel edges keep their length.
+        const parallel = walls({ v3DRAngAx: true });
+        expect(parallel.backEdge).toBeCloseTo(parallel.frontEdge, 1);
+        // Turning the scene the other way shows the other side wall.
+        const turned = walls({ v3DRotY: 330 });
+        expect(turned.sideX).toBeGreaterThan(576 / 2);
+        expect(perspective.sideX).toBeLessThan(576 / 2);
+    });
+
     test("sizes the automatic plot-area margins from the text, not the chart height", () => {
         const plotBounds = (hInches: number, options: PptxGenJS.IChartOpts) => {
             const presentation = new PuppeteerGen();

@@ -39,50 +39,119 @@ function tickLabel(value: number): string {
     return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
 }
 
+interface CameraPoint extends Point {
+    /** Distance along the view direction from the box center; larger is farther. */
+    distance: number;
+}
+
+const DEGREE = Math.PI / 180;
+
+/**
+ * The OOXML view3D camera on a box `depth` and `height` deep and tall per unit of category-axis width: rotY turns
+ * it about the vertical axis, rotX tilts it toward the viewer, and the perspective is the field of view in half
+ * degrees (ECMA-376 21.2.2.135), which the camera distance turns into for the whole box. Right-angle axes use a
+ * parallel projection, as the spec ignores the perspective there.
+ * shortcut: Office also keeps the category axis horizontal with right-angle axes; fix when a fixture sets v3DRAngAx.
+ */
+function view3D(chart: NormalizedChart, depth: number, height: number): (x: number, y: number, z: number) => CameraPoint {
+    const yaw = chart.rotationY3D * DEGREE;
+    const pitch = chart.rotationX3D * DEGREE;
+    const fieldOfView = (chart.perspective3D / 2) * DEGREE;
+    const distance = chart.rightAngleAxes3D || fieldOfView === 0 ? Infinity : Math.hypot(1, depth, height) / (2 * Math.tan(fieldOfView / 2));
+    return (x, y, z) => {
+        const cx = x - 0.5;
+        const cy = (y - 0.5) * height;
+        const cz = (z - 0.5) * depth;
+        const turned = -cx * Math.sin(yaw) + cz * Math.cos(yaw);
+        const up = cy * Math.cos(pitch) + turned * Math.sin(pitch);
+        const along = -cy * Math.sin(pitch) + turned * Math.cos(pitch);
+        const scale = distance === Infinity ? 1 : distance / (distance + along);
+        return { x: (cx * Math.cos(yaw) + cz * Math.sin(yaw)) * scale, y: -up * scale, distance: along };
+    };
+}
+
+const BOX_CORNERS: readonly (readonly [number, number, number])[] = [0, 1].flatMap(x => [0, 1].flatMap(y => [0, 1].map(z => [x, y, z] as const)));
+
+/** Screen bounds of the unit box under a camera. */
+function boxBounds(camera: (x: number, y: number, z: number) => CameraPoint) {
+    const points = BOX_CORNERS.map(([x, y, z]) => camera(x, y, z));
+    const xs = points.map(point => point.x);
+    const ys = points.map(point => point.y);
+    return { left: Math.min(...xs), top: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+}
+
+/**
+ * Fits the box into `area`. The depth is fixed (one series slot per category slot); the height is automatic, as in
+ * LibreOffice (chart2 BarChart::getPreferredDiagramAspectRatio leaves Y free), so it is chosen to fill the area.
+ */
+function fitView3D(chart: NormalizedChart, depth: number, area: { x: number; y: number; width: number; height: number }) {
+    const aspect = area.width / Math.max(1e-9, area.height);
+    // The box's screen aspect falls as it grows taller: bisect the height on a log scale.
+    let low = Math.log(0.02);
+    let high = Math.log(50);
+    for (let step = 0; step < 40; step++) {
+        const middle = (low + high) / 2;
+        const bounds = boxBounds(view3D(chart, depth, Math.exp(middle)));
+        if (bounds.width / Math.max(1e-9, bounds.height) > aspect) low = middle;
+        else high = middle;
+    }
+    const camera = view3D(chart, depth, Math.exp((low + high) / 2));
+    const bounds = boxBounds(camera);
+    const scale = Math.min(area.width / bounds.width, area.height / bounds.height);
+    const left = area.x + (area.width - bounds.width * scale) / 2 - bounds.left * scale;
+    const top = area.y + (area.height - bounds.height * scale) / 2 - bounds.top * scale;
+    return (x: number, y: number, z: number): CameraPoint => {
+        const point = camera(x, y, z);
+        return { x: left + point.x * scale, y: top + point.y * scale, distance: point.distance };
+    };
+}
+
 /** Deterministic, browser-independent 3D bar projection used instead of WebGL. */
 export function renderBar3DSvg(width: number, height: number, chart: NormalizedChart): string {
-    const titleSpace = chart.showTitle ? height * 0.1 : 0;
-    const origin: Point = { x: width * 0.13, y: height * 0.51 };
-    const perspectiveScale = chart.rightAngleAxes3D ? 0.82 : 0.7 + chart.perspective3D / 100;
-    const rotationFactor = Math.cos(((chart.rotationY3D - 30) * Math.PI) / 180);
-    const tilt = Math.max(-1, Math.min(1, chart.rotationX3D / 90));
-    const xAxis: Point = { x: width * 0.59, y: height * (0.31 + tilt * 0.21) };
-    const depthAxis: Point = {
-        x: width * 0.15 * perspectiveScale * rotationFactor,
-        y: -height * 0.24 * perspectiveScale,
-    };
-    const valueAxis: Point = { x: 0, y: -height * (0.25 - (titleSpace / height) * 0.08) };
-    const minimum = chart.grouping === "percentStacked" ? 0 : chart.valueAxisMinimum;
-    const maximum = chart.grouping === "percentStacked" ? 100 : chart.valueAxisMaximum;
-    const range = Math.max(1e-9, maximum - minimum);
-    const project = (x: number, depth: number, value: number): Point => {
-        const normalizedValue = (value - minimum) / range;
-        return {
-            x: origin.x + x * xAxis.x + depth * depthAxis.x + normalizedValue * valueAxis.x,
-            y: origin.y + x * xAxis.y + depth * depthAxis.y + normalizedValue * valueAxis.y,
-        };
-    };
-    const polygon = (className: string, points: Point[], fill: string): string => `<polygon class="${className}" points="${points.map(p).join(" ")}" fill="${fill}"/>`;
     const labels = chart.series[0]?.labels ?? [];
     const categoryCount = Math.max(1, labels.length, ...chart.series.map(series => series.values.length));
     const seriesCount = Math.max(1, chart.series.length);
+    const stacked = chart.grouping === "stacked" || chart.grouping === "percentStacked";
+    // The same text bands as the 2D plot area (chart.ts chartGrid): the legend and the category labels below the box.
+    const gap = height * PPTX_DEFAULTS.chart.plotAreaGapRatio;
+    const lineEm = PPTX_DEFAULTS.text.singleLineEm;
+    const top = gap + (chart.showTitle ? pointsToPixels(chart.titleFontSize) * lineEm + gap : 0);
+    const bottom = gap + (chart.showLegend ? pointsToPixels(chart.legendFontSize) * lineEm + gap : 0) + pointsToPixels(chart.fontSize) * lineEm;
+    const side = width * PPTX_DEFAULTS.chart.bar3DSideMarginRatio;
+    const camera = fitView3D(chart, (stacked ? 1 : seriesCount) / categoryCount, { x: side, y: top, width: width - 2 * side, height: height - top - bottom });
+    const minimum = chart.grouping === "percentStacked" ? 0 : chart.valueAxisMinimum;
+    const maximum = chart.grouping === "percentStacked" ? 100 : chart.valueAxisMaximum;
+    const range = Math.max(1e-9, maximum - minimum);
+    /** `x` and `depth` run 0..1 along the category axis and the depth axis. */
+    const project = (x: number, depth: number, value: number): CameraPoint => camera(x, (value - minimum) / range, depth);
+    // The walls stand on the far sides of the floor, the faces drawn on a bar on the near ones.
+    const backDepth = Math.cos(chart.rotationY3D * DEGREE) >= 0 ? 1 : 0;
+    const frontDepth = 1 - backDepth;
+    const sideX = Math.sin(chart.rotationY3D * DEGREE) >= 0 ? 0 : 1;
+    const polygon = (className: string, points: Point[], fill: string): string => `<polygon class="${className}" points="${points.map(p).join(" ")}" fill="${fill}"/>`;
     const tickCount = 4;
+    const otherX = 1 - sideX;
+    const gridStroke = `stroke="#${chart.gridLineColor.replace(/^#/, "")}" stroke-width="${n(pointsToPixels(chart.gridLineWidth))}"`;
+    // Office draws the value gridlines across the side wall and the back wall, labelled at the wall's front edge.
     const grid = Array.from({ length: tickCount + 1 }, (_, index) => {
         const value = minimum + (range * index) / tickCount;
-        const left = project(0, 1, value);
-        const right = project(1, 1, value);
-        const label = project(0, 0, value);
-        return `<line x1="${n(left.x)}" y1="${n(left.y)}" x2="${n(right.x)}" y2="${n(right.y)}" stroke="#${chart.gridLineColor.replace(/^#/, "")}" stroke-width="${n(pointsToPixels(chart.gridLineWidth))}"/>` + `<text x="${n(label.x - 8)}" y="${n(label.y + 4)}" text-anchor="end">${escapeXml(tickLabel(value))}</text>`;
+        const label = project(sideX, frontDepth, value);
+        const line = [label, project(sideX, backDepth, value), project(otherX, backDepth, value)];
+        const labelX = sideX === 0 ? `x="${n(label.x - 8)}" text-anchor="end"` : `x="${n(label.x + 8)}"`;
+        return `<polyline points="${line.map(p).join(" ")}" fill="none" ${gridStroke}/>` + `<text ${labelX} y="${n(label.y + 4)}">${escapeXml(tickLabel(value))}</text>`;
     }).join("");
-    const backBottomLeft = project(0, 1, minimum);
-    const backBottomRight = project(1, 1, minimum);
-    const backTopRight = project(1, 1, maximum);
-    const backTopLeft = project(0, 1, maximum);
-    const frontBottomLeft = project(0, 0, minimum);
-    const frontBottomRight = project(1, 0, minimum);
-    const floor = polygon("bar3d-floor", [frontBottomLeft, frontBottomRight, backBottomRight, backBottomLeft], `#${PPTX_DEFAULTS.chart.bar3DLighting.floorColor}`);
-    const wall = polygon("bar3d-wall", [backBottomLeft, backBottomRight, backTopRight, backTopLeft], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`);
-    const frame = `<polyline class="bar3d-frame" points="${[frontBottomLeft, frontBottomRight, backBottomRight, backTopRight, backTopLeft, backBottomLeft, frontBottomLeft].map(p).join(" ")}" fill="none" stroke="#${chart.gridLineColor.replace(/^#/, "")}" stroke-width="${n(pointsToPixels(chart.gridLineWidth))}"/>`;
+    const backSideBottom = project(sideX, backDepth, minimum);
+    const backSideTop = project(sideX, backDepth, maximum);
+    const backOtherBottom = project(otherX, backDepth, minimum);
+    const backOtherTop = project(otherX, backDepth, maximum);
+    const frontSideBottom = project(sideX, frontDepth, minimum);
+    const frontSideTop = project(sideX, frontDepth, maximum);
+    const frontOtherBottom = project(otherX, frontDepth, minimum);
+    const floor = polygon("bar3d-floor", [frontSideBottom, frontOtherBottom, backOtherBottom, backSideBottom], `#${PPTX_DEFAULTS.chart.bar3DLighting.floorColor}`);
+    const wall = polygon("bar3d-wall", [backSideBottom, backOtherBottom, backOtherTop, backSideTop], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`) + polygon("bar3d-wall", [frontSideBottom, backSideBottom, backSideTop, frontSideTop], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`);
+    const frame =
+        `<polyline class="bar3d-frame" points="${[frontSideTop, frontSideBottom, frontOtherBottom, backOtherBottom, backOtherTop, backSideTop, frontSideTop].map(p).join(" ")}" fill="none" ${gridStroke}/>` +
+        `<polyline class="bar3d-frame" points="${[backSideBottom, backSideTop].map(p).join(" ")}" fill="none" ${gridStroke}/>`;
     const gradients = `<defs>${chart.colors.map((color, index) => `<linearGradient id="bar3d-front-${index}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${shade(color, 0.13)}"/><stop offset="1" stop-color="${shade(color, -0.08)}"/></linearGradient>`).join("")}</defs>`;
 
     const bars: Bar[] = [];
@@ -108,14 +177,20 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
         }
     }
 
-    const gapFactor = 1 / (1 + chart.barGapWidthPercent / 100);
-    const halfWidth = Math.max(0.025, 0.6 * gapFactor) / categoryCount;
-    const depthThickness = Math.max(0.06, 0.45 / (1 + chart.barGapDepthPercent / 100));
+    // gapWidth and gapDepth are percentages of the bar's width and depth (c:gapWidth, c:gapDepth); each category
+    // has one slot along the category axis and, unless stacked, each series one slot along the depth axis.
+    const halfWidth = 0.5 / (1 + chart.barGapWidthPercent / 100) / categoryCount;
+    const depthSlot = stacked ? 1 : 1 / seriesCount;
+    const depthThickness = depthSlot / (1 + chart.barGapDepthPercent / 100);
+    const slotDepth = (series: number): number => (stacked ? 0.5 : (series + 0.5) * depthSlot);
+    const barCenter = (bar: Bar): CameraPoint => project((bar.category + 0.5) / categoryCount, slotDepth(bar.series), (bar.base + bar.value) / 2);
+    // Painter's order: the bar farthest from the camera first.
     const barSvg = bars
-        .map(bar => {
+        .map(bar => ({ bar, distance: barCenter(bar).distance }))
+        .sort((a, b) => b.distance - a.distance)
+        .map(({ bar }) => {
             const cx = (bar.category + 0.5) / categoryCount;
-            const stacked = chart.grouping === "stacked" || chart.grouping === "percentStacked";
-            const cz = stacked ? 0.55 : 0.28 + (seriesCount === 1 ? 0.28 : (bar.series * 0.56) / (seriesCount - 1));
+            const cz = slotDepth(bar.series);
             const x0 = cx - halfWidth;
             const x1 = cx + halfWidth;
             const z0 = Math.max(0, cz - depthThickness / 2);
@@ -133,10 +208,11 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
             const bfr = project(x1, z0, low);
             const bbr = project(x1, z1, low);
             const bbl = project(x0, z1, low);
-            const tfl = project(x0, z0, high);
-            const tfr = project(x1, z0, high);
-            const tbr = project(x1, z1, high);
-            const tbl = project(x0, z1, high);
+            const nearZ = backDepth === 1 ? z0 : z1;
+            const nearX = sideX === 0 ? x1 : x0;
+            const cap = chart.rotationX3D >= 0 ? high : low;
+            const front = [project(x0, nearZ, low), project(x1, nearZ, low), project(x1, nearZ, high), project(x0, nearZ, high)];
+            const side = [project(nearX, z0, low), project(nearX, z1, low), project(nearX, z1, high), project(nearX, z0, high)];
             const shapeClass = `bar3d-mark bar3d-${chart.bar3DShape}`;
             if (chart.bar3DShape === "pyramid" || chart.bar3DShape === "pyramidToMax") {
                 const apex = project(cx, (z0 + z1) / 2, high);
@@ -166,20 +242,25 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
                     `</g>`
                 );
             }
-            return `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` + polygon("bar3d-front", [bfl, bfr, tfr, tfl], frontColor) + polygon("bar3d-side", [bfr, bbr, tbr, tfr], sideColor) + polygon("bar3d-top", [tfl, tfr, tbr, tbl], topColor) + `</g>`;
+            return (
+                `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` +
+                polygon("bar3d-front", front, frontColor) +
+                polygon("bar3d-side", side, sideColor) +
+                polygon("bar3d-top", [project(x0, z0, cap), project(x1, z0, cap), project(x1, z1, cap), project(x0, z1, cap)], topColor) +
+                `</g>`
+            );
         })
         .join("");
 
     const categoryLabels = Array.from({ length: categoryCount }, (_, index) => {
-        const point = project((index + 0.5) / categoryCount, 0, minimum);
+        const point = project((index + 0.5) / categoryCount, frontDepth, minimum);
         const label = labels[index] ?? String(index + 1);
-        return `<text x="${n(point.x + 5)}" y="${n(point.y + 20)}" text-anchor="middle">${escapeXml(label)}</text>`;
+        return `<text x="${n(point.x)}" y="${n(point.y + 20)}" text-anchor="middle">${escapeXml(label)}</text>`;
     }).join("");
     const seriesLabels = chart.series
         .map((series, index) => {
-            const depth = 0.28 + (seriesCount === 1 ? 0.28 : (index * 0.56) / (seriesCount - 1));
-            const point = project(1, depth, minimum);
-            return `<text class="bar3d-series-label" x="${n(point.x + 12)}" y="${n(point.y + 5)}">${escapeXml(series.name)}</text>`;
+            const point = project(otherX, slotDepth(index), minimum);
+            return `<text class="bar3d-series-label" x="${n(point.x + 7)}" y="${n(point.y + 12)}">${escapeXml(series.name)}</text>`;
         })
         .join("");
     // The legend has its own font (legendFontFace/legendFontSize/legendColor), not the axis-label font of the <g>.
