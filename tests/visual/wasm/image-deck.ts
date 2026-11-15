@@ -1,5 +1,5 @@
-// Image deck: the shared fixture's two image slides (tests/visual/fixture.ts) with raster sources,
-// since the fixture's sample pictures are SVG and the WASM backend draws PNG and JPEG only. The
+// Image deck: the shared fixture's two image slides (tests/visual/fixture.ts) with raster sources;
+// the fixture's own SVG pictures are the svg deck (decks.ts). The
 // pictures in images/ are the fixture's SVG samples rasterized with ImageMagick, plus badge.png
 // (semi-transparent pixels over a fully transparent background). JPEGs go in by path, PNGs as data URIs.
 import { readFileSync } from "node:fs";
