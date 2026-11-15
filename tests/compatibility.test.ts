@@ -103,8 +103,9 @@ describe("compatibility manifest", () => {
         expect(COMPATIBILITY.chart.options.valGridLine).toBe("implemented");
         expect(COMPATIBILITY.chart.options.valAxisLabelFormatCode).toBe("partial");
         expect(COMPATIBILITY.chart.options.showDataTable).toBe("unsupported");
-        // PptxGenJS 4.0.1 declares IChartOpts.fontFace but no chart writer reads it.
+        // PptxGenJS 4.0.1 declares IChartOpts.fontFace and fontSize but no chart writer reads them.
         expect(COMPATIBILITY.chart.options.fontFace).toBe("ignored");
+        expect(COMPATIBILITY.chart.options.fontSize).toBe("ignored");
         expect(CHART_TYPE_COMPATIBILITY.bar).toBe("implemented");
         expect(CHART_TYPE_COMPATIBILITY.bar3D).toBe("implemented");
         expect(CHART_TYPE_COMPATIBILITY.mixed).toBe("partial");

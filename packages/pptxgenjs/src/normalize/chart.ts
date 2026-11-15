@@ -252,7 +252,7 @@ function normalizeValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefine
         titleRotate: axisOptions?.valAxisTitleRotate === undefined ? defaults.titleRotate : finiteNumber(axisOptions.valAxisTitleRotate, "valAxisTitleRotate", 0),
         labelColor: normalizeColor(axisOptions?.valAxisLabelColor ?? defaults.labelColor),
         labelFontFace: axisOptions?.valAxisLabelFontFace ?? PPTX_DEFAULTS.chart.fontFace,
-        labelFontSize: positiveNumber(axisOptions?.valAxisLabelFontSize, "valAxisLabelFontSize", options.fontSize ?? defaults.labelFontSizePt),
+        labelFontSize: positiveNumber(axisOptions?.valAxisLabelFontSize, "valAxisLabelFontSize", defaults.labelFontSizePt),
         labelBold: axisOptions?.valAxisLabelFontBold ?? defaults.labelBold,
         labelItalic: axisOptions?.valAxisLabelFontItalic ?? defaults.labelItalic,
         labelRotate: finiteNumber(axisOptions?.valAxisLabelRotate, "valAxisLabelRotate", defaults.labelRotate),
@@ -363,9 +363,10 @@ function chartTextOptions(options: PptxGenJS.IChartOpts) {
         legendPosition: options.legendPos ?? PPTX_DEFAULTS.chart.legendPosition,
         showTitle: options.showTitle ?? PPTX_DEFAULTS.chart.showTitle,
         title: options.title ?? "Chart Title",
-        // PptxGenJS 4.0.1 reads no chart-level `fontFace`: every chart text has its own option, `|| 'Arial'`.
+        // PptxGenJS 4.0.1 reads no chart-level `fontFace` or `fontSize`: every chart text has its own option,
+        // `|| 'Arial'` and `|| 12` (the category-axis labels: `catAxisLabelFontSize || 12`).
         fontFace: PPTX_DEFAULTS.chart.fontFace,
-        fontSize: options.fontSize ?? PPTX_DEFAULTS.chart.fontSizePt,
+        fontSize: PPTX_DEFAULTS.chart.fontSizePt,
         titleFontFace: options.titleFontFace ?? PPTX_DEFAULTS.chart.fontFace,
         titleFontSize: options.titleFontSize ?? PPTX_DEFAULTS.chart.titleFontSizePt,
         titleBold: options.titleBold ?? false,
