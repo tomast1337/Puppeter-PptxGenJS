@@ -162,6 +162,25 @@ describe("chart normalization and rendering", () => {
         }
     });
 
+    test("sizes the automatic plot-area margins from the text, not the chart height", () => {
+        const plotBounds = (hInches: number, options: PptxGenJS.IChartOpts) => {
+            const presentation = new PuppeteerGen();
+            presentation.addSlide().addChart("bar", categoricalData, { x: 0, y: 0, w: 5, h: hInches, ...options });
+            const rows = Array.from(renderedPage(presentation).querySelectorAll(".slide-chart path"), path => path.getAttribute("d")?.match(/^M[\d.]+ ([\d.]+)L[\d.]+ \1$/)?.[1]).filter(y => y !== undefined);
+            const ys = rows.map(Number);
+            return { top: Math.min(...ys), bottom: hInches * 96 - Math.max(...ys) };
+        };
+        // Below: 2% gap, 10pt legend line (1.2em) and 2% gap, 5px ticks, 8px label margin, 12pt label line (1.2em).
+        // Above: 2% gap and half of the 12pt value label. Within 1px: zrender snaps lines to half pixels.
+        for (const h of [3, 4.5]) {
+            const gap = h * 96 * 0.02;
+            const withLegend = plotBounds(h, { showLegend: true, legendPos: "b" });
+            expect(Math.abs(withLegend.bottom - (2 * gap + 16 + 5 + 8 + 19.2))).toBeLessThanOrEqual(1);
+            expect(Math.abs(withLegend.top - (gap + 8))).toBeLessThanOrEqual(1);
+            expect(Math.abs(plotBounds(h, {}).bottom - (gap + 5 + 8 + 19.2))).toBeLessThanOrEqual(1);
+        }
+    });
+
     test("keys bar entries with a square 0.6 of the legend font size and keeps line entries as a line", () => {
         const legendKeys = (type: "bar" | "line", options: PptxGenJS.IChartOpts = {}) => {
             const presentation = new PuppeteerGen();
