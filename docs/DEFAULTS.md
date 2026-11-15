@@ -184,6 +184,8 @@ contract includes:
   and LibreOffice, and through the WASM renderer's alias table.
 - Bar direction/grouping, 3D shape, gaps, overlap, and rotations.
 - Legend, data-label, axis visibility, and data-table flags.
+- Legend keys: a bar, area or pie entry is a filled square at 0.6 of the legend font size (8px at
+  10pt), as Office and LibreOffice draw it; a line entry shows its line and marker.
 - Line cap/dash/width, marker shape/size/border, and smoothing.
 - Pie angle, doughnut hole size, radar style, and blank-value behavior.
 - Chart/plot borders, gridline defaults, format codes, and both complete color

@@ -3,6 +3,7 @@ import { GridComponent, LegendComponent, RadarComponent, TitleComponent } from "
 import { type EChartsCoreOption, init, use } from "echarts/core";
 import { SVGRenderer } from "echarts/renderers";
 import { formatChartNumber } from "../chart/format";
+import { PPTX_DEFAULTS } from "../defaults";
 import type { ChartExtensionInput } from "../chart/types";
 import type { NormalizedChart, NormalizedObjectStyle } from "@pdflapas/model";
 import { pointsToPixels } from "../units";
@@ -142,10 +143,29 @@ function chartGrid(chart: NormalizedChart) {
     } as const;
 }
 
+/** A filled square; the legend's symbolKeepAspect keeps it square when a line key makes the items wider. */
+const LEGEND_SQUARE_ICON = "path://M0 0H1V1H0Z";
+
+/** Office keys a bar, area or pie entry with a filled square and a line entry with its line and marker. */
+function legendData(chart: NormalizedChart): { name: string; icon?: string }[] | undefined {
+    if (chart.type === "pie" || chart.type === "doughnut") {
+        const labels = chart.series[0]?.labels ?? [];
+        return (chart.series[0]?.values ?? []).map((_, index) => ({ name: labels[index] ?? String(index + 1), icon: LEGEND_SQUARE_ICON }));
+    }
+    if (chart.type === "radar" || chart.type === "scatter" || chart.type === "bubble") return undefined;
+    return chart.series.map(series => (series.type === "line" ? { name: series.name } : { name: series.name, icon: LEGEND_SQUARE_ICON }));
+}
+
 function chartOption(chart: NormalizedChart): EChartsCoreOption {
+    const keySize = Math.round(pointsToPixels(chart.legendFontSize) * PPTX_DEFAULTS.chart.legendKeyFontRatio);
+    const hasLineKey = chart.type === "radar" || chart.series.some(series => series.type === "line");
     const legend = {
         show: chart.showLegend,
         ...legendPlacement(chart.legendPosition),
+        data: legendData(chart),
+        itemHeight: keySize,
+        // A line key keeps ECharts' item width; without one every key is a square.
+        ...(hasLineKey ? {} : { itemWidth: keySize }),
         textStyle: {
             color: chart.legendColor,
             fontFamily: chart.legendFontFace,

@@ -162,6 +162,23 @@ describe("chart normalization and rendering", () => {
         }
     });
 
+    test("keys bar entries with a square 0.6 of the legend font size and keeps line entries as a line", () => {
+        const legendKeys = (type: "bar" | "line", options: PptxGenJS.IChartOpts = {}) => {
+            const presentation = new PuppeteerGen();
+            presentation.addSlide().addChart(type, categoricalData, { x: 0, y: 0, w: 5, h: 3, showLegend: true, legendPos: "b", ...options });
+            return Array.from(renderedPage(presentation).querySelectorAll('.slide-chart path[ecmeta_ssr_type="legend"][ecmeta_silent]'), path => path.getAttribute("d"));
+        };
+        // 10pt legend: 13.33px * 0.6 = 8px squares; 20pt: 16px.
+        expect(legendKeys("bar")).toEqual(["M0 0L8 0L8 8L0 8Z", "M0 0L8 0L8 8L0 8Z"]);
+        expect(legendKeys("bar", { legendFontSize: 20 })).toEqual(["M0 0L16 0L16 16L0 16Z", "M0 0L16 0L16 16L0 16Z"]);
+        expect(legendKeys("line").some(d => d?.includes("L8 8"))).toBe(false);
+
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addChart("bar3D", categoricalData, { x: 0, y: 0, w: 5, h: 3, showLegend: true });
+        const key = renderedPage(presentation).querySelector(".slide-chart rect");
+        expect([key?.getAttribute("width"), key?.getAttribute("height")]).toEqual(["8", "8"]);
+    });
+
     test("draws the bar3D legend in the legend font, not the axis-label font", () => {
         const legendText = (options: PptxGenJS.IChartOpts) => {
             const presentation = new PuppeteerGen();
