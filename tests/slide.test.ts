@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import pptxgen from "pptxgenjs";
+import type PptxGenJS from "pptxgenjs";
 import type { NormalizedSlide, NormalizedSlideObject } from "../packages/model/src/index";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { inchesToPixels, pointsToPixels } from "../packages/pptxgenjs/src/units";
@@ -138,5 +139,16 @@ describe("slide.background picture", () => {
         expect(() => {
             slide.background = { data: "image/png;base64" };
         }).toThrow("Image data must be a base64-encoded image data URI");
+    });
+});
+
+describe("addSlide()", () => {
+    test("ignores props other than masterName and sectionTitle, as PptxGenJS does", () => {
+        // `as`: AddSlideProps has no background; JavaScript callers can still pass one.
+        const props = { background: { color: "FF0000" }, bkgd: "00FF00" } as PptxGenJS.AddSlideProps;
+        expect(new pptxgen().addSlide(props).background).toBeUndefined();
+        const pres = new PuppeteerGen();
+        pres.addSlide(props);
+        expect(pres.getModel().slides[0]).toMatchObject({ background: "#FFFFFF", objects: [] });
     });
 });
