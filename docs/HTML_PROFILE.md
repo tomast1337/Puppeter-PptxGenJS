@@ -242,7 +242,8 @@ resources. Its class names are deterministic after #66. The chart options are no
 ```
 
 `render/component.ts`. The content is whatever the registered definition rendered; its `props` are not
-in the HTML. Component images are resolved to `data:` URIs like slide images.
+in the HTML. Component images are resolved to `data:` URIs like slide images. The WASM reader draws only
+content made of [sized boxes](#parsing-wasm); Puppeteer prints any content.
 
 ## Renderer workarounds
 
@@ -324,8 +325,29 @@ backend.
   local `#id`, filters, masks, patterns, radial gradients, units other than px and editor namespaces
   (`inkscape:*`, `sodipodi:*`) among them. An SVG image is never fetched from: an external reference is
   an error.
-- **Components are opaque.** `.slide-component` subtrees are only checked for well-formed markup and
-  reported through `warnings()` as `object kind 'component' not rendered`.
+- **Components are drawn when they need no layout.** A `div.slide-component` (the common box with
+  `position: absolute`, `overflow: hidden`, `data-component-type` and `data-component-version`) is drawn
+  from its markup when that markup is nested sized boxes, the subset the repository's own drawable
+  components emit (the shared fixture's HTML and React progress bars): `<div>` elements with no attribute
+  but `style`, each holding at most one `<div>` (whitespace between tags is formatting), placed at its
+  parent's top-left corner (the outermost at the component box's), sized by `width` and `height` (both
+  required: `<n>px`, `<n>%` of the parent's width or height, or `0`) and filled by `background` (a color
+  alone) or `background-color`, in the SVG subset's color forms. Each box becomes a filled rectangle,
+  clipped to the component box as `overflow: hidden` clips it; a box may overflow its parent. Anything
+  else needs CSS layout, which WASM does not do (#69 phase 8), and is an error naming the slide, the
+  object, the component's type and version and the element or property, never skipped, even with
+  `onUnsupported: "warn"`: text, a second element beside a box, any other element (`<span>`, `<b>`,
+  `<svg>`, `<img>`, `<style>`, `<script>` among them), `class`, `id` or any other attribute, any other
+  property (`padding`, `margin`, `border`, `display`, `box-sizing`, `font-*` among them), and a missing,
+  `auto` or negative size. The repository's text components (`test/badge` in
+  `tests/crossRuntimeDeck.ts`, the `acme/metric` card in `docs/COMPONENTS.md` and
+  `examples/react-component.ts`) need inline and block layout, so they are errors:
+
+    ```text
+    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'test/badge' v1: <strong> is not in profile v1: component markup is nested <div> boxes
+    invalid pdfdeck HTML: slide 1: object 'Component 0': component 'acme/metric' v1: CSS property 'padding' on <div> is not in profile v1
+    ```
+
 - **Errors name the place.** Every error is prefixed `invalid pdfdeck HTML:` and names the slide, the object
   (its `data-object-name`, else `#<index>` on the slide) and the attribute or property; malformed markup
   names its byte offset. For example:

@@ -25,10 +25,8 @@ pub(crate) enum SlideObject {
     Image(ImageObject),
     Table(TableObject),
     /// An object drawn from an SVG display list: a `.slide-chart`'s SVG (the chart options are not
-    /// in the HTML).
+    /// in the HTML), or a `.slide-component`'s boxes as filled rectangles (its props are not either).
     Svg(SvgObject),
-    /// A component subtree: reported through `warnings()` instead of failing the document.
-    Unsupported(String),
 }
 
 pub(crate) struct SvgObject {

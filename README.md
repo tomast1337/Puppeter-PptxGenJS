@@ -122,14 +122,16 @@ tables.
 | Images                | Partial: 28 of 29 options done                                           | PNG, JPEG, GIF and WebP (first frame), SVG (as vectors), in every sizing mode, hyperlinks, shadows |
 | Tables and pagination | Partial: 44 of 47 options done, including `autoPage` and `tableToSlides` | Drawn: merges, fills, borders, rows sized to cell text; single-line underlines                     |
 | Charts                | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported    | Drawn from the chart SVG: every type Puppeteer draws, `addChartExtension()`, text as text          |
-| Components            | Implemented ([HTML and React](./docs/COMPONENTS.md))                     | Not drawn                                                                                          |
+| Components            | Implemented ([HTML and React](./docs/COMPONENTS.md))                     | Nested sized `<div>` boxes (e.g. progress bars); markup that needs CSS layout throws               |
 | Media, slide masters  | Throw `UnsupportedFeatureError`                                          | Same                                                                                               |
 
 The counts come from `COMPATIBILITY`, `CHART_TYPE_COMPATIBILITY` and
 `SHAPE_GEOMETRY_COMPATIBILITY`, exported by `@pdfdeck/pptxgenjs` (source:
 [`compatibility.ts`](./packages/pptxgenjs/src/compatibility.ts)), which track every option as
-unsupported, partial, implemented or visually verified. WASM coverage for components is
-[#17](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/17).
+unsupported, partial, implemented or visually verified. WASM support for components that need CSS
+layout is tracked in
+[#17](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/17) and
+[#69](https://github.com/tomast1337/Puppeter-PptxGenJS/issues/69) (phase 8).
 
 The WASM backend never drops content silently: by default `toPdf()` throws and lists what it could
 not draw; with `onUnsupported: "warn"` it returns the PDF and `renderer.warnings()` lists the

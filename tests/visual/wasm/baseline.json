@@ -413,5 +413,9 @@
     "p1-Image4": 0.0273,
     "p1-Image5": 0.0638,
     "p1-Image6": 0.0851
+  },
+  "components": {
+    "p1-Component0": 0.0104,
+    "p1-Component1": 0.0078
   }
 }

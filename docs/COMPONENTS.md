@@ -2,7 +2,8 @@
 
 `addComponent` places application-defined HTML (or React) content on a slide. It is a pdfdeck
 extension: standard PptxGenJS has no such method. Components are drawn by the Puppeteer backend and
-the `/html` entry; the WASM backend reports them as not drawn (see [BACKENDS.md](./BACKENDS.md)).
+the `/html` entry. The WASM backend has no CSS layout: it draws a component only when its markup is
+nested sized boxes, and throws on anything else (see [WASM backend](#wasm-backend)).
 
 ## Custom HTML components
 
@@ -144,3 +145,21 @@ can later be mounted interactively by an editor, with the editor updating the
 saved props; this adapter only handles static export.
 
 Run the repository example with `bun run examples/react-component.ts`.
+
+## WASM backend
+
+The WASM backend reads the component's markup without a CSS layout engine, so it draws only nested
+`<div>` boxes, each at its parent's top-left corner, sized by `width` and `height` (px, % of the parent,
+or `0`) and filled by `background` or `background-color`. A progress bar fits:
+
+```typescript
+pres.registerComponent("acme/progress", 1, {
+    schema: z.object({ percent: z.number().min(0).max(100) }),
+    render: ({ percent }) => `<div style="width:100%;height:100%;background:#E0E0E0"><div style="width:${percent}%;height:100%;background:#4472C4"></div></div>`,
+});
+```
+
+Text, sibling elements, padding, classes, `<svg>`, `<img>` and every other element or property need
+layout; the WASM renderer throws, naming the slide, the object, the component and the element or
+property (`onUnsupported: "warn"` does not skip it). The metric cards above are such components: render
+them with Puppeteer. The exact subset is in [HTML_PROFILE.md](./HTML_PROFILE.md#parsing-wasm).

@@ -5,10 +5,10 @@
 //! beyond what the profile itself says ("omitted at 0", "omitted at 1"). An element, attribute,
 //! CSS property or value outside the profile is an error naming the slide, the object and the
 //! property, and malformed markup is an error, never a guess. A chart's SVG is read as the subset
-//! its renderers write (`svg.rs`). Components are opaque subtrees: they become
-//! `SlideObject::Unsupported`, reported through `warnings()`.
+//! its renderers write (`svg.rs`); a component's markup as nested sized boxes (`component.rs`).
 
 mod chart;
+mod component;
 mod dom;
 mod image;
 mod object;
@@ -220,15 +220,16 @@ pub(crate) mod tests {
 
     #[test]
     fn names_slide_object_and_property_in_errors() {
-        let html = document(
-            r#"<div class="slide-element slide-component" data-object-name="Component 1"></div><div class="slide-element slide-wobble" data-object-name="Odd"></div>"#,
-        );
+        let html = document(&format!(r#"{PROGRESS}<div class="slide-element slide-wobble" data-object-name="Odd"></div>"#));
         let error = parse(&html).err().unwrap_or_default();
         assert_eq!(
             error,
             "slide 1: object 'Odd': div.slide-element has no profile kind class (slide-text, slide-shape, slide-image, slide-table-container, slide-chart, slide-component)"
         );
     }
+
+    /// The shared fixture's `fixture/progress` component, as `toHtml()` writes it.
+    pub(crate) const PROGRESS: &str = r#"<div class="slide-element slide-component" data-component-type="fixture/progress" data-component-version="1" data-object-name="Component 0" style="left: 96px; top: 96px; width: 384px; height: 48px; transform-origin: center; border-style: none; position: absolute; overflow: hidden;"><div style="width:100%;height:100%;background:#E0E0E0"><div style="width:75%;height:200%;background:#4472C4"></div></div></div>"#;
 
     /// A text object, as `toHtml()` writes it.
     pub(crate) const TEXT: &str = r#"<div class="slide-element slide-text" data-object-name="Title" data-text-fit="none" data-text-direction="horizontal" style="left: 96px; top: 96px; width: 288px; height: 96px; transform-origin: center; background-color: transparent; border-style: none; padding: 4.800000000000001px 9.600000000000001px 4.800000000000001px 9.600000000000001px; align-items: center; white-space: pre-wrap; overflow-wrap: break-word; direction: ltr; border-radius: 0%;"><div class="text-content" style="width: 100%;"><div class="text-paragraph" data-line-baseline="23.999999999999996" style="text-align: left; direction: ltr; margin-top: 0px; margin-bottom: 0px; line-height: 28.799999999999997px; tab-size: 96px;"><span class="text-run" style="font-family: &quot;Arial&quot;; font-size: 24px; color: #000000; font-weight: normal; font-style: normal; text-decoration-style: solid;" lang="en-US">Hi &amp; bye</span></div></div></div>"#;
