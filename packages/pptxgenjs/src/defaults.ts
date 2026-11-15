@@ -250,6 +250,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         // PptxGenJS omits legend <c:txPr> unless a legend font option is set; Office then
         // uses the 10pt chart text default in the theme minor (body) font.
         legendFontSizePt: 10,
+        // OOXML has no legend key size: Office and LibreOffice draw the square key of a bar, area or pie entry at
+        // 0.6 of the legend font size (LibreOffice chart2 VLegend: `nSymbolHeight = fViewFontSize * 0.6`).
+        legendKeyFontRatio: 0.6,
         displayBlanksAs: "span" as const,
         radarStyle: "standard" as const,
         chartAreaRoundedCorners: true,
