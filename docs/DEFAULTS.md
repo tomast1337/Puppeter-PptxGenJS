@@ -19,9 +19,7 @@ instead of receiving an invented value.
 | Layout                       | `LAYOUT_16x9`, 10in × 5.625in |
 | Other layouts                |              4:3, 16:10, Wide |
 | RTL mode                     |                         False |
-| Author/company               |                   `PptxGenJS` |
-| Title/subject                |      `PptxGenJS Presentation` |
-| Revision                     |                           `1` |
+| Document properties          |                          None |
 | Heading font                 |                 Calibri Light |
 | Body font                    |                       Calibri |
 | Language                     |                       `en-US` |
@@ -30,8 +28,13 @@ instead of receiving an invented value.
 | Slide hidden                 |                         False |
 | Slide/table-auto-page margin |                         0.5in |
 
-The complete Office theme palette, built-in layout dimensions, units, and
-metadata values are available in the machine-readable contract.
+The complete Office theme palette, built-in layout dimensions and units are
+available in the machine-readable contract.
+
+Document properties (`title`, `author`, `subject`, `company`, `revision`) have
+no default: PptxGenJS writes `PptxGenJS Presentation`, `PptxGenJS` and revision
+`1` when they are unset, which brands the file rather than describes it, so
+pdfdeck writes only the values a deck sets and an unset one reads `""`.
 
 `pres.layout` selects LAYOUT_4x3 (10in × 7.5in), LAYOUT_16x9, LAYOUT_16x10 (10in × 6.25in),
 LAYOUT_WIDE (13⅓in × 7.5in) or a `defineLayout()` name, and an unknown name throws `UNKNOWN-LAYOUT`

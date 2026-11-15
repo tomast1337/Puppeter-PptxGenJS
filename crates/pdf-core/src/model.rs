@@ -9,13 +9,16 @@ pub(crate) struct Presentation {
     pub(crate) slides: Vec<Slide>,
 }
 
-/// `PresentationMetadata`, the fields a PDF has a place for: `<title>`, `<meta name="author">` and
-/// `<meta name="description">` (the subject). Read from profile version 2 only.
+/// `PresentationMetadata`: `<title>`, `<meta name="author">`, `<meta name="description">` (the
+/// subject), `<meta name="pdfdeck-company">` and `<meta name="pdfdeck-revision">`. Read from
+/// profile version 2 only.
 #[derive(Default)]
 pub(crate) struct Metadata {
     pub(crate) title: Option<String>,
     pub(crate) author: Option<String>,
     pub(crate) subject: Option<String>,
+    pub(crate) company: Option<String>,
+    pub(crate) revision: Option<String>,
 }
 
 pub(crate) struct PageSize {

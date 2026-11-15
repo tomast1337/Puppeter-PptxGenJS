@@ -285,7 +285,9 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     private themeProps: PptxGenJS.ThemeProps | undefined;
     private rtl: boolean = PPTX_DEFAULTS.presentation.rtlMode;
     // PptxGenJS writes these to docProps/core.xml and app.xml; toHtml() writes them to <head> and the renderers to the PDF.
-    private metadata: Required<PresentationMetadata> = { ...PPTX_DEFAULTS.presentation.metadata };
+    // Only what the caller sets: PptxGenJS's defaults ("PptxGenJS", "PptxGenJS Presentation", "1") are its branding,
+    // not the caller's, so an unset one reads "" and reaches neither the HTML nor the PDF (owner decision, #102).
+    private metadata: PresentationMetadata = {};
     /**
      * Input document for tableToSlides(tableId) only: put the source <table> here. Slides are not written
      * into it, so editing it does not change toHtml() or the PDF (#69). #72 tracks option (b): tableToSlides
@@ -377,7 +379,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     }
 
     get author(): string {
-        return this.metadata.author;
+        return this.metadata.author ?? "";
     }
 
     set author(value: string) {
@@ -385,7 +387,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     }
 
     get company(): string {
-        return this.metadata.company;
+        return this.metadata.company ?? "";
     }
 
     set company(value: string) {
@@ -393,7 +395,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     }
 
     get revision(): string {
-        return this.metadata.revision;
+        return this.metadata.revision ?? "";
     }
 
     set revision(value: string) {
@@ -401,7 +403,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     }
 
     get subject(): string {
-        return this.metadata.subject;
+        return this.metadata.subject ?? "";
     }
 
     set subject(value: string) {
@@ -409,7 +411,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     }
 
     get title(): string {
-        return this.metadata.title;
+        return this.metadata.title ?? "";
     }
 
     set title(value: string) {

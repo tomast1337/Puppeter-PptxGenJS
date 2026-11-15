@@ -90,6 +90,8 @@ fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<(PageSize, Metadata), 
                     Some("pdfdeck-profile") => version = Some(content()?),
                     Some("author") => set_once(&mut metadata.author, r#"<meta name="author">"#, content()?)?,
                     Some("description") => set_once(&mut metadata.subject, r#"<meta name="description">"#, content()?)?,
+                    Some("pdfdeck-company") => set_once(&mut metadata.company, r#"<meta name="pdfdeck-company">"#, content()?)?,
+                    Some("pdfdeck-revision") => set_once(&mut metadata.revision, r#"<meta name="pdfdeck-revision">"#, content()?)?,
                     _ => {}
                 }
             }
@@ -235,9 +237,16 @@ pub(crate) mod tests {
     fn reads_the_metadata_of_version_2() {
         let head = r#"<title>  Q3 &amp;
  plan </title><meta name="author" content="Ana &quot;A&quot;"><meta name="description" content="Sales"><meta name="pdfdeck-company" content="Co"><meta name="pdfdeck-revision" content="4">"#;
-        let Metadata { title, author, subject } = parse(&with_head("2", head)).map(|p| p.metadata).unwrap();
+        let Metadata {
+            title,
+            author,
+            subject,
+            company,
+            revision,
+        } = parse(&with_head("2", head)).map(|p| p.metadata).unwrap();
         assert_eq!(title.as_deref(), Some("Q3 & plan"));
         assert_eq!(author.as_deref(), Some(r#"Ana "A""#));
+        assert_eq!((company.as_deref(), revision.as_deref()), (Some("Co"), Some("4")));
         assert_eq!(subject.as_deref(), Some("Sales"));
 
         let empty = parse(&with_head("2", r#"<title></title><meta name="author" content="">"#)).unwrap().metadata;

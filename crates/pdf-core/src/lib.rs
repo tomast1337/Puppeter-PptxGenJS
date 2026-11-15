@@ -7,6 +7,7 @@
 //! drawn in px under a `PT_PER_PX` (0.75) scale.
 
 mod color;
+mod document_info;
 mod effect;
 mod image;
 mod link;
@@ -151,7 +152,7 @@ impl Renderer {
 
     fn draw_presentation(&mut self, model: &Presentation) -> Result<Vec<u8>, String> {
         let mut document = Document::new();
-        if let Some(metadata) = pdf_metadata(&model.metadata) {
+        if let Some(metadata) = document_info::krilla_metadata(&model.metadata) {
             document.set_metadata(metadata);
         }
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
@@ -174,7 +175,8 @@ impl Renderer {
             page.finish();
             drawn.map_err(|e| format!("slide {}: {e}", index + 1))?;
         }
-        document.finish().map_err(|e| format!("PDF serialization failed: {e:?}"))
+        let pdf = document.finish().map_err(|e| format!("PDF serialization failed: {e:?}"))?;
+        document_info::with_custom_entries(pdf, &model.metadata)
     }
 
     fn warn(&mut self, message: impl Into<String>) {
@@ -296,27 +298,6 @@ impl Renderer {
     }
 }
 
-/// The PDF Info dictionary and XMP packet for `metadata`: Title, Author and Subject (krilla's
-/// `description`, written as /Subject and dc:description). None without any, so a document
-/// without metadata is written as before.
-fn pdf_metadata(metadata: &model::Metadata) -> Option<krilla::metadata::Metadata> {
-    let model::Metadata { title, author, subject } = metadata;
-    if title.is_none() && author.is_none() && subject.is_none() {
-        return None;
-    }
-    let mut pdf = krilla::metadata::Metadata::new();
-    if let Some(title) = title {
-        pdf = pdf.title(title.clone());
-    }
-    if let Some(author) = author {
-        pdf = pdf.authors(vec![author.clone()]);
-    }
-    if let Some(subject) = subject {
-        pdf = pdf.description(subject.clone());
-    }
-    Some(pdf)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -348,7 +329,17 @@ mod tests {
         let contains = |pdf: &[u8], needle: &[u8]| pdf.windows(needle.len()).any(|w| w == needle);
         let pdf = r.render_html(&with).unwrap();
         assert!(contains(&pdf, b"<</Title(Deck)/Author(Ana)>>"));
+        assert!(!contains(&pdf, b"/Company"));
         assert!(!contains(&r.render_html(&plain).unwrap(), b"/Title"));
+
+        let company = r
+            .render_html(&with.replace("<style", r#"<meta name="pdfdeck-company" content="Acme"><style"#))
+            .unwrap();
+        assert!(contains(
+            &company,
+            b"<</Title<FEFF004400650063006B>/Author<FEFF0041006E0061>/Company<FEFF00410063006D0065>>>"
+        ));
+        assert!(company.ends_with(b"%%EOF"));
     }
 
     #[test]
