@@ -117,11 +117,10 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
         printBackground: true,
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
-    // Chromium writes only the Title (from <title>); the author and the description become Author and Subject.
-    const info = await page.evaluate((): DocumentInfo => ({
-        Title: document.title,
-        Author: document.querySelector<HTMLMetaElement>('meta[name="author"]')?.content,
-        Subject: document.querySelector<HTMLMetaElement>('meta[name="description"]')?.content,
-    }));
+    // Chromium writes only the Title (from <title>); the meta tags become Author, Subject, Company and Revision.
+    const info = await page.evaluate((): DocumentInfo => {
+        const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
+        return { Title: document.title, Author: meta("author"), Subject: meta("description"), Company: meta("pdfdeck-company"), Revision: meta("pdfdeck-revision") };
+    });
     return withDocumentInfo(pdf, info);
 }

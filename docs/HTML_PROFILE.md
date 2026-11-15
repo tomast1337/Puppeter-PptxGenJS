@@ -16,7 +16,10 @@ reader never sees them.
 declare `<meta name="pdfdeck-profile" content="1">` keep rendering the same way: every reader still
 accepts them, and the WASM reader gives their `<title>` and meta tags no meaning, as version 1 did, so
 their PDFs have no document properties. Puppeteer prints any HTML, so Chromium keeps writing a version 1
-document's `<title>` as the PDF Title, as before.
+document's `<title>` as the PDF Title, as before. Version 2 is not released yet (no `@pdfdeck/*` package has
+been published), so its description was corrected in place rather than as a version 3: the elements are
+the same, but `toHtml()` writes only the properties the deck sets (PptxGenJS's defaults are not written)
+and both renderers put `company` and `revision` in the PDF.
 
 ## Pipeline
 
@@ -87,11 +90,9 @@ From the maintainer's decisions on #69:
     <head>
         <meta name="pdfdeck-profile" content="2" />
         <meta name="pdfdeck-page-size" content="Screen 16:9 Landscape" />
-        <title>PptxGenJS Presentation</title>
-        <meta name="author" content="PptxGenJS" />
-        <meta name="description" content="PptxGenJS Presentation" />
-        <meta name="pdfdeck-company" content="PptxGenJS" />
-        <meta name="pdfdeck-revision" content="1" />
+        <!-- the document properties the deck sets, here pres.title and pres.company -->
+        <title>Q3 review</title>
+        <meta name="pdfdeck-company" content="Acme" />
         <style id="puppeteer-gen-styles">
             /* presentationCSS(pageSize), render/slide.ts:103 */
         </style>
@@ -126,26 +127,33 @@ Version 2. The presentation's `title`, `author`, `subject`, `company` and `revis
 HTML holds a value where it has a name for it; each element is left out when its value is empty or absent,
 and appears at most once.
 
-| Property   | PptxGenJS (default)                                | HTML                             | PDF                                          |
-| ---------- | -------------------------------------------------- | -------------------------------- | -------------------------------------------- |
-| `title`    | `dc:title` (`PptxGenJS Presentation`)              | `<title>`                        | Info `/Title`, XMP `dc:title`                |
-| `author`   | `dc:creator` and `cp:lastModifiedBy` (`PptxGenJS`) | `<meta name="author">`           | Info `/Author`, XMP `dc:creator`             |
-| `subject`  | `dc:subject` (`PptxGenJS Presentation`)            | `<meta name="description">`      | Info `/Subject`, XMP `dc:description` (WASM) |
-| `company`  | app.xml `Company` (`PptxGenJS`)                    | `<meta name="pdfdeck-company">`  | none                                         |
-| `revision` | `cp:revision` (`1`)                                | `<meta name="pdfdeck-revision">` | none                                         |
+| Property   | PptxGenJS (its default, not written by pdfdeck)    | HTML                             | PDF Info dictionary (both renderers) | WASM also writes XMP |
+| ---------- | -------------------------------------------------- | -------------------------------- | ------------------------------------ | -------------------- |
+| `title`    | `dc:title` (`PptxGenJS Presentation`)              | `<title>`                        | `/Title`                             | `dc:title`           |
+| `author`   | `dc:creator` and `cp:lastModifiedBy` (`PptxGenJS`) | `<meta name="author">`           | `/Author`                            | `dc:creator`         |
+| `subject`  | `dc:subject` (`PptxGenJS Presentation`)            | `<meta name="description">`      | `/Subject`                           | `dc:description`     |
+| `company`  | app.xml `Company` (`PptxGenJS`)                    | `<meta name="pdfdeck-company">`  | `/Company` (custom key)              | none                 |
+| `revision` | `cp:revision` (`1`)                                | `<meta name="pdfdeck-revision">` | `/Revision` (custom key)             | none                 |
 
+- **Only what the deck sets.** PptxGenJS fills every property with its own name when the caller sets
+  none; those values brand the file rather than describe it, so `toHtml()` writes no element for a property
+  the deck leaves unset, and the PDF has no entry for it.
 - **Subject is `description`.** HTML has no subject meta name; `description` is its free-form summary of
   the page, which is what a PDF Subject holds, and krilla writes the same value to both Subject and
   `dc:description`.
-- **Company and revision stay in the HTML.** A PDF has no field for either. LibreOffice's PDF export of
-  the PptxGenJS `.pptx` writes Title, Subject and Author and neither of these (`pdfinfo`: no custom
-  metadata), so pdfdeck does the same.
+- **Company and revision are custom Info keys.** A PDF has no standard field for either; ISO 32000-1
+  14.3.3 allows other keys in the Info dictionary, and `/Company` and `/Revision` are the names
+  `pdfinfo -custom` lists them under. XMP has no standard property for them and krilla (0.8) writes no
+  custom XMP, so neither renderer writes them to XMP. LibreOffice's PDF export of the PptxGenJS `.pptx`
+  writes neither, so the visual reference has none.
 - **The title is read as `document.title`:** ASCII whitespace stripped and collapsed.
 - **Each renderer writes them.** WASM sets krilla's metadata (Info dictionary and XMP packet) from a
-  version 2 document. Chromium writes only `/Title`, from `<title>`; the Puppeteer renderer then appends an
-  incremental update (ISO 32000-1 7.5.6, `packages/puppeteer/src/pdfInfo.ts`) whose Info dictionary adds
-  `/Author` and `/Subject` from the `author` and `description` meta tags of any HTML it prints, and keeps
-  Chromium's Creator, Producer and dates. It writes no XMP packet, as Chromium writes none.
+  version 2 document; when it has a company or revision, `crates/pdf-core/src/document_info.rs` appends an
+  incremental update (ISO 32000-1 7.5.6) whose Info dictionary holds all five. Chromium writes only
+  `/Title`, from `<title>`; the Puppeteer renderer then appends an incremental update
+  (`packages/puppeteer/src/pdfInfo.ts`) whose Info dictionary adds `/Author`, `/Subject`, `/Company` and
+  `/Revision` from the meta tags of any HTML it prints, and keeps Chromium's Creator, Producer and dates.
+  It writes no XMP packet, as Chromium writes none.
 - **Completion adds none of them**: a hand-written document without them gives a PDF without them.
 
 ## Slide

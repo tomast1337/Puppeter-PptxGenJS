@@ -141,9 +141,10 @@ returns a `.pptx`:
   the sizes in `PAGE_SIZES` are listed in [docs/USAGE.md](./docs/USAGE.md#page-sizes-and-layouts).
 - **Theme:** `pres.theme.bodyFontFace` is the font of text, table cells and chart legends that set
   none, as in PowerPoint. Set it before adding objects; changing it afterwards throws.
-- **Document properties:** `pres.title`, `author` and `subject` become the PDF Title, Author and
-  Subject, with PptxGenJS's defaults (`PptxGenJS Presentation`, `PptxGenJS`). `company` and
-  `revision` stay in the HTML head: a PDF has no field for them.
+- **Document properties:** `pres.title`, `author`, `subject`, `company` and `revision` become the
+  PDF's Title, Author, Subject and the custom Company and Revision entries. Only what you set is
+  written: PptxGenJS's defaults (`PptxGenJS Presentation`, `PptxGenJS`, revision `1`) are not, and
+  an unset property reads `""`.
 - **Shown nowhere, as in PowerPoint's slide show:** `addNotes()`, `addSection()` and `pres.rtlMode`
   (which orients PowerPoint's editing views) are accepted and change nothing on the page.
 

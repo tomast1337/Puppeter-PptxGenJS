@@ -37,13 +37,8 @@ export const PPTX_DEFAULTS = Object.freeze({
             LAYOUT_WIDE: Object.freeze({ width: 40 / 3, height: 7.5, presLayoutName: "custom" }),
         }),
         rtlMode: false,
-        metadata: Object.freeze({
-            author: "PptxGenJS",
-            company: "PptxGenJS",
-            revision: "1",
-            subject: "PptxGenJS Presentation",
-            title: "PptxGenJS Presentation",
-        }),
+        // No metadata defaults: PptxGenJS's title, author, subject, company and revision defaults are its branding,
+        // so pdfdeck writes only the values the caller sets (owner decision, #102; PuppeteerGen.metadata).
     }),
     theme: Object.freeze({
         headFontFace: "Calibri Light",
