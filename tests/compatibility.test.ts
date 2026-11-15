@@ -129,7 +129,9 @@ describe("compatibility manifest", () => {
     test("tracks the WASM backend's shape and image support on the same option surface", () => {
         expect(Object.keys(WASM_COMPATIBILITY.shape.options).sort()).toEqual(Object.keys(COMPATIBILITY.shape.options).sort());
         expect(Object.keys(WASM_COMPATIBILITY.image.options).sort()).toEqual(Object.keys(COMPATIBILITY.image.options).sort());
-        expect(WASM_COMPATIBILITY.image.options.svg).toBe("unsupported");
+        expect(WASM_COMPATIBILITY.image.options.svg).toBe("partial");
+        expect(WASM_COMPATIBILITY.image.options.gifFirstFrame).toBe("verified");
+        expect(WASM_COMPATIBILITY.image.options.webp).toBe("verified");
         expect(WASM_COMPATIBILITY.image.options.hyperlink).toBe("implemented");
         expect(WASM_COMPATIBILITY.shape.status).toBe("partial");
         expect(WASM_COMPATIBILITY.component.status).toBe("partial");
