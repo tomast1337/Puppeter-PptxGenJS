@@ -285,6 +285,22 @@ describe("text DOM rendering", () => {
         expect(normalizeText("rounded", { shape: "roundRect", rectRadius: 0.5 }).borderRadius).toBe(25);
     });
 
+    // PptxGenJS 4.0.1 declares these but draws nothing different for them: `isTextBox` only adds txBox="1"
+    // (LibreOffice draws the box pixel-identical), and no text or shape writer reads the others.
+    test("accepts the options PptxGenJS ignores and draws the same deck", () => {
+        const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        const deck = (extra: { text?: object; shape?: object }) => {
+            const presentation = new PuppeteerGen();
+            presentation
+                .addSlide()
+                .addText([{ text: "one", options: { bullet: { type: "number", numberType: "romanUcPeriod" } } }], { x: 1, y: 1, w: 3, h: 1, ...extra.text })
+                .addShape("rect", { x: 1, y: 3, w: 2, h: 1, ...extra.shape });
+            return presentation.getModel();
+        };
+        const ignored = deck({ text: { isTextBox: true, textDirection: "vert", data: PNG, path: "logo.png" }, shape: { align: "center" } });
+        expect(ignored).toEqual(deck({}));
+    });
+
     test("creates internal slide links and rejects empty hyperlink objects", () => {
         const presentation = new PuppeteerGen();
         const first = presentation.addSlide();

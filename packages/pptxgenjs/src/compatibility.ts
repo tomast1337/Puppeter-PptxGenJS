@@ -266,7 +266,8 @@ export const COMPATIBILITY = Object.freeze({
             bullet: "implemented",
             bulletCharacterCode: "implemented",
             bulletIndent: "implemented",
-            bulletNumberType: "unsupported",
+            // PptxGenJS 4.0.1 writes `bullet.style` into buAutoNum and never reads the declared `bullet.numberType`.
+            bulletNumberType: "ignored",
             bulletDeprecatedStyle: "implemented",
             bulletNumberStartAt: "implemented",
             color: "verified",
@@ -275,7 +276,8 @@ export const COMPATIBILITY = Object.freeze({
             highlight: "implemented",
             lang: "implemented",
             tabStops: "partial",
-            textDirection: "unsupported",
+            // Only table cells read it (as `vert`); addText writes no attribute for it. `vert` is the text-box option.
+            textDirection: "ignored",
             transparency: "implemented",
             underline: "implemented",
             baseline: "implemented",
@@ -287,7 +289,8 @@ export const COMPATIBILITY = Object.freeze({
             glow: "implemented",
             hyperlink: "implemented",
             indentLevel: "implemented",
-            isTextBox: "unsupported",
+            // Writes `<p:cNvSpPr txBox="1"/>`, an editing flag: LibreOffice draws the box pixel-identical without it.
+            isTextBox: "ignored",
             line: "partial",
             lineSpacing: "implemented",
             lineSpacingMultiple: "implemented",
@@ -295,6 +298,7 @@ export const COMPATIBILITY = Object.freeze({
             outline: "implemented",
             paraSpaceAfter: "implemented",
             paraSpaceBefore: "implemented",
+            // Throws UnsupportedFeatureError: placeholders live on slide layouts, which need defineSlideMaster().
             placeholder: "unsupported",
             rectRadius: "partial",
             rotate: "implemented",
@@ -313,8 +317,9 @@ export const COMPATIBILITY = Object.freeze({
             lineHead: "unsupported",
             lineSize: "partial",
             lineTail: "unsupported",
-            data: "unsupported",
-            path: "unsupported",
+            // Declared through DataOrPathProps, read by no text writer: addText draws no picture.
+            data: "ignored",
+            path: "ignored",
         }),
     }),
     image: Object.freeze<CompatibilityEntry>({
@@ -333,6 +338,7 @@ export const COMPATIBILITY = Object.freeze({
             flipH: "verified",
             flipV: "verified",
             hyperlink: "implemented",
+            // Throws UnsupportedFeatureError: placeholders live on slide layouts, which need defineSlideMaster().
             placeholder: "unsupported",
             rotate: "verified",
             rounding: "verified",
@@ -359,7 +365,8 @@ export const COMPATIBILITY = Object.freeze({
             w: "verified",
             h: "verified",
             objectName: "implemented",
-            align: "unsupported",
+            // addShape writes no text body, so there is nothing to align.
+            align: "ignored",
             angleRange: "implemented",
             arcThicknessRatio: "implemented",
             fill: "verified",
@@ -438,7 +445,8 @@ export const COMPATIBILITY = Object.freeze({
             autoPageHeaderRows: "verified",
             autoPageSlideStartY: "verified",
             newSlideStartY: "implemented",
-            verbose: "unsupported",
+            // Only prints PptxGenJS's paging steps to the console; the file is the same.
+            verbose: "ignored",
             tableToSlides: "verified",
             addImage: "implemented",
             addShape: "verified",
@@ -446,6 +454,7 @@ export const COMPATIBILITY = Object.freeze({
             addText: "verified",
             slideMargin: "verified",
             addHeaderToEach: "implemented",
+            // Throws UnsupportedFeatureError: a master needs defineSlideMaster().
             masterSlideName: "unsupported",
         }),
     }),
@@ -494,8 +503,8 @@ export const WASM_COMPATIBILITY = Object.freeze({
         status: "partial",
         options: Object.freeze({
             ...Object.fromEntries(Object.keys(COMPATIBILITY.shape.options).map(option => [option, "implemented" as const])),
-            // As in the Puppeteer renderer.
-            align: "unsupported",
+            // As in the Puppeteer renderer: addShape writes no text body.
+            align: "ignored",
             // Outer shadows are blurred rasters (crates/pdf-core/src/effect/); inner ones are reported through warnings().
             shadow: "partial",
             // Text in shapes uses the WASM text layout and inherits its gaps (right-to-left tab stops, ...).

@@ -101,15 +101,15 @@ Puppeteer is the default and the complete backend. Use WASM when you cannot run 
 page, a serverless function without a browser) and your slides are text, shapes, raster images and
 tables.
 
-| Family                | Puppeteer (default)                                                      | WASM (opt-in)                                                                                      |
-| --------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Text and rich text    | Partial: 50 of 68 tracked options done, 9 partial                        | Drawn: runs, paragraphs, bullets, tab stops, insets, rotation, fit, hyperlinks, shadows, glow      |
-| Shapes                | All 179 presets and custom geometry; 36 of 39 options done               | All presets and custom geometry, hyperlinks, outer shadows                                         |
-| Images                | Partial: 28 of 29 options done                                           | PNG, JPEG, GIF and WebP (first frame), SVG (as vectors), in every sizing mode, hyperlinks, shadows |
-| Tables and pagination | Partial: 45 of 48 options done, including `autoPage` and `tableToSlides` | Drawn: merges, fills, borders, rows sized to cell text, hyperlinks; single-line underlines         |
-| Charts                | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported    | Drawn from the chart SVG: every type Puppeteer draws, `addChartExtension()`, text as text          |
-| Components            | Implemented ([HTML and React](./docs/COMPONENTS.md))                     | Nested sized `<div>` boxes (e.g. progress bars); markup that needs CSS layout throws               |
-| Media, slide masters  | Throw `UnsupportedFeatureError`                                          | Same                                                                                               |
+| Family                             | Puppeteer (default)                                                            | WASM (opt-in)                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Text and rich text                 | Partial: 55 of 68 tracked options done (5 ignored, as in PptxGenJS), 9 partial | Drawn: runs, paragraphs, bullets, tab stops, insets, rotation, fit, hyperlinks, shadows, glow      |
+| Shapes                             | All 179 presets and custom geometry; 37 of 39 options done                     | All presets and custom geometry, hyperlinks, outer shadows                                         |
+| Images                             | Partial: 28 of 29 options done                                                 | PNG, JPEG, GIF and WebP (first frame), SVG (as vectors), in every sizing mode, hyperlinks, shadows |
+| Tables and pagination              | Partial: 46 of 48 options done, including `autoPage` and `tableToSlides`       | Drawn: merges, fills, borders, rows sized to cell text, hyperlinks; single-line underlines         |
+| Charts                             | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported          | Drawn from the chart SVG: every type Puppeteer draws, `addChartExtension()`, text as text          |
+| Components                         | Implemented ([HTML and React](./docs/COMPONENTS.md))                           | Nested sized `<div>` boxes (e.g. progress bars); markup that needs CSS layout throws               |
+| Media, slide masters, placeholders | Throw `UnsupportedFeatureError`                                                | Same                                                                                               |
 
 The counts come from `COMPATIBILITY`, `CHART_TYPE_COMPATIBILITY` and
 `SHAPE_GEOMETRY_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs` (source:
