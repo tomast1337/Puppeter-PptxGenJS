@@ -227,22 +227,25 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         await expect(odd.toPdf()).rejects.toThrow("slide 1: object 'Chart 0': <use> is not in the SVG subset");
     });
 
-    test("makes linked runs, shapes and images clickable", async () => {
+    test("makes linked runs, shapes, images and table cells clickable", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE, { renderer });
         pres.addSlide()
             .addText([{ text: "Docs", options: { hyperlink: { url: "https://example.com/docs", tooltip: "Open the docs" } } }], { x: 1, y: 1, w: 3, h: 0.5 })
             .addShape("rect", { x: 1, y: 2, w: 2, h: 1, rotate: 30, fill: { color: "0088CC" }, hyperlink: { slide: 2 } })
-            .addImage({ data: PNG, x: 4, y: 2, w: 1, h: 1, hyperlink: { url: "mailto:team@example.com" } });
+            .addImage({ data: PNG, x: 4, y: 2, w: 1, h: 1, hyperlink: { url: "mailto:team@example.com" } })
+            // A linked cell and a linked run in a cell, as PptxGenJS writes a hlinkClick for both.
+            .addTable([[{ text: "Cell", options: { hyperlink: { url: "https://example.com/cell" } } }, { text: [{ text: "Run", options: { hyperlink: { slide: 2 } } }] }]], { x: 1, y: 4, w: 4 });
         pres.addSlide().addText("Second", { x: 1, y: 1, w: 3, h: 0.5 });
         const source = ascii(await pres.toPdf());
         expect(renderer.warnings()).toEqual([]);
         const links = source.match(/\/Type\/Annot\/Subtype\/Link[^\n]*/g) ?? [];
-        expect(links).toHaveLength(3);
+        expect(links).toHaveLength(5);
         expect(links.filter(link => link.includes("/URI(https://example.com/docs)") && link.includes("/Contents(Open the docs)"))).toHaveLength(1);
         expect(links.filter(link => link.includes("/URI(mailto:team@example.com)"))).toHaveLength(1);
-        // The rotated shape jumps to page 2 and carries its turned outline.
-        expect(links.filter(link => /\/QuadPoints\[[^\]]+\]\/Dest \d+ 0 R/.test(link))).toHaveLength(1);
+        expect(links.filter(link => link.includes("/URI(https://example.com/cell)"))).toHaveLength(1);
+        // The rotated shape and the cell run jump to page 2; the shape carries its turned outline.
+        expect(links.filter(link => /\/QuadPoints\[[^\]]+\]\/Dest \d+ 0 R/.test(link))).toHaveLength(2);
     });
 
     test("draws every preset shape the model emits, with dashed lines and arrowheads, without warnings", async () => {

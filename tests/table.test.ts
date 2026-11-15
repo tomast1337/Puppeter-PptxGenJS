@@ -92,6 +92,21 @@ describe("table normalization", () => {
         expect(cell.text.paragraphs[0]!.runs[1]!.link?.href).toBe("https://example.com");
     });
 
+    test("links a whole cell in the hyperlink color unless the cell or table sets one", () => {
+        const link = (url: string, color?: string) => ({ text: url, options: { hyperlink: { url }, ...(color ? { color } : {}) } });
+        const runs = (options: PptxGenJS.TableProps) =>
+            normalizeTable([[link("https://example.com/a"), link("https://example.com/b", "00AA00")]], options, PAGE).rows[0]!.cells.map(cell => {
+                const run = cell.text.paragraphs[0]!.runs[0]!;
+                return [run.link?.href, run.color, run.decoration.underline];
+            });
+        // PptxGenJS 4.0.1 writes these cells' runs with u="sng", a hlinkClick and no solidFill; LibreOffice draws #0563C1.
+        expect(runs({ w: 6 })).toEqual([
+            ["https://example.com/a", "#0563C1", true],
+            ["https://example.com/b", "#00AA00", true],
+        ]);
+        expect(runs({ w: 6, color: "FF0000" })[0]).toEqual(["https://example.com/a", "#FF0000", true]);
+    });
+
     test("matches default, scalar, and mismatched column width behavior", () => {
         const rows = [[{ text: "A" }, { text: "B" }, { text: "C" }]];
         expect(normalizeTable(rows, {}, PAGE).columns).toEqual([288, 288, 288]);

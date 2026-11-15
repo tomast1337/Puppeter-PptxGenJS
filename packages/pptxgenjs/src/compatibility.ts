@@ -410,6 +410,8 @@ export const COMPATIBILITY = Object.freeze({
             fontFace: "verified",
             fontSize: "verified",
             highlight: "implemented",
+            // A cell's `options.hyperlink` or a linked run in a rich-text cell (tests/table.test.ts, tests/wasm.test.ts).
+            hyperlink: "implemented",
             lang: "implemented",
             softBreakBefore: "implemented",
             tabStops: "partial",
