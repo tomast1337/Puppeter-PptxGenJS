@@ -25,6 +25,9 @@ const ROTATE = /rotate\(([^)]+)deg\)/;
 const BORDER_WIDTH = /(?:^|; )border-(?:top|right|bottom|left): ([^ ;]+)px /g;
 // The face as the profile writes it: one CSS string, `\` and `"` escaped.
 const FONT_FAMILY = /((?:^|; )font-family: "((?:[^"\\]|\\.)*)")/;
+// The payload of a `src="data:…"` attribute. Inlined images make up most of a large deck's HTML, and no print
+// step reads or writes them. It stops at `<` too, so text that only looks like one never spans markup.
+const DATA_URI_PAYLOAD = /(\ssrc="data:[^,"<]*,)[^"<]*/g;
 const CALIBRI_FALLBACK = '"Noto Sans", Arial, "Liberation Sans", sans-serif';
 const SANS_FALLBACK = 'Arial, "Liberation Sans", sans-serif';
 
@@ -84,8 +87,15 @@ function addStyle(element: Element, declarations: string): Edit {
  * not the screen (under 1px). The same input always gives the same output.
  */
 export function printHtml(html: string): string {
+    // parse5 tokenizes every character, so parse the document with data: URI payloads emptied (about 30 ms per MB
+    // of payload otherwise) and put them back afterwards, in order: no edit below writes a src attribute.
+    const payloads: string[] = [];
+    const masked = html.replace(DATA_URI_PAYLOAD, (uri: string, head: string) => {
+        payloads.push(uri.slice(head.length));
+        return head;
+    });
     const edits: Edit[] = [];
-    for (const element of descendants(parse(html, { sourceCodeLocationInfo: true }))) {
+    for (const element of descendants(parse(masked, { sourceCodeLocationInfo: true }))) {
         if (hasClass(element, "text-run") || hasClass(element, "text-bullet")) {
             // Font fallback: Chromium does not apply LibreOffice's Microsoft-font substitutions to an unknown
             // single-family declaration. Keep the face first, then the metric-compatible sans fallback the
@@ -120,9 +130,10 @@ export function printHtml(html: string): string {
         }
     }
     // Later offsets first, so earlier ones stay valid.
-    let printed = html;
+    let printed = masked;
     for (const edit of edits.toSorted((a, b) => b.start - a.start)) printed = `${printed.slice(0, edit.start)}${edit.text}${printed.slice(edit.end)}`;
-    return printed;
+    let next = 0;
+    return printed.replace(DATA_URI_PAYLOAD, (head: string) => `${head}${payloads[next++] ?? ""}`);
 }
 
 function shapeEdits(svg: Element): Edit[] {
