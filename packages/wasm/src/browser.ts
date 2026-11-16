@@ -19,9 +19,9 @@ export interface WasmRendererOptions {
     /** The `pdf_wasm_bg.wasm` module: a URL, bytes, a Response or a compiled module. Defaults to the file next to this module. */
     wasm?: WasmSource | Promise<WasmSource>;
     /**
-     * What to do when the document holds something this backend cannot draw (non-text objects,
-     * preset shapes other than rect/roundRect, shadows, tab stops...). `"error"` (default) throws
-     * and lists them; `"warn"` returns the PDF and leaves the list in `warnings()`.
+     * What to do when the renderer skips something it cannot draw; each skip is one line of
+     * `warnings()`. `"error"` (default) throws and lists them; `"warn"` returns the PDF and leaves
+     * the list in `warnings()`.
      */
     onUnsupported?: "error" | "warn";
 }

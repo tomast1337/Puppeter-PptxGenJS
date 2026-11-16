@@ -342,7 +342,7 @@ interface SvgPainter {
 /** zrender prefixes SVG ids with its instance number (zr<N>-), taken from a process-wide counter. */
 const ZRENDER_ID_PREFIX = /^zr\d+-/;
 
-export function renderEChartsSvg(width: number, height: number, option: EChartsCoreOption): string {
+function renderEChartsSvg(width: number, height: number, option: EChartsCoreOption): string {
     // zrender checks the process-global `document` when measuring text. The
     // visual oracle installs jsdom globally for PptxGenJS, but jsdom exposes a
     // canvas whose getContext is intentionally unimplemented. Hide only that

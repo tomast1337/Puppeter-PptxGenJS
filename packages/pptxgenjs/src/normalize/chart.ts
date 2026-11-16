@@ -237,7 +237,7 @@ function validateValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefined
     return { minimum, maximum, majorUnit, logScaleBase, labelFormatCode };
 }
 
-function normalizeValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefined, automatic: [number, number], path: string, options: PptxGenJS.IChartOpts, chartTypes: PptxGenJS.CHART_NAME[]): NormalizedChart["valueAxes"][number] {
+function normalizeValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefined, automatic: [number, number], path: string, chartTypes: PptxGenJS.CHART_NAME[]): NormalizedChart["valueAxes"][number] {
     const defaults = PPTX_DEFAULTS.chart.valueAxis;
     const values = validateValueAxis(axisOptions, automatic, path, chartTypes);
     const gridLine = axisOptions?.valGridLine;
@@ -418,9 +418,9 @@ export function normalizeChart(type: ChartInputType, data: readonly PptxGenJS.Op
     const axisSeries = (axisIndex: 0 | 1) => series.filter(item => item.valueAxisIndex === axisIndex);
     const automaticPrimary = automaticValueBounds(normalizedType, axisSeries(0), normalizedGrouping);
     const automaticSecondary = hasSecondaryValueAxis ? automaticValueBounds(normalizedType, axisSeries(1), normalizedGrouping) : undefined;
-    const primaryAxis = normalizeValueAxis(valueAxisOptions[0] ?? options, automaticPrimary, valueAxisOptions[0] ? "valAxes[0]." : "", options, chartTypes);
+    const primaryAxis = normalizeValueAxis(valueAxisOptions[0] ?? options, automaticPrimary, valueAxisOptions[0] ? "valAxes[0]." : "", chartTypes);
     const valueAxes = [primaryAxis];
-    if (automaticSecondary) valueAxes.push(normalizeValueAxis(valueAxisOptions[1], automaticSecondary, "valAxes[1].", options, chartTypes));
+    if (automaticSecondary) valueAxes.push(normalizeValueAxis(valueAxisOptions[1], automaticSecondary, "valAxes[1].", chartTypes));
 
     return {
         type: normalizedType,

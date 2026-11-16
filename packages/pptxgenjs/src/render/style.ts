@@ -19,7 +19,7 @@ export function applyTransform(css: InlineStyle, transform: NormalizedTransform)
     if (transform.opacity !== 1) css.set("opacity", String(transform.opacity));
 }
 
-export function applyLine(css: InlineStyle, line?: NormalizedLine): void {
+function applyLine(css: InlineStyle, line?: NormalizedLine): void {
     if (!line?.visible) {
         css.set("border-style", "none");
         return;
@@ -47,7 +47,7 @@ export function shadowInsetAttribute(shadow?: NormalizedShadow): Attribute {
     return ["data-shadow-inset", shadow?.visible && shadow.inset ? "" : undefined];
 }
 
-export function applyShadow(css: InlineStyle, shadow?: NormalizedShadow): void {
+function applyShadow(css: InlineStyle, shadow?: NormalizedShadow): void {
     if (!shadow?.visible) return;
     css.set("box-shadow", `${shadow.inset ? "inset " : ""}${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${shadow.color}`);
 }

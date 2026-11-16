@@ -3,8 +3,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { benchRuns } from "./benchConfig";
 
-const RUNS = Number(process.env.BENCH_RUNS ?? 5);
+const RUNS = benchRuns("puppeteer");
 const dir = await mkdtemp(join(tmpdir(), "puppeteer-gen-bench-"));
 
 function deck() {

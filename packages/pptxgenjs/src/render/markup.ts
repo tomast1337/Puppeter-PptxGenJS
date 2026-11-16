@@ -21,7 +21,7 @@ export function escapeAttribute(value: string): string {
 export type Attribute = readonly [name: string, value: string | undefined];
 
 /** The attributes in order, each with its leading space, as ` name="value"`. */
-export function attributes(list: readonly Attribute[]): string {
+function attributes(list: readonly Attribute[]): string {
     let html = "";
     for (const [name, value] of list) if (value !== undefined) html += ` ${name}="${escapeAttribute(value)}"`;
     return html;

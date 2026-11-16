@@ -1,6 +1,6 @@
 /** Minimal hand-written profile v1 documents (docs/HTML_PROFILE.md): only what the completion step cannot default. */
 
-export const PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+const PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 export const HAND_WRITTEN_OBJECTS = {
     text: `<div class="slide-element slide-text" data-object-name="Title" style="left: 96px; top: 48px; width: 768px; height: 96px;">
