@@ -8,7 +8,7 @@ import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_
 import type { NormalizedImage, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdflapas/model";
 import { normalizeChart } from "./normalize/chart";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
-import { normalizeImage, resolveRemoteImageSource } from "./normalize/image";
+import { type ImageSourceOptions, imageResolver, normalizeImage, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, normalizeTextLine, straightLineLength } from "./normalize/shape";
 import { normalizeSlideNumber } from "./normalize/slideNumber";
@@ -307,6 +307,12 @@ export interface PuppeteerGenOptions {
     renderer?: PresentationRenderer;
     /** Resolves an addImage() path or URL to a data URI before serialization. */
     resolveImage?: (source: string) => Promise<string>;
+    /**
+     * Limits and confinement of the default resolver: `timeoutMs`, `maxBytes`, `baseDir` (Node entry) and
+     * `allowRemote`. Unset, any readable path and any http(s) URL resolve, as in PptxGenJS, within the default
+     * limits. Cannot be combined with `resolveImage`.
+     */
+    imageSources?: ImageSourceOptions;
     /** Creates the documents tableToSlides() parses HTML strings into and components may build elements in, only when one is needed. */
     createDocument?: () => Document;
     /**
@@ -360,7 +366,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.pageSize = pageSize;
         this.presLayoutName = pageSize === DEFAULT_PAGE_SIZE ? PPTX_DEFAULTS.presentation.layouts.LAYOUT_16x9.presLayoutName : pageSize.name;
         this.renderer = options.renderer;
-        this.resolveImage = options.resolveImage ?? resolveRemoteImageSource;
+        this.resolveImage = imageResolver(options, resolveRemoteImageSource);
         this.createDocument = options.createDocument ?? createBrowserDocument;
         this.target = renderingTarget(options.target);
         this.componentDocument = lazyDocument(this.createDocument);

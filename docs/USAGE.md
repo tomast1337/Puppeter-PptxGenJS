@@ -328,6 +328,27 @@ Creates a new PuppeteerGen instance with the specified page size (default: 16:9 
 `options` injects the `renderer`, `resolveImage` and `createDocument`; see [BACKENDS.md](./BACKENDS.md).
 `options.target` picks the rendering target, `"libreoffice"` (the default) or `"powerpoint"`.
 
+**Image paths and URLs from untrusted input.** Like PptxGenJS, the default resolver reads any image path
+the process can read and fetches any http(s) URL, following redirects. It stops a fetch after 30 s and
+rejects an image (remote body or file) over 50 MiB (`IMAGE_SOURCE_LIMITS`), and `toHtml()` resolves at
+most 8 sources at once. A service that renders decks built from user input should confine it with
+`options.imageSources`:
+
+```typescript
+new PuppeteerGen(undefined, {
+    imageSources: {
+        baseDir: "/srv/tenants/acme/images", // relative paths resolve here; paths outside it (symlinks followed) throw
+        allowRemote: false, // http(s) URLs throw; data URIs still work
+        timeoutMs: 10_000,
+        maxBytes: 10 * 1024 * 1024,
+    },
+});
+```
+
+`imageSources` configures the default resolver only, so it cannot be combined with `resolveImage`. The
+default resolver does not filter hosts: to fetch remote images while blocking internal addresses, pass
+your own `resolveImage`.
+
 `PuppeteerGenLibreOffice` and `PuppeteerGenPowerPoint` are `PuppeteerGen` subclasses with the target set,
 taking the same arguments: use them to match LibreOffice or PowerPoint rendering. They can be extended
 and wrapped like `PuppeteerGen`. See "Choosing a rendering target" in [MIGRATION.md](./MIGRATION.md).
