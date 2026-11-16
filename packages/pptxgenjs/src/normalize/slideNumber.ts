@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedSlideObject } from "@pdflapas/model";
-import { PPTX_DEFAULTS } from "../defaults";
+import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, type RenderingTarget } from "../defaults";
 import type { FourSideMargin } from "../defaults";
 import type { PageSize } from "../pageLayouts";
 import { normalizeObjectStyle } from "./object";
@@ -29,21 +29,25 @@ function slideNumberMargin(margin: unknown): number | FourSideMargin | undefined
  * and the default layout, so the slide's placeholder inherits from it what its own props leave out: size, color and
  * font, vertical alignment and insets. Alignment and bold are the slide's own; PptxGenJS reads no other text option.
  */
-export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: PptxGenJS.SlideNumberProps, slideNumber: number, pageSize: PageSize, bodyFontFace: string): NormalizedSlideObject {
+export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: PptxGenJS.SlideNumberProps, slideNumber: number, pageSize: PageSize, bodyFontFace: string, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedSlideObject {
     const defaults = PPTX_DEFAULTS.slideNumber;
     const emuPerInch = PPTX_DEFAULTS.units.emuPerInch;
     const style = normalizeObjectStyle({ x: own.x, y: own.y, w: own.w || defaults.wEmu / emuPerInch, h: own.h || defaults.hEmu / emuPerInch }, PPTX_DEFAULTS.text, pageSize, defaults.objectName);
     const fontSize = setsRunStyle(own) ? own.fontSize || defaults.fontSizePt : setsRunStyle(last) ? last.fontSize || defaults.fontSizePt : PPTX_DEFAULTS.text.fontSizePt;
     // PptxGenJS matches the first letter: "ctr" centers, "justify" falls back to left.
     const align = own.align?.startsWith("c") ? "center" : own.align?.startsWith("r") ? "right" : defaults.align;
-    const text = normalizeText(String(slideNumber), {
-        fontFace: own.fontFace || last.fontFace || bodyFontFace,
-        fontSize,
-        color: own.color || last.color || PPTX_DEFAULTS.text.color,
-        bold: Boolean(own.bold),
-        align,
-        valign: own.valign || last.valign || defaults.valign,
-        margin: slideNumberMargin(own.margin) ?? slideNumberMargin(last.margin),
-    });
+    const text = normalizeText(
+        String(slideNumber),
+        {
+            fontFace: own.fontFace || last.fontFace || bodyFontFace,
+            fontSize,
+            color: own.color || last.color || PPTX_DEFAULTS.text.color,
+            bold: Boolean(own.bold),
+            align,
+            valign: own.valign || last.valign || defaults.valign,
+            margin: slideNumberMargin(own.margin) ?? slideNumberMargin(last.margin),
+        },
+        target,
+    );
     return { kind: "text", style, text };
 }

@@ -3,7 +3,7 @@ import type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 import { normalizeComponent } from "./components/normalize";
 import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps } from "./components/types";
-import { PPTX_DEFAULTS, PPTXGENJS_VERSION } from "./defaults";
+import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, PPTXGENJS_VERSION, RENDERING_TARGETS, type RenderingTarget } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import type { NormalizedImage, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject, PresentationMetadata } from "@pdflapas/model";
 import { normalizeChart } from "./normalize/chart";
@@ -54,6 +54,8 @@ export class PuppeteerSlide implements PptxSlide {
         private readonly components = new ComponentRegistry(),
         /** `pres.theme.bodyFontFace`: the font of text, table cells and chart legends that name none (PowerPoint's `+mn-lt`). */
         private readonly bodyFontFace: () => string = () => PPTX_DEFAULTS.theme.bodyFontFace,
+        /** The presentation's rendering target, which text is normalized for. */
+        private readonly target: RenderingTarget = DEFAULT_RENDERING_TARGET,
     ) {
         this.pageSize = pageSize;
         this.getContinuationSlide = getContinuationSlide;
@@ -152,7 +154,7 @@ export class PuppeteerSlide implements PptxSlide {
     toModel(pageSize: PageSize, masterSlideNumber: PptxGenJS.SlideNumberProps | null): NormalizedSlide {
         const backgroundStyle = () => normalizeObjectStyle({ x: 0, y: 0, w: pageSize.width, h: pageSize.height }, PPTX_DEFAULTS.image, pageSize, PPTX_DEFAULTS.backgroundImage.objectName);
         const background: NormalizedSlideObject[] = this.backgroundImage ? [{ kind: "image", style: backgroundStyle(), image: this.backgroundImage }] : [];
-        const slideNumber = this._slideNumber ? [normalizeSlideNumber(this._slideNumber, masterSlideNumber ?? {}, this.slideIndex + 1, this.pageSize, this.bodyFontFace())] : [];
+        const slideNumber = this._slideNumber ? [normalizeSlideNumber(this._slideNumber, masterSlideNumber ?? {}, this.slideIndex + 1, this.pageSize, this.bodyFontFace(), this.target)] : [];
         // PptxGenJS writes the picture alone, so its transparent parts show white (LibreOffice), not the color.
         const color = this.backgroundImage ? normalizeColor(PPTX_DEFAULTS.slide.backgroundColor) : this.model.background;
         return { ...this.model, background: color, objects: [...background, ...this.model.objects, ...slideNumber] };
@@ -262,7 +264,7 @@ export class PuppeteerSlide implements PptxSlide {
             this.newAutoPagedSlides = continuationSlides as unknown as PptxGenJS.PresSlide[];
             return this;
         }
-        const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.bodyFontFace() }, this.pageSize);
+        const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.bodyFontFace() }, this.pageSize, this.target);
         const tableStyle = normalizeObjectStyle(
             {
                 ...tableOptions,
@@ -290,7 +292,7 @@ export class PuppeteerSlide implements PptxSlide {
             shadow: true,
         });
         textStyle.line = normalizeTextLine(textOptions, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0));
-        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.bodyFontFace() });
+        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.bodyFontFace() }, this.target);
         const height = textStyle.geometry.height ?? 0;
         if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizedText, height) });
         const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
@@ -307,6 +309,22 @@ export interface PuppeteerGenOptions {
     resolveImage?: (source: string) => Promise<string>;
     /** Creates the documents tableToSlides() parses HTML strings into and components may build elements in, only when one is needed. */
     createDocument?: () => Document;
+    /**
+     * Whose rendering the PDF matches where LibreOffice and PowerPoint draw the same file differently: "libreoffice"
+     * (the default) or "powerpoint". PuppeteerGenLibreOffice and PuppeteerGenPowerPoint set it.
+     */
+    target?: RenderingTarget;
+}
+
+/** The constructor's `target`, checked: a misspelled one would otherwise render silently for the default. */
+function renderingTarget(target: unknown): RenderingTarget {
+    if (target === undefined) return DEFAULT_RENDERING_TARGET;
+    if (typeof target === "string" && Object.hasOwn(RENDERING_TARGETS, target)) return target as RenderingTarget; // `as`: hasOwn checked it is a key
+    throw new TypeError(
+        `PuppeteerGen option \`target\` must be one of ${Object.keys(RENDERING_TARGETS)
+            .map(name => `"${name}"`)
+            .join(", ")}, got ${JSON.stringify(target)}`,
+    );
 }
 
 function isBuiltInLayout(name: string): name is keyof typeof PPTX_LAYOUT_PAGE_SIZES {
@@ -334,6 +352,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     private readonly renderer: PresentationRenderer | undefined;
     private readonly resolveImage: (source: string) => Promise<string>;
     private readonly createDocument: () => Document;
+    private readonly target: RenderingTarget;
     /** The `context.document` of components checked in addComponent(), created the first time one reads it. */
     private readonly componentDocument: () => Document;
 
@@ -343,6 +362,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.renderer = options.renderer;
         this.resolveImage = options.resolveImage ?? resolveRemoteImageSource;
         this.createDocument = options.createDocument ?? createBrowserDocument;
+        this.target = renderingTarget(options.target);
         this.componentDocument = lazyDocument(this.createDocument);
     }
 
@@ -587,6 +607,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
             },
             this.components,
             () => this.bodyFontFace(),
+            this.target,
         );
         this.slides.push(slide);
         return slide;

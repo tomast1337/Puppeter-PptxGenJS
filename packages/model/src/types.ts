@@ -95,6 +95,8 @@ export interface NormalizedTextRun {
     /** Baseline shift in px, positive up. */
     baselineOffset: number;
     characterSpacing: number;
+    /** `false`: drawn without the font's pair kerning (PowerPoint, below the run's `kern` size); omitted: kerned. */
+    kerning?: false;
     highlight?: string;
     outline?: { color: string; width: number };
     glow?: NormalizedShadow;

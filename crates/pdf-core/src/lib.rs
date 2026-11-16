@@ -984,6 +984,24 @@ mod tests {
     }
 
     #[test]
+    fn font_kerning_none_lays_text_out_without_pair_kerning() {
+        // Liberation Sans kerns "AV" and "Te" pairs tighter, so the kerned line is narrower.
+        let mut text = text_box(&[(&["AVAVAV Te Te To"], 36.0, 30.0)]);
+        let Some(kerned) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: kerning not checked");
+        };
+        text.paragraphs[0].runs[0].kerning = false;
+        let Some(unkerned) = laid_out(&text) else { return };
+        let width = |layout: &BoxLayout| layout.paras[0].layout.width();
+        assert!(
+            width(&unkerned) > width(&kerned) + 1.0,
+            "unkerned {} vs kerned {}",
+            width(&unkerned),
+            width(&kerned)
+        );
+    }
+
+    #[test]
     fn puts_every_line_on_the_models_line_box() {
         // 1.5x spacing at 30px (LibreOffice): 1.8em = 54px lines, baseline 0.2em = 6px above each line bottom.
         let Some(layout) = laid_out(&text_box(&[(&["Line one", "Line two"], 54.0, 48.0)])) else {

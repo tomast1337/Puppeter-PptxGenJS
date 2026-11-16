@@ -50,7 +50,7 @@ export type { UnsupportedChartDetails, UnsupportedChartReason } from "./chart/er
 export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 export type { ApiEntry, ApiStatus, CompatibilityEntry, CompatibilityStatus } from "./compatibility";
 export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
-export type { FourSideMargin } from "./defaults";
+export type { FourSideMargin, RenderingTarget } from "./defaults";
 export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdflapas/model";
 export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeteerGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";

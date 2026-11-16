@@ -65,6 +65,7 @@ const RUN_CSS: &[&str] = &[
     "position",
     "top",
     "letter-spacing",
+    "font-kerning",
     "background-color",
     "-webkit-text-stroke",
     "text-shadow",
@@ -263,6 +264,12 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
         // `top` is the negated offset, omitted at 0.
         baseline_offset: style.px("top")?.map_or(0.0, |top| -top),
         character_spacing: style.px("letter-spacing")?.unwrap_or(0.0),
+        // Omitted when kerned; the profile writes only `none`, CSS's other keywords kern.
+        kerning: style
+            .get("font-kerning")
+            .map(|k| one_of("CSS property 'font-kerning'", k, &["none", "normal", "auto"]))
+            .transpose()?
+            != Some("none"),
         highlight: style.get("background-color").map(str::to_owned),
         outline,
         glow: glow(element, &style)?,
@@ -314,7 +321,7 @@ mod tests {
     #[test]
     fn reads_paragraphs_bullets_and_runs() {
         let html = format!(
-            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; position: relative; top: -4.5px; letter-spacing: 1.5px; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
+            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; position: relative; top: -4.5px; letter-spacing: 1.5px; font-kerning: none; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
         );
         let object = text_object(&html).unwrap();
         let text = object.text.expect("text");
@@ -344,6 +351,7 @@ mod tests {
         let glow = a.glow.as_ref().expect("glow");
         assert_eq!((glow.blur, glow.color.as_str()), (6.0, "rgba(255, 0, 0, 0.6)"));
         assert!(c.soft_break_before && !a.soft_break_before);
+        assert!(!a.kerning && c.kerning, "font-kerning: none turns kerning off; omitted, the run is kerned");
         let link = c.link.as_ref().expect("link");
         assert_eq!(
             (link.href.as_str(), link.tooltip.as_deref(), link.slide),
@@ -367,6 +375,7 @@ mod tests {
             (run(" data-text-shadow=\"glow\"", "", "x"), "data-text-shadow"),
             (run("", " text-shadow: 1px 1px 1px red;", "x"), "data-text-shadow"),
             (run("", " text-decoration-line: overline;", "x"), "overline"),
+            (run("", " font-kerning: off;", "x"), "font-kerning"),
             (run("", "", "<b>x</b>"), "unexpected <b>"),
             (run("", "", "a &copy; b"), "character reference"),
             (run(" onclick=\"x\"", "", "x"), "attribute 'onclick'"),

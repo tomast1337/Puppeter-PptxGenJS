@@ -264,6 +264,23 @@ const BULLET_RUNS: PptxGenJS.TextProps[] = [
     { text: "Item", options: { bullet: true, breakLine: true } },
     { text: "Next", options: {} },
 ];
+/**
+ * Kerning-sensitive wrapping: each box is between the kerned and the unkerned width of KERNING_TEXT in Arial
+ * (Liberation Sans), margin 0. LibreOffice and Chromium kern every run, so the line fits. PowerPoint kerns only from
+ * the inherited `kern="1200"` (12pt), so at 8 and 10pt "Yay" wraps: tests/renderingTarget.test.ts checks the
+ * PowerPoint target, which LibreOffice references cannot score.
+ */
+export const KERNING_TEXT = "AVATAR WAVY Tower Toy Yay";
+export const KERNING_CASES = [
+    { fontSize: 8, w: 1.54 },
+    { fontSize: 10, w: 1.92 },
+    { fontSize: 14, w: 2.69 },
+].map(({ fontSize, w }, index) => ({
+    name: `text-kerning-${fontSize}pt`,
+    label: `${fontSize}pt: fits kerned, wraps unkerned`,
+    text: KERNING_TEXT,
+    options: { x: 0.75 + index * 3.125, y: 1.25, w, h: 0.75, fontSize, margin: 0, valign: "top" as const, fill: { color: "F2F2F2" } },
+}));
 const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCase[] }[] = [
     {
         // PptxGenJS 4.0.1 reads a string `line` and lineSize/lineDash/lineHead/lineTail only for shape "line".
@@ -349,6 +366,7 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             },
         ],
     },
+    { title: "Kerning-sensitive wrapping", cases: KERNING_CASES },
 ];
 const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h = 0 }, pad = 0.15 }) => ({ page: 63 + index, name, x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;

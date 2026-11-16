@@ -40,7 +40,8 @@ root=$PWD
 # +318 B: slide links by the slide number in id="slide-N" (#102: hidden slides are not in the document, so a link to slide N jumps to the page that shows it), 1,047,325 -> 1,047,643 B measured; budget = that size.
 # -561 B: face fills read from the HTML, the Rust copy of the shading factors removed (#43), 1,047,643 -> 1,047,082 B measured; budget = that size.
 # -13 B: the project renamed to PdfLapas (error messages, the v2 profile meta names beside the frozen v1 ones, the /pdflapas source path remap), 1,047,082 -> 1,047,069 B measured; budget = that size.
-GZIP_BUDGET=1047069
+# +186 B: font-kerning: none on a run (the PowerPoint rendering target) turns parley's kern feature off, 1,047,069 -> 1,047,255 B measured; budget = that size.
+GZIP_BUDGET=1047255
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

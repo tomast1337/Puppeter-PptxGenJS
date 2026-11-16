@@ -40,6 +40,7 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
         css.set("top", `${-run.baselineOffset}px`);
     }
     if (run.characterSpacing) css.set("letter-spacing", `${run.characterSpacing}px`);
+    if (run.kerning === false) css.set("font-kerning", "none");
     if (run.highlight) css.set("background-color", run.highlight);
     if (run.outline) css.set("-webkit-text-stroke", `${run.outline.width}px ${run.outline.color}`);
     const glow = shadowCSS(run.glow);
