@@ -138,7 +138,7 @@ describe("slide.background picture", () => {
         const slide = new PuppeteerGen().addSlide();
         expect(() => {
             slide.background = { data: "image/png;base64" };
-        }).toThrow("Image data must be a base64-encoded image data URI");
+        }).toThrow("Image data must be base64-encoded image data");
     });
 });
 
