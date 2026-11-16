@@ -3,7 +3,7 @@ import { PPTX_DEFAULTS } from "../../defaults";
 import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
 import { inchesToPoints, pixelsToInches, pointsToInches } from "../../units";
-import { tableMarginInches } from "../margin";
+import { slideMarginInches, tableMarginInches } from "../margin";
 import { normalizeTable } from "./index";
 
 export interface PaginatedTablePage {
@@ -184,17 +184,20 @@ export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS
 
     const normalized = normalizeTable(rows, options, pageSize);
     const extendedOptions = options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin };
-    // shortcut: PptxGenJS 4.0.1 getSlidesForTableRows reads `slideMargin` as inches whatever its size, but this reads it
-    // with the cell-margin rule (1 or more is points), so a slideMargin of 1 inch or more paginates too short; fix with #165.
-    const pageMargins = tableMarginInches(extendedOptions.slideMargin ?? PPTX_DEFAULTS.slide.marginIn);
+    const [topMargin, , bottomMargin] = slideMarginInches(extendedOptions.slideMargin);
+    const startY = options.autoPageSlideStartY ?? options.newSlideStartY;
 
-    const continuationY = options.autoPageSlideStartY ?? options.newSlideStartY ?? pageMargins[0];
-    const firstY = verticalInches(options.y, pageMargins[0], pageSize.height);
-    const bottomMargin = pageMargins[2];
+    // PptxGenJS 4.0.1 addTableDefinition places continuation tables at the slide layout's margin (DEF_SLIDE_MARGIN_IN
+    // without a master), not at `slideMargin`, which only sizes the pages in getSlidesForTableRows.
+    const continuationY = startY ?? PPTX_DEFAULTS.slide.marginIn;
+    const firstY = verticalInches(options.y, topMargin, pageSize.height);
     const heightLimit = verticalInches(options.h, pageSize.height, pageSize.height);
 
     const firstAvailable = Math.max(0, heightLimit - firstY - bottomMargin);
-    const continuationAvailable = Math.max(0, heightLimit - continuationY - bottomMargin);
+    const secondAvailable = Math.max(0, heightLimit - (startY ?? topMargin) - bottomMargin);
+    // getSlidesForTableRows (calcSlideTabH, rule D): from the third page on, without a start y, a table `y` above the top
+    // margin starts the page there instead, and a table `h` is the least room a page gets.
+    const laterAvailable = startY === undefined && options.y !== undefined && firstY ? Math.max(0, heightLimit - Math.min(firstY, topMargin) - bottomMargin, options.h === undefined ? 0 : heightLimit) : secondAvailable;
 
     const headerCount = options.autoPageRepeatHeader ? Math.max(1, Math.floor(options.autoPageHeaderRows ?? PPTX_DEFAULTS.table.autoPageHeaderRows)) : 0;
     const headers = cloneRows(rows.slice(0, headerCount));
@@ -214,7 +217,7 @@ export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS
 
     for (const row of rows) {
         const { lines, cycles, lineHeight: perLine, margin: margins } = calculateRowMetrics(row, normalized, options);
-        const available = () => (pages.length === 1 ? firstAvailable : continuationAvailable);
+        const available = () => (pages.length === 1 ? firstAvailable : pages.length === 2 ? secondAvailable : laterAvailable);
         const rowHeight = margins + cycles * perLine;
 
         if (used + rowHeight <= available()) {

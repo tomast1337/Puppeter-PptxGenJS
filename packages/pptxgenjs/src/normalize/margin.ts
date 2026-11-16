@@ -30,6 +30,15 @@ export function tableMarginPixels(margin?: number | Sides<number>): FourSideMarg
 }
 
 /**
+ * PptxGenJS 4.0.1 slide margins of autoPage and tableToSlides (getSlidesForTableRows and genTableToSlides, step 1) are
+ * inches whatever their size: a number is all four sides, an array is [top, right, bottom, left]. Unset is
+ * DEF_SLIDE_MARGIN_IN.
+ */
+export function slideMarginInches(margin: number | Sides<number> = PPTX_DEFAULTS.slide.marginIn): FourSideMargin {
+    return typeof margin === "number" ? [margin, margin, margin, margin] : [...margin];
+}
+
+/**
  * PptxGenJS 4.0.1 text margins (genXmlBodyProperties via `_bodyProp`) are points. An array is written as
  * lIns, rIns, bIns, tIns from indexes 0..3, so it is read as [left, right, bottom, top], despite the type
  * documentation saying [top, right, bottom, left]; this mirrors the emitted OOXML. With no `margin`, the deprecated

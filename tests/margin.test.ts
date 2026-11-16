@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import PptxGenJSRuntime from "pptxgenjs";
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
-import { mapSides, tableMarginInches, tableMarginPixels, tableMarginToCSS, textMarginPixels, textMarginToCSS } from "../packages/pptxgenjs/src/normalize/margin";
+import { mapSides, slideMarginInches, tableMarginInches, tableMarginPixels, tableMarginToCSS, textMarginPixels, textMarginToCSS } from "../packages/pptxgenjs/src/normalize/margin";
 import { normalizeTable } from "../packages/pptxgenjs/src/normalize/table";
 import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
@@ -47,13 +48,44 @@ describe("table cell margin convention (PptxGenJS 4.0.1 genXmlTextBody: cellMarg
         const pagesAt = paginateTableRows(rows(1), { autoPage: true, y: 1, w: 8 }, PAGE);
         expect(pagesBelow[0]?.rows.length).toBeLessThan(pagesAt[0]?.rows.length ?? 0);
     });
+});
 
-    test("pins the current slideMargin reading, which PptxGenJS reads as inches (#165)", () => {
-        const rows: PptxGenJS.TableRow[] = Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}` }]);
-        const options = (slideMargin: number) => ({ autoPage: true, y: 1, w: 8, slideMargin }) as PptxGenJS.TableProps;
-        expect(paginateTableRows(rows, options(0.99), PAGE)[1]?.y).toBe(0.99);
-        // shortcut: PptxGenJS 4.0.1 getSlidesForTableRows continues at 1in here; flip with #165.
-        expect(paginateTableRows(rows, options(1), PAGE)[1]?.y).toBe(1 / 72);
+describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches whatever the size)", () => {
+    test("reads a number or a [top, right, bottom, left] array as inches, 0.5 when unset", () => {
+        expect(slideMarginInches()).toEqual([0.5, 0.5, 0.5, 0.5]);
+        expect(slideMarginInches(1)).toEqual([1, 1, 1, 1]);
+        expect(slideMarginInches([1, 0.5, 1.5, 0.25])).toEqual([1, 0.5, 1.5, 0.25]);
+    });
+
+    /** Rows per slide and table y from PptxGenJS itself, run on the same input. */
+    function pptxGenJsPages(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Array<{ rows: number; y: number }> {
+        const pptx = new PptxGenJSRuntime();
+        pptx.layout = "LAYOUT_16x9";
+        pptx.addSlide().addTable(rows, options);
+        // `as`: `_slides`, `_slideObjects`, `arrTabRows` and the EMU `options.y` are PptxGenJS 4.0.1 internals the types omit.
+        const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ _type: string; arrTabRows: unknown[]; options: { y: number } }> }> })._slides;
+        return slides.flatMap(slide => slide._slideObjects.filter(object => object._type === "table").map(table => ({ rows: table.arrTabRows.length, y: table.options.y / PPTX_DEFAULTS.units.emuPerInch })));
+    }
+
+    // The continuation slides start at the slide layout's 0.5in margin whatever `slideMargin` is (addTableDefinition),
+    // and from the third page on a table `y` above the top margin starts the page (the [2, ...] array).
+    // shortcut: slideMargin 2 stops at 13 rows because PptxGenJS drops the cell margins of the row that opens a
+    // continuation page, which paginateTableRows does not model yet (8, 5, 9, 8 against 8, 5, 8, 8, 1 at 30 rows); compare
+    // 30 rows once it does.
+    test.each<[PptxGenJS.Margin, number, number[]]>([
+        [0.5, 30, [13, 15, 2]],
+        [0.99, 30, [12, 12, 6]],
+        [1, 30, [12, 12, 6]],
+        [2, 13, [8, 5]],
+        [[1, 0.5, 1.5, 0.5], 30, [10, 10, 10]],
+        [[2, 0.5, 0.5, 0.5], 30, [13, 10, 7]],
+    ])("paginates slideMargin %p as PptxGenJS does", (slideMargin, rowCount, rowsPerPage) => {
+        const rows: PptxGenJS.TableRow[] = Array.from({ length: rowCount }, (_, index) => [{ text: `Row ${index + 1}` }]);
+        // `as`: getSlidesForTableRows reads `slideMargin`, which TableProps does not declare.
+        const options = { autoPage: true, y: 1, w: 8, slideMargin } as PptxGenJS.TableProps;
+        const pages = paginateTableRows(rows, options, PAGE);
+        expect(pages.map(page => page.rows.length)).toEqual(rowsPerPage);
+        expect(pages.map(page => ({ rows: page.rows.length, y: page.y }))).toEqual(pptxGenJsPages(rows, options));
     });
 });
 
