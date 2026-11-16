@@ -47,8 +47,6 @@ both backends read only the HTML.
   that build the model themselves: it writes the whole document at once as strings, without a DOM,
   inlines images through `resolveImage`, and renders components with the caller's registry. Only a
   component that reads `context.document` gets a document, from the caller's `createDocument`.
-  The deprecated `pres.page` is only an input document of `tableToSlides(tableId)`; slides are not written into it,
-  so editing it changes neither the HTML nor the PDF.
 - **HTML is also an input.** A stored, edited or hand-written document enters at the HTML stage:
   `pptxHtmlDocument(html)` (`render/completion.ts`, exported from `@pdflapas/pptxgenjs` and `/html`) fills
   the [defaulted values](#completion), then `htmlDocument(html)` (`@pdflapas/model`) checks the version and

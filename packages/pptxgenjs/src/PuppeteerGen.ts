@@ -21,7 +21,7 @@ import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES } from
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./render/chart";
 import { renderComponent } from "./render/component";
-import { type HtmlPresentationDocument, modelToHtml, type PresentationRenderer } from "./render/document";
+import { type HtmlPresentationDocument, lazyDocument, modelToHtml, type PresentationRenderer } from "./render/document";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { pixelsToInches } from "./units";
@@ -33,10 +33,10 @@ function placeholderError(method: "addText" | "addImage"): UnsupportedFeatureErr
 }
 
 export class PuppeteerSlide implements PptxSlide {
-    /** `document` is the `context.document` of components rendered to check them when they are added; toHtml() does not use it. */
+    /** `getDocument` gives the `context.document` of components rendered to check them when they are added; toHtml() does not use it. */
     constructor(
         pageSize: PageSize,
-        document: Document,
+        private readonly getDocument: () => Document,
         private readonly slideIndex: number,
         getContinuationSlide: (offset: number) => PuppeteerSlide,
         /** PptxGenJS's `setSlideNumber` callback: every slide's `slideNumber` setter also sets the master's. */
@@ -46,7 +46,6 @@ export class PuppeteerSlide implements PptxSlide {
         private readonly bodyFontFace: () => string = () => PPTX_DEFAULTS.theme.bodyFontFace,
     ) {
         this.pageSize = pageSize;
-        this.document = document;
         this.getContinuationSlide = getContinuationSlide;
         this.background = {
             color: PPTX_DEFAULTS.slide.backgroundColor,
@@ -58,7 +57,6 @@ export class PuppeteerSlide implements PptxSlide {
         this.bkgd = PPTX_DEFAULTS.slide.backgroundColor;
     }
     pageSize: PageSize;
-    document: Document;
     private _background: PptxGenJS.BackgroundProps = { color: PPTX_DEFAULTS.slide.backgroundColor };
     private _bkgd: string = PPTX_DEFAULTS.slide.backgroundColor;
     private _color: string = PPTX_DEFAULTS.slide.color;
@@ -170,7 +168,7 @@ export class PuppeteerSlide implements PptxSlide {
         const definition = this.components.get(normalized.input.type, normalized.input.version);
         // Application code: render it once here so its validation and render errors throw from addComponent
         // and leave the slide unchanged. The markup is dropped; toHtml() renders the model again.
-        renderComponent(normalized, definition, this.nextIdScope(), () => this.document);
+        renderComponent(normalized, definition, this.nextIdScope(), this.getDocument);
         // The default name is only consumed after a successful render.
         const objectName = this.nextObjectName("Component", options.objectName);
         return this.addObject({ kind: "component", style: { ...normalized.style, objectName }, component: normalized.input });
@@ -296,7 +294,7 @@ export interface PuppeteerGenOptions {
     renderer?: PresentationRenderer;
     /** Resolves an addImage() path or URL to a data URI before serialization. */
     resolveImage?: (source: string) => Promise<string>;
-    /** Creates `pres.page`, the documents tableToSlides() parses HTML strings into, and the one components may build elements in. */
+    /** Creates the documents tableToSlides() parses HTML strings into and components may build elements in, only when one is needed. */
     createDocument?: () => Document;
 }
 
@@ -320,18 +318,13 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     private metadata: PresentationMetadata = {};
     /** The `slideNumber` set last on any slide: PptxGenJS writes it to the master, which slide numbers inherit from. */
     private masterSlideNumber: PptxGenJS.SlideNumberProps | null = null;
-    /**
-     * Input document for tableToSlides(tableId): a <table> put here is found by its id. Slides are not written
-     * into it, so editing it does not change toHtml() or the PDF (#69).
-     * @deprecated Pass tableToSlides() the <table> element or its HTML instead, or, as with PptxGenJS, put the
-     * table in the global `document` (the page, or jsdom in Node). A later major release removes `page` (#72).
-     */
-    page: Document;
     private readonly components = new ComponentRegistry();
     private slides: PuppeteerSlide[] = [];
     private readonly renderer: PresentationRenderer | undefined;
     private readonly resolveImage: (source: string) => Promise<string>;
     private readonly createDocument: () => Document;
+    /** The `context.document` of components checked in addComponent(), created the first time one reads it. */
+    private readonly componentDocument: () => Document;
 
     constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE, options: PuppeteerGenOptions = {}) {
         this.pageSize = pageSize;
@@ -339,7 +332,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.renderer = options.renderer;
         this.resolveImage = options.resolveImage ?? resolveRemoteImageSource;
         this.createDocument = options.createDocument ?? createBrowserDocument;
-        this.page = this.createDocument();
+        this.componentDocument = lazyDocument(this.createDocument);
     }
 
     get version(): string {
@@ -568,7 +561,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         const slideIndex = this.slides.length;
         const slide = new PuppeteerSlide(
             this.pageSize,
-            this.page,
+            this.componentDocument,
             slideIndex,
             offset => {
                 const targetIndex = slideIndex + offset;
@@ -607,7 +600,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     /**
      * PptxGenJS `tableToSlides()`: the table, paginated over as many slides as it needs. `source` is the id of a
-     * <table> in the page, as in PptxGenJS (in Node, a global jsdom `document` or the deprecated `pres.page`),
+     * <table> in the global document, as in PptxGenJS (in Node, a jsdom `document` you install),
      * the <table> element itself, or HTML markup holding one (a string starting with `<`).
      */
     tableToSlides(source: string | HTMLTableElement, props?: PptxTableToSlidesProps | undefined): void {
@@ -615,7 +608,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         if (options.masterSlideName !== undefined) {
             throw new UnsupportedFeatureError("tableToSlides({ masterSlideName })", "Slide masters need defineSlideMaster(), and PdfLapas has no slide masters. Remove `masterSlideName` and draw what the master held on each generated slide with the `addImage`, `addShape` and `addText` options.", "property");
         }
-        const table = normalizeHtmlTable(findHtmlTable(source, this.page, this.createDocument), options, this.pageSize);
+        const table = normalizeHtmlTable(findHtmlTable(source, this.createDocument), options, this.pageSize);
         const firstSlide = this.addSlide();
         firstSlide.addTable(table.rows, {
             ...options,

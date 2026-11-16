@@ -6,11 +6,11 @@ import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
-function installTable(presentation: PuppeteerGen, rowCount = 2): HTMLTableElement {
-    const host = presentation.page.createElement("div");
-    host.innerHTML = tableHtml(rowCount);
-    presentation.page.body.appendChild(host);
-    return presentation.page.getElementById("source") as HTMLTableElement;
+/** The source table, in a jsdom document of its own. */
+function sourceTable(rowCount = 2): HTMLTableElement {
+    const document = createNodeDocument();
+    document.body.innerHTML = tableHtml(rowCount);
+    return document.getElementById("source") as HTMLTableElement;
 }
 
 function tableHtml(rowCount: number): string {
@@ -37,8 +37,7 @@ function tableHtml(rowCount: number): string {
 
 describe("HTML table normalization", () => {
     test("extracts sections, proportional widths, spans, text, and computed styles", () => {
-        const presentation = new PuppeteerGen(PAGE);
-        const source = installTable(presentation);
+        const source = sourceTable();
         const table = normalizeHtmlTable(
             source,
             {
@@ -67,11 +66,8 @@ describe("HTML table normalization", () => {
 
     test("rejects missing and non-table element IDs", () => {
         const presentation = new PuppeteerGen(PAGE);
-        const div = presentation.page.createElement("div");
-        div.id = "not-table";
-        presentation.page.body.appendChild(div);
+        const div = createNodeDocument().createElement("div");
         expect(() => presentation.tableToSlides("missing")).toThrow('tableToSlides: Table ID "missing" does not exist!');
-        expect(() => presentation.tableToSlides("not-table")).toThrow('Table ID "not-table" does not exist');
         expect(() => presentation.tableToSlides(div as unknown as HTMLTableElement)).toThrow("the element is not a <table>");
         expect(() => presentation.tableToSlides("<p>no table</p>")).toThrow("the HTML string has no <table> element");
         expect(presentation.getModel().slides).toHaveLength(0);
@@ -84,27 +80,23 @@ describe("tableToSlides source", () => {
         populate(presentation);
         return presentation.getModel().slides;
     };
-    const fromPage = slidesFrom(presentation => {
-        installTable(presentation, 30);
-        presentation.tableToSlides("source", { autoPageRepeatHeader: true });
+    const fromElement = slidesFrom(presentation => presentation.tableToSlides(sourceTable(30), { autoPageRepeatHeader: true }));
+
+    test("takes HTML markup as well as the <table> element, with the same slides", () => {
+        expect(fromElement.length).toBeGreaterThan(1);
+        expect(slidesFrom(presentation => presentation.tableToSlides(tableHtml(30), { autoPageRepeatHeader: true }))).toEqual(fromElement);
+        expect(slidesFrom(presentation => presentation.tableToSlides(`  <div>${tableHtml(30)}</div>`, { autoPageRepeatHeader: true }))).toEqual(fromElement);
     });
 
-    test("takes the <table> element or HTML markup as well as the id, with the same slides", () => {
-        expect(fromPage.length).toBeGreaterThan(1);
-        const ownDocument = createNodeDocument();
-        ownDocument.body.innerHTML = tableHtml(30);
-        expect(slidesFrom(presentation => presentation.tableToSlides(ownDocument.querySelector("table") as HTMLTableElement, { autoPageRepeatHeader: true }))).toEqual(fromPage);
-        expect(slidesFrom(presentation => presentation.tableToSlides(tableHtml(30), { autoPageRepeatHeader: true }))).toEqual(fromPage);
-        expect(slidesFrom(presentation => presentation.tableToSlides(`  <div>${tableHtml(30)}</div>`, { autoPageRepeatHeader: true }))).toEqual(fromPage);
-    });
-
-    test("finds the id in the global document, where PptxGenJS looks", () => {
+    test("finds the id in the global document, where PptxGenJS looks, and only there", () => {
         const global = globalThis as { document?: Document };
         const previous = global.document;
         global.document = createNodeDocument();
         try {
             global.document.body.innerHTML = tableHtml(30);
-            expect(slidesFrom(presentation => presentation.tableToSlides("source", { autoPageRepeatHeader: true }))).toEqual(fromPage);
+            expect(slidesFrom(presentation => presentation.tableToSlides("source", { autoPageRepeatHeader: true }))).toEqual(fromElement);
+            global.document.body.innerHTML = '<div id="not-table"></div>';
+            expect(() => new PuppeteerGen(PAGE).tableToSlides("not-table")).toThrow('Table ID "not-table" does not exist');
         } finally {
             global.document = previous;
         }
@@ -121,8 +113,7 @@ describe("tableToSlides source", () => {
 describe("tableToSlides", () => {
     test("creates paginated slides and adds supported decorations to each", () => {
         const presentation = new PuppeteerGen(PAGE);
-        installTable(presentation, 30);
-        presentation.tableToSlides("source", {
+        presentation.tableToSlides(sourceTable(30), {
             w: 10,
             y: 0.75,
             slideMargin: 0.5,

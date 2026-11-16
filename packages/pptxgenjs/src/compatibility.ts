@@ -603,7 +603,7 @@ export const API_COMPATIBILITY = Object.freeze({
         addSlide: { status: "implemented", note: "a masterName finds no master, as in PptxGenJS without defineSlideMaster()" },
         defineLayout: { status: "implemented", note: "also applies the size at once" },
         defineSlideMaster: { status: "unsupported", note: "set slide.background and add the shared objects to each slide" },
-        tableToSlides: { status: "implemented", note: "finds the table id in the global document, as PptxGenJS, or in the deprecated pres.page; also takes the <table> element or its HTML" },
+        tableToSlides: { status: "implemented", note: "finds the table id in the global document, as PptxGenJS; also takes the <table> element or its HTML" },
         stream: { status: "implemented", note: "the PDF as a Node Buffer" },
         write: { status: "implemented", note: "the PDF in the requested outputType" },
         writeFile: { status: "implemented", note: "writes the PDF to disk (Node entry) or downloads it (browser); a trailing .pptx becomes .pdf, other names get .pdf appended; fileName is required (PptxGenJS defaults to Presentation.pptx)" },

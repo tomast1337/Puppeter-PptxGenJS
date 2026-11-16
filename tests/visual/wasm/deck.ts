@@ -39,8 +39,6 @@ function populateFixtureSlides<T extends PptxGenJS | PuppeteerGen>(presentation:
         },
     });
     populateParityFixture(proxy);
-    // tableToSlides is skipped, so drop its source table or Puppeteer prints it as an extra page.
-    if ("page" in presentation) presentation.page.getElementById("visual-html-table")?.parentElement?.remove();
     return presentation;
 }
 
