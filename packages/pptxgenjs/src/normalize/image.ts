@@ -15,8 +15,9 @@ export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 // PptxGenJS 4.0.1 (addImageDefinition) takes any `data` that contains "base64,": its documented form
-// "image/png;base64,…", a full data URI, or bare "base64,…", which it types by the path extension, else png.
-const IMAGE_DATA = /^(data:)?(?:(image\/[\w.+-]+);)?base64,([a-z\d+/=\s]+)$/i;
+// "image/png;base64,…", a full data URI, or one without a mime type ("base64,…", "data:;base64,…"), which it
+// types by the path extension, else png.
+const IMAGE_DATA = /^(data:)?(?:(image\/[\w.+-]+)?;)?base64,([a-z\d+/=\s]+)$/i;
 
 /** Checks image `data` and returns it as the data URI the HTML profile carries. */
 function imageDataUri(data: string, path?: string): string {
