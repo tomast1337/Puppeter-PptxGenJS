@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { GENERATED_PRESET_SHAPES } from "../generatedPresetShapes";
+import { GENERATED_PRESET_SHAPES, GENERATED_TEXT_RECTS } from "../generatedPresetShapes";
 import type { NormalizedShape } from "@pdflapas/model";
 
 type PresetName = PptxGenJS.SHAPE_NAME;
@@ -175,4 +175,19 @@ export function generatedPresetGeometry(name: PresetName, width: number, height:
         .map(({ data }) => data)
         .join(" ");
     return { kind: "path", data: rendered.map(({ data }) => data).join(" "), faces, outlineData };
+}
+
+/**
+ * Insets (top, right, bottom, left; px) of the preset's text rectangle, where PowerPoint and LibreOffice lay out
+ * the text body; undefined when the rectangle is the whole box. `adjustments` replaces avLst values by name.
+ */
+export function presetTextInsets(name: string, width: number, height: number, adjustments: Readonly<Record<string, number>> = {}): NormalizedShape["textInsets"] {
+    const definition = GENERATED_TEXT_RECTS[name];
+    if (!definition) return undefined;
+    const values = variables(width, height);
+    for (const [guide, formula] of definition.adjustments) values[guide] = adjustments[guide] ?? evaluate(formula, values);
+    for (const [guide, formula] of definition.guides) values[guide] = evaluate(formula, values);
+    // `rect` is a four-tuple, and map keeps its length.
+    const [left, top, right, bottom] = definition.rect.map(token => formulaValue(token, values)) as [number, number, number, number];
+    return [clean(top), clean(width - right), clean(height - bottom), clean(left)];
 }

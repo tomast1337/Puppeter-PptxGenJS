@@ -80,12 +80,13 @@ const command = (element: Element): string[] => {
     throw new Error(`Unsupported path command ${name}`);
 };
 
+const guides = (list: Element | null) => [...(list?.children ?? [])].map(element => [attr(element, "name")!, attr(element, "fmla")!] as const);
+
 const definitions = Object.fromEntries(
     PRESETS.map(name => {
         const xmlName = name === "folderCorner" ? "foldedCorner" : name;
         const shape = [...document.documentElement.children].find(element => element.localName === xmlName);
         if (!shape) throw new Error(`Missing preset ${name}`);
-        const guides = (list: Element | null) => [...(list?.children ?? [])].map(element => [attr(element, "name")!, attr(element, "fmla")!]);
         return [
             name,
             {
@@ -103,6 +104,30 @@ const definitions = Object.fromEntries(
     }),
 );
 
+// The text rectangle (<rect>) of every preset whose rectangle is not the whole box, keyed by DrawingML name, with
+// the adjustments and only the guides the rectangle reads.
+const TEXT_RECT_EDGES = ["l", "t", "r", "b"] as const;
+const textRects = Object.fromEntries(
+    [...document.documentElement.children].flatMap(shape => {
+        const rect = shape.querySelector(":scope > rect");
+        if (!rect) return [];
+        const edges = TEXT_RECT_EDGES.map(edge => attr(rect, edge) ?? edge);
+        if (edges.join() === TEXT_RECT_EDGES.join()) return [];
+        // Walk back from the rectangle: a guide is kept when a later kept guide reads it. Some presets redefine a
+        // name (gear9's a1), and a use reads the closest definition above it.
+        const needed = new Set<string>(edges);
+        const kept = guides(shape.querySelector(":scope > gdLst"))
+            .reverse()
+            .filter(([name, formula]) => {
+                if (!needed.delete(name)) return false;
+                for (const token of formula.split(/\s+/).slice(1)) needed.add(token);
+                return true;
+            })
+            .reverse();
+        return [[shape.localName, { adjustments: guides(shape.querySelector(":scope > avLst")), guides: kept, rect: edges }]];
+    }),
+);
+
 const output =
     `// Generated from ECMA-376 presetShapeDefinitions.xml by scripts/generate-preset-shapes.ts.\n` +
     `// Keep this data declarative; rendering behavior belongs in normalize/shape.ts.\n` +
@@ -117,6 +142,12 @@ const output =
     `        readonly commands: readonly (readonly string[])[];\n` +
     `    }[];\n` +
     `};\n` +
-    `export const GENERATED_PRESET_SHAPES: Readonly<Record<string, GeneratedPresetDefinition>> = ${JSON.stringify(definitions)};\n`;
+    `export const GENERATED_PRESET_SHAPES: Readonly<Record<string, GeneratedPresetDefinition>> = ${JSON.stringify(definitions)};\n` +
+    `type GeneratedTextRect = {\n` +
+    `    readonly adjustments: readonly (readonly [string, string])[];\n` +
+    `    readonly guides: readonly (readonly [string, string])[];\n` +
+    `    readonly rect: readonly [string, string, string, string];\n` +
+    `};\n` +
+    `export const GENERATED_TEXT_RECTS: Readonly<Record<string, GeneratedTextRect>> = ${JSON.stringify(textRects)};\n`;
 writeFileSync(new URL("../packages/pptxgenjs/src/generatedPresetShapes.ts", import.meta.url), output);
-console.log(`Generated ${Object.keys(definitions).length} preset definitions.`);
+console.log(`Generated ${Object.keys(definitions).length} preset definitions and ${Object.keys(textRects).length} text rectangles.`);

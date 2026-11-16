@@ -312,8 +312,8 @@
     "p34-Shape5": 0.0111,
     "p35-Text1": 0.0073,
     "p35-Text2": 0.0096,
-    "p35-Text3": 0.0509,
-    "p35-Text4": 0.0456,
+    "p35-Text3": 0.0187,
+    "p35-Text4": 0.015,
     "p36-Shape0": 0,
     "p36-Shape1": 0.0003,
     "p36-Shape2": 0.0015,
@@ -432,7 +432,11 @@
     "p1-textlineshapelinestring": 0,
     "p2-textinset": 0.0042,
     "p2-textinsetmargin": 0.007,
-    "p2-textroundrectcorner": 0.056,
-    "p2-textroundrectzero": 0.0016
+    "p2-textroundrectcorner": 0.0009,
+    "p2-textroundrectzero": 0.0016,
+    "p3-textshapeellipse": 0.0031,
+    "p3-textshapecan": 0.0101,
+    "p3-textshapestroke": 0.0124,
+    "p3-textshapelineheads": 0.0037
   }
 }

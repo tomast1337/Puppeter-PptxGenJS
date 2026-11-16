@@ -14,22 +14,22 @@ const sha256 = (html: string) => createHash("sha256").update(html).digest("hex")
  * same PR, so the output change is visible in review; to see what changed, diff toHtml() against main.
  */
 const EXPECTED_SHA256: Record<string, string> = {
-    fixture: "cf11c27f83fbf653428903b0b18cfca52b6d0510c9c230acf12a54350808b355",
-    "cross-runtime": "c626610335eec73ef13477339f65ba4bfbcf8f17f113dff053074f9dadb5feb8",
-    "wasm-text": "c9cd29f53412932fbd583c1a0a15023fb2e87d40dad8525dc95d588356201899",
-    "wasm-emoji": "bb6f9f84aac7ebb1109e5acd2fef0572027bd152d1e36fb2b31c07634d99759a",
-    "wasm-layout": "c24415e8398364cb9644bdcadd763208486fd40afe859a0060572f560763f623",
-    "wasm-shapes": "8585e79da366a1c6afd80b1d576c93a5a6f883d0f275df7f1e6ce61ce2e37e94",
-    "wasm-tables": "821b2567009dec32cd3f6ebcf5ba49cd6e924f7085e4ed7101a2c4b4f1ad2010",
-    "wasm-images": "423cf6e0ee4b3b6a9647ce3e2d550c22b2882c12da7d173c779253fb66ca49c6",
-    "wasm-effects": "ed5a3614aa39909f2c109005d1fbbb78b29c2e34a9d22a83232f28e53803e8dc",
-    "wasm-charts": "a60861eb44bfe2f165fc9b1460ee83e06de7da7878d7627f9f76558260cee9db",
-    "wasm-svg": "a05616332e35672388892d6d98a7a63809bef173052c745899628891f61a6482",
-    "wasm-gif": "4ab2dadb9f12a376fe0cbeecf41b5c1cca58238719adf8f56df9728d4abbbff9",
-    "wasm-webp": "3644537b018f582549fe877e275e0dfa72805930edee268365aa3ce0078f48b3",
-    "wasm-slides": "aaeb5403ad210513c73a06046feebb41feaad665619b18caae3b64d5d0000c74",
-    "wasm-components": "0919e67813d3fbb5d5c18ed08a58424e37f6c54c1f16568a8180de1f3b1abfaf",
-    "wasm-options": "308667d0fa2ccd88e8c99b4b0e9da2d3d558f33cf08f1cb1657a25ce954cde21",
+    fixture: "60e3852944a1b90c7bfaff1faf44e7cbdb41b5c4fe7611c948fe648193682193",
+    "cross-runtime": "2273cffde6927c61671ea901aacd90a46eddeb7010d3e808be677df5c78e57e9",
+    "wasm-text": "53db16aa8a4024e71565376c1abbcf677fe4e66d8660349844f55454a478349f",
+    "wasm-emoji": "470187f2c7e1e202d1a8998ed06f1fd9cc4773488514c86ee0ab4562d4b45b4a",
+    "wasm-layout": "2802830d75c5b7001c9e0e9818043558bdbfead813818e9cd3227b0781fe95b9",
+    "wasm-shapes": "d60c8da33d63e1d25b4b26732d147705fcf103193eabcd8fa878ed7a6851ca1e",
+    "wasm-tables": "982f810d502040ff9d58b76fbe0a3c9e95bebe593327eab053ecca278058c9cc",
+    "wasm-images": "1c4af9d739704ac55786ea3019989d70acb9f9b3267bb8e0ca042ea2fb8894c4",
+    "wasm-effects": "16e089db1a36814df73aaa27308468e911f2dabc30ff6e3580aed076c1033059",
+    "wasm-charts": "0155c933c9f4b469842a349986f0cd506a4ec68cedd91e16b12b05d3d2e9118e",
+    "wasm-svg": "81bbf9252d074775ad2c31f2a8ea6dd1406e97244f415138599ef46d6bb36673",
+    "wasm-gif": "5c8a436bb6a95f21546f9482ea6cc0d76e64cf4b7b0faf6e7e092c477cf7dd4a",
+    "wasm-webp": "3a3cc7d94ccd60f949e18578419b3e9df554e7c0826520d10a8da680ebbfacbd",
+    "wasm-slides": "8bfc55b82eb54eb7dfb11dab2a13ef6eea8b3543aee587906578d7e3d7043e75",
+    "wasm-components": "5ea2b47988df1ce517af5416dc411e62dd09a2899c43ebca18d0f310efeac939",
+    "wasm-options": "c61876289d4e873f87f5e0aa0953121c76b15faf8ce6aa444e9213efc0557e3c",
 };
 
 describe("toHtml() bytes", () => {

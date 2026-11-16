@@ -179,6 +179,11 @@ body {
     word-wrap: break-word;
 }
 
+/* A shape's outline is centred on its geometry and its line heads reach past the box, as in PowerPoint. */
+.slide-text[data-shape] {
+    overflow: visible;
+}
+
 .slide-text > .shape-svg {
     position: absolute;
     inset: 0;
