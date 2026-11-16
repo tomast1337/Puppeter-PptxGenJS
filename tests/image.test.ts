@@ -29,6 +29,8 @@ describe("image normalization", () => {
         expect(source({ data: "image/svg+xml;base64,PHN2Zy8+" })).toBe("data:image/svg+xml;base64,PHN2Zy8+");
         expect(source({ data: "base64,iVBORw0KGgo=" })).toBe(PNG_DATA);
         expect(source({ data: "base64,R0lGOD", path: "logo.gif" })).toBe("data:image/gif;base64,R0lGOD");
+        expect(source({ data: "data:;base64,iVBORw0KGgo=" })).toBe(PNG_DATA);
+        expect(source({ data: "data:;base64,R0lGOD", path: "logo.GIF" })).toBe("data:image/gif;base64,R0lGOD");
         expect(() => source({ data: "image/png;base64," })).toThrow("must be base64-encoded image data");
     });
 
