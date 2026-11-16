@@ -445,7 +445,11 @@
     "p5-textoverflowbottom": 0.0239,
     "p6-textnoheight": 0.0492,
     "p6-textzeroheighttop": 0,
-    "p6-textthinbottom": 0.0159
+    "p6-textthinbottom": 0.0159,
+    "p7-textlastspaceaftertop": 0.014,
+    "p7-textlastspaceaftermiddle": 0.0133,
+    "p7-textlastspaceafterbottom": 0.014,
+    "p7-textlastspaceaftertwo": 0.015
   },
   "tableOptions": {
     "p1-Table0": 0.0138,

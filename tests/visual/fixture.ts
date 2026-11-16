@@ -327,6 +327,28 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             { name: "text-thin-bottom", label: "h 0.05, valign bottom: above the midline", text: "Thin, bottom", options: { x: 7, y: 2.5, w: 2.25, h: 0.05, valign: "bottom" }, pad: 0.5 },
         ],
     },
+    {
+        // PowerPoint and LibreOffice leave the last paragraph's space after out of the text height, so it does not
+        // lift bottom- or middle-anchored text; the space after the first of two paragraphs still separates them.
+        title: "Space after the last paragraph",
+        cases: [
+            ...(["top", "middle", "bottom"] as const).map((valign, index) => ({
+                name: `text-last-space-after-${valign}`,
+                label: `paraSpaceAfter 24, valign ${valign}`,
+                text: [{ text: "Last paragraph", options: { paraSpaceAfter: 24 } }],
+                options: { x: 0.75 + index * 3.125, y: 1.25, w: 2.25, h: 1.25, valign, fill: { color: "F2F2F2" } },
+            })),
+            {
+                name: "text-last-space-after-two",
+                label: "two paragraphs, paraSpaceAfter 12 each, valign bottom",
+                text: [
+                    { text: "First", options: { paraSpaceAfter: 12, breakLine: true } },
+                    { text: "Second", options: { paraSpaceAfter: 12 } },
+                ],
+                options: { x: 0.75, y: 3.5, w: 2.25, h: 1.25, valign: "bottom", fill: { color: "F2F2F2" } },
+            },
+        ],
+    },
 ];
 const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h = 0 }, pad = 0.15 }) => ({ page: 63 + index, name, x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;

@@ -121,6 +121,7 @@ export interface NormalizedTextParagraph {
     /** Each line's height and its baseline's distance below the line top, in px (LibreOffice's font-independent line box). */
     lineBox: { height: number; baseline: number };
     spaceBefore: number;
+    /** 0 on a text box's last paragraph: PowerPoint and LibreOffice leave its space after out of the text height. */
     spaceAfter: number;
     /** Explicit stops, `position` in px from the text area's left edge, in increasing order. */
     tabStops: ReadonlyArray<{ position: number; alignment: "left" | "right" | "center" | "decimal" }>;

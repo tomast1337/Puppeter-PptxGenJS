@@ -97,6 +97,14 @@ describe("text normalization", () => {
         });
     });
 
+    test("keeps the space after of every paragraph but the last, which anchoring leaves out", () => {
+        const text = normalizeText([
+            { text: "First", options: { paraSpaceAfter: 9, breakLine: true } },
+            { text: "Last", options: { paraSpaceAfter: 9 } },
+        ]);
+        expect(text.paragraphs.map(paragraph => paragraph.spaceAfter)).toEqual([12, 0]);
+    });
+
     test("normalizes typography, spacing, directions, and the margin-order quirk", () => {
         const text = normalizeText("styled", {
             margin: [1, 2, 3, 4],
@@ -119,6 +127,8 @@ describe("text normalization", () => {
         expect(text.rtl).toBe(true);
         expect(text.paragraphs[0]?.lineHeight).toBe(32);
         expect(text.paragraphs[0]?.spaceBefore).toBe(8);
+        // The last paragraph's space after is left out of the text height (PowerPoint, LibreOffice).
+        expect(text.paragraphs[0]?.spaceAfter).toBe(0);
         expect(text.paragraphs[0]?.runs[0]).toMatchObject({
             fontSize: 24,
             color: "rgba(0, 0, 0, 0.75)",

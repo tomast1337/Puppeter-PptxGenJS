@@ -291,10 +291,12 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
     const groups = groupPieces(pieces, options.align);
 
     let numberIndex = 0;
-    const paragraphs = groups.map(group => {
+    const paragraphs = groups.map((group, index) => {
         const paragraph = paragraphFromPieces(group, options, numberIndex);
         numberIndex = paragraph.bullet?.kind === "number" ? numberIndex + 1 : 0;
-        return paragraph;
+        // PowerPoint and LibreOffice leave the last paragraph's space after out of the text height, so it does not
+        // lift middle- or bottom-anchored text (or grow a table row).
+        return index === groups.length - 1 ? { ...paragraph, spaceAfter: 0 } : paragraph;
     });
 
     const direction = options.vert ?? PPTX_DEFAULTS.text.textDirection;
