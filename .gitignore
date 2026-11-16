@@ -35,6 +35,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 *.pdf
 *.pptx
+# pdftoppm rasters from local checks (`pdftoppm ... -` writes "--1.pgm")
+*.pgm
+*.ppm
 
 # Visual parity artifacts
 .visual-parity/
