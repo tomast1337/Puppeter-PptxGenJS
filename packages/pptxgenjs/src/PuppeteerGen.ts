@@ -10,7 +10,7 @@ import { normalizeChart } from "./normalize/chart";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { normalizeImage, resolveRemoteImageSource } from "./normalize/image";
 import { normalizeObjectStyle } from "./normalize/object";
-import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, straightLineLength } from "./normalize/shape";
+import { normalizeShape, normalizeShapeLine, normalizeShapeTextBox, normalizeTextLine, straightLineLength } from "./normalize/shape";
 import { normalizeSlideNumber } from "./normalize/slideNumber";
 import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
@@ -279,13 +279,12 @@ export class PuppeteerSlide implements PptxSlide {
         const { transparency: _textTransparency, ...boxOptions } = textOptions;
         const textStyle = normalizeObjectStyle(boxOptions, PPTX_DEFAULTS.text, this.pageSize, this.nextObjectName("Text", textOptions.objectName), {
             fill: true,
-            line: true,
             shadow: true,
         });
+        textStyle.line = normalizeTextLine(textOptions, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0));
         const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.bodyFontFace() });
         if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: normalizedText });
         const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
-        textStyle.line = normalizeShapeLine(shapeOptions, line => normalizeLine(line, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0)));
         const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0, this.pageSize);
         return this.addObject({ kind: "text", style: textStyle, text: normalizeShapeTextBox(normalizedText, shape), shape });
     }

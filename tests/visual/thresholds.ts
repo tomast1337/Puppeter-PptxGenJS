@@ -56,7 +56,13 @@ export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>>
  * keeps its baselines at 500.8 and 529.6 px; Chromium paints both lines 1 px higher (glyph rows 15-29
  * and 44-58 of the crop against LibreOffice's 16-30 and 45-59). The WASM backend matches LibreOffice's
  * rows exactly (0.0456).
+ * text-line-hairline, 0.1306: a text box line without width, which PptxGenJS writes without `w` (a hairline).
+ * Its box spans px [528, 912) x [120, 192). LibreOffice draws the 1 px hairline on columns 527 and 911 and rows
+ * 120 and 191; Chromium snaps the 1 px outline centred on the edge outward, to columns 527 and 912 and rows 119
+ * and 192, and paints the text 1 px higher (ink rows 46-59 of the crop against 47-60). The same box with a 2pt
+ * line, where the strokes overlap, scores 0.0342.
  */
 export const TEXT_LINE_SNAP_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
     "text-line-spacing-multiple": 0.102,
+    "text-line-hairline": 0.133,
 };

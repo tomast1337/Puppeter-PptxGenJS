@@ -14,7 +14,7 @@ const sha256 = (html: string) => createHash("sha256").update(html).digest("hex")
  * same PR, so the output change is visible in review; to see what changed, diff toHtml() against main.
  */
 const EXPECTED_SHA256: Record<string, string> = {
-    fixture: "1398d032949316881bea920ea208bb646413a1444ddccbcfae33f929091562ed",
+    fixture: "aa3351cdaa76be3ebc19967279388914a67cce4cb4461dcb057dc08b8ce81102",
     "cross-runtime": "3b04f009803e447538a134dfabdcf02e81d53be5ae84d09d43b4af1c98d8d55f",
     "wasm-text": "e359d2c9798f991634a167ac73e3b96d619454a239cd571e860012b6e28f6b94",
     "wasm-emoji": "e927c828ab279b4985b4806f68ab63688e88fdb8da9779c4fb86196c5d3f5a8c",
@@ -29,6 +29,7 @@ const EXPECTED_SHA256: Record<string, string> = {
     "wasm-webp": "0649d1cbe19005339be0503e9692a981e94877e3c3d7dedc9aa85618346ab88a",
     "wasm-slides": "e18600a2b3143da9afc199949fcc286be55b3bc0e1e81ab27f44c98ab78e0475",
     "wasm-components": "0919e67813d3fbb5d5c18ed08a58424e37f6c54c1f16568a8180de1f3b1abfaf",
+    "wasm-options": "7cda4d27c1a2538073e282736aca54519308d3222de44c10ad9d4e4fbca13185",
 };
 
 describe("toHtml() bytes", () => {

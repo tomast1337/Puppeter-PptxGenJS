@@ -2,7 +2,7 @@
 // PDF's bytes (pdf-sha256.json); tests/htmlBytes.test.ts pins their toHtml() bytes.
 import type pptxgen from "pptxgenjs";
 import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
-import { populateChartFixture, populateComponentFixture, populateImageFixture, populateSlidePropertiesFixture } from "../fixture";
+import { populateChartFixture, populateComponentFixture, populateImageFixture, populateSlidePropertiesFixture, populateTextOptionsFixture, TEXT_OPTION_PAGES } from "../fixture";
 import { populateShapeDeck, populateTableDeck, populateTextDeck, SHAPE_PAGES, TABLE_PAGES, TEXT_PAGES } from "./deck";
 import { EFFECT_PAGES, populateEffectDeck } from "./effect-deck";
 import { EMOJI_PAGES, populateEmojiDeck } from "./emoji-deck";
@@ -69,5 +69,14 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
         },
         pages: 2,
         crop: isText,
+    },
+    // options: the shared fixture's text-option slides; each case box (named after its parity crop) gets a crop, its label does not.
+    options: {
+        populate: presentation => {
+            populateTextOptionsFixture(presentation);
+            return presentation;
+        },
+        pages: TEXT_OPTION_PAGES,
+        crop: object => object.style.objectName.startsWith("text-"),
     },
 };

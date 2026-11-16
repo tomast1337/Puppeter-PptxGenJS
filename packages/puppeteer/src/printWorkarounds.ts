@@ -23,6 +23,8 @@ const LEFT = /(?:^|; )left: ([^;]+)px;/;
 const TOP = /(?:^|; )top: ([^;]+)px;/;
 const ROTATE = /rotate\(([^)]+)deg\)/;
 const BORDER_WIDTH = /(?:^|; )border-(?:top|right|bottom|left): ([^ ;]+)px /g;
+// A box's line as render/style.ts applyLine writes it: color, width, style.
+const TEXT_BORDER = /(?:^|; )border-color: ([^;]+); border-width: ([^;]+)px; border-style: ([^;]+);/;
 // The face as the profile writes it: one CSS string, `\` and `"` escaped.
 const FONT_FAMILY = /((?:^|; )font-family: "((?:[^"\\]|\\.)*)")/;
 // The payload of a `src="data:…"` attribute. Inlined images make up most of a large deck's HTML, and no print
@@ -116,6 +118,14 @@ export function printHtml(html: string): string {
             const height = px(element, LINE_HEIGHT, "line-height");
             const baseline = number(element, attribute(element, "data-line-baseline"), "numeric data-line-baseline");
             edits.push(addStyle(element, `position: relative; top: ${baseline - height / 2}px;`));
+        } else if (hasClass(element, "slide-text")) {
+            // Text outline: DrawingML centres a text box's line on its edge and measures the inset from the edge;
+            // a CSS border lies inside the box and pushes the text in by its width. An outline moves nothing.
+            const style = attribute(element, "style") ?? "";
+            const border = style.match(TEXT_BORDER);
+            if (!border || border[3] === "none") continue;
+            const width = number(element, border[2], "numeric border-width");
+            edits.push(addStyle(element, `border-style: none; outline: ${width}px ${border[3]} ${border[1]}; outline-offset: ${-width / 2}px;`));
         } else if (element.tagName === "svg" && hasClass(element, "shape-svg")) {
             edits.push(...shapeEdits(element));
         } else if (element.tagName === "table" && hasClass(element, "slide-table")) {

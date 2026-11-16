@@ -52,6 +52,17 @@ describe("Puppeteer print workarounds", () => {
         expect(plain?.hasAttribute("stroke-dashoffset")).toBe(false);
     });
 
+    test("draws a text box's line as an outline centred on its edge, which leaves the text where its inset puts it", async () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText("outlined", { x: 1, y: 1, w: 2, h: 1, line: { color: "FF0000", width: 3, dashType: "dash" } });
+        slide.addText("plain", { x: 1, y: 3, w: 2, h: 1 });
+        const [outlined, plain] = (await printedPage(presentation)).querySelectorAll<HTMLElement>(".slide-text");
+        // 3pt = 4px: centred on the edge, from 2px outside the box to 2px inside it.
+        expect(outlined?.getAttribute("style")).toEndWith("border-style: none; outline: 4px dashed #FF0000; outline-offset: -2px;");
+        expect(plain?.getAttribute("style")).not.toContain("outline");
+    });
+
     test("offsets a table by half its widest border, which DrawingML centres on the grid", async () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

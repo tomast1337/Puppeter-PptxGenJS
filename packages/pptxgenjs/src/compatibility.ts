@@ -291,7 +291,8 @@ export const COMPATIBILITY = Object.freeze({
             indentLevel: "implemented",
             // Writes `<p:cNvSpPr txBox="1"/>`, an editing flag: LibreOffice draws the box pixel-identical without it.
             isTextBox: "ignored",
-            line: "partial",
+            // A string `line` only colors shape "line"; a line object without width is a hairline (normalizeTextLine).
+            line: "implemented",
             lineSpacing: "implemented",
             lineSpacingMultiple: "implemented",
             margin: "verified",
@@ -313,10 +314,11 @@ export const COMPATIBILITY = Object.freeze({
             autoFit: "partial",
             shrinkText: "partial",
             inset: "unsupported",
-            lineDash: "partial",
-            lineHead: "unsupported",
-            lineSize: "partial",
-            lineTail: "unsupported",
+            // lineDash, lineHead, lineSize and lineTail: read only for shape "line", as in PptxGenJS 4.0.1.
+            lineDash: "implemented",
+            lineHead: "implemented",
+            lineSize: "implemented",
+            lineTail: "implemented",
             // Declared through DataOrPathProps, read by no text writer: addText draws no picture.
             data: "ignored",
             path: "ignored",
