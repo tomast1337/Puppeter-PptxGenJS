@@ -256,6 +256,8 @@ interface TextOptionCase {
     label: string;
     text: string | PptxGenJS.TextProps[];
     options: PptxGenJS.TextPropsOptions & { x: number; y: number; w: number; h: number };
+    /** Crop padding around the box in inches (default 0.15); the label sits 0.3in above the crop. */
+    pad?: number;
 }
 const BULLET_RUNS: PptxGenJS.TextProps[] = [
     { text: " ", options: { bullet: { code: "2022" } } },
@@ -304,8 +306,19 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             { name: "text-bullet-runs", label: "bullet runs, no align: two paragraphs", text: BULLET_RUNS.slice(0, 2), options: { x: 5.5, y: 1.25, w: 4, h: 1.25, valign: "top", fill: { color: "F2F2F2" } } },
         ],
     },
+    {
+        // PptxGenJS writes no clip: PowerPoint and LibreOffice draw text past a box too small for it, from the anchor.
+        title: "Text past its box",
+        cases: (["top", "middle", "bottom"] as const).map((valign, index) => ({
+            name: `text-overflow-${valign}`,
+            label: `three lines in a 0.3in box, valign ${valign}`,
+            text: "First line\nSecond line\nThird line",
+            options: { x: 0.75 + index * 3.125, y: 2.5, w: 2.25, h: 0.3, valign, fill: { color: "F2F2F2" } },
+            pad: 0.6,
+        })),
+    },
 ];
-const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h } }) => ({ page: 63 + index, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })));
+const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h }, pad = 0.15 }) => ({ page: 63 + index, name, x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
@@ -2002,8 +2015,8 @@ export function populateTextOptionsFixture(presentation: Presentation): void {
     for (const { title, cases } of TEXT_OPTION_SLIDES) {
         const slide = presentation.addSlide();
         slide.addText(title, { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-        for (const { name, label, text, options } of cases) {
-            slide.addText(label, { x: options.x, y: options.y - 0.45, w: options.w, h: 0.25, fontFace: "Arial", fontSize: 11, color: "595959", margin: 0 });
+        for (const { name, label, text, options, pad = 0.15 } of cases) {
+            slide.addText(label, { x: options.x, y: options.y - pad - 0.3, w: options.w, h: 0.25, fontFace: "Arial", fontSize: 11, color: "595959", margin: 0 });
             // Fresh objects per call: PptxGenJS mutates the options and runs it is given.
             slide.addText(structuredClone(text), { fontFace: "Arial", fontSize: 14, color: "363636", objectName: name, ...options });
         }

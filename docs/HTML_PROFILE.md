@@ -249,8 +249,9 @@ apply again (#43).
 Arrow heads are markers whose id spells out the color and path, so equal heads share one id.
 
 A text object with a shape is a `.slide-text` with `data-shape` whose first child is the same
-`svg.shape-svg`, drawn behind `.text-content`; the box itself then has no fill, border or shadow, and the
-stylesheet gives it `overflow: visible`, so the outline and line heads reach past the box as in PowerPoint.
+`svg.shape-svg`, drawn behind `.text-content`; the box itself then has no fill, border or shadow. The
+stylesheet gives every `.slide-text` `overflow: visible`: PptxGenJS writes no clip, so text that does not fit
+is drawn past the box from its anchor, and a shape's outline and line heads reach past it, as in PowerPoint.
 
 ### Image
 
