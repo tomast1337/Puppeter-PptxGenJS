@@ -286,7 +286,9 @@ with the full scaled size, and the frame clips.
 </div>
 ```
 
-`render/table.ts`. A cell's text box is the text renderer's output on `.table-cell-text`. Borders are
+`render/table.ts`. A cell's text box is the text renderer's output on `.table-cell-text`, in flow
+(`width: 100%`), so a row's `height` is a minimum and the row grows to its text as in PowerPoint and
+LibreOffice; only vertical text in a row with a height fills the cell (`position: absolute; inset: 0px`). Borders are
 `<width>px <solid|dashed> <color>` per side, `transparent` when hidden. Pagination happens in
 normalization (`normalize/table/pagination.ts`), so a paginated table is already several slides.
 

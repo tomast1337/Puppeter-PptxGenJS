@@ -78,10 +78,11 @@ describe("Puppeteer print workarounds", () => {
     test("grows each bordered cell's text box over the inner half of its borders, where DrawingML measures the margins from", async () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
-        const table = (text: string, position: { y: number; h?: number }) => slide.addTable([[{ text, options: { border: [{ type: "solid", pt: 3, color: "000000" }, { type: "none" }, { type: "solid", pt: 1.5, color: "000000" }, { type: "none" }] } }]], { x: 1, w: 4, ...position });
-        // A row without a height keeps its text box in flow; a table with a height puts it absolutely in the cell.
+        const table = (text: string, position: { y: number; h?: number }, textDirection?: "vert") =>
+            slide.addTable([[{ text, options: { textDirection, border: [{ type: "solid", pt: 3, color: "000000" }, { type: "none" }, { type: "solid", pt: 1.5, color: "000000" }, { type: "none" }] } }]], { x: 1, w: 4, ...position });
+        // Text in a row keeps its box in flow; vertical text in a row with a height fills the cell absolutely.
         table("flow", { y: 1 });
-        table("absolute", { y: 3, h: 1 });
+        table("absolute", { y: 3, h: 1 }, "vert");
         slide.addTable([[{ text: "none", options: { border: { type: "none" as const } } }]], { x: 1, y: 5, w: 4 });
         const [flow, absolute, none] = Array.from((await printedPage(presentation)).querySelectorAll(".table-cell-text"), text => text.getAttribute("style") ?? "");
         // 3pt = 4px on top, 1.5pt = 2px at the bottom, hidden sides 0px.

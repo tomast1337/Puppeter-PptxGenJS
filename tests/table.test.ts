@@ -122,6 +122,17 @@ describe("table normalization", () => {
 });
 
 describe("table rendering", () => {
+    // PptxGenJS writes <a:tr h> and PowerPoint and LibreOffice grow the row to its text, so the text stays in flow.
+    test("keeps cell text in flow in rows with a height, so a row grows to its text", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addTable([[{ text: "one\ntwo\nthree" }, { text: "up", options: { textDirection: "vert" } }]], { x: 1, y: 1, w: 4, rowH: 0.2 });
+
+        const [horizontal, vertical] = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".table-cell-text"));
+        expect(parseFloat(renderedPage(presentation).querySelector<HTMLElement>("tr")?.style.height ?? "")).toBeCloseTo(19.2);
+        expect([horizontal?.style.position, horizontal?.style.width]).toEqual(["", "100%"]);
+        expect(vertical?.style.position).toBe("absolute");
+    });
+
     test("keeps a dashed border's DrawingML pattern, which CSS can only draw as dashed", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addTable([[{ text: "a", options: { border: [{ type: "dash", pt: 2, color: "70AD47" }, { type: "none" }, { type: "solid", pt: 1 }, { type: "none" }] } }]], { x: 1, y: 1, w: 2 });

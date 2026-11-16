@@ -32,7 +32,10 @@ function renderCell(cell: NormalizedTableCell, fixedHeight: boolean): string {
         ["display", "flex"],
         ["box-sizing", "border-box"],
     ]);
-    if (fixedHeight) {
+    // A row height is a minimum: PowerPoint and LibreOffice grow the row until its text fits, so the text box stays
+    // in flow and the HTML table grows the row. shortcut: vertical text needs a definite height and fills the cell
+    // instead, so its row does not grow; lay it out in flow once a fixture needs it.
+    if (fixedHeight && cell.text.direction !== "horizontal") {
         textCss.set("position", "absolute");
         textCss.set("inset", "0px");
     } else {
