@@ -118,6 +118,58 @@ describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches
     });
 });
 
+describe("table-level margin during autoPage (PptxGenJS 4.0.1 getSlidesForTableRows step 6B: inches unless the cell's own array is points)", () => {
+    const rowsOf = (cell: (text: string, index: number) => PptxGenJS.TableCell | string): PptxGenJS.TableRow[] =>
+        // `as`: PptxGenJS accepts plain string cells at runtime, but `TableRow` lists only cell objects.
+        Array.from({ length: 30 }, (_, index) => [cell(`Row ${index + 1}`, index), cell(Array.from({ length: (index % 4) + 1 }, (_, line) => `Line ${line + 1}`).join("\n"), index)] as PptxGenJS.TableRow);
+    const outcome = (run: () => Array<{ rows: number; y: number }>) => {
+        try {
+            return run();
+        } catch {
+            return "throws";
+        }
+    };
+    const margins: PptxGenJS.Margin[] = [0.1, 0.3, [0.2, 0.1, 0.05, 0.1], 0.99, 1, 1.5, 2, [1, 0.1, 1, 0.1], 6, [6, 4, 6, 4]];
+
+    test.each<[string, PptxGenJS.TableRow[]]>([
+        ["object cells", rowsOf(text => ({ text }))],
+        ["string cells", rowsOf(text => text)],
+        // A side the cell array leaves 0 comes from the table margin; a numeric cell margin is not an array, so it is ignored.
+        ["cells with a 0 bottom or a number margin", rowsOf((text, index) => ({ text, options: { margin: index % 2 ? 0.4 : [0.2, 0.1, 0, 0.1] } }))],
+        ["cells with a points margin", rowsOf(text => ({ text, options: { margin: [6, 4, 0, 4] } }))],
+    ])("splits %s as PptxGenJS does, and throws where it throws", (_, rows) => {
+        for (const fontSize of [8, 12, 18])
+            for (const y of [0.5, 5.2])
+                for (const margin of margins)
+                    for (const autoPageRepeatHeader of [false, true]) {
+                        const options: PptxGenJS.TableProps = { autoPage: true, autoPageRepeatHeader, y, w: 8, fontSize, margin };
+                        const pages = outcome(() => paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y })));
+                        const reference = outcome(() => pptxGenJsPages(structuredClone(rows), { ...options }));
+                        expect({ fontSize, y, margin, autoPageRepeatHeader, pages }).toEqual({ fontSize, y, margin, autoPageRepeatHeader, pages: reference });
+                    }
+    });
+
+    test("names the cause when the first row cannot fit, where PptxGenJS throws `Array expected`", () => {
+        expect(() =>
+            paginateTableRows(
+                rowsOf(text => ({ text })),
+                { autoPage: true, y: 0.5, w: 8, margin: 6 },
+                PAGE,
+            ),
+        ).toThrow(/first row needs 12\.2in.*table-level `margin` as inches/);
+    });
+
+    test("paginates a table-level margin of 1 as inches", () => {
+        // margin 1 is 1pt on each side when drawn (genXmlTextBody), 1in each side when paginated.
+        const [page] = paginateTableRows(
+            rowsOf(text => ({ text })),
+            { autoPage: true, y: 0.5, w: 8, fontSize: 12, margin: 1 },
+            PAGE,
+        );
+        expect(page?.rows).toHaveLength(2);
+    });
+});
+
 describe("text margin convention (PptxGenJS 4.0.1 writes lIns, rIns, bIns, tIns from indexes 0..3, in points)", () => {
     test("defaults to the Normal inset, then the deprecated inset in inches", () => {
         expect(PPTX_DEFAULTS.text.marginIn).toEqual([0.05, 0.1, 0.05, 0.1]);

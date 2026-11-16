@@ -159,6 +159,13 @@ string `line` and the deprecated `lineSize`, `lineDash`, `lineHead` and
 Table margins retain a historical dual-unit rule: values below 1 are inches;
 values of 1 or greater are points.
 
+`autoPage` splits rows as PptxGenJS 4.0.1 does, which reads margins differently from the drawn
+cell: the unit comes from the cell's own `margin` array only, so a table-level `margin` on a cell
+without one counts as inches whatever its size (`margin: 1` is drawn as 1pt but paginated as 1in).
+When the first row's margins and one line do not fit below the table `y`, PptxGenJS throws
+`addTable: Array expected!`; PuppeteerGen throws too, with an error that names the cause. Give
+point margins per cell (`options.margin: [6, 4, 6, 4]`) or a table-level margin below 1.
+
 ## Shapes
 
 | Property                        |                                             Observed default | PuppeteerGen behavior |
