@@ -299,6 +299,20 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         await expect(broken.toPdf()).rejects.toThrow(/^slide 2: image '[^']+': SVG image: <image> is not in the SVG subset/);
     });
 
+    test("rejects an image over the pixel limit by its header and the same renderer keeps rendering (#160)", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        // The 1x1 PNG with an IHDR claiming 100000 x 100000 pixels (40 GB as RGBA).
+        const bomb = Uint8Array.from(atob(PNG.split(",")[1] ?? ""), c => c.charCodeAt(0));
+        new DataView(bomb.buffer).setUint32(16, 100_000);
+        new DataView(bomb.buffer).setUint32(20, 100_000);
+        const broken = new PuppeteerGen(PAGE, { renderer });
+        broken.addSlide().addImage({ data: `data:image/png;base64,${btoa(String.fromCharCode(...bomb))}`, x: 1, y: 1, w: 1, h: 1 });
+        await expect(broken.toPdf()).rejects.toThrow(/^slide 1: image '[^']+': 100000x100000 pixels is over the limit of 67108864 pixels per image/);
+        const drawn = new PuppeteerGen(PAGE, { renderer });
+        drawn.addSlide().addImage({ data: PNG, x: 1, y: 1, w: 1, h: 1 });
+        expect(ascii(await drawn.toPdf()).startsWith("%PDF-")).toBe(true);
+    });
+
     test("draws data, path and repeated images in every sizing mode without warnings", async () => {
         const directory = await mkdtemp(join(tmpdir(), "wasm-image-"));
         try {

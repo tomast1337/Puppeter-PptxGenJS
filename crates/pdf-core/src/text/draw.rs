@@ -24,6 +24,8 @@ use crate::text::outline::glyph_outlines;
 /// 1/30 of the size wide (`2.39996 w`); italic shears them (`1 0 0.3462535606 1 x y Tm`).
 const SYNTHETIC_BOLD_STROKE_EM: f32 = 1.0 / 30.0;
 const SYNTHETIC_ITALIC_SHEAR: f32 = 0.346_253_56;
+/// Most distinct glows drawn under one text box.
+const MAX_GLOWS_PER_BOX: usize = 16;
 
 /// Shears what is drawn on `baseline` (y down) to the right above it and to the left below it.
 fn oblique(baseline: f32) -> Transform {
@@ -82,6 +84,16 @@ impl Renderer {
             if !glows.contains(&glow) {
                 glows.push(glow);
             }
+        }
+        // Each glow nests one more sub-stream (and call frame) and holds its own mask, so the
+        // count is bounded: a box with thousands of distinct glows overflowed the wasm stack.
+        // shortcut: glows past the limit are left out, not merged; capture them in one pass when
+        // a real deck needs more distinct glows in one box.
+        if glows.len() > MAX_GLOWS_PER_BOX {
+            glows.truncate(MAX_GLOWS_PER_BOX);
+            self.warn(format!(
+                "text glows past the first {MAX_GLOWS_PER_BOX} distinct ones in a text box not rendered"
+            ));
         }
         self.under_glows(surface, &glows, &mut lines)?;
         let mut quads = std::mem::take(&mut self.link_quads);
