@@ -446,5 +446,9 @@
     "p6-textnoheight": 0.0492,
     "p6-textzeroheighttop": 0,
     "p6-textthinbottom": 0.0159
+  },
+  "tableOptions": {
+    "p1-Table0": 0.0138,
+    "p1-Table1": 0.0035
   }
 }

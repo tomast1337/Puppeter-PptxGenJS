@@ -331,6 +331,13 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
 const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h = 0 }, pad = 0.15 }) => ({ page: 63 + index, name, x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;
 
+// populateTableOptionsFixture(): one slide of table options, after the text-option slides. Each region is the
+// table's area (in inches), tall enough for the rows it grows.
+const TABLE_OPTION_CASES = [
+    { name: "table-row-grow", x: 0.5, y: 1.25, w: 4, h: 2 },
+    { name: "table-height-grow", x: 5.5, y: 1.25, w: 4, h: 2 },
+] as const;
+
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
 function cropThreshold(name: string): number {
@@ -363,6 +370,7 @@ export const PARITY_REGIONS = [
     { page: 61, name: "slide-number-own-style", x: 7.5, y: 4.6, w: 2, h: 0.8 },
     { page: 62, name: "slide-number-inherited-style", x: 0.5, y: 1.2, w: 2.5, h: 1 },
     ...TEXT_OPTION_CASES,
+    ...TABLE_OPTION_CASES.map(({ name, x, y, w, h }) => ({ page: 63 + TEXT_OPTION_PAGES, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1608,6 +1616,7 @@ export function populateParityFixture(presentation: Presentation): void {
     populateArrowHeadFixture(presentation);
     populateSlidePropertiesFixture(presentation);
     populateTextOptionsFixture(presentation);
+    populateTableOptionsFixture(presentation);
 }
 
 /** The parity fixture's image slides (SVG pictures), also the WASM backend's SVG image deck (tests/visual/wasm/decks.ts). */
@@ -2031,4 +2040,23 @@ export function populateTextOptionsFixture(presentation: Presentation): void {
             slide.addText(structuredClone(text), { fontFace: "Arial", fontSize: 14, color: "363636", objectName: name, ...options });
         }
     }
+}
+
+/** The parity fixture's table-option slide (TABLE_OPTION_CASES), also the WASM backend's tableOptions deck. */
+export function populateTableOptionsFixture(presentation: Presentation): void {
+    const slide = presentation.addSlide();
+    slide.addText("Table rows grow to fit their text", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+    const [rowGrow, heightGrow] = TABLE_OPTION_CASES;
+    const border = { type: "solid", pt: 1, color: "404040" } as const;
+    const cell = (text: string) => ({ text, options: { border } });
+    // rowH is a minimum: the middle row grows to its three lines and the last row moves down (PowerPoint, LibreOffice).
+    slide.addTable([[cell("Row one")], [cell("Row two\nsecond line\nthird line")], [cell("Row three")]], { x: rowGrow.x, y: rowGrow.y, w: rowGrow.w, rowH: 0.25, fontFace: "Arial", fontSize: 12, color: "363636" });
+    // A table `h` shared by its rows is a minimum too.
+    slide.addTable(
+        [
+            [cell("A"), cell("B")],
+            [cell("Two\nlines"), cell("C")],
+        ],
+        { x: heightGrow.x, y: heightGrow.y, w: heightGrow.w, h: 0.4, fontFace: "Arial", fontSize: 12, color: "363636", valign: "middle" },
+    );
 }
