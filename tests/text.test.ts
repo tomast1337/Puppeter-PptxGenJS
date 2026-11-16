@@ -62,6 +62,18 @@ describe("text normalization", () => {
         expect(paragraph.defaultTabStop).toBe(96);
     });
 
+    // PptxGenJS 4.0.1 writes [[" ", "Item"], ["Next"]] with a box align and [[" "], ["Item", "Next"]] without.
+    test("groups bullet runs as PptxGenJS does with and without align", () => {
+        const runs = [
+            { text: " ", options: { bullet: { code: "2022" } } },
+            { text: "Item", options: { bullet: true, breakLine: true } },
+            { text: "Next", options: {} },
+        ];
+        const texts = (align?: "center") => normalizeText(runs, align ? { align } : {}).paragraphs.map(paragraph => paragraph.runs.map(run => run.text));
+        expect(texts("center")).toEqual([[" ", "Item"], ["Next"]]);
+        expect(texts()).toEqual([[" "], ["Item", "Next"]]);
+    });
+
     test("groups rich runs using PptxGenJS break and alignment behavior", () => {
         const text = normalizeText(
             [

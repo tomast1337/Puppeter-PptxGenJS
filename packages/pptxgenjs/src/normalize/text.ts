@@ -241,32 +241,32 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): 
     return pieces;
 }
 
-function shouldStartNewGroup(currentPiece: TextPiece, previousPiece?: TextPiece, parentAlign?: PptxGenJS.HAlign): boolean {
-    if (!previousPiece) return false;
-    const alignmentChanged = currentPiece.options.align !== previousPiece.options.align && Boolean(currentPiece.options.align || parentAlign);
-    return alignmentChanged || Boolean(currentPiece.options.bullet);
-}
-
+// PptxGenJS 4.0.1 genXmlTextBody (STEP 5): when the run or the box has `align`, only a change of the run's
+// align starts a paragraph and `bullet` is not checked (the bullet test is an `else if`). Otherwise a bullet
+// run starts a paragraph and its own `breakLine` is dropped, so it does not also end one.
 function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextPiece[][] {
     const groups: TextPiece[][] = [];
     let current: TextPiece[] = [];
 
-    for (let index = 0; index < pieces.length; index++) {
-        const piece = pieces[index]!;
-        const previous = pieces[index - 1];
-
-        if (current.length > 0 && shouldStartNewGroup(piece, previous, parentAlign)) {
-            groups.push(current);
-            current = [];
+    pieces.forEach((piece, index) => {
+        let breakLine = piece.options.breakLine;
+        if (current.length > 0) {
+            const aligned = Boolean(piece.options.align || parentAlign);
+            const startsGroup = aligned ? piece.options.align !== pieces[index - 1]?.options.align : Boolean(piece.options.bullet);
+            if (startsGroup) {
+                groups.push(current);
+                current = [];
+                if (!aligned) breakLine = false;
+            }
         }
 
         current.push(piece);
 
-        if (piece.options.breakLine && index + 1 < pieces.length) {
+        if (breakLine && index + 1 < pieces.length) {
             groups.push(current);
             current = [];
         }
-    }
+    });
 
     if (current.length || groups.length === 0) groups.push(current);
     return groups;

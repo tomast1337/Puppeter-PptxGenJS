@@ -14,7 +14,7 @@ const sha256 = (html: string) => createHash("sha256").update(html).digest("hex")
  * same PR, so the output change is visible in review; to see what changed, diff toHtml() against main.
  */
 const EXPECTED_SHA256: Record<string, string> = {
-    fixture: "4575bbc4b98a4188760cca1a0fe1f5689f1601fe12782cad9a9a8adc720bc2ab",
+    fixture: "872146340b3ef6220f0d94ed8a5ed6ca040ff409cbffbf45caf612dd5b09bcd9",
     "cross-runtime": "2273cffde6927c61671ea901aacd90a46eddeb7010d3e808be677df5c78e57e9",
     "wasm-text": "53db16aa8a4024e71565376c1abbcf677fe4e66d8660349844f55454a478349f",
     "wasm-emoji": "470187f2c7e1e202d1a8998ed06f1fd9cc4773488514c86ee0ab4562d4b45b4a",
@@ -29,7 +29,7 @@ const EXPECTED_SHA256: Record<string, string> = {
     "wasm-webp": "3a3cc7d94ccd60f949e18578419b3e9df554e7c0826520d10a8da680ebbfacbd",
     "wasm-slides": "8bfc55b82eb54eb7dfb11dab2a13ef6eea8b3543aee587906578d7e3d7043e75",
     "wasm-components": "5ea2b47988df1ce517af5416dc411e62dd09a2899c43ebca18d0f310efeac939",
-    "wasm-options": "1252a2e4b0a8d386032fd1eeb71070e13edd204f358c4441d1cb32744b4d8b3c",
+    "wasm-options": "42796b800d34cb8298bdf67c12824fe2ae650a2690dadeb173600ce460a7e9a5",
 };
 
 describe("toHtml() bytes", () => {
