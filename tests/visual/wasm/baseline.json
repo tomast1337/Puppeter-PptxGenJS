@@ -442,6 +442,9 @@
     "p4-textbulletruns": 0.0249,
     "p5-textoverflowtop": 0.0248,
     "p5-textoverflowmiddle": 0.0267,
-    "p5-textoverflowbottom": 0.0239
+    "p5-textoverflowbottom": 0.0239,
+    "p6-textnoheight": 0.0492,
+    "p6-textzeroheighttop": 0,
+    "p6-textthinbottom": 0.0159
   }
 }

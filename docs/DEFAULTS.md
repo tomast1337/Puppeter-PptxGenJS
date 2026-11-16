@@ -103,7 +103,7 @@ reads no other text option of a slide number.
 | Top/bottom inset      |                                0.05in | Implemented                    |
 | Missing `x`, `y`      |                              0in, 0in | Implemented                    |
 | Missing `w`           |                    75% of slide width | Implemented                    |
-| Missing `h`           |                                0.30in | Implemented                    |
+| Missing `h`           |                0in (PptxGenJS cy="0") | Implemented                    |
 | Bold/italic/strike    |                                 False | Mapped                         |
 | Underline             |                                  None | Mapped                         |
 | Language              |                               `en-US` | Mapped                         |
@@ -117,6 +117,12 @@ Text `margin` values are points. A scalar applies to all sides. PptxGenJS
 its type documentation says `[top, right, bottom, left]`. PuppeteerGen mirrors
 the emitted behavior for compatibility. The deprecated `inset` is in inches
 and sets all four sides; any `margin`, `0` included, replaces it.
+
+Text is never clipped to its box: what does not fit is drawn past it from the
+anchor, as in PowerPoint and LibreOffice. A box shorter than its top and bottom
+insets, such as one without `h`, has its text area collapsed onto the box's
+vertical midline, so middle text is centred on it, top text hangs below it and
+bottom text sits above it.
 
 A text box's `rectRadius` is the `roundRect` corner in inches, capped at half
 the shorter side. PptxGenJS writes the corner only for a truthy value, so `0`
