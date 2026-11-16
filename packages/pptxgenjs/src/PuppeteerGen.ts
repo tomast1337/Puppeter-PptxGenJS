@@ -32,6 +32,16 @@ function placeholderError(method: "addText" | "addImage"): UnsupportedFeatureErr
     return new UnsupportedFeatureError(`${method}({ placeholder })`, "Placeholders come from slide layouts, which need defineSlideMaster(), and PdfLapas has no slide masters. Remove `placeholder` and give the object its own x, y, w, h and style.", "property");
 }
 
+/**
+ * Whether a master name is PptxGenJS 4.0.1's built-in layout ("DEFAULT"), the only one that exists without defineSlideMaster().
+ * PptxGenJS treats a falsy name as none; any other name needs a master, so it throws instead of drawing a plain slide.
+ */
+function isBuiltInMaster(name: unknown, feature: string, workaround: string): boolean {
+    if (!name) return false;
+    if (name === PPTX_DEFAULTS.presentation.layoutName) return true;
+    throw new UnsupportedFeatureError(feature, `Slide masters need defineSlideMaster(), and PdfLapas has no slide masters. ${workaround}`, "property");
+}
+
 export class PuppeteerSlide implements PptxSlide {
     /** `getDocument` gives the `context.document` of components rendered to check them when they are added; toHtml() does not use it. */
     constructor(
@@ -557,7 +567,10 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     addSlide(props?: PptxAddSlideProps | undefined): PuppeteerSlide;
     addSlide(masterName?: string | undefined): PuppeteerSlide;
-    addSlide(masterName?: unknown): PuppeteerSlide {
+    addSlide(props?: unknown): PuppeteerSlide {
+        // A string is PptxGenJS's deprecated master name argument. `as`: PptxGenJS reads `masterName` off any object.
+        const masterName = typeof props === "object" && props !== null ? (props as PptxAddSlideProps).masterName : props;
+        isBuiltInMaster(masterName, "addSlide({ masterName })", "Remove `masterName` and add what the master held to each slide from a helper function, setting `slide.background` there.");
         const slideIndex = this.slides.length;
         const slide = new PuppeteerSlide(
             this.pageSize,
@@ -604,10 +617,9 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
      * the <table> element itself, or HTML markup holding one (a string starting with `<`).
      */
     tableToSlides(source: string | HTMLTableElement, props?: PptxTableToSlidesProps | undefined): void {
-        const options = props ?? {};
-        if (options.masterSlideName !== undefined) {
-            throw new UnsupportedFeatureError("tableToSlides({ masterSlideName })", "Slide masters need defineSlideMaster(), and PdfLapas has no slide masters. Remove `masterSlideName` and draw what the master held on each generated slide with the `addImage`, `addShape` and `addText` options.", "property");
-        }
+        // PptxGenJS takes the built-in layout's 0.5in margins over `slideMargin` (genTableToSlides, step 1).
+        const builtInMaster = isBuiltInMaster(props?.masterSlideName, "tableToSlides({ masterSlideName })", "Remove `masterSlideName` and draw what the master held on each generated slide with the `addImage`, `addShape` and `addText` options.");
+        const options = builtInMaster ? { ...props, slideMargin: PPTX_DEFAULTS.slide.marginIn } : (props ?? {});
         const table = normalizeHtmlTable(findHtmlTable(source, this.createDocument), options, this.pageSize);
         const firstSlide = this.addSlide();
         firstSlide.addTable(table.rows, {

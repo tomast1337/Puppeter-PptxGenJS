@@ -46,6 +46,33 @@ describe("PptxGenJS methods without a PDF rendering", () => {
         expect(pres.getModel().slides[0]?.objects).toEqual([]);
     });
 
+    test("addSlide masterName throws like masterSlideName; PptxGenJS's built-in DEFAULT and empty names are accepted", () => {
+        const pres = new PuppeteerGen();
+        const named = errorFrom(() => pres.addSlide({ masterName: "MASTER" }));
+        expect(named).toBeInstanceOf(UnsupportedFeatureError);
+        expect(named).toMatchObject({ feature: "addSlide({ masterName })" });
+        expect((named as Error).message).toStartWith("addSlide({ masterName }) is not supported by PuppeteerGen yet. Slide masters need defineSlideMaster()");
+        // PptxGenJS 4.0.1 still takes a master name as the first argument (deprecated since 3.2.0).
+        expect(errorFrom(() => pres.addSlide("MASTER"))).toMatchObject({ feature: "addSlide({ masterName })" });
+        expect(pres.getModel().slides).toHaveLength(0);
+        pres.addSlide({ masterName: "DEFAULT" });
+        pres.addSlide("DEFAULT");
+        pres.addSlide({ masterName: "" });
+        expect(pres.getModel().slides).toHaveLength(3);
+    });
+
+    // genTableToSlides: the built-in layout's 0.5in margins replace slideMargin.
+    test("tableToSlides masterSlideName DEFAULT takes the built-in layout's margins over slideMargin", () => {
+        const html = '<table style="width:600px"><tr><td>A</td></tr></table>';
+        const tableX = (options: { slideMargin: number; masterSlideName?: string }) => {
+            const pres = new PuppeteerGen();
+            pres.tableToSlides(html, options);
+            return pres.getModel().slides[0]?.objects[0]?.style.geometry.x ?? Number.NaN;
+        };
+        expect(tableX({ slideMargin: 1, masterSlideName: "DEFAULT" })).toBe(tableX({ slideMargin: 0.5 }));
+        expect(tableX({ slideMargin: 1 })).not.toBe(tableX({ slideMargin: 0.5 }));
+    });
+
     // PptxGenJS stores notes for the notes page only; a slide export never draws them.
     test("addNotes is accepted, chainable and draws nothing on the slide", () => {
         const pres = new PuppeteerGen();
