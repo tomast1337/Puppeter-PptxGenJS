@@ -210,6 +210,8 @@ export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS
     const pages: PaginatedTablePage[] = [{ rows: [], rowHeights: [], y: firstY }];
     let used = 0;
 
+    // Repeated headers add nothing to the used height: getSlidesForTableRows (step G) sums `_lineHeight`, which the raw
+    // header cells it repeats do not carry.
     const startContinuation = (): void => {
         pages.push({ rows: cloneRows(headers), rowHeights: [...headerHeights], y: continuationY });
         used = 0;
@@ -227,23 +229,30 @@ export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS
             continue;
         }
 
+        // getSlidesForTableRows (step 6, E/F): a new slide resets the used height to 0 right after adding the row's cell
+        // margins, so the margins count only on the page the row starts on, not on the page it moves or continues to.
+        let countedMargins = margins;
         let firstLine = 0;
         while (firstLine < cycles) {
-            if (used + margins + perLine > available() && pages.at(-1)!.rows.length > (pages.length === 1 ? 0 : headers.length)) {
+            if (used + countedMargins + perLine > available() && pages.at(-1)!.rows.length > (pages.length === 1 ? 0 : headers.length)) {
                 startContinuation();
+                countedMargins = 0;
             }
 
-            const capacity = perLine > 0 ? Math.max(1, Math.floor((available() - used - margins) / perLine)) : cycles - firstLine;
+            const capacity = perLine > 0 ? Math.max(1, Math.floor((available() - used - countedMargins) / perLine)) : cycles - firstLine;
             const count = Math.min(capacity, cycles - firstLine);
             // `lines` is `row.map(...)` from calculateRowMetrics, so every cell index has an entry.
             const fragment = row.map((cell, index) => cellFromLines(cell, lines[index]!.slice(firstLine, firstLine + count)));
 
             pages.at(-1)!.rows.push(fragment);
             pages.at(-1)!.rowHeights.push(margins + count * perLine);
-            used += margins + count * perLine;
+            used += countedMargins + count * perLine;
             firstLine += count;
 
-            if (firstLine < cycles) startContinuation();
+            if (firstLine < cycles) {
+                startContinuation();
+                countedMargins = 0;
+            }
         }
     }
     return pages;

@@ -69,23 +69,49 @@ describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches
 
     // The continuation slides start at the slide layout's 0.5in margin whatever `slideMargin` is (addTableDefinition),
     // and from the third page on a table `y` above the top margin starts the page (the [2, ...] array).
-    // shortcut: slideMargin 2 stops at 13 rows because PptxGenJS drops the cell margins of the row that opens a
-    // continuation page, which paginateTableRows does not model yet (8, 5, 9, 8 against 8, 5, 8, 8, 1 at 30 rows); compare
-    // 30 rows once it does.
-    test.each<[PptxGenJS.Margin, number, number[]]>([
-        [0.5, 30, [13, 15, 2]],
-        [0.99, 30, [12, 12, 6]],
-        [1, 30, [12, 12, 6]],
-        [2, 13, [8, 5]],
-        [[1, 0.5, 1.5, 0.5], 30, [10, 10, 10]],
-        [[2, 0.5, 0.5, 0.5], 30, [13, 10, 7]],
-    ])("paginates slideMargin %p as PptxGenJS does", (slideMargin, rowCount, rowsPerPage) => {
-        const rows: PptxGenJS.TableRow[] = Array.from({ length: rowCount }, (_, index) => [{ text: `Row ${index + 1}` }]);
+    test.each<[PptxGenJS.Margin, number[]]>([
+        [0.5, [13, 15, 2]],
+        [0.99, [12, 12, 6]],
+        [1, [12, 12, 6]],
+        [2, [8, 5, 9, 8]],
+        [
+            [1, 0.5, 1.5, 0.5],
+            [10, 10, 10],
+        ],
+        [
+            [2, 0.5, 0.5, 0.5],
+            [13, 10, 7],
+        ],
+    ])("paginates slideMargin %p as PptxGenJS does", (slideMargin, rowsPerPage) => {
+        const rows: PptxGenJS.TableRow[] = Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}` }]);
         // `as`: getSlidesForTableRows reads `slideMargin`, which TableProps does not declare.
         const options = { autoPage: true, y: 1, w: 8, slideMargin } as PptxGenJS.TableProps;
         const pages = paginateTableRows(rows, options, PAGE);
         expect(pages.map(page => page.rows.length)).toEqual(rowsPerPage);
         expect(pages.map(page => ({ rows: page.rows.length, y: page.y }))).toEqual(pptxGenJsPages(rows, options));
+    });
+
+    // getSlidesForTableRows counts a row's cell margins only on the page the row starts on (step 6, E/F reset the
+    // height after adding them) and repeated header rows count nothing (step G).
+    const longRows = (count: number, lines: (index: number) => number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: Array.from({ length: lines(index) }, (_, line) => `Line ${line + 1}`).join("\n") }]);
+    test.each<[string, PptxGenJS.TableRow[]]>([
+        ["40 one-line rows", longRows(40, () => 1)],
+        ["35 rows of 1 to 4 lines", longRows(35, index => (index % 4) + 1)],
+        ["32 rows of 1 or 9 lines", longRows(32, index => (index % 5 === 0 ? 9 : 1))],
+        // getSlidesForTableRows tells points from inches by the cell's own margin only (a table margin of 6 would be 6in).
+        ["35 rows with a 6pt cell margin", longRows(35, index => (index % 3) + 1).map(row => row.map(cell => ({ ...cell, options: { margin: [6, 4, 6, 4] } })))],
+    ])("paginates %s as PptxGenJS does", (_, rows) => {
+        for (const fontSize of [8, 12, 18])
+            for (const margin of [undefined, 0.1, 0.3, [0.2, 0.1, 0.05, 0.1]])
+                for (const slideMargin of [0.5, 1.2])
+                    for (const autoPageRepeatHeader of [false, true]) {
+                        // `as`: getSlidesForTableRows reads `slideMargin`, which TableProps does not declare.
+                        const options = { autoPage: true, autoPageRepeatHeader, y: 1, w: 8, fontSize, margin, slideMargin } as PptxGenJS.TableProps;
+                        const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
+                        // PptxGenJS writes into the rows and options it is given (cell options, colW), so it gets copies.
+                        const reference = pptxGenJsPages(structuredClone(rows), { ...options });
+                        expect({ fontSize, margin, slideMargin, autoPageRepeatHeader, pages }).toEqual({ fontSize, margin, slideMargin, autoPageRepeatHeader, pages: reference });
+                    }
     });
 });
 
