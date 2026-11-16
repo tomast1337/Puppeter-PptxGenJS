@@ -1,9 +1,9 @@
 import type PptxGenJS from "pptxgenjs";
-import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
+import type { FourSideMargin } from "../../defaults";
 import type { PageSize } from "../../pageLayouts";
 import { HEX_COLOR } from "../../color";
 import { inchesToPixels, pointsToPixels } from "../../units";
-import { mapSides } from "../margin";
+import { mapSides, slideMarginInches } from "../margin";
 
 export interface NormalizedHtmlTable {
     rows: PptxGenJS.TableRow[];
@@ -24,12 +24,6 @@ function cssPixels(value: string | null | undefined, relativeTo: number): number
     if (source.endsWith("in")) return inchesToPixels(amount);
     if (source.endsWith("pt")) return pointsToPixels(amount);
     return amount;
-}
-
-function margins(value?: PptxGenJS.Margin): FourSideMargin {
-    if (Array.isArray(value)) return [...value];
-    const margin = typeof value === "number" ? value : PPTX_DEFAULTS.slide.marginIn;
-    return [margin, margin, margin, margin];
 }
 
 function textContent(cell: HTMLTableCellElement): string {
@@ -132,7 +126,7 @@ export function findHtmlTable(source: string | HTMLTableElement, createDocument:
 }
 
 export function normalizeHtmlTable(element: HTMLTableElement, options: PptxGenJS.TableToSlidesProps, pageSize: PageSize): NormalizedHtmlTable {
-    const slideMargin = margins(options.slideMargin);
+    const slideMargin = slideMarginInches(options.slideMargin);
     const outerWidth = typeof options.w === "number" ? options.w : pageSize.width;
     const usableWidth = outerWidth - slideMargin[1] - slideMargin[3];
     const tableWidthPx = cssPixels(element.style.width, inchesToPixels(usableWidth)) || inchesToPixels(usableWidth);
