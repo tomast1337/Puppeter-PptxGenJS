@@ -613,7 +613,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextParagraph.lineBox.height`       | profile      | `line-height: <height>px` on the paragraph.                                                                                |
 | `NormalizedTextParagraph.lineBox.baseline`     | profile      | `data-line-baseline` on the paragraph (px from the line top), verbatim.                                                    |
 | `NormalizedTextParagraph.spaceBefore`          | profile      | `margin-top`.                                                                                                              |
-| `NormalizedTextParagraph.spaceAfter`           | profile      | `margin-bottom`.                                                                                                           |
+| `NormalizedTextParagraph.spaceAfter`           | profile      | `margin-bottom`; `0px` on a box's last paragraph (PowerPoint and LibreOffice leave it out of the text height).             |
 | `NormalizedTextParagraph.tabStops`             | profile      | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                           |
 | `NormalizedTextParagraph.tabStops[].position`  | profile      | `<position>` in `data-tab-stops`, px.                                                                                      |
 | `NormalizedTextParagraph.tabStops[].alignment` | profile      | `<alignment>` in `data-tab-stops`.                                                                                         |
