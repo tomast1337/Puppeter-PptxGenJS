@@ -2,8 +2,8 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
-import { pixelsToInches } from "#src/units";
-import { slideMarginInches, tableMarginInches } from "#src/normalize/margin";
+import { pixelsToInches, pointsToInches } from "#src/units";
+import { slideMarginInches } from "#src/normalize/margin";
 import { normalizeTable, tableCell } from "./index";
 
 export interface PaginatedTablePage {
@@ -134,17 +134,31 @@ interface RowMetrics {
     lines: TextPiece[][][];
     cycles: number;
     lineHeight: number;
+    /** Top plus bottom cell margin as getSlidesForTableRows counts it, in inches. */
     margin: number;
 }
 
-function rowMargin(row: PptxGenJS.TableRow, table: PptxGenJS.TableProps): number {
+/**
+ * getSlidesForTableRows (step 6B) picks points or inches from the cell's own margin array only (`margin[0] >= 1` is
+ * points) and applies that unit to the table margin too. A cell without a margin array (none, or a number) therefore
+ * reads the table margin as inches whatever its size, unlike the drawn cell (genXmlTextBody), which reads a table
+ * margin of 1 or more as points. Per side, the row keeps the largest of each cell's side and, whenever that side is
+ * missing, 0 or not larger than the largest so far (the `else if`), the table's side.
+ */
+function paginationMargin(row: PptxGenJS.TableRow, table: PptxGenJS.TableProps): number {
+    // addTableDefinition: a number is all four sides, unset is DEF_CELL_MARGIN_IN.
+    const tableSides = table.margin === undefined ? PPTX_DEFAULTS.table.marginIn : typeof table.margin === "number" ? [table.margin, table.margin, table.margin, table.margin] : table.margin;
     let top = 0;
     let bottom = 0;
     for (const cell of row) {
-        const cellMargin = Array.isArray(cell.options?.margin) ? cell.options.margin : table.margin;
-        const [cellTop, , cellBottom] = tableMarginInches(cellMargin);
-        top = Math.max(top, cellTop);
-        bottom = Math.max(bottom, cellBottom);
+        const own = Array.isArray(cell.options?.margin) ? cell.options.margin : undefined;
+        const toInches = own && own[0] >= 1 ? pointsToInches : (value: number) => value;
+        const side = (index: 0 | 2, largest: number): number => {
+            const cellSide = toInches(own?.[index] ?? 0);
+            return cellSide > largest ? cellSide : Math.max(largest, toInches(tableSides[index] ?? 0));
+        };
+        top = side(0, top);
+        bottom = side(2, bottom);
     }
     return top + bottom;
 }
@@ -175,11 +189,23 @@ function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTabl
         lines,
         cycles: Math.max(1, ...lines.map(cellLines => cellLines.length)),
         lineHeight: calculateLineHeight(row, options),
-        margin: rowMargin(row, options),
+        margin: paginationMargin(row, options),
     };
 }
 
 // --- PAGINATION ---
+
+/**
+ * getSlidesForTableRows leaves the first slide empty when the first row's cell margins and one line do not fit below
+ * the table `y`, and addTableDefinition then throws `addTable: Array expected!`. That happens to a table-level margin
+ * of 1 or more, which the drawn cell reads as points but the pagination reads as inches (6 is 12in of margins).
+ */
+function firstRowTooTallError(margins: number, lineHeight: number, available: number): Error {
+    const inches = (value: number) => `${Number(value.toFixed(3))}in`;
+    return new Error(
+        `addTable autoPage: the first row needs ${inches(margins + lineHeight)} (top and bottom cell margins ${inches(margins)} plus one line) but the first slide leaves ${inches(available)} below the table y, so PptxGenJS 4.0.1 throws "addTable: Array expected!" here. Move the table up, or lower the cell margins: autoPage reads a table-level \`margin\` as inches whatever its size, so give points per cell (options.margin: [6, 4, 6, 4]) or a table-level margin below 1 in inches.`,
+    );
+}
 
 export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
     if (!inputRows.length) return [];
@@ -235,9 +261,12 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
         let countedMargins = margins;
         let firstLine = 0;
         while (firstLine < cycles) {
-            if (used + countedMargins + perLine > available() && pages.at(-1)!.rows.length > (pages.length === 1 ? 0 : headers.length)) {
-                startContinuation();
-                countedMargins = 0;
+            if (used + countedMargins + perLine > available()) {
+                if (pages.length === 1 && !pages[0]!.rows.length) throw firstRowTooTallError(margins, perLine, firstAvailable);
+                if (pages.at(-1)!.rows.length > (pages.length === 1 ? 0 : headers.length)) {
+                    startContinuation();
+                    countedMargins = 0;
+                }
             }
 
             const capacity = perLine > 0 ? Math.max(1, Math.floor((available() - used - countedMargins) / perLine)) : cycles - firstLine;
