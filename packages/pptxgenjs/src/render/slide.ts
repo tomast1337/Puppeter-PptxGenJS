@@ -174,14 +174,11 @@ body {
     font-family: ${PPTX_DEFAULTS.text.fontFace}, Arial, Helvetica, sans-serif;
     font-size: ${pointsToPixels(PPTX_DEFAULTS.text.fontSizePt)}px;
     padding: ${textMarginToCSS()};
-    overflow: hidden;
+    /* PptxGenJS writes no clip: PowerPoint and LibreOffice draw text past its box, and a shape's outline and
+       line heads past the geometry. */
+    overflow: visible;
     white-space: pre-wrap;
     word-wrap: break-word;
-}
-
-/* A shape's outline is centred on its geometry and its line heads reach past the box, as in PowerPoint. */
-.slide-text[data-shape] {
-    overflow: visible;
 }
 
 .slide-text > .shape-svg {

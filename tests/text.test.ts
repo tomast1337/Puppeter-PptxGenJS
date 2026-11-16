@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
 import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/normalize/text";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { presentationCSS } from "../packages/pptxgenjs/src/render/slide";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("text normalization", () => {
     test("accepts numbers and preserves empty hard-line paragraphs", () => {
@@ -242,6 +244,13 @@ describe("text DOM rendering", () => {
         expect(box?.dataset.textFit).toBe("shrink");
         expect(content?.style.writingMode).toBe("vertical-rl");
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
+    });
+
+    // PptxGenJS writes no clip on a text body; PowerPoint and LibreOffice draw text past the box from its anchor.
+    test("does not clip text boxes", () => {
+        const rule = presentationCSS(PAGE_SIZES.SCREEN_16X9.landscape).match(/\n\.slide-text \{[^}]*\}/)?.[0];
+        expect(rule).toContain("overflow: visible;");
+        expect(rule).not.toContain("overflow: hidden");
     });
 
     test("allows unwrapped text to overflow its box like DrawingML wrap none", () => {
