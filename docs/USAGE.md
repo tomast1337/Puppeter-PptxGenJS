@@ -139,7 +139,7 @@ slide.addText("Styled Text", {
     bold: true, // Bold text
     italic: true, // Italic text
     underline: true, // Underlined text
-    color: "#FF0000", // Text color (hex, RGB, or named)
+    color: "FF0000", // Text color: 6-digit hex RGB ("#" optional) or a scheme color such as "accent1"; anything else throws
     fill: { color: "#FFFF00" }, // Background color
 });
 ```
