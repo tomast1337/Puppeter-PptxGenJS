@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY, WASM_COMPATIBILITY } from "../packages/pptxgenjs/src/compatibility";
+import { API_COMPATIBILITY, CHART_OPTION_NAMES, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, type CompatibilityStatus, SHAPE_GEOMETRY_COMPATIBILITY, WASM_COMPATIBILITY } from "../packages/pptxgenjs/src/compatibility";
 
 const VALID_STATUSES = new Set<CompatibilityStatus>(["unsupported", "partial", "implemented", "verified", "ignored"]);
 const TEXT_OPTION_KEYS = [
@@ -198,5 +198,8 @@ describe("compatibility manifest", () => {
         }
         expect(COMPATIBILITY.table.options.tableToSlides).toBe("verified");
         expect(COMPATIBILITY.table.options.masterSlideName).toBe("unsupported");
+        // Both master-name options throw the same UnsupportedFeatureError (tests/unsupportedMethods.test.ts).
+        expect(API_COMPATIBILITY.presentation.addSlide?.note).toContain("masterName");
+        expect(API_COMPATIBILITY.presentation.addSlide?.note).toContain("throws UnsupportedFeatureError");
     });
 });

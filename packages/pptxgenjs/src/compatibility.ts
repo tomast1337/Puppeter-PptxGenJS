@@ -470,7 +470,8 @@ export const COMPATIBILITY = Object.freeze({
             addText: "verified",
             slideMargin: "verified",
             addHeaderToEach: "implemented",
-            // Throws UnsupportedFeatureError: a master needs defineSlideMaster().
+            // Throws UnsupportedFeatureError: a master needs defineSlideMaster(). PptxGenJS's built-in "DEFAULT" is
+            // accepted and, as in PptxGenJS, replaces slideMargin with its 0.5in margins.
             masterSlideName: "unsupported",
         }),
     }),
@@ -600,7 +601,7 @@ export const API_COMPATIBILITY = Object.freeze({
         subject: { status: "implemented", note: 'PDF Subject; no PptxGenJS default, unset reads "" and is not written' },
         title: { status: "implemented", note: 'PDF Title; no PptxGenJS default, unset reads "" and is not written' },
         addSection: { status: "implemented", note: "sections draw nothing; PptxGenJS's input warnings are kept" },
-        addSlide: { status: "implemented", note: "a masterName finds no master, as in PptxGenJS without defineSlideMaster()" },
+        addSlide: { status: "implemented", note: 'a masterName (or the deprecated string argument) other than PptxGenJS\'s built-in "DEFAULT" throws UnsupportedFeatureError: masters need defineSlideMaster()' },
         defineLayout: { status: "implemented", note: "also applies the size at once" },
         defineSlideMaster: { status: "unsupported", note: "set slide.background and add the shared objects to each slide" },
         tableToSlides: { status: "implemented", note: "finds the table id in the global document, as PptxGenJS; also takes the <table> element or its HTML" },

@@ -62,7 +62,7 @@ returns a `.pptx`:
 **What throws.** PdfLapas fails instead of writing a PDF that silently lacks something:
 `addMedia()` and `defineSlideMaster()` throw `UnsupportedFeatureError` with a suggested
 alternative, and so do the options that need a slide master: `placeholder` on `addText()` and
-`addImage()`, `masterSlideName` on `tableToSlides()`. An inner shadow on a shape stops the PDF
+`addImage()`, `masterName` on `addSlide()` and `masterSlideName` on `tableToSlides()` (except PptxGenJS's built-in `"DEFAULT"`). An inner shadow on a shape stops the PDF
 (PptxGenJS writes it as XML that LibreOffice drops); a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
 throws before rendering. `API_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs`, lists what PdfLapas
 does with each PptxGenJS presentation and slide member; `COMPATIBILITY` does the same per option.
