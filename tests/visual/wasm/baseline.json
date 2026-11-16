@@ -437,6 +437,8 @@
     "p3-textshapeellipse": 0.0031,
     "p3-textshapecan": 0.0039,
     "p3-textshapestroke": 0.0124,
-    "p3-textshapelineheads": 0.0037
+    "p3-textshapelineheads": 0.0037,
+    "p4-textbulletrunsalign": 0.0202,
+    "p4-textbulletruns": 0.0249
   }
 }

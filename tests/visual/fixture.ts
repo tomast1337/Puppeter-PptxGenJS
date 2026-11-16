@@ -254,9 +254,14 @@ const ARROW_HEAD_CASES = [1, 4.5].flatMap((widthPt, row) => ARROW_HEAD_TYPES.map
 interface TextOptionCase {
     name: string;
     label: string;
-    text: string;
+    text: string | PptxGenJS.TextProps[];
     options: PptxGenJS.TextPropsOptions & { x: number; y: number; w: number; h: number };
 }
+const BULLET_RUNS: PptxGenJS.TextProps[] = [
+    { text: " ", options: { bullet: { code: "2022" } } },
+    { text: "Item", options: { bullet: true, breakLine: true } },
+    { text: "Next", options: {} },
+];
 const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCase[] }[] = [
     {
         // PptxGenJS 4.0.1 reads a string `line` and lineSize/lineDash/lineHead/lineTail only for shape "line".
@@ -287,6 +292,16 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             { name: "text-shape-can", label: "can, margin 0, top left", text: "Can", options: { x: 5.5, y: 1.25, w: 4, h: 1.25, shape: "can", margin: 0, valign: "top", fill: { color: "D9E2F3" } } },
             { name: "text-shape-stroke", label: "roundRect with a 6pt line", text: "Stroke", options: { x: 0.5, y: 3.5, w: 4, h: 1.25, shape: "roundRect", line: { color: "2F5597", width: 6 }, fill: { color: "D9E2F3" } } },
             { name: "text-shape-line-heads", label: "shape line with oval and triangle heads", text: "", options: { x: 5.5, y: 3.5, w: 4, h: 1.25, shape: "line", line: { color: "C00000", width: 3, beginArrowType: "oval", endArrowType: "triangle" } } },
+        ],
+    },
+    {
+        // PptxGenJS 4.0.1 genXmlTextBody: with `align` set only an align change starts a paragraph, so bullet runs join
+        // the open one; without it each bullet run starts a paragraph. (A run joining a bullet paragraph without align
+        // would make PptxGenJS write a second <a:pPr> in it, which LibreOffice and PowerPoint read differently.)
+        title: "Paragraphs from bullet runs",
+        cases: [
+            { name: "text-bullet-runs-align", label: "bullet runs, align left: two paragraphs", text: BULLET_RUNS, options: { x: 0.5, y: 1.25, w: 4, h: 1.25, align: "left", valign: "top", fill: { color: "F2F2F2" } } },
+            { name: "text-bullet-runs", label: "bullet runs, no align: two paragraphs", text: BULLET_RUNS.slice(0, 2), options: { x: 5.5, y: 1.25, w: 4, h: 1.25, valign: "top", fill: { color: "F2F2F2" } } },
         ],
     },
 ];
@@ -1989,8 +2004,8 @@ export function populateTextOptionsFixture(presentation: Presentation): void {
         slide.addText(title, { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
         for (const { name, label, text, options } of cases) {
             slide.addText(label, { x: options.x, y: options.y - 0.45, w: options.w, h: 0.25, fontFace: "Arial", fontSize: 11, color: "595959", margin: 0 });
-            // A fresh object per call: PptxGenJS mutates the options it is given.
-            slide.addText(text, { fontFace: "Arial", fontSize: 14, color: "363636", objectName: name, ...options });
+            // Fresh objects per call: PptxGenJS mutates the options and runs it is given.
+            slide.addText(structuredClone(text), { fontFace: "Arial", fontSize: 14, color: "363636", objectName: name, ...options });
         }
     }
 }
