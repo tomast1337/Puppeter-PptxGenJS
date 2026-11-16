@@ -4,6 +4,7 @@ use super::allow;
 use super::dom::{Dom, Element};
 use super::style::{Style, integer};
 use super::text::{self, text_box};
+use crate::color::{Rgba, parse_color};
 use crate::model::{FillModel, Table, TableBorder, TableCell, TableRow};
 
 const TABLE_CSS: &[&str] = &["width", "height", "table-layout", "border-collapse", "border-spacing"];
@@ -120,10 +121,7 @@ fn read_cell(dom: &Dom<'_>, cell: &Element<'_>) -> Result<TableCell, String> {
         text: text_box(dom, content, &text_style, text_content)?,
         colspan: span("colspan")?,
         rowspan: span("rowspan")?,
-        fill: style.get("background-color").map(|color| FillModel {
-            visible: true,
-            color: color.to_owned(),
-        }),
+        fill: style.color("background-color")?.map(|color| FillModel { visible: true, color }),
         borders,
     })
 }
@@ -137,7 +135,7 @@ fn border(cell: &Element<'_>, style: &Style<'_>, side: &str) -> Result<TableBord
     if value == HIDDEN_BORDER {
         return Ok(TableBorder {
             visible: false,
-            color: "transparent".to_owned(),
+            color: Rgba::TRANSPARENT,
             width: 0.0,
             dash_array,
         });
@@ -150,7 +148,7 @@ fn border(cell: &Element<'_>, style: &Style<'_>, side: &str) -> Result<TableBord
     }
     Ok(TableBorder {
         visible: true,
-        color: color.trim_ascii().to_owned(),
+        color: parse_color(color).map_err(|e| format!("CSS property '{property}': {e}"))?,
         width: super::style::px(width).map_err(|e| format!("CSS property '{property}': {e}"))?,
         dash_array,
     })
@@ -158,7 +156,9 @@ fn border(cell: &Element<'_>, style: &Style<'_>, side: &str) -> Result<TableBord
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{SlideObject, TableObject};
+    use crate::color::Rgba;
+    use crate::model::build::css;
+    use crate::model::{SlideObject, TableObject, TextDirection, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -197,17 +197,17 @@ mod tests {
         let [first, second] = &object.table.rows[..] else { panic!("two rows") };
         assert_eq!((first.height, second.height, second.cells.len()), (Some(40.0), None, 2));
         let c = first.cells.first().expect("cell");
-        assert_eq!((c.colspan, c.rowspan, c.fill.as_ref().map(|f| f.color.as_str())), (2, 1, Some("#F2F2F2")));
+        assert_eq!((c.colspan, c.rowspan, c.fill.as_ref().map(|f| f.color)), (2, 1, Some(css("#F2F2F2"))));
         let [top, right, bottom, _] = &c.borders;
         assert_eq!(
-            (top.visible, top.width, top.color.as_str(), top.dash_array.as_deref()),
-            (true, 2.0, "#C00000", Some("8 2.67"))
+            (top.visible, top.width, top.color, top.dash_array.as_deref()),
+            (true, 2.0, css("#C00000"), Some("8 2.67"))
         );
         assert!(!right.visible);
-        assert_eq!(bottom.color, "rgba(0, 0, 0, 0.5)");
+        assert_eq!(bottom.color, Rgba(0, 0, 0, 0.5));
         assert_eq!(
-            (c.text.margin, c.text.direction.as_str(), c.text.vertical_align.as_str()),
-            ([1.0, 2.0, 3.0, 4.0], "vertical", "middle")
+            (c.text.margin, c.text.direction, c.text.vertical_align),
+            ([1.0, 2.0, 3.0, 4.0], TextDirection::Vertical, VerticalAlign::Middle)
         );
     }
 

@@ -13,8 +13,8 @@ use krilla::paint::{LineCap, Stroke};
 use krilla::surface::Surface;
 
 use crate::Renderer;
-use crate::color::{parse_color, unit};
-use crate::model::{Table, TableBorder, TableCell, TextBox};
+use crate::color::unit;
+use crate::model::{Table, TableBorder, TableCell, TextBox, TextFit};
 use crate::path::rect_path;
 use crate::shape::dash_of;
 use crate::text::layout::BoxLayout;
@@ -57,7 +57,7 @@ impl TableLayout {
 }
 
 fn is_vertical(text: &TextBox) -> bool {
-    text.direction == "vertical" || text.direction == "vertical270"
+    text.direction.is_vertical()
 }
 
 /// HTML's cell placement, which is also how PptxGenJS expands `colspan`/`rowspan` into
@@ -156,7 +156,7 @@ impl Renderer {
 
         for (placed, layout) in out.cells.iter().zip(out.texts.iter_mut()) {
             let text = &cell_of(table, placed).text;
-            if text.fit == "shrink" {
+            if text.fit == TextFit::Shrink {
                 // PowerPoint table cells have no autofit: rows grow to the text instead.
                 self.warn("table cell shrink-to-fit not applied (rows grow to fit)");
             }
@@ -204,7 +204,7 @@ impl Renderer {
             )
         };
         for placed in &layout.cells {
-            if let Some(color) = cell_of(table, placed).fill.as_ref().filter(|f| f.visible).and_then(|f| parse_color(&f.color)) {
+            if let Some(color) = cell_of(table, placed).fill.as_ref().filter(|f| f.visible).map(|f| f.color) {
                 let (cx, cy, w, h) = rect(placed);
                 self.fill(surface, &rect_path(cx, cy, w, h, 0.0), color);
             }
@@ -246,9 +246,10 @@ fn stroke_border(surface: &mut Surface, border: &TableBorder, from: (f32, f32), 
     if !border.visible || border.width <= 0.0 || !border.width.is_finite() {
         return;
     }
-    let Some(color) = parse_color(&border.color).filter(|c| c.3 > 0.0) else {
+    let color = border.color;
+    if color.3 <= 0.0 {
         return;
-    };
+    }
     let dash = border.dash_array.as_deref().and_then(dash_of);
     let mut pb = PathBuilder::new();
     pb.move_to(from.0, from.1);
@@ -279,7 +280,7 @@ mod tests {
     fn table(columns: &[f32], rows: &[RowSpec]) -> Table {
         let border = || TableBorder {
             visible: true,
-            color: "#000000".into(),
+            color: build::css("#000000"),
             width: 1.0,
             dash_array: None,
         };

@@ -209,7 +209,7 @@ fn read_slide(dom: &Dom<'_>, slide: &Element<'_>) -> Result<Slide, String> {
         .collect::<Result<Vec<SlideObject>, String>>()?;
     Ok(Slide {
         number,
-        background: style.require("background-color")?.to_owned(),
+        background: style.require_color("background-color")?,
         objects,
     })
 }
@@ -234,7 +234,7 @@ pub(crate) mod tests {
         let model = parse(&document("")).unwrap();
         assert_eq!((model.page_size.width, model.page_size.height), (10.0, 5.625));
         let [slide] = &model.slides[..] else { panic!("one slide") };
-        assert_eq!(slide.background, "#FFFFFF");
+        assert_eq!(slide.background, crate::color::Rgba(255, 255, 255, 1.0));
         assert!(slide.objects.is_empty());
         // The number slide links name; a hidden slide before it is not in the document.
         assert_eq!(slide.number, Some(1));

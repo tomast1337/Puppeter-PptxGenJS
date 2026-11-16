@@ -27,7 +27,7 @@ use krilla::surface::Surface;
 use kurbo::{Affine, BezPath, PathEl, Point};
 
 use crate::Renderer;
-use crate::color::{Rgba, parse_color};
+use crate::color::Rgba;
 use crate::model::Shadow;
 use raster::Line;
 
@@ -63,7 +63,7 @@ impl Effect {
             // shortcut: inner shadows are not drawn; draw one inside the silhouette when a deck needs it.
             return Some(Err("inner shadow not rendered"));
         }
-        let color = parse_color(&shadow.color).filter(|c| c.3 > 0.0)?;
+        let color = Some(shadow.color).filter(|c| c.3 > 0.0)?;
         let finite = [shadow.blur, shadow.offset_x, shadow.offset_y].iter().all(|v| v.is_finite());
         Some(if finite {
             Ok(Effect {
@@ -81,7 +81,7 @@ impl Effect {
     /// A run's glow (its `blur` is the glow radius).
     pub(crate) fn glow(glow: &Shadow) -> Option<Self> {
         let radius = glow.blur.max(0.0);
-        let color = parse_color(&glow.color).filter(|c| c.3 > 0.0 && glow.visible && radius > 0.0 && radius.is_finite())?;
+        let color = Some(glow.color).filter(|c| c.3 > 0.0 && glow.visible && radius > 0.0 && radius.is_finite())?;
         Some(Effect {
             color,
             spread: radius * GLOW_SPREAD_PER_RADIUS,
