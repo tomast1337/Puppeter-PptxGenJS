@@ -485,3 +485,5 @@ Verify that you're using the correct page size and that your position/size value
 ### Puppeteer won't launch
 
 Make sure all dependencies are installed and that you have the necessary system libraries for Puppeteer.
+Chromium is launched without its sandbox by default; to change the launch options (for example to keep the sandbox,
+or to point `executablePath` at another Chromium), see the Puppeteer backend section of `docs/BACKENDS.md`.
