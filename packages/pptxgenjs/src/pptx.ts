@@ -1,29 +1,12 @@
 import type PptxGenJS from "pptxgenjs";
 
 export interface PptxGenJSLike extends PptxGenJS {}
-export type PptxBorderProps = [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps];
-export type PptxTableCell = PptxGenJS.TableCell;
 export type PptxSlide = PptxGenJS.Slide;
 export type PptxTableRow = PptxGenJS.TableRow;
 export type PptxTableProps = PptxGenJS.TableProps;
 export type PptxTextProps = PptxGenJS.TextProps;
-export type PptxSlideLayout = PptxGenJS.PresLayout;
-export type PptxHAlign = PptxGenJS.HAlign;
 export type PptxTextPropsOptions = PptxGenJS.TextPropsOptions;
-export type PptxTablePropsOptions = PptxGenJS.TableProps;
-export type PptxTableCellPropsOptions = PptxGenJS.TableCellProps;
-export type PptxMarginProps = PptxGenJS.Margin;
 export type PptxShapeProps = PptxGenJS.ShapeProps;
-export type PptxTableCellProps = PptxGenJS.TableCellProps;
-export type PptxPresLayout = PptxGenJS.PresLayout;
-export type PptxAlignH = PptxGenJS.AlignH;
-export type PptxAlignV = PptxGenJS.AlignV;
-export type PptxChartType = PptxGenJS.ChartType;
-export type PptxOutputType = PptxGenJS.OutputType;
-export type PptxSchemeColor = PptxGenJS.SchemeColor;
-export type PptxShapeType = PptxGenJS.ShapeType;
-export type PptxPLACEHOLDER_TYPES = PptxGenJS.PLACEHOLDER_TYPES;
-export type PptxThemeProps = PptxGenJS.ThemeProps;
 export type PptxWriteBaseProps = PptxGenJS.WriteBaseProps;
 export type PptxWriteProps = PptxGenJS.WriteProps;
 export type PptxWriteFileProps = PptxGenJS.WriteFileProps;

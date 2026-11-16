@@ -4,6 +4,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WasmRenderer } from "../packages/wasm/src/node";
+import { benchRuns } from "./benchConfig";
 
 type Engine = "puppeteer" | "wasm";
 const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
@@ -34,7 +35,7 @@ if (process.argv[2] === "cold") {
     process.exit(0);
 }
 
-const warmRuns = Number(process.env.BENCH_RUNS ?? 20);
+const warmRuns = benchRuns("wasmWarm");
 const coldRuns = Number(process.env.BENCH_COLD_RUNS ?? 7);
 const results: Record<string, unknown> = {};
 

@@ -79,7 +79,7 @@ function checkPositive(name: string, value: unknown, integer: boolean): void {
 }
 
 /** The `imageSources` option, checked where it enters: a mistyped limit would otherwise be ignored silently. */
-export function imageSourceOptions(options: unknown): ImageSourceOptions {
+function imageSourceOptions(options: unknown): ImageSourceOptions {
     if (options === undefined) return {};
     if (typeof options !== "object" || options === null) throw new TypeError(`PuppeteerGen option \`imageSources\` must be an object, got ${JSON.stringify(options)}`);
     const unknownKey = Object.keys(options).find(key => !IMAGE_SOURCE_KEYS.has(key));

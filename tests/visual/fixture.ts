@@ -270,7 +270,7 @@ const BULLET_RUNS: PptxGenJS.TextProps[] = [
  * the inherited `kern="1200"` (12pt), so at 8 and 10pt "Yay" wraps: tests/renderingTarget.test.ts checks the
  * PowerPoint target, which LibreOffice references cannot score.
  */
-export const KERNING_TEXT = "AVATAR WAVY Tower Toy Yay";
+const KERNING_TEXT = "AVATAR WAVY Tower Toy Yay";
 export const KERNING_CASES = [
     { fontSize: 8, w: 1.54 },
     { fontSize: 10, w: 1.92 },

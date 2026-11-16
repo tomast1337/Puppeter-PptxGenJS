@@ -31,7 +31,7 @@ export interface RenderPass {
     images?: ReadonlyMap<string, string>;
 }
 
-export function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass: RenderPass): string {
+function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass: RenderPass): string {
     switch (object.kind) {
         case "text": {
             const css: InlineStyle = new Map();
@@ -62,7 +62,7 @@ export function renderSlideObject(object: NormalizedSlideObject, idScope: string
     }
 }
 
-export function renderSlide(slide: NormalizedSlide, index: number, pass: RenderPass): string {
+function renderSlide(slide: NormalizedSlide, index: number, pass: RenderPass): string {
     const objects = slide.objects.map((object, objectIndex) => renderSlideObject(object, objectIdScope(index, objectIndex), pass)).join("");
     const css: InlineStyle = new Map([
         ["background-color", slide.background],
