@@ -1,0 +1,7 @@
+# Proposes bumps for the SHA-pinned actions in .github/workflows (#150); each bump is its own PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
