@@ -53,7 +53,7 @@ describe("browser-safe html entry", () => {
             const sources = Array.from(parsed.images, image => image.getAttribute("src"));
             expect(sources).toEqual([PNG_DATA, "data:image/png;base64,AQID"]);
             expect(parsed.querySelectorAll("[data-source-path], [data-source-url]")).toHaveLength(0);
-            expect(fetchMock).toHaveBeenCalledWith("https://example.com/remote.png");
+            expect(fetchMock).toHaveBeenCalledWith("https://example.com/remote.png", { signal: expect.any(AbortSignal) });
         } finally {
             fetchMock.mockRestore();
         }

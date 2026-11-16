@@ -12,6 +12,7 @@ import { colorToCSS } from "./color";
 import { generatePageCSS } from "./pageCss";
 import { completeProfileHtml, pptxHtmlDocument } from "./render/completion";
 import { modelToHtml } from "./render/document";
+import { IMAGE_SOURCE_LIMITS } from "./normalize/image";
 import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "./units";
 
 export {
@@ -25,6 +26,8 @@ export {
     convertToPixels,
     DEFAULT_PAGE_SIZE,
     generatePageCSS,
+    // The default image resolvers' timeout, size and concurrency limits (#149).
+    IMAGE_SOURCE_LIMITS,
     inchesToPixels,
     // The model -> HTML step for producers that build the JSON model themselves (#69).
     modelToHtml,
@@ -53,6 +56,7 @@ export type { ApiEntry, ApiStatus, CompatibilityEntry, CompatibilityStatus } fro
 export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
 export type { FourSideMargin, RenderingTarget } from "./defaults";
 export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdflapas/model";
+export type { ImageSourceOptions } from "./normalize/image";
 export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeteerGen";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
 export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";

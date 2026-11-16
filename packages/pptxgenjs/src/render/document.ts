@@ -1,5 +1,5 @@
 import type { HtmlPresentationDocument, NormalizedPresentation } from "@pdflapas/model";
-import { resolveRemoteImageSource } from "../normalize/image";
+import { IMAGE_SOURCE_LIMITS, resolveRemoteImageSource } from "../normalize/image";
 import { componentImageSources } from "./component";
 import { type ComponentLookup, createBrowserDocument, presentationHtml, renderComponents } from "./slide";
 
@@ -39,7 +39,13 @@ export async function modelToHtml(model: NormalizedPresentation, options: ModelT
     const components = renderComponents(model, options.components, lazyDocument(options.createDocument ?? createBrowserDocument));
     const modelSources = model.slides.flatMap(slide => (slide.hidden ? [] : slide.objects).flatMap(object => (object.kind === "image" && object.image.sourceKind !== "data" ? [object.image.source] : [])));
     const sources = new Set([...modelSources, ...Array.from(components.values()).flatMap(componentImageSources)]);
-    // Each distinct source is resolved once.
-    const images = new Map(await Promise.all(Array.from(sources, async source => [source, await resolveImage(source)] as const)));
+    // Each distinct source is resolved once, IMAGE_SOURCE_LIMITS.concurrency at a time, so a deck of many images
+    // does not open as many fetches and file reads at once.
+    const images = new Map<string, string>();
+    const pending = sources.values();
+    const worker = async () => {
+        for (const source of pending) images.set(source, await resolveImage(source));
+    };
+    await Promise.all(Array.from({ length: Math.min(IMAGE_SOURCE_LIMITS.concurrency, sources.size) }, worker));
     return { html: presentationHtml(model, { components, images }), pageSize: model.pageSize };
 }
