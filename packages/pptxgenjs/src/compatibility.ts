@@ -387,6 +387,8 @@ export const COMPATIBILITY = Object.freeze({
             points: "implemented",
             rectRadius: "implemented",
             rotate: "implemented",
+            // Outer shadows. An inner one throws when printing: drop-shadow() has no inset form, and PptxGenJS 4.0.1
+            // writes it as malformed XML (<a:innerShdw> closed by </a:outerShdw>) that LibreOffice drops.
             shadow: "partial",
             rectangle: "implemented",
             roundedRectangle: "implemented",

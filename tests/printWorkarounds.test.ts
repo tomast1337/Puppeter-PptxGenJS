@@ -101,6 +101,20 @@ describe("Puppeteer print workarounds", () => {
         expect(() => printHtml(html)).toThrow("Cannot print 'Title': its .text-paragraph has no numeric data-line-baseline");
     });
 
+    // drop-shadow() has no inset form, so printing would put an inner shadow outside the shape; the WASM renderer
+    // reports it too ("inner shadow not rendered"). An outer shadow and a text box's inner one still print.
+    test("names the shape whose inner shadow it cannot draw", async () => {
+        const inner = new PuppeteerGen();
+        inner.addSlide().addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, objectName: "Badge", shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
+        await expect(printedHtml(inner)).rejects.toThrow("Cannot print 'Badge': inner shadow not rendered on a shape.");
+        const drawn = new PuppeteerGen();
+        drawn
+            .addSlide()
+            .addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } })
+            .addText("Inset", { x: 3, y: 1, w: 2, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
+        expect(await printedHtml(drawn)).toContain("Inset");
+    });
+
     test("changes only the bytes it rewrites, the same way every time", async () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

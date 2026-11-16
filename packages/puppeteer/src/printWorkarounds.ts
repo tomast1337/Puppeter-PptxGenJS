@@ -49,14 +49,18 @@ function* descendants(node: Parent): Generator<Element> {
     }
 }
 
+/** The data-object-name of the slide object that holds `element`. */
+function objectName(element: Element): string {
+    let named: Element | undefined = element;
+    while (named && attribute(named, "data-object-name") === undefined) named = parentElement(named);
+    return (named && attribute(named, "data-object-name")) ?? "unnamed object";
+}
+
 function number(element: Element, value: string | undefined, what: string): number {
     const parsed = Number(value);
     if (value !== undefined && Number.isFinite(parsed)) return parsed;
-    let named: Element | undefined = element;
-    while (named && attribute(named, "data-object-name") === undefined) named = parentElement(named);
-    const object = (named && attribute(named, "data-object-name")) ?? "unnamed object";
     const first = classes(element)[0];
-    throw new Error(`Cannot print '${object}': its ${first ? `.${first}` : `<${element.tagName}>`} has no ${what} (PdfLapas HTML profile)`);
+    throw new Error(`Cannot print '${objectName(element)}': its ${first ? `.${first}` : `<${element.tagName}>`} has no ${what} (PdfLapas HTML profile)`);
 }
 
 const px = (element: Element, pattern: RegExp, property: string) => number(element, attribute(element, "style")?.match(pattern)?.[1], `'${property}: <number>px' in its style attribute`);
@@ -118,6 +122,11 @@ export function printHtml(html: string): string {
             const height = px(element, LINE_HEIGHT, "line-height");
             const baseline = number(element, attribute(element, "data-line-baseline"), "numeric data-line-baseline");
             edits.push(addStyle(element, `position: relative; top: ${baseline - height / 2}px;`));
+        } else if (hasClass(element, "shape-svg") && attribute(element, "data-shadow-inset") !== undefined) {
+            // drop-shadow() has no inset form, so Chromium would draw the inner shadow outside the shape.
+            // shortcut: no inner shadow on shapes; draw one (an SVG filter) once a reference renderer shows it, since
+            // PptxGenJS 4.0.1 writes it as malformed XML that LibreOffice drops.
+            throw new Error(`Cannot print '${objectName(element)}': inner shadow not rendered on a shape. PptxGenJS 4.0.1 writes it as malformed XML (<a:innerShdw> closed by </a:outerShdw>) that LibreOffice drops; use shadow type "outer" or remove the shadow.`);
         } else if (hasClass(element, "slide-text")) {
             // Text outline: DrawingML centres a text box's line on its edge and measures the inset from the edge;
             // a CSS border lies inside the box and pushes the text in by its width. An outline moves nothing.
