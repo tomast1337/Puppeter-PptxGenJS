@@ -43,7 +43,8 @@ root=$PWD
 # +186 B: font-kerning: none on a run (the PowerPoint rendering target) turns parley's kern feature off, 1,047,069 -> 1,047,255 B measured; budget = that size.
 # +1,279 B: resource limits (#160: image header sizes for the pixel limits, effect flattening tolerance from the path extent, glow count per text box), 1,047,255 -> 1,048,534 B measured; budget = that size.
 # +94 B: profile colors and keywords parsed once into typed model values, every color strictly (#152: error messages naming the property, the keyword tables), 1,048,534 -> 1,048,628 B measured; budget = that size.
-GZIP_BUDGET=1048628
+# +9 B: a tab within 0.01px before a stop counts as on it, so float rounding cannot send the next tab back to that stop (#161), 1,048,628 -> 1,048,637 B measured; budget = that size.
+GZIP_BUDGET=1048637
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
