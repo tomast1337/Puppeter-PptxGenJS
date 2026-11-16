@@ -144,6 +144,13 @@ impl Effects {
             }
             let start = capture.lines.len();
             let affine = capture.inverse * ctm;
+            // The mask is at most MAX_SIDE samples across, so detail finer than extent / MAX_SIDE is
+            // lost anyway; flattening a huge path at a fixed tolerance would push billions of lines.
+            let bounds = affine.transform_rect_bbox(path.control_box());
+            if !bounds.is_finite() {
+                continue;
+            }
+            let tolerance = FLATTEN_TOLERANCE.max(bounds.width().max(bounds.height()) / f64::from(MAX_SIDE));
             let (mut first, mut last) = (Point::ZERO, Point::ZERO);
             let lines = &mut capture.lines;
             let mut edge = |a: Point, b: Point| {
@@ -157,7 +164,7 @@ impl Effects {
                 }
             };
             // Every subpath is closed, as a fill closes it.
-            kurbo::flatten(path.iter().map(|el| affine * el), FLATTEN_TOLERANCE, |el| match el {
+            kurbo::flatten(path.iter().map(|el| affine * el), tolerance, |el| match el {
                 PathEl::MoveTo(p) => {
                     edge(last, first);
                     (first, last) = (p, p);
@@ -382,5 +389,33 @@ impl Renderer {
         surface.draw_graphic(Graphic::new(stream, false));
         surface.pop();
         drawn
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flattens_a_huge_curve_no_finer_than_the_mask() {
+        let mut effects = Effects::default();
+        effects.begin(None, Affine::IDENTITY);
+        let mut curve = BezPath::new();
+        curve.move_to((0.0, 0.0));
+        curve.curve_to((1e17, 0.0), (1e17, 1e17), (0.0, 1e17));
+        curve.close_path();
+        effects.capture(Transform::identity(), &curve, 1.0, None);
+        // At the fixed 0.1 px tolerance this is billions of lines; at extent / MAX_SIDE, a few dozen.
+        let lines = effects.active.first().map_or(0, |c| c.lines.len());
+        assert!((3..1000).contains(&lines), "{lines}");
+        let mut infinite = BezPath::new();
+        infinite.move_to((0.0, 0.0));
+        infinite.line_to((f64::INFINITY, 0.0));
+        effects.capture(Transform::identity(), &infinite, 1.0, None);
+        assert_eq!(effects.active.first().map_or(0, |c| c.lines.len()), lines);
+        let shadow = Effect::shadow(&crate::model::build::shadow("#000000", 8.0, 4.0, false));
+        let Some(Ok(shadow)) = shadow else { panic!("an outer shadow") };
+        let Some((_, at)) = effects.end(&shadow) else { panic!("a mask") };
+        assert!(at.width() > 7e16 && at.height() > 1e17 - 1e10, "{at:?}");
     }
 }

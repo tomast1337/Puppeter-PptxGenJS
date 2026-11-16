@@ -55,6 +55,8 @@ pub struct Renderer {
     /// Images of the current render by data URI: each distinct picture is decoded once per
     /// document however often it repeats. Cleared per render so a renderer does not pin old images.
     images: HashMap<String, Picture>,
+    /// Pixels of the raster images in `images`, against `image::MAX_DECK_IMAGE_PIXELS`.
+    image_pixels: u64,
     /// The slide number each page shows (its `id`, else its position): a slide link jumps to the
     /// page showing that slide, and one to a slide no page shows (hidden, or past the last) is reported.
     page_slides: Vec<u32>,
@@ -97,6 +99,7 @@ impl Renderer {
             pdf_fonts: HashMap::new(),
             warnings: BTreeSet::new(),
             images: HashMap::new(),
+            image_pixels: 0,
             page_slides: Vec::new(),
             links: Vec::new(),
             link_quads: Vec::new(),
@@ -148,6 +151,7 @@ impl Renderer {
     fn reset(&mut self) {
         self.warnings.clear();
         self.images.clear();
+        self.image_pixels = 0;
         self.links.clear();
     }
 
@@ -585,11 +589,13 @@ mod tests {
         let pdf = render(&mut r, &build::deck(objects)).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         assert_eq!(r.images.len(), 1, "one distinct source, decoded once");
+        assert_eq!(r.image_pixels, 1, "counted once against the presentation's pixel limit");
         // The RGBA picture and its alpha soft mask, written once for four draws.
         assert_eq!(pdf.windows(14).filter(|w| w == b"/Subtype/Image").count(), 2);
         // A second render starts with an empty cache, so old pictures are not kept alive.
         render(&mut r, &build::deck(Vec::new())).unwrap();
         assert!(r.images.is_empty());
+        assert_eq!(r.image_pixels, 0);
     }
 
     /// The PDF's annotations, the PDF syntax of one object each.
@@ -766,6 +772,35 @@ mod tests {
         let pdf = render(&mut r, &text(Some(glow))).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the glow is an image with a soft mask");
+    }
+
+    #[test]
+    fn draws_a_bounded_number_of_glows_per_text_box() {
+        let mut r = Renderer::new();
+        let Some(font) = liberation_sans() else {
+            return eprintln!("Liberation Sans not installed: glow limit not checked");
+        };
+        r.add_font(font);
+        // One glow per run, each a different radius: thousands of them overflowed the wasm stack.
+        let runs = (0..2000)
+            .map(|i| model::Run {
+                glow: Some(build::shadow("rgba(255, 192, 0, 0.6)", 1.0 + i as f32 / 100.0, 0.0, false)),
+                ..build::run("g", "Liberation Sans", 10.0)
+            })
+            .collect();
+        let text = build::text_box(vec![build::paragraph(runs, 12.0, 10.0)]);
+        let pdf = render(&mut r, &build::deck(vec![build::text_object(build::style(10.0, 20.0, 600.0, 400.0), text)])).unwrap();
+        assert_eq!(r.warnings(), vec!["text glows past the first 16 distinct ones in a text box not rendered"]);
+        assert_eq!(String::from_utf8_lossy(&pdf).matches("/SMask").count(), 16);
+    }
+
+    #[test]
+    fn shadows_a_shape_with_huge_coordinates() {
+        let mut r = Renderer::new();
+        let (mut style, shape) = dashed_shape(path("M 0 0 C 1e17 0 1e17 1e17 0 1e17 Z", None));
+        style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.75)", 10.67, 4.0, false));
+        render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
     }
 
     #[test]
