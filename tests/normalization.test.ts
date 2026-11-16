@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { normalizeGeometry, normalizeTransform } from "../packages/pptxgenjs/src/normalize/geometry";
 import { resolveImageSource } from "../packages/pptxgenjs/src/node";
 import { arrowHeadPath, arrowShaftStart, normalizeColor, normalizeFill, normalizeLine, normalizeShadow, shaftDashes, startDashAt } from "../packages/pptxgenjs/src/normalize/style";
+import { normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("shared object normalization", () => {
@@ -29,6 +30,14 @@ describe("shared object normalization", () => {
             color: "#ED7D31",
             style: "dashed",
         });
+    });
+
+    // PptxGenJS 4.0.1 copies only width, dashType and the arrow types from a line object (addShapeDefinition,
+    // addTextDefinition); the deprecated names it declares there are read only as top-level options.
+    test("ignores the deprecated names inside a line object, as PptxGenJS does", () => {
+        const deprecated = { color: "FF0000", pt: 4, size: 5, lineDash: "dash", lineHead: "arrow", lineTail: "oval" } as const;
+        expect(normalizeLine(deprecated)).toEqual(normalizeLine({ color: "FF0000" }));
+        expect(normalizeShapeLine({ line: { color: "FF0000" }, lineSize: 4, lineDash: "dash", lineHead: "arrow", lineTail: "oval" }, normalizeLine)).toEqual(normalizeLine({ color: "FF0000", width: 4, dashType: "dash", beginArrowType: "arrow", endArrowType: "oval" }));
     });
 
     test("uses the ECMA-376 prstDash ratios LibreOffice imports", () => {

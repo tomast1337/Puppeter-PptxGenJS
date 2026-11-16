@@ -138,15 +138,18 @@ export function shaftDashes(pattern: readonly number[], start: number, end: numb
  * its heads (arrowShaftStart at each end), so the stroke neither pokes out of a pointed tip nor fills the
  * stealth notch; the model spells that out as an explicit dash array.
  * shortcut: other open paths keep the full stroke under their heads; trim them by arc length if a fixture needs it.
+ * Reads the line object as PptxGenJS 4.0.1 does (addShapeDefinition, addTextDefinition, slideObjectToXml): `width`,
+ * `dashType` and the arrow types, never the deprecated `pt`, `size`, `lineDash`, `lineHead` or `lineTail` the
+ * type declares on it. The deprecated top-level options are mapped by normalizeShapeLine.
  */
 export function normalizeLine(value?: PptxGenJS.ShapeLineProps, straightLength?: number): NormalizedLine {
     if (!value || value.type === "none") {
         return { visible: false, color: "transparent", width: 0, style: "solid" };
     }
-    const dash = value.dashType ?? value.lineDash ?? "solid";
-    const width = pointsToPixels(value.width ?? value.pt ?? value.size ?? PPTX_DEFAULTS.shape.line.widthPt);
-    const beginArrow = value.beginArrowType ?? value.lineHead ?? "none";
-    const endArrow = value.endArrowType ?? value.lineTail ?? "none";
+    const dash = value.dashType ?? "solid";
+    const width = pointsToPixels(value.width ?? PPTX_DEFAULTS.shape.line.widthPt);
+    const beginArrow = value.beginArrowType ?? "none";
+    const endArrow = value.endArrowType ?? "none";
     const pattern = width > 0 ? PPTX_DEFAULTS.shape.dashPatterns[dash]?.map(part => part * width) : undefined;
     const trimmed = straightLength !== undefined && (beginArrow !== "none" || endArrow !== "none");
     const dashArray = trimmed ? shaftDashes(pattern ?? [straightLength, straightLength], arrowShaftStart(beginArrow, width), straightLength - arrowShaftStart(endArrow, width), straightLength) : pattern && startDashAt(pattern, arrowShaftStart(beginArrow, width));
