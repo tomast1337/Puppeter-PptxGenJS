@@ -116,6 +116,22 @@ import { closeBrowser } from "@pdflapas/pptxgenjs";
 await closeBrowser();
 ```
 
+Chromium launches with Puppeteer's `{ headless: "shell", args: ["--no-sandbox", "--disable-setuid-sandbox"] }`:
+its sandbox refuses to start as root, the usual user in a container. Pass your own
+[Puppeteer launch options](https://pptr.dev/api/puppeteer.launchoptions)
+(`executablePath`, `args`, `headless`, `timeout`, `protocolTimeout`,
+`userDataDir`, `env`; the `PuppeteerLaunchOptions` type) to the renderer; they
+are merged over the defaults, so `args` replaces the default args. Renderers
+with the same options share one browser:
+
+```typescript
+import PuppeteerGen, { PuppeteerPdfRenderer } from "@pdflapas/pptxgenjs";
+
+// Keep Chromium's sandbox (needs a non-root user or a configured sandbox).
+const renderer = new PuppeteerPdfRenderer({ launchOptions: { args: [] } });
+const pres = new PuppeteerGen(undefined, { renderer });
+```
+
 `@pdflapas/pptxgenjs` installs `@pdflapas/puppeteer` for its Node entry's
 default renderer; install `@pdflapas/puppeteer` directly only to use
 `PuppeteerPdfRenderer` or `closeBrowser` without the compatibility layer.
