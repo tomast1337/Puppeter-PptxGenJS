@@ -119,6 +119,11 @@ export const PPTX_DEFAULTS = Object.freeze({
         // PowerPoint's Normal text-box inset: top, right, bottom, left.
         marginIn: Object.freeze([0.05, 0.1, 0.05, 0.1] as const),
         glowWhenEnabled: Object.freeze({ sizePt: 8, color: "FFFFFF", opacity: 0.75 }),
+        // A `line` without a width on text that is not shape "line": PptxGenJS 4.0.1 writes <a:ln> without
+        // `w`, whose ECMA-376 default 0 is the thinnest line the device draws (LibreOffice: one pixel).
+        // 0.75pt is one CSS px, one pixel of the 96 dpi visual raster.
+        // shortcut: a fixed 0.75pt, not a zero-width device line; switch when both renderers can stroke width 0.
+        hairlineWidthPt: 0.75,
         // Font-independent line box of LibreOffice's PPTX import (editeng fixed cell height,
         // ImplCalculateFontIndependentLineSpacing): a single line is 1.2x the font size, the baseline
         // sits 1.0x the font size below its top, so 0.2x below it. Spacing multiples scale the 1.2;

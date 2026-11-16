@@ -423,5 +423,12 @@
     "p1-SlideNumber": 0.0238,
     "p2-Text0": 0.1228,
     "p2-SlideNumber": 0.0002
+  },
+  "options": {
+    "p1-textlinedeprecatedignored": 0.0133,
+    "p1-textlinehairline": 0.1212,
+    "p1-textlinestringignored": 0.0109,
+    "p1-textlineshapelinedeprecated": 0.008,
+    "p1-textlineshapelinestring": 0
   }
 }

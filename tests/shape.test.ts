@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import type PptxGenJS from "pptxgenjs";
+import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { renderedPage } from "./renderedPage";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
 import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
@@ -26,6 +28,30 @@ describe("shape normalization", () => {
         expect(line.style).toBe("dashed");
         expect(line.beginArrow).toBe("triangle");
         expect(line.endArrow).toBe("oval");
+    });
+
+    // PptxGenJS 4.0.1 addTextDefinition reads a string `line` and lineSize/lineDash/lineHead/lineTail only
+    // for shape "line"; other text writes <a:ln> from the line object, without `w` when it has no width.
+    test("applies addText's deprecated line options only to shape line, as PptxGenJS does", () => {
+        const deprecated = { lineSize: 4, lineDash: "dash", lineHead: "triangle", lineTail: "oval" } as const;
+        const lineOf = (options: PptxGenJS.TextPropsOptions) => {
+            const presentation = new PuppeteerGen();
+            presentation.addSlide().addText("Text", { x: 1, y: 1, w: 2, h: 1, ...options });
+            const object = presentation.getModel().slides[0]?.objects[0];
+            return object?.style.line;
+        };
+        const ptToPx = (pt: number) => (pt * 96) / 72;
+
+        expect(lineOf({ shape: "line", line: { color: "FF0000" }, ...deprecated })).toMatchObject({ visible: true, color: "#FF0000", width: ptToPx(4), style: "dashed", beginArrow: "triangle", endArrow: "oval" });
+        expect(lineOf({ shape: "line", line: "00FF00" as unknown as PptxGenJS.ShapeLineProps })).toMatchObject({ visible: true, color: "#00FF00", width: ptToPx(1) });
+
+        for (const shape of [undefined, "rect", "roundRect"] as const) {
+            expect(lineOf({ shape, line: { color: "FF0000", width: 2 }, ...deprecated })).toMatchObject({ visible: true, color: "#FF0000", width: ptToPx(2), style: "solid", beginArrow: "none", endArrow: "none" });
+            expect(lineOf({ shape, line: { color: "FF0000" } })).toMatchObject({ visible: true, width: ptToPx(PPTX_DEFAULTS.text.hairlineWidthPt) });
+            expect(lineOf({ shape, line: { color: "FF0000", width: 0 } })).toMatchObject({ visible: true, width: ptToPx(PPTX_DEFAULTS.text.hairlineWidthPt) });
+            expect(lineOf({ shape, line: "FF0000" as unknown as PptxGenJS.ShapeLineProps, ...deprecated })).toMatchObject({ visible: false });
+            expect(lineOf({ shape, ...deprecated })).toMatchObject({ visible: false });
+        }
     });
 
     test("normalizes core preset geometry and rounded radius", () => {

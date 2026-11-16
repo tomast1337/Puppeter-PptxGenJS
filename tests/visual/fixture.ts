@@ -241,6 +241,32 @@ const TEXT_CASES = [
 const ARROW_HEAD_TYPES = ["none", "triangle", "stealth", "diamond", "oval", "arrow"] as const;
 const ARROW_HEAD_CASES = [1, 4.5].flatMap((widthPt, row) => ARROW_HEAD_TYPES.map((type, index) => ({ page: 60, name: `arrowhead-${type}-${widthPt}pt`, type, widthPt, x: 1 + index * 1.5, y: 1.5 + row * 2, w: 0.5, h: 0.5 })));
 
+// populateTextOptionsFixture(): text options PptxGenJS reads only in some combinations, one slide per
+// group. Each case is a text box with a short text and a crop (padded for strokes and arrowheads), on whole
+// pixels at 96 dpi so the crop scores the option rather than where each rasterizer snaps a fractional edge; its
+// label sits above the crop.
+interface TextOptionCase {
+    name: string;
+    label: string;
+    text: string;
+    options: PptxGenJS.TextPropsOptions & { x: number; y: number; w: number; h: number };
+}
+const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCase[] }[] = [
+    {
+        // PptxGenJS 4.0.1 reads a string `line` and lineSize/lineDash/lineHead/lineTail only for shape "line".
+        title: "Text outlines: deprecated line options",
+        cases: [
+            { name: "text-line-deprecated-ignored", label: "line object; lineSize 6 and lineDash ignored", text: "Outline", options: { x: 0.5, y: 1.25, w: 4, h: 0.75, line: { color: "C00000", width: 2 }, lineSize: 6, lineDash: "dash" } },
+            { name: "text-line-hairline", label: "line object without width: hairline", text: "Hairline", options: { x: 5.5, y: 1.25, w: 4, h: 0.75, line: { color: "2F5597" } } },
+            { name: "text-line-string-ignored", label: "string line on a text box: no outline", text: "None", options: { x: 0.5, y: 2.75, w: 4, h: 0.75, fill: { color: "F2F2F2" }, line: "C00000" as unknown as PptxGenJS.ShapeLineProps, lineSize: 3 } },
+            { name: "text-line-shape-line-deprecated", label: "shape line: lineSize, lineDash, lineHead, lineTail", text: "", options: { x: 0.5, y: 4.25, w: 4, h: 0.75, shape: "line", line: { color: "2F5597" }, lineSize: 4, lineDash: "dash", lineHead: "triangle", lineTail: "oval" } },
+            { name: "text-line-shape-line-string", label: "shape line: string line and lineSize", text: "", options: { x: 5.5, y: 4.25, w: 4, h: 0.75, shape: "line", line: "C00000" as unknown as PptxGenJS.ShapeLineProps, lineSize: 3 } },
+        ],
+    },
+];
+const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h } }) => ({ page: 63 + index, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })));
+export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;
+
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
 function cropThreshold(name: string): number {
@@ -273,6 +299,7 @@ export const PARITY_REGIONS = [
     // populateSlidePropertiesFixture(): the slide numbers, own style and inherited one; its hidden slide prints no page.
     { page: 61, name: "slide-number-own-style", x: 7.5, y: 4.6, w: 2, h: 0.8 },
     { page: 62, name: "slide-number-inherited-style", x: 0.5, y: 1.2, w: 2.5, h: 1 },
+    ...TEXT_OPTION_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1518,6 +1545,7 @@ export function populateParityFixture(presentation: Presentation): void {
     populateComponentFixture(presentation);
     populateArrowHeadFixture(presentation);
     populateSlidePropertiesFixture(presentation);
+    populateTextOptionsFixture(presentation);
 }
 
 /** The parity fixture's image slides (SVG pictures), also the WASM backend's SVG image deck (tests/visual/wasm/decks.ts). */
@@ -1928,4 +1956,17 @@ export function populateSlidePropertiesFixture(presentation: Presentation): void
     // No font, size or color of its own: they, its insets and its anchor come from the slideNumber set last.
     numbered.slideNumber = { x: 0.5, y: 1.2, w: 2.5, h: 1, align: "left" };
     pictured.slideNumber = { x: 7.5, y: 4.6, w: 2, h: 0.8, fontFace: "Arial", fontSize: 28, color: "C00000", bold: true, align: "right", valign: "bottom", margin: [0, 12, 6, 0] };
+}
+
+/** The parity fixture's text-option slides (TEXT_OPTION_SLIDES), also the WASM backend's options deck. */
+export function populateTextOptionsFixture(presentation: Presentation): void {
+    for (const { title, cases } of TEXT_OPTION_SLIDES) {
+        const slide = presentation.addSlide();
+        slide.addText(title, { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+        for (const { name, label, text, options } of cases) {
+            slide.addText(label, { x: options.x, y: options.y - 0.45, w: options.w, h: 0.25, fontFace: "Arial", fontSize: 11, color: "595959", margin: 0 });
+            // A fresh object per call: PptxGenJS mutates the options it is given.
+            slide.addText(text, { fontFace: "Arial", fontSize: 14, color: "363636", objectName: name, ...options });
+        }
+    }
 }

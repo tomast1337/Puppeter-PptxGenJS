@@ -110,11 +110,16 @@ reads no other text option of a slide number.
 | Direction             |                            Horizontal | Mapped                         |
 | Fit                   |                                  None | Mapped                         |
 | Rotation/transparency |                                     0 | Mapped                         |
+| Outline without width |       Hairline (`<a:ln>` without `w`) | 0.75pt (one CSS px)            |
 
 Text `margin` values are points. A scalar applies to all sides. PptxGenJS
 4.0.1 emits a four-value text margin as `[left, right, bottom, top]`, although
 its type documentation says `[top, right, bottom, left]`. PuppeteerGen mirrors
 the emitted behavior for compatibility.
+
+A text outline comes from the `line` object only. PptxGenJS 4.0.1 reads a
+string `line` and the deprecated `lineSize`, `lineDash`, `lineHead` and
+`lineTail` only for `shape: "line"`, so on any other text they draw nothing.
 
 ## Tables
 
