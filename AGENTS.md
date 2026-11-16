@@ -137,9 +137,7 @@ only for a file whose single export is a class) and snake_case in Rust.
 **Product code and fixtures stay apart.** Library code lives in `packages/*/src` and `crates/*/src`;
 tests in `tests/` (visual fixtures and their scoring in `tests/visual/`); scripts in `scripts/`;
 examples in `examples/`, a private workspace package that imports `@pdflapas/*` by package name only, as an
-application does, and runs against the built packages (its own `tsconfig.json` has no `paths`). Rust unit tests may sit in a `#[cfg(test)]` module beside the code. `spike/` is
-exploratory: nothing in `packages/`, `crates/` or `tests/` imports from it, and code that graduates is
-moved, not referenced.
+application does, and runs against the built packages (its own `tsconfig.json` has no `paths`). Rust unit tests may sit in a `#[cfg(test)]` module beside the code.
 
 **A value that means something has one name, in one place.** PptxGenJS and Office defaults live in
 `packages/pptxgenjs/src/defaults.ts`. Unit conversions (96 CSS px per inch, 72 pt per inch, EMU) are
