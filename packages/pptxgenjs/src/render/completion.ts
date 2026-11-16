@@ -6,7 +6,7 @@
  * Pure and browser-safe: parse5 finds what is missing, and each missing value is spliced into the original
  * string, so a document that already states everything (every `toHtml()` result) comes back byte-identical.
  */
-import { type HtmlPresentationDocument, htmlDocument, profileMetaPrefix } from "@pdflapas/model";
+import { applySourceEdits, type HtmlPresentationDocument, htmlDocument, profileMetaPrefix, type SourceEdit } from "@pdflapas/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 import { PPTX_DEFAULTS } from "../defaults";
 import { normalizeColor } from "../normalize/style";
@@ -95,12 +95,6 @@ const DEFAULTS = {
 const OPAQUE_CLASSES = ["slide-chart", "slide-component"] as const;
 const PX_LENGTH = /^-?\d+(\.\d+)?(e[+-]?\d+)?px$/i;
 
-interface Edit {
-    start: number;
-    end: number;
-    text: string;
-}
-
 function isElement(node: Node): node is Element {
     return "tagName" in node;
 }
@@ -144,7 +138,7 @@ function pxValue(value: string, property: string, where: string): number {
 }
 
 /** One edit that adds `css` to the element's style and `attributes` to its start tag; none when both are empty. */
-function addToElement(element: Element, css: Pairs, attributes: Pairs): Edit | undefined {
+function addToElement(element: Element, css: Pairs, attributes: Pairs): SourceEdit | undefined {
     if (!css.length && !attributes.length) return undefined;
     const tag = element.sourceCodeLocation?.startTag;
     // Only elements the parser invented (an implied <tbody>) have no location; the profile never needs to edit one.
@@ -163,7 +157,7 @@ function addToElement(element: Element, css: Pairs, attributes: Pairs): Edit | u
     return { start: at, end: at, text: insert };
 }
 
-function missing(element: Element, defaults: Defaults): Edit | undefined {
+function missing(element: Element, defaults: Defaults): SourceEdit | undefined {
     const style = styleOf(element);
     const has = new Set(element.attrs.map(attributeName));
     return addToElement(
@@ -183,7 +177,7 @@ function where(slide: number, element: Element): string {
 }
 
 /** The line box from the paragraph's largest run, as normalization computes it (`paragraphLineBox`). */
-function completeParagraph(paragraph: Element, inCell: boolean, slide: number): Edit | undefined {
+function completeParagraph(paragraph: Element, inCell: boolean, slide: number): SourceEdit | undefined {
     const style = styleOf(paragraph);
     const defaultSize = pointsToPixels(inCell ? PPTX_DEFAULTS.table.fontSizePt : PPTX_DEFAULTS.text.fontSizePt);
     const sizes = paragraph.childNodes.filter(isElement).flatMap(child => {
@@ -198,7 +192,7 @@ function completeParagraph(paragraph: Element, inCell: boolean, slide: number): 
     return addToElement(paragraph, [...DEFAULTS.paragraph.css.filter(([property]) => !style.has(property)), ...(lineHeight === undefined ? [["line-height", px(lineBox.height)] as const] : [])], has ? [] : [["data-line-baseline", String(lineBox.baseline)]]);
 }
 
-function collectEdits(node: Parent, inCell: boolean, slide: number, edits: Edit[]): void {
+function collectEdits(node: Parent, inCell: boolean, slide: number, edits: SourceEdit[]): void {
     for (const child of node.childNodes) {
         if (!isElement(child)) continue;
         if (OPAQUE_CLASSES.some(name => hasClass(child, name))) continue;
@@ -209,7 +203,7 @@ function collectEdits(node: Parent, inCell: boolean, slide: number, edits: Edit[
     }
 }
 
-function completeElement(element: Element, inCell: boolean, slide: number): Edit | undefined {
+function completeElement(element: Element, inCell: boolean, slide: number): SourceEdit | undefined {
     const linked = element.tagName === "a";
     if (hasClass(element, "slide-container")) return missing(element, DEFAULTS.slide);
     if (hasClass(element, "slide-text")) return missing(element, DEFAULTS.text);
@@ -246,7 +240,7 @@ function pageSizeNamed(name: string) {
  * The shared stylesheet when no `<style>` has an `@page` rule: for the size `<prefix>page-size` names, else
  * PptxGenJS's LAYOUT_16x9, whose name it also writes so `htmlDocument` reads the whole page size.
  */
-function stylesheet(head: Element, prefix: string): Edit | undefined {
+function stylesheet(head: Element, prefix: string): SourceEdit | undefined {
     const name = metaContent(head, `${prefix}page-size`);
     const styles = head.childNodes.filter(isElement).filter(node => node.tagName === "style");
     if (styles.some(style => style.childNodes.some(text => "value" in text && text.value.includes("@page")))) return undefined;
@@ -274,16 +268,14 @@ export function completeProfileHtml(html: string): string {
     // Without a <head> there is no profile <meta>, so profileMetaPrefix throws.
     const prefix = profileMetaPrefix(name => (head ? metaContent(head, name) : undefined));
     const sheet = head && stylesheet(head, prefix);
-    const edits: Edit[] = sheet ? [sheet] : [];
+    const edits: SourceEdit[] = sheet ? [sheet] : [];
     const body = findElement(document, element => element.tagName === "body");
     body?.childNodes.filter(isElement).forEach((slide, index) => {
         const edit = completeElement(slide, false, index + 1);
         if (edit) edits.push(edit);
         collectEdits(slide, false, index + 1, edits);
     });
-    // Later offsets first, so earlier ones stay valid.
-    let completed = html;
-    for (const edit of edits.toSorted((a, b) => b.start - a.start)) completed = `${completed.slice(0, edit.start)}${edit.text}${completed.slice(edit.end)}`;
+    const completed = applySourceEdits(html, edits);
     // Standards mode: quirks mode drops the line-box strut (render/document.ts).
     const hasDoctype = document.childNodes.some(node => node.nodeName === "#documentType");
     return hasDoctype ? completed : `<!DOCTYPE html>${completed}`;

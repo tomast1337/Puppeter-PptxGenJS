@@ -6,16 +6,11 @@
  * finds the elements, and each change is spliced into the original string at its source offsets, so every
  * byte the print step does not change stays as it was. HTML outside the profile comes back unchanged.
  */
+import { applySourceEdits, type SourceEdit } from "@pdflapas/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 
 type Element = DefaultTreeAdapterTypes.Element;
 type Parent = DefaultTreeAdapterTypes.ParentNode;
-
-interface Edit {
-    start: number;
-    end: number;
-    text: string;
-}
 
 // Lengths are read from the raw `style` attribute: the CSSOM serializes them to 6 significant digits.
 const LINE_HEIGHT = /(?:^|; )line-height: ([^;]+)px;/;
@@ -78,7 +73,7 @@ const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4
 const local = (value: number) => Number(value.toFixed(4)) || 0;
 
 /** Sets attribute `name` to `value`: replaces it where it is written, or adds it right after the tag name. */
-function setAttribute(element: Element, name: string, value: string): Edit {
+function setAttribute(element: Element, name: string, value: string): SourceEdit {
     const at = element.sourceCodeLocation?.attrs?.[name];
     if (at) return { start: at.startOffset, end: at.endOffset, text: `${name}=${quoted(value)}` };
     const tag = element.sourceCodeLocation?.startTag;
@@ -90,7 +85,7 @@ function setAttribute(element: Element, name: string, value: string): Edit {
 }
 
 /** Appends `declarations` to the element's style; later declarations win, as the CSSOM setters made them. */
-function addStyle(element: Element, declarations: string): Edit {
+function addStyle(element: Element, declarations: string): SourceEdit {
     const style = (attribute(element, "style") ?? "").trim();
     return setAttribute(element, "style", style ? `${style}${style.endsWith(";") ? "" : ";"} ${declarations}` : declarations);
 }
@@ -110,7 +105,7 @@ export function printHtml(html: string): string {
         payloads.push(uri.slice(head.length));
         return head;
     });
-    const edits: Edit[] = [];
+    const edits: SourceEdit[] = [];
     for (const element of descendants(parse(masked, { sourceCodeLocationInfo: true }))) {
         if (element.tagName === "html") {
             edits.push(addStyle(element, `zoom: ${PRINT_ZOOM};`));
@@ -168,11 +163,8 @@ export function printHtml(html: string): string {
             if (widest) edits.push(addStyle(element, `position: relative; left: ${-widest / 2}px; top: ${-widest / 2}px;`));
         }
     }
-    // Later offsets first, so earlier ones stay valid.
-    let printed = masked;
-    for (const edit of edits.toSorted((a, b) => b.start - a.start)) printed = `${printed.slice(0, edit.start)}${edit.text}${printed.slice(edit.end)}`;
     let next = 0;
-    return printed.replace(DATA_URI_PAYLOAD, (head: string) => `${head}${payloads[next++] ?? ""}`);
+    return applySourceEdits(masked, edits).replace(DATA_URI_PAYLOAD, (head: string) => `${head}${payloads[next++] ?? ""}`);
 }
 
 /**
@@ -180,14 +172,14 @@ export function printHtml(html: string): string {
  * inner half of a collapsed border inside the cell and the margins after it. Grow the cell's text box over that
  * half on each side: an absolute box by its inset, one in flow by negative margins and a wider width.
  */
-function cellInset(text: Element, half: Readonly<Record<"top" | "right" | "bottom" | "left", number>>): Edit {
+function cellInset(text: Element, half: Readonly<Record<"top" | "right" | "bottom" | "left", number>>): SourceEdit {
     const { top, right, bottom, left } = half;
     if (ABSOLUTE.test(attribute(text, "style") ?? "")) return addStyle(text, `inset: ${-top}px ${-right}px ${-bottom}px ${-left}px;`);
     return addStyle(text, `margin: ${-top}px ${-right}px ${-bottom}px ${-left}px; width: calc(100% + ${left + right}px);`);
 }
 
-function shapeEdits(svg: Element): Edit[] {
-    const edits: Edit[] = [];
+function shapeEdits(svg: Element): SourceEdit[] {
+    const edits: SourceEdit[] = [];
     // Print snap: Chromium paints an SVG root from a whole device px, 1 / PRINT_ZOOM CSS px under the print
     // zoom. In print it rounds the object's offset on its page half up (-10.5 -> -10) and moves the drawing by
     // the difference, in page space even under the object's rotation or flip. Measured from the PDF matrices
