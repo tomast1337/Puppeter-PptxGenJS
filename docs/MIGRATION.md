@@ -46,10 +46,21 @@ returns a `.pptx`:
   a link to the hidden slide jumps nowhere.
 - **Shown nowhere, as in PowerPoint's slide show:** `addNotes()`, `addSection()` and `pres.rtlMode`
   (which orients PowerPoint's editing views) are accepted and change nothing on the page.
+- **Ignored, as PptxGenJS ignores them:** text `bulletNumberType`, `textDirection` (a table cell
+  option), `isTextBox`, `data` and `path`, shape `align` and table `verbose` are accepted and draw
+  nothing different. A string `line` and `lineSize`, `lineDash`, `lineHead`, `lineTail` apply to
+  `addText` only with `shape: "line"`, as in PptxGenJS.
+- **Text fit and tab stops:** `fit: "shrink"` (`shrinkText`) scales font size and line height in
+  steps until the text fits, close to but not the scale PowerPoint or LibreOffice pick.
+  `fit: "resize"` (`autoFit`) grows the box to its text, where PowerPoint keeps the stored size until
+  the text is edited. Explicit `tabStops` are drawn by the WASM renderer; the Puppeteer renderer
+  uses the 1in default stops.
 
 **What throws.** PdfLapas fails instead of writing a PDF that silently lacks something:
 `addMedia()` and `defineSlideMaster()` throw `UnsupportedFeatureError` with a suggested
-alternative; a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
+alternative, and so do the options that need a slide master: `placeholder` on `addText()` and
+`addImage()`, `masterSlideName` on `tableToSlides()`. An inner shadow on a shape stops the PDF
+(PptxGenJS writes it as XML that LibreOffice drops); a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
 throws before rendering. `API_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs`, lists what PdfLapas
 does with each PptxGenJS presentation and slide member; `COMPATIBILITY` does the same per option.
 

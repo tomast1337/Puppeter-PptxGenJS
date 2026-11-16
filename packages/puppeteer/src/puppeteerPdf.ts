@@ -87,6 +87,8 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
             image.style.transform = `scale(${targetWidth / image.naturalWidth}, ${targetHeight / image.naturalHeight})`;
         });
 
+        // shortcut: font size and line height in 0.95 steps, not LibreOffice's font and spacing scale or PowerPoint's
+        // fontScale; match one of them once a fixture measures the shrunk size against the reference.
         document.querySelectorAll<HTMLElement>('.slide-text[data-text-fit="shrink"]').forEach(box => {
             const content = box.querySelector<HTMLElement>(".text-content");
             if (!content) return;
