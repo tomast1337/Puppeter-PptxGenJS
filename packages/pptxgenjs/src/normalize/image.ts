@@ -14,12 +14,20 @@ export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
     ".webp": "image/webp",
 });
 
-function validateDataUri(source: string): string {
-    const match = source.match(/^data:(image\/[\w.+-]+);base64,([a-z\d+/=\s]+)$/i);
-    if (!match?.[2]?.replace(/\s/g, "")) {
-        throw new Error("Image data must be a base64-encoded image data URI");
+// PptxGenJS 4.0.1 (addImageDefinition) takes any `data` that contains "base64,": its documented form
+// "image/png;base64,…", a full data URI, or bare "base64,…", which it types by the path extension, else png.
+const IMAGE_DATA = /^(data:)?(?:(image\/[\w.+-]+);)?base64,([a-z\d+/=\s]+)$/i;
+
+/** Checks image `data` and returns it as the data URI the HTML profile carries. */
+function imageDataUri(data: string, path?: string): string {
+    const match = data.match(IMAGE_DATA);
+    if (!match?.[3]?.replace(/\s/g, "")) {
+        throw new Error(`Image data must be base64-encoded image data, like "image/png;base64,iVBORw0KGgo…" or "data:image/png;base64,iVBORw0KGgo…"; got "${data.slice(0, 40)}"`);
     }
-    return source;
+    if (match[1] && match[2]) return data;
+    const fallback = MIME_TYPES[`.${PPTX_DEFAULTS.image.fallbackExtension}`];
+    const mime = match[2] ?? MIME_TYPES[path?.match(/\.\w+$/)?.[0]?.toLowerCase() ?? ""] ?? fallback;
+    return `data:${mime};base64,${match[3]}`;
 }
 
 /** One latin1 char per byte, without Buffer. Chunked so large inputs stay under the argument limit. */
@@ -36,7 +44,7 @@ export function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): string {
 
 /** Runtime-neutral image resolution: data URIs and http(s) URLs only. File paths need a runtime adapter. */
 export async function resolveRemoteImageSource(source: string): Promise<string> {
-    if (/^data:/i.test(source)) return validateDataUri(source);
+    if (/^data:/i.test(source)) return imageDataUri(source);
     if (/^https?:\/\//i.test(source)) {
         let response: Response;
         try {
@@ -70,11 +78,11 @@ function normalizeSizing(sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | u
 }
 
 export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize): NormalizedImage {
-    const source = options.data ?? options.path;
-    if (!source) throw new Error("addImage() requires either 'data' or 'path'");
-    if (typeof source !== "string") throw new Error("Image source must be a string");
-    const sourceKind = options.data !== undefined ? "data" : /^https?:\/\//i.test(source) ? "remote" : "path";
-    if (sourceKind === "data") validateDataUri(source);
+    const raw = options.data ?? options.path;
+    if (!raw) throw new Error("addImage() requires either 'data' or 'path'");
+    if (typeof raw !== "string") throw new Error("Image source must be a string");
+    const sourceKind = options.data !== undefined ? "data" : /^https?:\/\//i.test(raw) ? "remote" : "path";
+    const source = sourceKind === "data" ? imageDataUri(raw, options.path) : raw;
     const sizing = options.sizing;
     const pageWidth = inchesToPixels(pageSize.width);
     const pageHeight = inchesToPixels(pageSize.height);

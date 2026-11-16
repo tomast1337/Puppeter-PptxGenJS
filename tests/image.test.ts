@@ -14,9 +14,22 @@ const PNG_DATA = "data:image/png;base64,iVBORw0KGgo=";
 describe("image normalization", () => {
     test("requires and validates image sources", () => {
         expect(() => normalizeImage({} as never, PAGE)).toThrow("requires either 'data' or 'path'");
-        expect(() => normalizeImage({ data: "not-a-data-uri" }, PAGE)).toThrow("base64-encoded image data URI");
-        expect(() => normalizeImage({ data: "data:text/plain;base64,YQ==" }, PAGE)).toThrow("base64-encoded image data URI");
+        expect(() => normalizeImage({ data: "not-a-data-uri" }, PAGE)).toThrow("must be base64-encoded image data");
+        expect(() => normalizeImage({ data: "data:text/plain;base64,YQ==" }, PAGE)).toThrow("must be base64-encoded image data");
         expect(() => normalizeImage({ data: PNG_DATA, hyperlink: {} }, PAGE)).toThrow("hyperlink requires either url or slide");
+    });
+
+    // PptxGenJS 4.0.1 addImageDefinition takes any data containing "base64," and types it from
+    // `image/<type>;`, else the path extension, else png.
+    test("accepts the image data forms PptxGenJS accepts", () => {
+        const source = (options: { data: string; path?: string }) => normalizeImage(options, PAGE).source;
+        expect(source({ data: PNG_DATA })).toBe(PNG_DATA);
+        expect(source({ data: "image/png;base64,iVBORw0KGgo=" })).toBe(PNG_DATA);
+        expect(source({ data: "IMAGE/JPEG;BASE64,/9j/" })).toBe("data:IMAGE/JPEG;base64,/9j/");
+        expect(source({ data: "image/svg+xml;base64,PHN2Zy8+" })).toBe("data:image/svg+xml;base64,PHN2Zy8+");
+        expect(source({ data: "base64,iVBORw0KGgo=" })).toBe(PNG_DATA);
+        expect(source({ data: "base64,R0lGOD", path: "logo.gif" })).toBe("data:image/gif;base64,R0lGOD");
+        expect(() => source({ data: "image/png;base64," })).toThrow("must be base64-encoded image data");
     });
 
     test("normalizes crop offsets, transparency, and internal links", () => {
