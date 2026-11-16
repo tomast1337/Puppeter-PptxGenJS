@@ -73,7 +73,8 @@ function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder 
     const width = type === "none" ? 0 : pointsToPixels(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt);
     return {
         visible: type !== "none",
-        color: normalizeColor(border?.color || PPTX_DEFAULTS.table.border.color),
+        // A "none" side is written as <a:noFill/> without its color, so PptxGenJS never checks that color either.
+        color: type === "none" ? "transparent" : normalizeColor(border?.color || PPTX_DEFAULTS.table.border.color),
         width,
         style: type === "dash" ? "dashed" : "solid",
         // PptxGenJS 4.0.1 writes a "dash" cell border as <a:prstDash val="sysDash"/>.
