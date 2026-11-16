@@ -115,7 +115,8 @@ export const PPTX_DEFAULTS = Object.freeze({
         x: 0,
         y: 0,
         w: "75%" as const,
-        h: 0.3,
+        // PptxGenJS 4.0.1 (and 3.12) writes cy="0" for a text box without `h`.
+        h: 0,
         // PowerPoint's Normal text-box inset: top, right, bottom, left.
         marginIn: Object.freeze([0.05, 0.1, 0.05, 0.1] as const),
         glowWhenEnabled: Object.freeze({ sizePt: 8, color: "FFFFFF", opacity: 0.75 }),

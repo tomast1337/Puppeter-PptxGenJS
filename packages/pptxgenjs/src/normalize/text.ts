@@ -326,3 +326,14 @@ export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs"
 export function lineBoxOf(fontSize: number, height = PPTX_DEFAULTS.text.singleLineEm * fontSize): NormalizedTextParagraph["lineBox"] {
     return { height, baseline: height - PPTX_DEFAULTS.text.lineDescentEm * fontSize };
 }
+
+/**
+ * A box shorter than its top and bottom insets: PowerPoint collapses the text area onto the box's vertical
+ * midline, and the text is drawn from there by its anchor. LibreOffice (26.2, the visual image) draws the
+ * same with equal insets; with unequal ones it lands between the midline and the inverted inset rectangle.
+ */
+export function collapseTextMargins(text: NormalizedTextBox, height: number): NormalizedTextBox {
+    const [top, right, bottom, left] = text.margin;
+    if (top + bottom <= height) return text;
+    return { ...text, margin: [height / 2, right, height / 2, left] };
+}

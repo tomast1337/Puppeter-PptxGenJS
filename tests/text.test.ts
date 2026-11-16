@@ -246,6 +246,19 @@ describe("text DOM rendering", () => {
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
     });
 
+    // PptxGenJS 4.0.1 writes cy="0" without `h`; a box shorter than its insets centres the text area on its midline.
+    test("defaults a text box to zero height and collapses its insets onto the midline", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText("No height", { x: 1, y: 1, w: 2 });
+        slide.addText("Thin", { x: 1, y: 2, w: 2, h: 0.05, margin: [7, 2, 20, 7] });
+        slide.addText("Tall", { x: 1, y: 3, w: 2, h: 1 });
+        const [none, thin, tall] = presentation.getModel().slides[0]!.objects.map(object => (object.kind === "text" ? { height: Number(object.style.geometry.height?.toFixed(3)), margin: object.text.margin.map(value => Number(value.toFixed(3))) } : undefined));
+        expect(none).toEqual({ height: 0, margin: [0, 9.6, 0, 9.6] });
+        expect(thin).toEqual({ height: 4.8, margin: [2.4, 2.667, 2.4, 9.333] });
+        expect(tall?.margin).toEqual([4.8, 9.6, 4.8, 9.6]);
+    });
+
     // PptxGenJS writes no clip on a text body; PowerPoint and LibreOffice draw text past the box from its anchor.
     test("does not clip text boxes", () => {
         const rule = presentationCSS(PAGE_SIZES.SCREEN_16X9.landscape).match(/\n\.slide-text \{[^}]*\}/)?.[0];

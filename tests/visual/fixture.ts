@@ -255,7 +255,7 @@ interface TextOptionCase {
     name: string;
     label: string;
     text: string | PptxGenJS.TextProps[];
-    options: PptxGenJS.TextPropsOptions & { x: number; y: number; w: number; h: number };
+    options: PptxGenJS.TextPropsOptions & { x: number; y: number; w: number; h?: number };
     /** Crop padding around the box in inches (default 0.15); the label sits 0.3in above the crop. */
     pad?: number;
 }
@@ -317,8 +317,18 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             pad: 0.6,
         })),
     },
+    {
+        // PptxGenJS writes cy="0" without `h`. Shorter than its insets, the text area collapses onto the box's
+        // midline (PowerPoint; LibreOffice with equal insets) and the text is drawn from there by its anchor.
+        title: "Text boxes without a height",
+        cases: [
+            { name: "text-no-height", label: "no h: middle on y", text: "No height", options: { x: 0.75, y: 2.5, w: 2.25 }, pad: 0.5 },
+            { name: "text-zero-height-top", label: "h 0, valign top: below y", text: "Zero, top", options: { x: 3.875, y: 2.5, w: 2.25, h: 0, valign: "top" }, pad: 0.5 },
+            { name: "text-thin-bottom", label: "h 0.05, valign bottom: above the midline", text: "Thin, bottom", options: { x: 7, y: 2.5, w: 2.25, h: 0.05, valign: "bottom" }, pad: 0.5 },
+        ],
+    },
 ];
-const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h }, pad = 0.15 }) => ({ page: 63 + index, name, x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad })));
+const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h = 0 }, pad = 0.15 }) => ({ page: 63 + index, name, x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;
 
 // These tight crops include the stroke but exclude labels and unused slide area.

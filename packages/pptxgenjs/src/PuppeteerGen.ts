@@ -15,7 +15,7 @@ import { normalizeSlideNumber } from "./normalize/slideNumber";
 import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
 import { paginateTableRows } from "./normalize/table/pagination";
-import { normalizeText, type TextInput } from "./normalize/text";
+import { collapseTextMargins, normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlide, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
@@ -291,10 +291,11 @@ export class PuppeteerSlide implements PptxSlide {
         });
         textStyle.line = normalizeTextLine(textOptions, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0));
         const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.bodyFontFace() });
-        if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: normalizedText });
+        const height = textStyle.geometry.height ?? 0;
+        if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizedText, height) });
         const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
-        const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0, this.pageSize);
-        return this.addObject({ kind: "text", style: textStyle, text: normalizeShapeTextBox(normalizedText, shape), shape });
+        const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, height, this.pageSize);
+        return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizeShapeTextBox(normalizedText, shape), height), shape });
     }
 }
 
