@@ -31,7 +31,7 @@ pub(crate) struct Slide {
     /// The slide's number from `id="slide-N"`, which slide links name: hidden slides are not in
     /// the document, so it can be past the slide's position. `None` without an `id`.
     pub(crate) number: Option<u32>,
-    pub(crate) background: String,
+    pub(crate) background: Rgba,
     pub(crate) objects: Vec<SlideObject>,
 }
 
@@ -93,7 +93,7 @@ pub(crate) struct TableCell {
 
 pub(crate) struct TableBorder {
     pub(crate) visible: bool,
-    pub(crate) color: String,
+    pub(crate) color: Rgba,
     pub(crate) width: f32,
     /// SVG stroke-dasharray (px) of a dashed border.
     pub(crate) dash_array: Option<String>,
@@ -157,7 +157,7 @@ pub(crate) struct Link {
 /// `NormalizedShadow`: an object's drop shadow, or a run's glow (no offset). Lengths in px.
 pub(crate) struct Shadow {
     pub(crate) visible: bool,
-    pub(crate) color: String,
+    pub(crate) color: Rgba,
     pub(crate) blur: f32,
     pub(crate) offset_x: f32,
     pub(crate) offset_y: f32,
@@ -166,20 +166,31 @@ pub(crate) struct Shadow {
 
 pub(crate) struct FillModel {
     pub(crate) visible: bool,
-    pub(crate) color: String,
+    pub(crate) color: Rgba,
 }
 
 pub(crate) struct LineModel {
     pub(crate) visible: bool,
-    pub(crate) color: String,
+    pub(crate) color: Rgba,
     pub(crate) width: f32,
     pub(crate) dash_array: Option<String>,
-    pub(crate) begin_arrow: Option<String>,
-    pub(crate) end_arrow: Option<String>,
+    /// `None` without an arrowhead (`none` or no attribute).
+    pub(crate) begin_arrow: Option<ArrowKind>,
+    pub(crate) end_arrow: Option<ArrowKind>,
     /// Resolved head outlines (`NormalizedLine.beginHeadPath`/`endHeadPath`): closed SVG path data
     /// in px, with the line end at the origin and +x pointing out of the line.
     pub(crate) begin_head_path: Option<String>,
     pub(crate) end_head_path: Option<String>,
+}
+
+/// `NormalizedLine.beginArrow`/`endArrow` other than `none`.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum ArrowKind {
+    Arrow,
+    Diamond,
+    Oval,
+    Stealth,
+    Triangle,
 }
 
 pub(crate) struct ShapeModel {
@@ -219,15 +230,53 @@ pub(crate) struct ShapeFace {
 pub(crate) struct TextBox {
     pub(crate) paragraphs: Vec<Paragraph>,
     pub(crate) margin: [f32; 4],
-    pub(crate) vertical_align: String,
+    pub(crate) vertical_align: VerticalAlign,
     pub(crate) wrap: bool,
-    pub(crate) fit: String,
-    pub(crate) direction: String,
+    pub(crate) fit: TextFit,
+    pub(crate) direction: TextDirection,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum VerticalAlign {
+    Top,
+    Middle,
+    Bottom,
+}
+
+/// `NormalizedTextBox.fit`: shrink the fonts, or grow the box, to fit the text.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum TextFit {
+    None,
+    Shrink,
+    Resize,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum TextDirection {
+    Horizontal,
+    Vertical,
+    Vertical270,
+    Stacked,
+}
+
+impl TextDirection {
+    /// Lines run down the box (rotated 90 or 270 degrees).
+    pub(crate) fn is_vertical(self) -> bool {
+        matches!(self, Self::Vertical | Self::Vertical270)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum ParagraphAlign {
+    Left,
+    Center,
+    Right,
+    Justify,
 }
 
 pub(crate) struct Paragraph {
     pub(crate) runs: Vec<Run>,
-    pub(crate) align: String,
+    pub(crate) align: ParagraphAlign,
     pub(crate) rtl: bool,
     pub(crate) line_box: LineBox,
     pub(crate) space_before: f32,
@@ -270,7 +319,7 @@ pub(crate) struct Run {
     pub(crate) text: String,
     pub(crate) font_face: String,
     pub(crate) font_size: f32,
-    pub(crate) color: String,
+    pub(crate) color: Rgba,
     pub(crate) bold: bool,
     pub(crate) italic: bool,
     pub(crate) decoration: Decoration,
@@ -279,7 +328,7 @@ pub(crate) struct Run {
     pub(crate) character_spacing: f32,
     /// False: laid out without the font's pair kerning (`font-kerning: none`, the PowerPoint target).
     pub(crate) kerning: bool,
-    pub(crate) highlight: Option<String>,
+    pub(crate) highlight: Option<Rgba>,
     pub(crate) outline: Option<Outline>,
     pub(crate) glow: Option<Shadow>,
     // The run's `shadow` is not read: PptxGenJS writes no run shadow, only the object's (`style.shadow`).
@@ -289,13 +338,13 @@ pub(crate) struct Run {
 
 pub(crate) struct Decoration {
     pub(crate) underline: bool,
-    pub(crate) underline_color: Option<String>,
+    pub(crate) underline_color: Option<Rgba>,
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
 }
 
 pub(crate) struct Outline {
-    pub(crate) color: String,
+    pub(crate) color: Rgba,
     pub(crate) width: f32,
 }
 
@@ -304,6 +353,11 @@ pub(crate) struct Outline {
 pub(crate) mod build {
     use super::*;
 
+    /// A color the test writes as CSS.
+    pub(crate) fn css(color: &str) -> Rgba {
+        crate::color::parse_color(color).expect("test colors are valid CSS")
+    }
+
     /// One 10 x 5.625in white slide holding `objects`.
     pub(crate) fn deck(objects: Vec<SlideObject>) -> Presentation {
         Presentation {
@@ -311,7 +365,7 @@ pub(crate) mod build {
             metadata: Metadata::default(),
             slides: vec![Slide {
                 number: None,
-                background: "#FFFFFF".into(),
+                background: Rgba(255, 255, 255, 1.0),
                 objects,
             }],
         }
@@ -342,14 +396,14 @@ pub(crate) mod build {
     pub(crate) fn fill(color: &str) -> Option<FillModel> {
         Some(FillModel {
             visible: true,
-            color: color.into(),
+            color: css(color),
         })
     }
 
     pub(crate) fn line(color: &str, width: f32) -> LineModel {
         LineModel {
             visible: true,
-            color: color.into(),
+            color: css(color),
             width,
             dash_array: None,
             begin_arrow: None,
@@ -362,7 +416,7 @@ pub(crate) mod build {
     pub(crate) fn shadow(color: &str, blur: f32, offset: f32, inset: bool) -> Shadow {
         Shadow {
             visible: true,
-            color: color.into(),
+            color: css(color),
             blur,
             offset_x: offset,
             offset_y: offset,
@@ -417,7 +471,7 @@ pub(crate) mod build {
             text: text.into(),
             font_face: font_face.into(),
             font_size,
-            color: "#000000".into(),
+            color: Rgba(0, 0, 0, 1.0),
             bold: false,
             italic: false,
             decoration: Decoration {
@@ -441,7 +495,7 @@ pub(crate) mod build {
     pub(crate) fn paragraph(runs: Vec<Run>, height: f32, baseline: f32) -> Paragraph {
         Paragraph {
             runs,
-            align: "left".into(),
+            align: ParagraphAlign::Left,
             rtl: false,
             line_box: LineBox { height, baseline },
             space_before: 0.0,
@@ -457,10 +511,10 @@ pub(crate) mod build {
         TextBox {
             paragraphs,
             margin: [0.0; 4],
-            vertical_align: "top".into(),
+            vertical_align: VerticalAlign::Top,
             wrap: true,
-            fit: "none".into(),
-            direction: "horizontal".into(),
+            fit: TextFit::None,
+            direction: TextDirection::Horizontal,
         }
     }
 }

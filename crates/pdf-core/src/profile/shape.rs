@@ -3,7 +3,7 @@
 
 use super::allow;
 use super::dom::{Dom, Element};
-use super::object::link;
+use super::object::{arrow, link};
 use super::style::{Style, number, shadow};
 use crate::color::parse_color;
 use crate::model::{FillModel, LineModel, ObjectStyle, ShapeFace, ShapeGeometry, ShapeModel};
@@ -154,10 +154,7 @@ fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<(ShapeGeome
         allow(child, &css, &[GEOMETRY_ATTRS, PAINT_ATTRS, &["data-fill-modifier"]], &[])?;
         let data = child.attr("d")?.ok_or("attribute 'd' is missing")?.into_owned();
         if child.name == "path" && child.has_class("shape-face") && outline.is_none() {
-            let fill = match paint(child, "fill")? {
-                Some(fill) => Some(parse_color(&fill.color).ok_or_else(|| format!("attribute 'fill': '{}' is not a color", fill.color))?),
-                None => None,
-            };
+            let fill = paint(child, "fill")?.map(|fill| fill.color);
             faces.push(ShapeFace { data, fill });
         } else if child.name == "path" && child.has_class("shape-outline") && outline.is_none() {
             outline = Some((data, child));
@@ -192,10 +189,11 @@ fn paint(element: &Element<'_>, name: &str) -> Result<Option<FillModel>, String>
     let value = element
         .attr(name)?
         .ok_or_else(|| format!("attribute '{name}' is missing on <{}>", element.name))?;
-    Ok((value != "none").then(|| FillModel {
-        visible: true,
-        color: value.into_owned(),
-    }))
+    if value == "none" {
+        return Ok(None);
+    }
+    let color = parse_color(&value).map_err(|e| format!("attribute '{name}': {e}"))?;
+    Ok(Some(FillModel { visible: true, color }))
 }
 
 /// `Some(inverse)` when `d` is the line the renderer writes for this size: `M 0 0 L W H`, or
@@ -236,8 +234,8 @@ fn line(svg: &Element<'_>, target: &Element<'_>, heads: &[(String, String)]) -> 
         color: stroke.color,
         width: number_attr(target, "stroke-width")?,
         dash_array: target.attr("stroke-dasharray")?.map(|d| d.into_owned()),
-        begin_arrow: svg.attr("data-line-begin-arrow")?.map(|d| d.into_owned()),
-        end_arrow: svg.attr("data-line-end-arrow")?.map(|d| d.into_owned()),
+        begin_arrow: arrow(svg, "data-line-begin-arrow")?,
+        end_arrow: arrow(svg, "data-line-end-arrow")?,
         begin_head_path: head("marker-start")?,
         end_head_path: head("marker-end")?,
     }))
@@ -246,7 +244,8 @@ fn line(svg: &Element<'_>, target: &Element<'_>, heads: &[(String, String)]) -> 
 #[cfg(test)]
 mod tests {
     use crate::color::Rgba;
-    use crate::model::{ShapeGeometry, ShapeObject, SlideObject};
+    use crate::model::build::css;
+    use crate::model::{ArrowKind, ShapeGeometry, ShapeObject, SlideObject};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -276,8 +275,8 @@ mod tests {
             (s.name.as_str(), s.width, s.height, s.link.as_ref().map(|l| l.href.as_str())),
             ("can", 96.0, 48.0, Some("https://x.test"))
         );
-        assert_eq!(rect.style.fill.as_ref().map(|f| f.color.as_str()), Some("#FF0000"));
-        assert_eq!(rect.style.line.as_ref().map(|l| (l.color.as_str(), l.width)), Some(("#17365D", 1.5)));
+        assert_eq!(rect.style.fill.as_ref().map(|f| f.color), Some(css("#FF0000")));
+        assert_eq!(rect.style.line.as_ref().map(|l| (l.color, l.width)), Some((css("#17365D"), 1.5)));
 
         let svg = r#" data-line-end-arrow="triangle" data-shadow-inset="""#;
         let body = format!(
@@ -287,15 +286,16 @@ mod tests {
         assert!(matches!(line.shape.as_ref().map(|s| &s.geometry), Some(ShapeGeometry::Line { inverse: true })));
         let l = line.style.line.as_ref().expect("line");
         assert_eq!(
-            (
-                l.dash_array.as_deref(),
-                l.end_arrow.as_deref(),
-                l.end_head_path.as_deref(),
-                l.begin_head_path.as_deref()
-            ),
-            (Some("0 4 8"), Some("triangle"), Some("M 0 0 L -8 4 Z"), None)
+            (l.dash_array.as_deref(), l.end_arrow, l.end_head_path.as_deref(), l.begin_head_path.as_deref()),
+            (Some("0 4 8"), Some(ArrowKind::Triangle), Some("M 0 0 L -8 4 Z"), None)
         );
         assert!(line.style.shadow.as_ref().is_some_and(|s| s.inset && s.blur == 3.0));
+        let error = shape(r#" data-line-end-arrow="hook""#, "", &body).err().unwrap_or_default();
+        assert!(error.contains("attribute 'data-line-end-arrow': 'hook' is not one of none, arrow"), "{error}");
+        let error = shape("", "", &body.replace("stroke=\"#17365D\"", "stroke=\"#17365\""))
+            .err()
+            .unwrap_or_default();
+        assert!(error.contains("attribute 'stroke': '#17365'"), "{error}");
 
         let faces = r##"<defs></defs><g transform="matrix(1 0 0 1 0 0)" class="shape-geometry"><path class="shape-face" d="M 0 0 Z" data-fill-modifier="lighten" stroke="none" fill="#FF9999"></path><path class="shape-face" d="M 1 1 Z" stroke="none" fill="#FF0000"></path><path class="shape-outline" d="M 2 2 Z" fill="none" stroke="#000000" stroke-width="2"></path></g>"##;
         let can = shape("", "", faces).unwrap();

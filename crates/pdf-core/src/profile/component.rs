@@ -9,9 +9,9 @@
 use super::dom::{Dom, Element, Node};
 use super::object::{BOX_ATTRS, BOX_CSS, object_style};
 use super::style::{Style, number};
-use super::svg::color_value;
 use super::{PROFILE_VERSION, allow};
 use crate::color::Rgba;
+use crate::color::parse_color;
 use crate::model::SvgObject;
 use crate::path::rect_path;
 use crate::svg::{Fit, Item, Paint, Shape, Svg};
@@ -117,7 +117,7 @@ fn background(style: &Style<'_>) -> Result<Option<Rgba>, String> {
         (None, Some(value)) => ("background-color", value),
         (None, None) => return Ok(None),
     };
-    color_value(value).map(Some).map_err(|e| format!("CSS property '{property}': {e}"))
+    parse_color(value).map(Some).map_err(|e| format!("CSS property '{property}': {e}"))
 }
 
 #[cfg(test)]

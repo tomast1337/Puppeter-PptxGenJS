@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use super::dom::Element;
+use crate::color::{Rgba, parse_color};
 use crate::model::Shadow;
 
 /// The declarations of one `style` attribute, in source order.
@@ -69,6 +70,27 @@ impl<'a> Style<'a> {
 
     pub(crate) fn require_px(&self, property: &str) -> Result<f32, String> {
         self.px(property)?.ok_or_else(|| format!("CSS property '{property}' is missing"))
+    }
+
+    pub(crate) fn color(&self, property: &str) -> Result<Option<Rgba>, String> {
+        self.get(property)
+            .map(|v| parse_color(v).map_err(|e| format!("CSS property '{property}': {e}")))
+            .transpose()
+    }
+
+    pub(crate) fn require_color(&self, property: &str) -> Result<Rgba, String> {
+        self.color(property)?.ok_or_else(|| format!("CSS property '{property}' is missing"))
+    }
+}
+
+/// The value `allowed` pairs with the keyword `value`, else an error naming `what`.
+pub(crate) fn keyword<T: Copy>(what: &str, value: &str, allowed: &[(&str, T)]) -> Result<T, String> {
+    match allowed.iter().find(|(name, _)| *name == value) {
+        Some((_, v)) => Ok(*v),
+        None => {
+            let names: Vec<&str> = allowed.iter().map(|(name, _)| *name).collect();
+            Err(format!("{what}: '{value}' is not one of {}", names.join(", ")))
+        }
     }
 }
 
@@ -199,7 +221,7 @@ pub(crate) fn shadow(text: &str, inset: bool) -> Result<Shadow, String> {
     let [offset_x, offset_y, blur] = lengths;
     Ok(Shadow {
         visible: true,
-        color: rest.to_owned(),
+        color: parse_color(rest)?,
         blur,
         offset_x,
         offset_y,
@@ -275,10 +297,7 @@ mod tests {
     #[test]
     fn reads_shadows_and_font_families() {
         let s = shadow("3px -2.5px 4px rgba(0, 0, 0, 0.35)", true).unwrap();
-        assert_eq!(
-            (s.offset_x, s.offset_y, s.blur, s.color.as_str(), s.inset),
-            (3.0, -2.5, 4.0, "rgba(0, 0, 0, 0.35)", true)
-        );
+        assert_eq!((s.offset_x, s.offset_y, s.blur, s.color, s.inset), (3.0, -2.5, 4.0, Rgba(0, 0, 0, 0.35), true));
         assert!(shadow("3px 4px rgba(0,0,0,1)", false).is_err());
         assert_eq!(font_family(r#""Calibri""#).unwrap(), "Calibri");
         assert_eq!(font_family(r#""a\"b\\c""#).unwrap(), r#"a"b\c"#);

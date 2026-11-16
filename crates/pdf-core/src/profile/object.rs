@@ -1,9 +1,9 @@
 //! One `.slide-element`: its kind class, the common object box (`render/style.ts`) and links.
 
 use super::dom::{Dom, Element};
-use super::style::{Style, integer, number, shadow};
+use super::style::{Style, integer, keyword, number, shadow};
 use super::{allow, chart, component, image, shape, table, text};
-use crate::model::{FillModel, Geometry, LineModel, Link, ObjectStyle, ShapeObject, SlideObject, TableObject, TextObject, Transform2};
+use crate::model::{ArrowKind, FillModel, Geometry, LineModel, Link, ObjectStyle, ShapeObject, SlideObject, TableObject, TextObject, Transform2};
 
 /// Attributes every object box may carry.
 pub(crate) const BOX_ATTRS: &[&str] = &["data-object-name", "data-line-dash-array", "data-line-begin-arrow", "data-line-end-arrow"];
@@ -64,7 +64,7 @@ pub(crate) fn read(dom: &Dom<'_>, element: &Element<'_>) -> Result<SlideObject, 
 /// keep them on the SVG and pass false.
 pub(crate) fn object_style(element: &Element<'_>, style: &Style<'_>, paint: bool) -> Result<ObjectStyle, String> {
     let (fill, line, shadow) = if paint {
-        (box_fill(style), box_line(element, style)?, box_shadow(style)?)
+        (box_fill(style)?, box_line(element, style)?, box_shadow(style)?)
     } else {
         (None, None, None)
     };
@@ -124,11 +124,28 @@ fn transform(style: &Style<'_>) -> Result<Transform2, String> {
 }
 
 /// `background-color`: the fill color, `transparent` when the fill is hidden.
-fn box_fill(style: &Style<'_>) -> Option<FillModel> {
-    style.get("background-color").map(|color| FillModel {
-        visible: color != "transparent",
-        color: color.to_owned(),
-    })
+fn box_fill(style: &Style<'_>) -> Result<Option<FillModel>, String> {
+    Ok(style.color("background-color")?.map(|color| FillModel {
+        visible: style.get("background-color") != Some("transparent"),
+        color,
+    }))
+}
+
+/// `data-line-begin-arrow` or `data-line-end-arrow`: `None` when absent or `none`.
+pub(crate) fn arrow(element: &Element<'_>, name: &str) -> Result<Option<ArrowKind>, String> {
+    let Some(value) = element.attr(name)? else { return Ok(None) };
+    keyword(
+        &format!("attribute '{name}'"),
+        &value,
+        &[
+            ("none", None),
+            ("arrow", Some(ArrowKind::Arrow)),
+            ("diamond", Some(ArrowKind::Diamond)),
+            ("oval", Some(ArrowKind::Oval)),
+            ("stealth", Some(ArrowKind::Stealth)),
+            ("triangle", Some(ArrowKind::Triangle)),
+        ],
+    )
 }
 
 /// `border-color`, `border-width`, `border-style` (`none` without a visible line) and the line's
@@ -139,11 +156,11 @@ fn box_line(element: &Element<'_>, style: &Style<'_>) -> Result<Option<LineModel
     }
     Ok(Some(LineModel {
         visible: true,
-        color: style.require("border-color")?.to_owned(),
+        color: style.require_color("border-color")?,
         width: style.require_px("border-width")?,
         dash_array: element.attr("data-line-dash-array")?.map(|d| d.into_owned()),
-        begin_arrow: element.attr("data-line-begin-arrow")?.map(|d| d.into_owned()),
-        end_arrow: element.attr("data-line-end-arrow")?.map(|d| d.into_owned()),
+        begin_arrow: arrow(element, "data-line-begin-arrow")?,
+        end_arrow: arrow(element, "data-line-end-arrow")?,
         begin_head_path: None,
         end_head_path: None,
     }))
@@ -215,7 +232,8 @@ pub(crate) fn text_object(dom: &Dom<'_>, element: &Element<'_>) -> Result<TextOb
 
 #[cfg(test)]
 mod tests {
-    use crate::model::SlideObject;
+    use crate::model::build::css;
+    use crate::model::{SlideObject, TextFit, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -245,14 +263,14 @@ mod tests {
         );
         assert!(s.fill.as_ref().is_some_and(|f| !f.visible));
         let line = s.line.as_ref().expect("line");
-        assert_eq!((line.color.as_str(), line.width, line.dash_array.as_deref()), ("#FF0000", 2.0, Some("4 2")));
+        assert_eq!((line.color, line.width, line.dash_array.as_deref()), (css("#FF0000"), 2.0, Some("4 2")));
         let shadow = s.shadow.as_ref().expect("shadow");
         assert_eq!((shadow.offset_x, shadow.offset_y, shadow.blur, shadow.inset), (1.0, 2.0, 3.0, true));
         assert_eq!(s.object_name.as_deref(), Some("T"));
         let text = object.text.expect("text");
         assert_eq!(
-            (text.margin, text.wrap, text.fit.as_str(), text.vertical_align.as_str()),
-            ([1.0, 2.0, 3.0, 4.0], false, "resize", "middle")
+            (text.margin, text.wrap, text.fit, text.vertical_align),
+            ([1.0, 2.0, 3.0, 4.0], false, TextFit::Resize, VerticalAlign::Middle)
         );
     }
 

@@ -3,8 +3,11 @@
 use super::allow;
 use super::dom::{Dom, Element};
 use super::object::link;
-use super::style::{Style, font_family, integer, number, px, shadow, split_top_level};
-use crate::model::{Bullet, Decoration, LineBox, Outline, Paragraph, Run, Shadow, TabAlign, TabStop, TextBox};
+use super::style::{Style, font_family, integer, keyword, number, px, shadow, split_top_level};
+use crate::color::parse_color;
+use crate::model::{
+    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, TabAlign, TabStop, TextBox, TextDirection, TextFit, VerticalAlign,
+};
 
 /// Attributes of the element that holds a text box.
 pub(crate) const BOX_ATTRS: &[&str] = &["data-text-fit", "data-text-direction"];
@@ -91,12 +94,15 @@ pub(crate) fn text_box(dom: &Dom<'_>, element: &Element<'_>, style: &Style<'_>, 
     let margin: [f32; 4] = margin
         .try_into()
         .map_err(|_| format!("CSS property 'padding': '{padding}' is not four px lengths"))?;
-    let vertical_align = match style.require("align-items")? {
-        "flex-start" => "top",
-        "center" => "middle",
-        "flex-end" => "bottom",
-        other => return Err(format!("CSS property 'align-items': '{other}' is not flex-start, center or flex-end")),
-    };
+    let vertical_align = keyword(
+        "CSS property 'align-items'",
+        style.require("align-items")?,
+        &[
+            ("flex-start", VerticalAlign::Top),
+            ("center", VerticalAlign::Middle),
+            ("flex-end", VerticalAlign::Bottom),
+        ],
+    )?;
     let wrap = one_of("CSS property 'white-space'", style.require("white-space")?, &["pre-wrap", "pre"])? == "pre-wrap";
     let fit = element.attr("data-text-fit")?.ok_or("attribute 'data-text-fit' is missing")?;
     let direction = element.attr("data-text-direction")?.ok_or("attribute 'data-text-direction' is missing")?;
@@ -115,15 +121,23 @@ pub(crate) fn text_box(dom: &Dom<'_>, element: &Element<'_>, style: &Style<'_>, 
     Ok(TextBox {
         paragraphs,
         margin,
-        vertical_align: vertical_align.to_owned(),
+        vertical_align,
         wrap,
-        fit: one_of("attribute 'data-text-fit'", &fit, &["none", "shrink", "resize"])?.to_owned(),
-        direction: one_of(
+        fit: keyword(
+            "attribute 'data-text-fit'",
+            &fit,
+            &[("none", TextFit::None), ("shrink", TextFit::Shrink), ("resize", TextFit::Resize)],
+        )?,
+        direction: keyword(
             "attribute 'data-text-direction'",
             &direction,
-            &["horizontal", "vertical", "vertical270", "stacked"],
-        )?
-        .to_owned(),
+            &[
+                ("horizontal", TextDirection::Horizontal),
+                ("vertical", TextDirection::Vertical),
+                ("vertical270", TextDirection::Vertical270),
+                ("stacked", TextDirection::Stacked),
+            ],
+        )?,
     })
 }
 
@@ -161,12 +175,16 @@ fn paragraph(dom: &Dom<'_>, element: &Element<'_>) -> Result<Paragraph, String> 
     };
     Ok(Paragraph {
         runs,
-        align: one_of(
+        align: keyword(
             "CSS property 'text-align'",
             style.require("text-align")?,
-            &["left", "center", "right", "justify"],
-        )?
-        .to_owned(),
+            &[
+                ("left", ParagraphAlign::Left),
+                ("center", ParagraphAlign::Center),
+                ("right", ParagraphAlign::Right),
+                ("justify", ParagraphAlign::Justify),
+            ],
+        )?,
         rtl: one_of("CSS property 'direction'", style.require("direction")?, &["ltr", "rtl"])? == "rtl",
         line_box: LineBox {
             height: style.require_px("line-height")?,
@@ -243,7 +261,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
                 .ok_or_else(|| format!("CSS property '-webkit-text-stroke': '{stroke}' is not '<width>px <color>'"))?;
             Some(Outline {
                 width: px(width)?,
-                color: color.trim_ascii().to_owned(),
+                color: parse_color(color).map_err(|e| format!("CSS property '-webkit-text-stroke': {e}"))?,
             })
         }
         None => None,
@@ -252,12 +270,12 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
         text,
         font_face: font_family(style.require("font-family")?).map_err(|e| format!("CSS property 'font-family': {e}"))?,
         font_size: style.require_px("font-size")?,
-        color: style.require("color")?.to_owned(),
+        color: style.require_color("color")?,
         bold: one_of("CSS property 'font-weight'", style.require("font-weight")?, &["bold", "normal"])? == "bold",
         italic: one_of("CSS property 'font-style'", style.require("font-style")?, &["italic", "normal"])? == "italic",
         decoration: Decoration {
             underline: lines.split_ascii_whitespace().any(|l| l == "underline"),
-            underline_color: style.get("text-decoration-color").map(str::to_owned),
+            underline_color: style.color("text-decoration-color")?,
             strike: lines.split_ascii_whitespace().any(|l| l == "line-through"),
             double_strike: element.has_attr("data-double-strike"),
         },
@@ -270,7 +288,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
             .map(|k| one_of("CSS property 'font-kerning'", k, &["none", "normal", "auto"]))
             .transpose()?
             != Some("none"),
-        highlight: style.get("background-color").map(str::to_owned),
+        highlight: style.color("background-color")?,
         outline,
         glow: glow(element, &style)?,
         link: link(element)?,
@@ -300,7 +318,8 @@ fn glow(element: &Element<'_>, style: &Style<'_>) -> Result<Option<Shadow>, Stri
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{SlideObject, TabAlign, TextObject};
+    use crate::color::Rgba;
+    use crate::model::{SlideObject, TabAlign, TextObject, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -325,7 +344,7 @@ mod tests {
         );
         let object = text_object(&html).unwrap();
         let text = object.text.expect("text");
-        assert_eq!(text.vertical_align, "bottom");
+        assert_eq!(text.vertical_align, VerticalAlign::Bottom);
         let [p] = &text.paragraphs[..] else { panic!("one paragraph") };
         assert_eq!(
             (p.line_box.height, p.line_box.baseline, p.space_before, p.space_after, p.default_tab_stop),
@@ -344,12 +363,12 @@ mod tests {
         );
         assert!(a.decoration.underline && a.decoration.strike && a.decoration.double_strike);
         assert_eq!(
-            (a.decoration.underline_color.as_deref(), a.highlight.as_deref()),
-            (Some("#00FF00"), Some("#FFFF00"))
+            (a.decoration.underline_color, a.highlight),
+            (Some(Rgba(0, 255, 0, 1.0)), Some(Rgba(255, 255, 0, 1.0)))
         );
-        assert_eq!(a.outline.as_ref().map(|o| (o.width, o.color.as_str())), Some((0.75, "rgba(1, 2, 3, 0.5)")));
+        assert_eq!(a.outline.as_ref().map(|o| (o.width, o.color)), Some((0.75, Rgba(1, 2, 3, 0.5))));
         let glow = a.glow.as_ref().expect("glow");
-        assert_eq!((glow.blur, glow.color.as_str()), (6.0, "rgba(255, 0, 0, 0.6)"));
+        assert_eq!((glow.blur, glow.color), (6.0, Rgba(255, 0, 0, 0.6)));
         assert!(c.soft_break_before && !a.soft_break_before);
         assert!(!a.kerning && c.kerning, "font-kerning: none turns kerning off; omitted, the run is kerned");
         let link = c.link.as_ref().expect("link");

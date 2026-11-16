@@ -11,7 +11,7 @@ use krilla::surface::Surface;
 use kurbo::{Affine, BezPath, ParamCurve, PathSeg, Shape, Vec2};
 
 use crate::Renderer;
-use crate::color::{Rgba, parse_color, unit};
+use crate::color::{Rgba, unit};
 use crate::model::{LineModel, ObjectStyle, ShapeGeometry, ShapeModel};
 use crate::path::{rect_path, to_path};
 
@@ -35,7 +35,7 @@ impl Renderer {
         w: f32,
         h: f32,
     ) -> Result<(), String> {
-        let fill = style.fill.as_ref().filter(|f| f.visible).and_then(|f| parse_color(&f.color));
+        let fill = style.fill.as_ref().filter(|f| f.visible).map(|f| f.color);
         let line = style.line.as_ref().filter(|l| l.visible && l.width > 0.0);
         let Some(shape) = shape else {
             self.fill_and_stroke(surface, &rect_path(x, y, w, h, 0.0), fill, line);
@@ -122,20 +122,16 @@ impl Renderer {
     /// Strokes `path` (object space) and fills the line's head outlines on its first and last vertex.
     fn stroke_with_arrows(&mut self, surface: &mut Surface, path: &BezPath, line: &LineModel) {
         self.fill_and_stroke(surface, path, None, Some(line));
-        let Some(color) = parse_color(&line.color).filter(|c| c.3 > 0.0) else {
+        let color = line.color;
+        if color.3 <= 0.0 {
             return;
-        };
+        }
         let (Some(first), Some(last)) = (path.segments().next(), path.segments().last()) else {
             return;
         };
         let ends = [
-            (
-                line.begin_arrow.as_deref(),
-                line.begin_head_path.as_deref(),
-                first.start(),
-                -direction(first, false),
-            ),
-            (line.end_arrow.as_deref(), line.end_head_path.as_deref(), last.end(), direction(last, true)),
+            (line.begin_arrow, line.begin_head_path.as_deref(), first.start(), -direction(first, false)),
+            (line.end_arrow, line.end_head_path.as_deref(), last.end(), direction(last, true)),
         ];
         for (kind, head, at, toward) in ends {
             match (kind, head) {
@@ -146,8 +142,8 @@ impl Renderer {
                     }
                     Err(e) => self.warn(format!("line head path '{data}' not rendered: {e}")),
                 },
-                (None | Some("none"), None) => {}
-                (Some(kind), None) => self.warn(format!("line arrowhead '{kind}' not rendered")),
+                (None, None) => {}
+                (Some(kind), None) => self.warn(format!("line arrowhead {kind:?} not rendered")),
             }
         }
     }
@@ -155,7 +151,7 @@ impl Renderer {
 
 /// The krilla stroke for a visible model line, centred on the geometry as in PowerPoint.
 fn stroke_of(line: &LineModel) -> Option<Stroke> {
-    let color = parse_color(&line.color).filter(|c| c.3 > 0.0)?;
+    let color = Some(line.color).filter(|c| c.3 > 0.0)?;
     Some(Stroke {
         paint: rgb::Color::new(color.0, color.1, color.2).into(),
         width: line.width,

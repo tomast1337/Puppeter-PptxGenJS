@@ -31,11 +31,11 @@ use krilla::text::{Font, KrillaGlyph};
 use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, SourceCache};
 use parley::{FontContext, LayoutContext};
 
-use crate::color::{parse_color, unit};
+use crate::color::unit;
 use crate::effect::{Effect, Effects};
 use crate::image::Picture;
 use crate::link::page_quad;
-use crate::model::{Presentation, SlideObject};
+use crate::model::{Presentation, SlideObject, TextFit};
 use crate::path::rect_path;
 use crate::table::TableLayout;
 use crate::text::layout::{BoxLayout, Brush};
@@ -169,8 +169,8 @@ impl Renderer {
             let mut page = document.start_page_with(PageSettings::new(page_size));
             let mut surface = page.surface();
             surface.push_transform(&Transform::from_scale(PT_PER_PX, PT_PER_PX));
-            if let Some(bg) = parse_color(&slide.background) {
-                self.fill(&mut surface, &rect_path(0.0, 0.0, page_w, page_h, 0.0), bg);
+            if slide.background.3 > 0.0 {
+                self.fill(&mut surface, &rect_path(0.0, 0.0, page_w, page_h, 0.0), slide.background);
             }
             // Close the surface before returning an error: krilla asserts balanced push/pop on finish.
             let drawn = slide.objects.iter().try_for_each(|object| self.draw_object(&mut surface, object));
@@ -211,7 +211,7 @@ impl Renderer {
         let mut layout = std::mem::take(&mut self.text_layout);
         if let Some(t) = text {
             self.fit_text(t, w, h, &mut layout);
-            if t.fit == "resize" {
+            if t.fit == TextFit::Resize {
                 h = h.max(layout.height + t.margin[0] + t.margin[2]);
             }
         }
@@ -309,9 +309,10 @@ impl Renderer {
 mod tests {
     use super::*;
     use crate::color::Rgba;
+    use crate::model::build::css;
     use crate::model::{
-        Bullet, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Slide, Table,
-        TableBorder, TableCell, TableObject, TableRow, TextObject, Transform2, build,
+        ArrowKind, Bullet, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Slide,
+        Table, TableBorder, TableCell, TableObject, TableRow, TextDirection, TextObject, Transform2, VerticalAlign, build,
     };
 
     /// Draws an already parsed presentation, as `render_html` does after parsing.
@@ -371,6 +372,24 @@ mod tests {
     }
 
     #[test]
+    fn rejects_bad_colors_and_keywords_naming_the_property() {
+        let mut r = Renderer::new();
+        let html = profile::tests::document(profile::tests::TEXT);
+        assert!(r.render_html(&html).is_ok());
+        for (from, to, property) in [
+            ("24px; color: #000000;", "24px; color: #FF0000zz;", "CSS property 'color': '#FF0000zz'"),
+            ("transparent;", "rgba(1, 2, 3, x);", "CSS property 'background-color': 'rgba(1, 2, 3, x)'"),
+            ("#FFFFFF;", "#FFFFF;", "CSS property 'background-color': '#FFFFF'"),
+            ("data-text-fit=\"none\"", "data-text-fit=\"grow\"", "attribute 'data-text-fit': 'grow'"),
+            ("text-align: left", "text-align: start", "CSS property 'text-align': 'start'"),
+            ("align-items: center", "align-items: baseline", "CSS property 'align-items': 'baseline'"),
+        ] {
+            let error = r.render_html(&html.replacen(from, to, 1)).err().unwrap_or_default();
+            assert!(error.starts_with("invalid PdfLapas HTML: ") && error.contains(property), "{error}");
+        }
+    }
+
+    #[test]
     fn draws_chart_svg_without_warnings() {
         use profile::svg::tests::{BAR3D, ECHARTS, chart};
         let mut r = Renderer::new();
@@ -387,27 +406,27 @@ mod tests {
     }
 
     /// A centred 17px cell over `colspan` x `rowspan` slots, with a dashed top border.
-    fn cell(colspan: u32, rowspan: u32, fit: &str, direction: &str) -> TableCell {
+    fn cell(colspan: u32, rowspan: u32, fit: TextFit, direction: TextDirection) -> TableCell {
         let border = |dash_array: Option<&str>| TableBorder {
             visible: true,
-            color: "#C00000".into(),
+            color: css("#C00000"),
             width: 2.67,
             dash_array: dash_array.map(Into::into),
         };
         let run = model::Run {
-            color: "#363636".into(),
+            color: css("#363636"),
             ..build::run("Cell", "Arial", 17.0)
         };
         let paragraph = model::Paragraph {
-            align: "center".into(),
+            align: model::ParagraphAlign::Center,
             ..build::paragraph(vec![run], 20.4, 17.0)
         };
         TableCell {
             text: model::TextBox {
                 margin: [7.68; 4],
-                vertical_align: "middle".into(),
-                fit: fit.into(),
-                direction: direction.into(),
+                vertical_align: VerticalAlign::Middle,
+                fit,
+                direction,
                 ..build::text_box(vec![paragraph])
             },
             colspan,
@@ -424,12 +443,15 @@ mod tests {
         let table = |extra_cell: Option<TableCell>| {
             let mut style = build::style(48.0, 96.0, 200.0, 0.0);
             style.geometry.height = None;
-            let mut second = vec![cell(1, 1, "none", "vertical"), cell(1, 1, "none", "horizontal")];
+            let mut second = vec![
+                cell(1, 1, TextFit::None, TextDirection::Vertical),
+                cell(1, 1, TextFit::None, TextDirection::Horizontal),
+            ];
             second.extend(extra_cell);
             let rows = vec![
                 TableRow {
                     height: Some(40.0),
-                    cells: vec![cell(2, 1, "none", "horizontal")],
+                    cells: vec![cell(2, 1, TextFit::None, TextDirection::Horizontal)],
                 },
                 TableRow { height: None, cells: second },
             ];
@@ -443,7 +465,7 @@ mod tests {
         };
         assert!(render(&mut r, &table(None)).unwrap().starts_with(b"%PDF"));
         assert_eq!(r.warnings(), Vec::<String>::new());
-        render(&mut r, &table(Some(cell(1, 1, "shrink", "horizontal")))).unwrap();
+        render(&mut r, &table(Some(cell(1, 1, TextFit::Shrink, TextDirection::Horizontal)))).unwrap();
         assert_eq!(r.warnings(), vec!["table cells beyond the column grid not rendered".to_string()]);
     }
 
@@ -503,8 +525,8 @@ mod tests {
         {
             let (mut style, shape) = dashed_shape(geometry);
             if let Some(line) = style.line.as_mut() {
-                line.begin_arrow = Some("oval".into());
-                line.end_arrow = Some("triangle".into());
+                line.begin_arrow = Some(ArrowKind::Oval);
+                line.end_arrow = Some(ArrowKind::Triangle);
                 line.begin_head_path = Some("M 4 0 A 4 4 0 1 0 -4 0 A 4 4 0 1 0 4 0 Z".into());
                 line.end_head_path = Some("M 0 0 L -8 4 L -8 -4 Z".into());
             }
@@ -530,11 +552,11 @@ mod tests {
         let mut r = Renderer::new();
         let (mut style, shape) = dashed_shape(ShapeGeometry::Line { inverse: false });
         if let Some(line) = style.line.as_mut() {
-            line.end_arrow = Some("hook".into());
+            line.end_arrow = Some(ArrowKind::Stealth);
         }
         style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.3)", 4.0, 3.0, false));
         render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap();
-        assert_eq!(r.warnings(), vec!["line arrowhead 'hook' not rendered"]);
+        assert_eq!(r.warnings(), vec!["line arrowhead Stealth not rendered"]);
     }
 
     /// `image` over the box (10, 20, 200, 100), rotated and flipped, named 'Picture 1'.
@@ -691,7 +713,7 @@ mod tests {
             Slide { number: Some(1), ..first },
             Slide {
                 number: Some(3),
-                background: "#FFFFFF".into(),
+                background: css("#FFFFFF"),
                 objects: Vec::new(),
             },
         ];
@@ -759,7 +781,7 @@ mod tests {
         r.add_font(font);
         let text = |glow: Option<Shadow>| {
             let run = model::Run {
-                color: "#17365D".into(),
+                color: css("#17365D"),
                 glow,
                 ..build::run("Glow", "Liberation Sans", 30.0)
             };
@@ -811,7 +833,7 @@ mod tests {
         };
         r.add_font(font);
         let mut run = model::Run {
-            color: "#0563C1".into(),
+            color: css("#0563C1"),
             link: build::link("https://example.com"),
             ..build::run("linked words that wrap", "Liberation Sans", 20.0)
         };
@@ -915,16 +937,13 @@ mod tests {
     /// underline all use `color`, on a slide of that colour.
     fn model_with_color(color: &str) -> Presentation {
         let mut run = model::Run {
-            color: color.into(),
-            highlight: Some(color.into()),
-            outline: Some(Outline {
-                color: color.into(),
-                width: 1.0,
-            }),
+            color: css(color),
+            highlight: Some(css(color)),
+            outline: Some(Outline { color: css(color), width: 1.0 }),
             ..build::run("Ag", "Liberation Sans", 24.0)
         };
         run.decoration.underline = true;
-        run.decoration.underline_color = Some(color.into());
+        run.decoration.underline_color = Some(css(color));
         let mut style = build::style(10.0, 10.0, 300.0, 100.0);
         style.transform.opacity = 0.5;
         style.fill = build::fill(color);
@@ -936,7 +955,7 @@ mod tests {
         });
         let mut deck = build::deck(vec![object]);
         if let Some(slide) = deck.slides.first_mut() {
-            slide.background = color.into();
+            slide.background = css(color);
         }
         deck
     }
@@ -980,7 +999,7 @@ mod tests {
     #[test]
     fn stacked_text_puts_every_character_on_its_own_line() {
         let mut text = text_box(&[(&["Ab c", "d"], 36.0, 30.0)]);
-        text.direction = "stacked".into();
+        text.direction = TextDirection::Stacked;
         let Some(layout) = laid_out(&text) else {
             return eprintln!("Liberation Sans not installed: stacked text not checked");
         };
@@ -1124,13 +1143,14 @@ mod tests {
     }
 
     #[test]
-    fn renders_out_of_range_and_nan_alpha_without_panicking() {
+    fn renders_out_of_range_alpha_without_panicking() {
         let mut r = Renderer::new();
         let has_font = liberation_sans().is_some_and(|f| r.add_font(f) > 0);
         if !has_font {
             eprintln!("Liberation Sans not installed: glyph outline paths not exercised");
         }
-        for alpha in ["2", "-1", "NaN", "inf"] {
+        // NaN and inf alphas no longer reach the model: `parse_color` rejects them.
+        for alpha in ["2", "-1"] {
             let pdf = render(&mut r, &model_with_color(&format!("rgba(10, 20, 30, {alpha})"))).unwrap();
             assert!(pdf.starts_with(b"%PDF"), "alpha {alpha}");
             assert_eq!(
@@ -1146,24 +1166,24 @@ mod tests {
     fn shrink_model() -> Presentation {
         let run = |text: &str| {
             let mut run = model::Run {
-                color: "rgb(17, 34, 51)".into(),
+                color: css("rgb(17, 34, 51)"),
                 ..build::run(text, "Arial", 28.0)
             };
             run.decoration.strike = true;
             run
         };
         let para = |runs: Vec<model::Run>, bullet: Option<Bullet>| model::Paragraph {
-            align: "center".into(),
+            align: model::ParagraphAlign::Center,
             space_before: 2.0,
             space_after: 4.0,
             bullet,
             ..build::paragraph(runs, 44.8, 37.33)
         };
-        let object = |x: f32, fit: &str, paragraphs: Vec<model::Paragraph>| {
+        let object = |x: f32, fit: TextFit, paragraphs: Vec<model::Paragraph>| {
             let text = model::TextBox {
                 margin: [4.0; 4],
-                vertical_align: "middle".into(),
-                fit: fit.into(),
+                vertical_align: VerticalAlign::Middle,
+                fit,
                 ..build::text_box(paragraphs)
             };
             build::text_object(build::style(x, 10.0, 200.0, 60.0), text)
@@ -1176,8 +1196,8 @@ mod tests {
         let long = vec![run("Shrink this oversized text until it fits "), run("within the fixed box")];
         let shrink = vec![para(long, Some(bullet)), para(vec![run("")], None), para(vec![run("Tail")], None)];
         build::deck(vec![
-            object(10.0, "shrink", shrink),
-            object(300.0, "none", vec![para(vec![run("Plain")], None)]),
+            object(10.0, TextFit::Shrink, shrink),
+            object(300.0, TextFit::None, vec![para(vec![run("Plain")], None)]),
         ])
     }
 

@@ -11,9 +11,9 @@ use parley::{
 use krilla::paint::Stroke;
 
 use crate::Renderer;
-use crate::color::{Rgba, parse_color};
+use crate::color::Rgba;
 use crate::effect::Effect;
-use crate::model::{LineBox, TextBox};
+use crate::model::{LineBox, ParagraphAlign, TextBox, TextDirection, TextFit};
 use crate::text::font::family_stack;
 use crate::text::tabs::{TAB_PLACEHOLDER, place_tabs, tab_box};
 
@@ -76,7 +76,7 @@ impl Renderer {
     /// content overflows the inset box. Fills `layout`, reusing its buffers.
     pub(crate) fn fit_text(&mut self, text: &TextBox, w: f32, h: f32, layout: &mut BoxLayout) {
         let [top, right, bottom, left] = text.margin;
-        let vertical = text.direction == "vertical" || text.direction == "vertical270";
+        let vertical = text.direction.is_vertical();
         let (inner_w, inner_h) = if vertical {
             (h - top - bottom, w - left - right)
         } else {
@@ -84,7 +84,7 @@ impl Renderer {
         };
         let mut scale = 1.0;
         self.layout_text(text, inner_w, scale, layout);
-        if text.fit == "shrink" {
+        if text.fit == TextFit::Shrink {
             for _ in 0..20 {
                 if layout.height <= inner_h + 0.5 && layout.width <= inner_w + 0.5 {
                     break;
@@ -116,7 +116,7 @@ impl Renderer {
         out.baselines.clear();
         let paints = &mut out.paints;
         let (mut y, mut width) = (0.0f32, 0.0f32);
-        let stacked = text.direction == "stacked";
+        let stacked = text.direction == TextDirection::Stacked;
         for (p, paragraph) in (0u32..).zip(&text.paragraphs) {
             let (indent, marker_x) = match &paragraph.bullet {
                 Some(b) => (b.indent, b.indent / (b.level as f32 + 1.0) * b.level as f32),
@@ -176,21 +176,18 @@ impl Renderer {
             families.extend(paragraph.runs.iter().take(spans.len()).map(|run| family_stack(&run.font_face)));
             for (r, ((range, run), family)) in (0u32..).zip(spans.iter().zip(&paragraph.runs).zip(&families)) {
                 let index = paints.len() as u32;
-                let color = parse_color(&run.color).unwrap_or_default();
                 paints.push(RunPaint {
-                    color,
-                    highlight: run.highlight.as_deref().and_then(parse_color),
-                    outline: run.outline.as_ref().and_then(|o| {
-                        parse_color(&o.color).map(|color| TextStroke {
-                            color,
-                            width: o.width,
-                            // krilla's default, which run outlines have always been drawn with.
-                            miter_limit: Stroke::default().miter_limit,
-                            under: false,
-                        })
+                    color: run.color,
+                    highlight: run.highlight,
+                    outline: run.outline.as_ref().map(|o| TextStroke {
+                        color: o.color,
+                        width: o.width,
+                        // krilla's default, which run outlines have always been drawn with.
+                        miter_limit: Stroke::default().miter_limit,
+                        under: false,
                     }),
                     underline: run.decoration.underline,
-                    underline_color: run.decoration.underline_color.as_deref().and_then(parse_color),
+                    underline_color: run.decoration.underline_color,
                     strike: run.decoration.strike,
                     double_strike: run.decoration.double_strike,
                     baseline_offset: run.baseline_offset,
@@ -230,11 +227,11 @@ impl Renderer {
             let mut layout: Layout<Brush> = builder.build(&s);
             self.span_ranges = spans;
             self.span_families = families;
-            let alignment = match paragraph.align.as_str() {
-                "center" => Alignment::Center,
-                "right" => Alignment::Right,
-                "justify" => Alignment::Justify,
-                _ => Alignment::Left,
+            let alignment = match paragraph.align {
+                ParagraphAlign::Left => Alignment::Left,
+                ParagraphAlign::Center => Alignment::Center,
+                ParagraphAlign::Right => Alignment::Right,
+                ParagraphAlign::Justify => Alignment::Justify,
             };
             // parley applies the alignment while breaking lines, so set it first.
             layout.set_alignment(
@@ -272,7 +269,7 @@ impl Renderer {
                     let mut mb = self.layout_cx.ranged_builder(&mut self.fonts, &b.marker, 1.0, false);
                     let index = paints.len() as u32;
                     paints.push(RunPaint {
-                        color: parse_color(&run.color).unwrap_or_default(),
+                        color: run.color,
                         highlight: None,
                         outline: None,
                         underline: false,

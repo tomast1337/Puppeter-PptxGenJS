@@ -14,7 +14,7 @@ use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
 use crate::effect::Effect;
 use crate::link::page_quad;
-use crate::model::TextBox;
+use crate::model::{TextBox, TextDirection, VerticalAlign};
 use crate::path::rect_path;
 use crate::text::layout::{BoxLayout, Brush, RunPaint, TextStroke};
 use crate::text::outline::glyph_outlines;
@@ -55,15 +55,15 @@ impl Renderer {
         let [top, right, bottom, left] = text.margin;
         let (ix, iy, iw, ih) = (x + left, y + top, w - left - right, h - top - bottom);
         // Local frame: u along the line, v along the block axis.
-        let (frame, block) = match text.direction.as_str() {
-            "vertical" => (Transform::from_row(0.0, 1.0, -1.0, 0.0, ix + iw, iy), iw),
-            "vertical270" => (Transform::from_row(0.0, -1.0, 1.0, 0.0, ix, iy + ih), iw),
-            _ => (Transform::from_translate(ix, iy), ih),
+        let (frame, block) = match text.direction {
+            TextDirection::Vertical => (Transform::from_row(0.0, 1.0, -1.0, 0.0, ix + iw, iy), iw),
+            TextDirection::Vertical270 => (Transform::from_row(0.0, -1.0, 1.0, 0.0, ix, iy + ih), iw),
+            TextDirection::Horizontal | TextDirection::Stacked => (Transform::from_translate(ix, iy), ih),
         };
-        let v0 = match text.vertical_align.as_str() {
-            "middle" => (block - layout.height) / 2.0,
-            "bottom" => block - layout.height,
-            _ => 0.0,
+        let v0 = match text.vertical_align {
+            VerticalAlign::Top => 0.0,
+            VerticalAlign::Middle => (block - layout.height) / 2.0,
+            VerticalAlign::Bottom => block - layout.height,
         };
         let mut lines = |r: &mut Self, surface: &mut Surface| {
             surface.push_transform(&frame);
