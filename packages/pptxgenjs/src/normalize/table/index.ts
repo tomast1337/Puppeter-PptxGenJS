@@ -103,6 +103,16 @@ function inheritedCellOptions(table: PptxGenJS.TableProps, cell: PptxGenJS.Table
     return inherited as PptxGenJS.TableCellProps;
 }
 
+/**
+ * PptxGenJS 4.0.1 accepts a plain string or number as a table cell at runtime, although `TableRow` lists only cell
+ * objects: addTableDefinition (step 2, "B") turns it into a cell `{ text: cell.toString() }` with no options of its
+ * own, before rendering and before getSlidesForTableRows paginates it, so it inherits the table options like an
+ * object cell does.
+ */
+export function tableCell(cell: PptxGenJS.TableCell | string | number): PptxGenJS.TableCell {
+    return typeof cell === "object" && cell !== null ? cell : { text: String(cell) };
+}
+
 export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTable {
     if (!Array.isArray(tableRows) || tableRows.length === 0) {
         throw new Error("addTable: tableRows must be a non-empty array");
@@ -121,7 +131,7 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
         rows: tableRows.map((row, rowIndex) => ({
             height: heights[rowIndex],
             cells: row.map(rawCell => {
-                const cell = typeof rawCell === "object" && rawCell !== null ? rawCell : ({ text: String(rawCell) } as PptxGenJS.TableCell);
+                const cell = tableCell(rawCell);
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text) : String(cell.text ?? "");
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;

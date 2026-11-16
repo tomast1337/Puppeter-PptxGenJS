@@ -4,7 +4,7 @@ import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
 import { inchesToPoints, pixelsToInches, pointsToInches } from "../../units";
 import { slideMarginInches, tableMarginInches } from "../margin";
-import { normalizeTable } from "./index";
+import { normalizeTable, tableCell } from "./index";
 
 export interface PaginatedTablePage {
     rows: PptxGenJS.TableRow[];
@@ -179,8 +179,9 @@ function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTabl
 
 // --- PAGINATION ---
 
-export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
-    if (!rows.length) return [];
+export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
+    if (!inputRows.length) return [];
+    const rows = inputRows.map(row => row.map(tableCell));
 
     const normalized = normalizeTable(rows, options, pageSize);
     const extendedOptions = options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin };

@@ -110,4 +110,17 @@ describe("table auto-pagination", () => {
         expect(slides[1]?.querySelector("td")?.textContent).toBe("Row 1");
         expect(slides[2]?.querySelector("td")?.textContent).toBe("Row 1");
     });
+
+    test("draws plain string cells on every page they continue to", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        const lines = Array.from({ length: 60 }, (_, line) => `Line ${line + 1}`);
+        // `as`: PptxGenJS accepts plain string cells at runtime, but `TableRow` lists only cell objects.
+        presentation.addSlide().addTable([["A", lines.join("\n")]] as unknown as PptxGenJS.TableRow[], { autoPage: true, y: 0.5, w: 8, fontSize: 12 });
+
+        const slides = [...renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-container")];
+        expect(slides.length).toBeGreaterThan(1);
+        const drawn = slides.map(slide => slide.querySelectorAll("td")[1]?.textContent ?? "");
+        expect(drawn.every(text => text.length > 0)).toBe(true);
+        expect(drawn.join("").replaceAll(/\s+/g, "")).toBe(lines.join("").replaceAll(" ", ""));
+    });
 });

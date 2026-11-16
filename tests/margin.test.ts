@@ -11,6 +11,16 @@ import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const round = (sides: number[]) => sides.map(side => Number(side.toFixed(6)));
 
+/** Rows per slide and table y from PptxGenJS itself, run on the same input. */
+function pptxGenJsPages(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Array<{ rows: number; y: number }> {
+    const pptx = new PptxGenJSRuntime();
+    pptx.layout = "LAYOUT_16x9";
+    pptx.addSlide().addTable(rows, options);
+    // `as`: `_slides`, `_slideObjects`, `arrTabRows` and the EMU `options.y` are PptxGenJS 4.0.1 internals the types omit.
+    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ _type: string; arrTabRows: unknown[]; options: { y: number } }> }> })._slides;
+    return slides.flatMap(slide => slide._slideObjects.filter(object => object._type === "table").map(table => ({ rows: table.arrTabRows.length, y: table.options.y / PPTX_DEFAULTS.units.emuPerInch })));
+}
+
 describe("mapSides", () => {
     test("converts each side in order", () => {
         expect(mapSides(["1", "2", "3", "4"], Number)).toEqual([1, 2, 3, 4]);
@@ -56,16 +66,6 @@ describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches
         expect(slideMarginInches(1)).toEqual([1, 1, 1, 1]);
         expect(slideMarginInches([1, 0.5, 1.5, 0.25])).toEqual([1, 0.5, 1.5, 0.25]);
     });
-
-    /** Rows per slide and table y from PptxGenJS itself, run on the same input. */
-    function pptxGenJsPages(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Array<{ rows: number; y: number }> {
-        const pptx = new PptxGenJSRuntime();
-        pptx.layout = "LAYOUT_16x9";
-        pptx.addSlide().addTable(rows, options);
-        // `as`: `_slides`, `_slideObjects`, `arrTabRows` and the EMU `options.y` are PptxGenJS 4.0.1 internals the types omit.
-        const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ _type: string; arrTabRows: unknown[]; options: { y: number } }> }> })._slides;
-        return slides.flatMap(slide => slide._slideObjects.filter(object => object._type === "table").map(table => ({ rows: table.arrTabRows.length, y: table.options.y / PPTX_DEFAULTS.units.emuPerInch })));
-    }
 
     // The continuation slides start at the slide layout's 0.5in margin whatever `slideMargin` is (addTableDefinition),
     // and from the third page on a table `y` above the top margin starts the page (the [2, ...] array).
@@ -136,5 +136,39 @@ describe("text margin convention (PptxGenJS 4.0.1 writes lIns, rIns, bIns, tIns 
     ])("reads %p as points, with no inch boundary", (margin, px) => {
         expect(round(textMarginPixels(margin))).toEqual([px, px, px, px]);
         expect(normalizeText("t", { margin }).margin).toEqual(textMarginPixels(margin));
+    });
+});
+
+describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableDefinition step 2B: `{ text: cell.toString() }`)", () => {
+    const lines = (count: number) => Array.from({ length: count }, (_, line) => `Line ${line + 1}`).join("\n");
+    // `as`: PptxGenJS accepts plain string and number cells at runtime, but `TableRow` lists only cell objects.
+    const plain = (cells: Array<Array<string | number | PptxGenJS.TableCell>>) => cells as PptxGenJS.TableRow[];
+    const tableMargins: Array<PptxGenJS.Margin | undefined> = [undefined, 0.1, [0.2, 0.1, 0.05, 0.1]];
+    // The tallest cell sits in the last column: getSlidesForTableRows leaves a row's last line cycle out of the used
+    // height when that column ends earlier, a separate quirk these rows keep out of the comparison.
+    test.each<[string, PptxGenJS.TableRow[]]>([
+        ["string cells", plain(Array.from({ length: 8 }, (_, index) => [`Row ${index + 1}`, lines(60)]))],
+        ["number cells", plain(Array.from({ length: 40 }, (_, index) => [index, index * 1.5]))],
+        ["mixed rows", plain(Array.from({ length: 30 }, (_, index) => [`Row ${index + 1}`, index, { text: lines((index % 4) + 1) }]))],
+        ["mixed rows, string tallest", plain(Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}` }, index, lines((index % 4) + 1)]))],
+    ])("paginates %s as PptxGenJS does", (_, rows) => {
+        for (const fontSize of [8, 12, 18])
+            for (const margin of tableMargins)
+                for (const autoPageRepeatHeader of [false, true]) {
+                    const options: PptxGenJS.TableProps = { autoPage: true, autoPageRepeatHeader, y: 0.5, w: 8, fontSize, margin };
+                    const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
+                    // PptxGenJS writes into the rows and options it is given (cell options, colW), so it gets copies.
+                    const reference = pptxGenJsPages(structuredClone(rows), { ...options });
+                    expect({ fontSize, margin, autoPageRepeatHeader, pages }).toEqual({ fontSize, margin, autoPageRepeatHeader, pages: reference });
+                }
+    });
+
+    test("splits a long string row and continues its text on the next page", () => {
+        const flat = (cell: PptxGenJS.TableCell | undefined): string => (Array.isArray(cell?.text) ? cell.text.map(part => `${flat(part)}${part.options?.breakLine ? "\n" : ""}`).join("") : String(cell?.text ?? ""));
+        const pages = paginateTableRows(plain([["A", lines(60)]]), { autoPage: true, y: 0.5, w: 8, fontSize: 12 }, PAGE);
+        const firstCells = pages.map(page => flat(page.rows[0]?.[1]));
+        expect(pages.length).toBeGreaterThan(1);
+        expect(firstCells.every(text => text.length > 0)).toBe(true);
+        expect(firstCells.join("\n")).toBe(lines(60));
     });
 });
