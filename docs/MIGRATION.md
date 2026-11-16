@@ -52,7 +52,9 @@ returns a `.pptx`:
 - **Ignored, as PptxGenJS ignores them:** text `bulletNumberType`, `textDirection` (a table cell
   option), `isTextBox`, `data` and `path`, shape `align` and table `verbose` are accepted and draw
   nothing different. A string `line` and `lineSize`, `lineDash`, `lineHead`, `lineTail` apply to
-  `addText` only with `shape: "line"`, as in PptxGenJS.
+  `addText` only with `shape: "line"`, as in PptxGenJS. Inside a `line` object, the deprecated `pt`,
+  `size`, `lineDash`, `lineHead` and `lineTail` are ignored: use `width`, `dashType`, `beginArrowType`
+  and `endArrowType`.
 - **Text fit and tab stops:** `fit: "shrink"` (`shrinkText`) scales font size and line height in
   steps until the text fits, close to but not the scale PowerPoint or LibreOffice pick.
   `fit: "resize"` (`autoFit`) grows the box to its text, where PowerPoint keeps the stored size until
