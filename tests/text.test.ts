@@ -228,7 +228,6 @@ describe("text DOM rendering", () => {
         expect(box?.style.opacity).toBe("");
         expect(box?.dataset.textDirection).toBe("vertical270");
         expect(box?.dataset.textFit).toBe("shrink");
-        expect(box?.style.borderRadius).toBe("20%");
         expect(content?.style.writingMode).toBe("vertical-rl");
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
     });
@@ -279,10 +278,27 @@ describe("text DOM rendering", () => {
         expect(box?.querySelector(".text-run")?.textContent).toBe("Decision");
     });
 
-    test("preserves the pinned textDirection and rounded-shape quirks", () => {
+    test("preserves the pinned textDirection quirk", () => {
         expect(normalizeText("ignored", { textDirection: "vert" }).direction).toBe("horizontal");
-        expect(normalizeText("plain", { rectRadius: 0.5 }).borderRadius).toBe(0);
-        expect(normalizeText("rounded", { shape: "roundRect", rectRadius: 0.5 }).borderRadius).toBe(25);
+    });
+
+    // PptxGenJS 4.0.1 addTextDefinition: a numeric `inset` sets lIns/rIns/tIns/bIns in inches; the writer
+    // then replaces all four with `margin` (points) when one is given, a zero margin included.
+    test("reads the deprecated inset in inches unless a margin overrides it", () => {
+        expect(normalizeText("inset", { inset: 0.5 }).margin).toEqual([48, 48, 48, 48]);
+        expect(normalizeText("zero", { inset: 0 }).margin).toEqual([0, 0, 0, 0]);
+        expect(normalizeText("margin wins", { inset: 0.5, margin: 0 }).margin).toEqual([0, 0, 0, 0]);
+        expect(normalizeText("margin wins", { inset: 0.5, margin: [3, 6, 9, 12] }).margin).toEqual([16, 8, 12, 4]);
+        expect(normalizeText("default", {}).margin).toEqual(normalizeText("not a number", { inset: Number.NaN }).margin);
+    });
+
+    // The roundRect outline is the shape's SVG path; the box itself stays square, so a radius never clips the text.
+    test("keeps a rounded text box square", () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addText("Rounded", { x: 1, y: 1, w: 3, h: 1, shape: "roundRect", rectRadius: 0.4, fill: { color: "D9E2F3" } });
+        const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
+        expect(box?.getAttribute("style")).not.toContain("border-radius");
+        expect(Number(box?.querySelector(".shape-geometry")?.getAttribute("rx"))).toBeCloseTo(38.4);
     });
 
     // PptxGenJS 4.0.1 declares these but draws nothing different for them: `isTextBox` only adds txBox="1"

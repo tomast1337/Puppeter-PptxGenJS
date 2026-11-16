@@ -301,7 +301,8 @@ export const COMPATIBILITY = Object.freeze({
             paraSpaceBefore: "implemented",
             // Throws UnsupportedFeatureError: placeholders live on slide layouts, which need defineSlideMaster().
             placeholder: "unsupported",
-            rectRadius: "partial",
+            // rectRadius: the roundRect geometry's corner in inches, as PptxGenJS writes it; the text box stays square.
+            rectRadius: "implemented",
             rotate: "implemented",
             rtlMode: "implemented",
             shadow: "implemented",
@@ -313,7 +314,8 @@ export const COMPATIBILITY = Object.freeze({
             wrap: "implemented",
             autoFit: "partial",
             shrinkText: "partial",
-            inset: "unsupported",
+            // inset: deprecated, inches on all four sides, overridden by any `margin` (PptxGenJS 4.0.1 addTextDefinition).
+            inset: "implemented",
             // lineDash, lineHead, lineSize and lineTail: read only for shape "line", as in PptxGenJS 4.0.1.
             lineDash: "implemented",
             lineHead: "implemented",

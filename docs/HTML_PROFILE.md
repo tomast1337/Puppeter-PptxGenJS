@@ -77,8 +77,7 @@ From the maintainer's decisions on #69:
 ## Conventions
 
 - **Lengths** are CSS px at 96 px per inch (`PPTX_DEFAULTS.units`), the model's unit, written with a `px`
-  suffix in CSS and without a unit in SVG attributes. Only `@page` uses inches. Angles are `deg`;
-  `border-radius` on text boxes is a percentage.
+  suffix in CSS and without a unit in SVG attributes. Only `@page` uses inches. Angles are `deg`.
 - **Values are written verbatim, never through the CSSOM.** Each inline `style` attribute is a string
   the renderer formats itself (`render/css.ts`): `property: value;` pairs joined by one space, in
   first-write order. Numbers keep full float precision and colors keep the model's spelling (`#17365D`,
@@ -209,7 +208,7 @@ There is no media, notes or master element: the model has no such kinds.
 ### Text
 
 ```html
-<div class="slide-element slide-text" style="…box…; padding; align-items; white-space; overflow-wrap; direction; border-radius" data-object-name="Text 1" data-text-fit="none" data-text-direction="horizontal">
+<div class="slide-element slide-text" style="…box…; padding; align-items; white-space; overflow-wrap; direction" data-object-name="Text 1" data-text-fit="none" data-text-direction="horizontal">
     <div class="text-content" style="width: 100%">
         <div class="text-paragraph" style="text-align; direction; margin-top; margin-bottom; line-height; tab-size" data-line-baseline="14.4" data-tab-stops="96:left,192:right" data-bullet-level="0" data-bullet-type="bullet" data-bullet-indent="27" data-bullet-start="1">
             <span class="text-bullet" style="display: inline-block; width; font-family; font-size; color">•&nbsp;</span>
@@ -599,7 +598,6 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextBox.fit`                        | profile      | `data-text-fit`.                                                                                                           |
 | `NormalizedTextBox.direction`                  | profile      | `data-text-direction` (plus `writing-mode`/`text-orientation` on `.text-content`).                                         |
 | `NormalizedTextBox.rtl`                        | profile      | `direction: rtl\|ltr` on the box.                                                                                          |
-| `NormalizedTextBox.borderRadius`               | profile      | `border-radius: <n>%` on the box.                                                                                          |
 | `NormalizedTextParagraph.runs`                 | profile      | `.text-run` children (`span`, or `a` when linked).                                                                         |
 | `NormalizedTextParagraph.align`                | profile      | `text-align`.                                                                                                              |
 | `NormalizedTextParagraph.rtl`                  | profile      | `direction: rtl\|ltr` on the paragraph.                                                                                    |

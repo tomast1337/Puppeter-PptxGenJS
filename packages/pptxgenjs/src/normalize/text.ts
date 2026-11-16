@@ -18,8 +18,13 @@ function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
 
-function normalizeMargins(margin?: number | FourSideMargin): [number, number, number, number] {
+function normalizeMargins(margin?: number | FourSideMargin, inset?: number): [number, number, number, number] {
     if (margin === undefined) {
+        // `inset`, deprecated since PptxGenJS 3.10, is in inches on all four sides; any `margin` overrides it.
+        if (typeof inset === "number" && !Number.isNaN(inset)) {
+            const value = inchesToPixels(inset);
+            return [value, value, value, value];
+        }
         return PPTX_DEFAULTS.text.marginIn.map(inchesToPixels) as [number, number, number, number];
     }
     if (typeof margin === "number") {
@@ -296,13 +301,12 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
 
     return {
         paragraphs,
-        margin: normalizeMargins(options.margin as number | FourSideMargin | undefined),
+        margin: normalizeMargins(options.margin as number | FourSideMargin | undefined, options.inset),
         verticalAlign: options.valign ?? PPTX_DEFAULTS.text.valign,
         wrap: options.wrap ?? PPTX_DEFAULTS.text.wrap,
         fit: getFitMode(options),
         direction: getTextDirection(direction),
         rtl: options.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
-        borderRadius: options.shape === "roundRect" ? clamp(options.rectRadius ?? 0.1, 0, 1) * 50 : 0,
     };
 }
 

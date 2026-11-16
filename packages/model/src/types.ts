@@ -137,7 +137,6 @@ export interface NormalizedTextBox {
     fit: "none" | "shrink" | "resize";
     direction: NormalizedTextDirection;
     rtl: boolean;
-    borderRadius: number;
 }
 
 export interface NormalizedTableBorder {

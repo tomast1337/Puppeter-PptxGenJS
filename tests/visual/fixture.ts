@@ -263,6 +263,16 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             { name: "text-line-shape-line-string", label: "shape line: string line and lineSize", text: "", options: { x: 5.5, y: 4.25, w: 4, h: 0.75, shape: "line", line: "C00000" as unknown as PptxGenJS.ShapeLineProps, lineSize: 3 } },
         ],
     },
+    {
+        // `inset` is inches on all four sides unless `margin` is given; rectRadius is the roundRect corner in inches, 0 the preset's 1/6.
+        title: "Text insets and rounded corners",
+        cases: [
+            { name: "text-inset", label: "inset 0.5 (inches)", text: "Inset", options: { x: 0.5, y: 1.25, w: 4, h: 1.25, inset: 0.5, valign: "top", fill: { color: "F2F2F2" } } },
+            { name: "text-inset-margin", label: "inset 0.5 and margin 0: margin wins", text: "Margin", options: { x: 5.5, y: 1.25, w: 4, h: 1.25, inset: 0.5, margin: 0, valign: "top", fill: { color: "F2F2F2" } } },
+            { name: "text-roundrect-corner", label: "roundRect, rectRadius 0.4, margin 0", text: "Corner", options: { x: 0.5, y: 3.5, w: 4, h: 1.25, shape: "roundRect", rectRadius: 0.4, margin: 0, valign: "top", fill: { color: "D9E2F3" } } },
+            { name: "text-roundrect-zero", label: "roundRect, rectRadius 0: preset corner", text: "", options: { x: 5.5, y: 3.5, w: 4, h: 1.25, shape: "roundRect", rectRadius: 0, fill: { color: "D9E2F3" } } },
+        ],
+    },
 ];
 const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h } }) => ({ page: 63 + index, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;
