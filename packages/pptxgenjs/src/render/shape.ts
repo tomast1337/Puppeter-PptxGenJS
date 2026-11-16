@@ -14,7 +14,7 @@ const MARKER_ID_OTHER = /\W/g;
 
 function modifyColor(color: string, modifier: ColorModifier): string {
     const factor = PPTX_DEFAULTS.shape.faceShading[modifier];
-    const transform = (value: number) => Math.floor(modifier === "lighten" || modifier === "lightenLess" ? value + (255 - value) * factor : value * factor);
+    const transform = (value: number) => Math.floor(modifier === "lighten" || modifier === "lightenLess" ? value + (255 - value) * factor : value * (1 - factor));
     const hex = color.match(HEX_COLOR);
     if (hex) {
         const channel = (value: string) => transform(parseInt(value, 16)).toString(16).padStart(2, "0");

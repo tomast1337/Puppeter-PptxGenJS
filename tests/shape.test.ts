@@ -346,8 +346,17 @@ describe("SVG shape rendering", () => {
         const modifiers = [undefined, "lighten", "lightenLess", "darken", "darkenLess"] as const;
         const shape = { ...object.shape, geometry: { kind: "path" as const, data: "", faces: modifiers.map(fillModifier => ({ data: "M 0 0 Z", fillModifier })) } };
         const fills = Array.from(renderShapeSvg(shape, object.style).matchAll(/class="shape-face"[^>]*? fill="([^"]*)"/g), match => match[1]);
-        // PPTX_DEFAULTS.shape.faceShading: lighten mixes 60%/20% toward white, darken scales by 0.6/0.8, floored.
-        expect(fills).toEqual(["rgba(100, 200, 50, 0.5)", "rgba(193, 233, 173, 0.5)", "rgba(131, 211, 91, 0.5)", "rgba(60, 120, 30, 0.5)", "rgba(80, 160, 40, 0.5)"]);
+        // PPTX_DEFAULTS.shape.faceShading ([MS-OI29500]): blended with 40% or 50/255 white or black, floored.
+        expect(fills).toEqual(["rgba(100, 200, 50, 0.5)", "rgba(162, 222, 132, 0.5)", "rgba(130, 210, 90, 0.5)", "rgba(60, 120, 30, 0.5)", "rgba(80, 160, 40, 0.5)"]);
+    });
+
+    test("shades the can's lid as Office does: D9E2F3 blended with 40% white", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("can", { x: 1, y: 1, w: 2, h: 1, fill: { color: "D9E2F3" } });
+        const object = presentation.getModel().slides[0]?.objects[0];
+        if (object?.kind !== "shape") throw new Error("expected the can shape");
+        // LibreOffice 26.2 paints the lid #E8EDF7 too: 217 + 38 * 0.4 = 232.2, 226 + 29 * 0.4 = 237.6, 243 + 12 * 0.4 = 247.8.
+        expect(renderShapeSvg(object.shape, object.style)).toContain('data-fill-modifier="lighten" stroke="none" fill="#e8edf7"');
     });
 
     test("renders rectangles, ellipses, and zero-height arrow lines as SVG", () => {
@@ -463,7 +472,7 @@ describe("SVG shape rendering", () => {
         const faces = geometry?.querySelectorAll<SVGPathElement>(".shape-face");
         expect(faces).toHaveLength(2);
         expect(faces?.[0]?.getAttribute("fill")).toBe("#5B9BD5");
-        expect(faces?.[1]?.getAttribute("fill")).toBe("#487caa");
+        expect(faces?.[1]?.getAttribute("fill")).toBe("#497cab");
         expect(geometry?.querySelector(".shape-outline")?.getAttribute("stroke")).toBe("#843C0C");
     });
 
@@ -532,7 +541,7 @@ describe("SVG shape rendering", () => {
         const faces = geometry?.querySelectorAll<SVGPathElement>(".shape-face");
         expect(faces).toHaveLength(2);
         expect(faces?.[0]?.getAttribute("fill")).toBe("#5B9BD5");
-        expect(faces?.[1]?.getAttribute("fill")).toBe("#487caa");
+        expect(faces?.[1]?.getAttribute("fill")).toBe("#497cab");
         expect(geometry?.querySelectorAll(".shape-outline")).toHaveLength(1);
     });
 
@@ -550,7 +559,7 @@ describe("SVG shape rendering", () => {
         expect(faces).toHaveLength(3);
         expect(faces[0]?.getAttribute("fill")).toBe("#5B9BD5");
         expect(faces[1]?.getAttribute("fill")).toBe("#365d7f");
-        expect(faces[2]?.getAttribute("fill")).toBe("#bdd7ee");
+        expect(faces[2]?.getAttribute("fill")).toBe("#9cc3e5");
     });
 
     test("renders smiley details as shaded eyes and an unfilled mouth", () => {
