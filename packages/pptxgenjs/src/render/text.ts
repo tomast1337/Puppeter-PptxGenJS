@@ -86,6 +86,8 @@ function paragraphAttributes(paragraph: NormalizedTextParagraph): Attribute[] {
     const { lineBox, bullet } = paragraph;
     css.set("line-height", `${lineBox.height}px`);
     // Default stops only: CSS has no explicit tab stops.
+    // shortcut: Chromium has only `tab-size`, so the Puppeteer renderer ignores data-tab-stops (the WASM one draws
+    // them); lay the stops out in the print step once a reference renderer shows them (LibreOffice drops the list).
     css.set("tab-size", `${paragraph.defaultTabStop}px`);
     if (bullet) {
         const levelIndent = bullet.indent / (bullet.level + 1);
@@ -143,6 +145,8 @@ export function renderText(css: InlineStyle, text: NormalizedTextBox): { attribu
     css.set("white-space", text.wrap ? "pre-wrap" : "pre");
     css.set("overflow-wrap", text.wrap ? "break-word" : "normal");
     css.set("direction", text.rtl ? "rtl" : "ltr");
+    // shortcut: the box grows to the text, while PowerPoint and LibreOffice draw an <a:spAutoFit/> box at its stored
+    // size; keep the size once a migration needs the PowerPoint layout rather than the text in full.
     if (text.fit === "resize") {
         const minimumHeight = css.get("height");
         css.set("height", "auto");

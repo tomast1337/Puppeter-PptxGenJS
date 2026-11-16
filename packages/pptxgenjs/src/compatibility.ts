@@ -275,6 +275,9 @@ export const COMPATIBILITY = Object.freeze({
             fontSize: "verified",
             highlight: "implemented",
             lang: "implemented",
+            // In the HTML (data-tab-stops) and drawn by the WASM renderer; Chromium has only `tab-size`, so every tab
+            // advances to the next 1in default stop. LibreOffice drops the list PptxGenJS writes (its pPr has marL and
+            // indent), so the reference shows default stops as well.
             tabStops: "partial",
             // Only table cells read it (as `vert`); addText writes no attribute for it. `vert` is the text-box option.
             textDirection: "ignored",
@@ -282,6 +285,9 @@ export const COMPATIBILITY = Object.freeze({
             underline: "implemented",
             baseline: "implemented",
             charSpacing: "implemented",
+            // shrink: font size and line height x0.95 until the text fits; LibreOffice also shrinks paragraph spacing,
+            // PowerPoint scales to the fontScale it computes. resize: the box grows to fit the text, while PowerPoint
+            // and LibreOffice keep the stored size of the <a:spAutoFit/> box until the text is edited.
             fit: "partial",
             fill: "implemented",
             flipH: "implemented",
@@ -313,6 +319,7 @@ export const COMPATIBILITY = Object.freeze({
             superscript: "implemented",
             vert: "implemented",
             wrap: "implemented",
+            // As `fit: "resize"` and `fit: "shrink"` (deprecated aliases).
             autoFit: "partial",
             shrinkText: "partial",
             // inset: deprecated, inches on all four sides, overridden by any `margin` (PptxGenJS 4.0.1 addTextDefinition).
@@ -434,6 +441,7 @@ export const COMPATIBILITY = Object.freeze({
             hyperlink: "implemented",
             lang: "implemented",
             softBreakBefore: "implemented",
+            // As text tabStops; a table-level `tabStops` is not inherited by cells, as in PptxGenJS 4.0.1.
             tabStops: "partial",
             textDirection: "verified",
             transparency: "verified",
