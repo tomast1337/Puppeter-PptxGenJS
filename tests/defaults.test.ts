@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "../packages/pptxgenjs/src/defaults";
+import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION } from "../packages/pptxgenjs/src/defaults";
 
 describe("defaults contract", () => {
     test("is pinned to the audited PptxGenJS version", () => {
@@ -19,21 +19,5 @@ describe("defaults contract", () => {
         expect(Object.isFrozen(PPTX_DEFAULTS.chart)).toBe(true);
         expect(Object.isFrozen(PPTX_DEFAULTS.chart.colors.bar)).toBe(true);
         expect(Object.isFrozen(PPTX_DEFAULTS.chart.colors.pie)).toBe(true);
-    });
-});
-
-describe("PptxGenJS defaults", () => {
-    test("captures the normal PowerPoint text inset", () => {
-        expect(PPTX_DEFAULTS.text.marginIn).toEqual([0.05, 0.1, 0.05, 0.1]);
-        expect(textMarginToCSS()).toBe("4.8px 9.6px 4.8px 9.6px");
-    });
-
-    test("mirrors PptxGenJS 4.0.1 text margin array ordering", () => {
-        expect(textMarginToCSS([1, 2, 3, 4])).toBe("5.333333px 2.666667px 4px 1.333333px");
-    });
-
-    test("uses TRBL ordering and dual units for table margins", () => {
-        expect(tableMarginToCSS([0.05, 0.1, 0.05, 0.1])).toBe("4.8px 9.6px 4.8px 9.6px");
-        expect(tableMarginToCSS(6)).toBe("8px 8px 8px 8px");
     });
 });

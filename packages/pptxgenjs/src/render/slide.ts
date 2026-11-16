@@ -1,5 +1,6 @@
 import type { ComponentRegistry } from "../components/registry";
-import { PPTX_DEFAULTS, tableMarginToCSS, textMarginToCSS } from "../defaults";
+import { PPTX_DEFAULTS } from "../defaults";
+import { tableMarginToCSS, textMarginToCSS } from "../normalize/margin";
 import { HTML_PROFILE_VERSION, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, type PresentationMetadata } from "@pdflapas/model";
 import { normalizeColor } from "../normalize/style";
 import type { PageSize } from "../pageLayouts";

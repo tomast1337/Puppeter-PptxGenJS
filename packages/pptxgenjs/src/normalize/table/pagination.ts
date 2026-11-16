@@ -1,8 +1,9 @@
 import type PptxGenJS from "pptxgenjs";
-import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
+import { PPTX_DEFAULTS } from "../../defaults";
 import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
 import { inchesToPoints, pixelsToInches, pointsToInches } from "../../units";
+import { tableMarginInches } from "../margin";
 import { normalizeTable } from "./index";
 
 export interface PaginatedTablePage {
@@ -28,11 +29,6 @@ function verticalInches(value: number | `${number}%` | undefined, fallback: numb
     if (typeof value === "number") return value;
     if (typeof value === "string" && value.endsWith("%")) return (parseFloat(value) / 100) * pageHeight;
     return fallback;
-}
-
-function marginInches(margin?: number | FourSideMargin): FourSideMargin {
-    const values: FourSideMargin = margin === undefined ? [...PPTX_DEFAULTS.table.marginIn] : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
-    return values[0] >= 1 ? (values.map(pointsToInches) as FourSideMargin) : ([...values] as FourSideMargin);
 }
 
 function cellValue(cell: PptxGenJS.TableCell): string | PptxGenJS.TableCell[] {
@@ -144,7 +140,7 @@ function rowMargin(row: PptxGenJS.TableRow, table: PptxGenJS.TableProps): number
     let bottom = 0;
     for (const cell of row) {
         const cellMargin = Array.isArray(cell.options?.margin) ? cell.options.margin : table.margin;
-        const [cellTop, , cellBottom] = marginInches(cellMargin as number | FourSideMargin | undefined);
+        const [cellTop, , cellBottom] = tableMarginInches(cellMargin);
         top = Math.max(top, cellTop);
         bottom = Math.max(bottom, cellBottom);
     }
@@ -188,7 +184,9 @@ export function paginateTableRows(rows: PptxGenJS.TableRow[], options: PptxGenJS
 
     const normalized = normalizeTable(rows, options, pageSize);
     const extendedOptions = options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin };
-    const pageMargins = marginInches(extendedOptions.slideMargin ?? PPTX_DEFAULTS.slide.marginIn);
+    // shortcut: PptxGenJS 4.0.1 getSlidesForTableRows reads `slideMargin` as inches whatever its size, but this reads it
+    // with the cell-margin rule (1 or more is points), so a slideMargin of 1 inch or more paginates too short; fix with #165.
+    const pageMargins = tableMarginInches(extendedOptions.slideMargin ?? PPTX_DEFAULTS.slide.marginIn);
 
     const continuationY = options.autoPageSlideStartY ?? options.newSlideStartY ?? pageMargins[0];
     const firstY = verticalInches(options.y, pageMargins[0], pageSize.height);

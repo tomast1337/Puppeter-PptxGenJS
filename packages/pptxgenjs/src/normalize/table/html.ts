@@ -1,9 +1,9 @@
-import { POINTS_PER_INCH } from "@pdflapas/model";
 import type PptxGenJS from "pptxgenjs";
-import type { FourSideMargin } from "../../defaults";
+import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
 import type { PageSize } from "../../pageLayouts";
 import { HEX_COLOR } from "../../color";
-import { inchesToPixels } from "../../units";
+import { inchesToPixels, pointsToPixels } from "../../units";
+import { mapSides } from "../margin";
 
 export interface NormalizedHtmlTable {
     rows: PptxGenJS.TableRow[];
@@ -22,13 +22,13 @@ function cssPixels(value: string | null | undefined, relativeTo: number): number
     if (!Number.isFinite(amount)) return 0;
     if (source.endsWith("%")) return (relativeTo * amount) / 100;
     if (source.endsWith("in")) return inchesToPixels(amount);
-    if (source.endsWith("pt")) return inchesToPixels(amount) / POINTS_PER_INCH;
+    if (source.endsWith("pt")) return pointsToPixels(amount);
     return amount;
 }
 
 function margins(value?: PptxGenJS.Margin): FourSideMargin {
-    if (Array.isArray(value)) return [...value] as FourSideMargin;
-    const margin = typeof value === "number" ? value : 0.5;
+    if (Array.isArray(value)) return [...value];
+    const margin = typeof value === "number" ? value : PPTX_DEFAULTS.slide.marginIn;
     return [margin, margin, margin, margin];
 }
 
@@ -86,7 +86,7 @@ function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
         options.valign = style.verticalAlign;
     }
     if (style.paddingLeft) {
-        options.margin = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(value => Math.round(parseFloat(value) || 0)) as FourSideMargin;
+        options.margin = mapSides([style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft], value => Math.round(parseFloat(value) || 0));
     }
     const borderSides = ["top", "right", "bottom", "left"] as const;
     options.border = borderSides.map(side => ({
