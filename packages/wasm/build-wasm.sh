@@ -44,7 +44,8 @@ root=$PWD
 # +1,279 B: resource limits (#160: image header sizes for the pixel limits, effect flattening tolerance from the path extent, glow count per text box), 1,047,255 -> 1,048,534 B measured; budget = that size.
 # +94 B: profile colors and keywords parsed once into typed model values, every color strictly (#152: error messages naming the property, the keyword tables), 1,048,534 -> 1,048,628 B measured; budget = that size.
 # +9 B: a tab within 0.01px before a stop counts as on it, so float rounding cannot send the next tab back to that stop (#161), 1,048,628 -> 1,048,637 B measured; budget = that size.
-GZIP_BUDGET=1048637
+# +1,408 B: tab layout measures each line once and re-breaks only when a widened tab moves text to another line, within a re-break budget (#161: per-line cluster table sorted by byte offset), 1,048,637 -> 1,050,045 B measured; budget = that size.
+GZIP_BUDGET=1050045
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

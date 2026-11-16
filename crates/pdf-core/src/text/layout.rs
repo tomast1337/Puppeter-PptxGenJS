@@ -15,7 +15,7 @@ use crate::color::Rgba;
 use crate::effect::Effect;
 use crate::model::{LineBox, ParagraphAlign, TextBox, TextDirection, TextFit};
 use crate::text::font::family_stack;
-use crate::text::tabs::{TAB_PLACEHOLDER, place_tabs, tab_box};
+use crate::text::tabs::{MAX_TAB_REBREAK_BYTES, TAB_PLACEHOLDER, TabRuler, place_tabs, tab_box};
 
 /// `font-kerning: none`: the OpenType `kern` feature off.
 const NO_KERNING: [FontFeature; 1] = [FontFeature::new(Tag::new(b"kern"), 0)];
@@ -247,7 +247,20 @@ impl Renderer {
                     // shortcut: stops are measured from the left; mirror them for RTL paragraphs when a deck needs it.
                     self.warn("tab stops in right-to-left paragraphs measured from the left");
                 }
-                place_tabs(&mut layout, &s, &tabs, &paragraph.tab_stops, paragraph.default_tab_stop, indent, max_w);
+                let ruler = TabRuler {
+                    stops: &paragraph.tab_stops,
+                    default_stop: paragraph.default_tab_stop,
+                    indent,
+                    max_w,
+                };
+                let mut clusters = std::mem::take(&mut self.tab_clusters);
+                if place_tabs(&mut layout, &s, &tabs, &ruler, &mut clusters).capped {
+                    // shortcut: past the budget a tab that should wrap is measured on its old line; raise it if a real deck needs more.
+                    self.warn(format!(
+                        "tab stops past {MAX_TAB_REBREAK_BYTES} bytes of re-broken text in one paragraph measured before their lines wrapped"
+                    ));
+                }
+                self.tab_clusters = clusters;
             }
             self.tab_indices = tabs;
 
