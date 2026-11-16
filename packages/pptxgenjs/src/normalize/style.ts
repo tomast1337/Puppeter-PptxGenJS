@@ -19,12 +19,18 @@ const SCHEME_COLORS: Readonly<Record<string, string>> = Object.freeze({
     accent6: PPTX_DEFAULTS.theme.colors.accent6,
 });
 
+/** Own keys only, so "constructor" or "__proto__" never resolve through the prototype. */
+function resolveSchemeColor(color: string): string {
+    return Object.hasOwn(SCHEME_COLORS, color) ? (SCHEME_COLORS[color] ?? color) : color;
+}
+
+/** Throws on a color that is neither 6-digit hex nor a scheme color (see colorToCSS). */
 export function normalizeColor(value?: ColorValue, fallback = "transparent"): string {
     if (!value) return fallback;
     if (typeof value === "string") {
-        return colorToCSS(SCHEME_COLORS[value] ?? value);
+        return colorToCSS(resolveSchemeColor(value));
     }
-    const resolved = value.color ? (SCHEME_COLORS[value.color] ?? value.color) : undefined;
+    const resolved = value.color ? resolveSchemeColor(value.color) : undefined;
     return colorToCSS({ color: resolved, transparency: value.transparency ?? value.alpha });
 }
 

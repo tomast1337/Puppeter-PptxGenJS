@@ -2,6 +2,7 @@ import { POINTS_PER_INCH } from "@pdflapas/model";
 import type PptxGenJS from "pptxgenjs";
 import type { FourSideMargin } from "../../defaults";
 import type { PageSize } from "../../pageLayouts";
+import { HEX_COLOR } from "../../color";
 import { inchesToPixels } from "../../units";
 
 export interface NormalizedHtmlTable {
@@ -43,7 +44,8 @@ function textContent(cell: HTMLTableCellElement): string {
 function colorValue(value: string): string {
     if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") return "FFFFFF";
     const channels = value.match(/rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)/i);
-    if (!channels) return value.replace(/^#/, "") || "000000";
+    // A computed color that is not rgb() (jsdom's "canvastext") becomes "NaNNaNNaN" in PptxGenJS 4.0.1, which writes black.
+    if (!channels) return HEX_COLOR.test(value) ? value.replace(/^#/, "") : "000000";
     return channels
         .slice(1, 4)
         .map(channel => Number(channel).toString(16).padStart(2, "0"))

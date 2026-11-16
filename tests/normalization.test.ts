@@ -3,7 +3,7 @@ import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { normalizeGeometry, normalizeTransform } from "../packages/pptxgenjs/src/normalize/geometry";
-import { resolveImageSource } from "../packages/pptxgenjs/src/node";
+import { PuppeteerGen, resolveImageSource } from "../packages/pptxgenjs/src/node";
 import { arrowHeadPath, arrowShaftStart, normalizeColor, normalizeFill, normalizeLine, normalizeShadow, shaftDashes, startDashAt } from "../packages/pptxgenjs/src/normalize/style";
 import { normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
@@ -30,6 +30,35 @@ describe("shared object normalization", () => {
             color: "#ED7D31",
             style: "dashed",
         });
+    });
+
+    test("rejects colors that could add CSS declarations, in every color option", () => {
+        for (const color of ["red; background-image: url(http://x)", "}", "url(", '"', "constructor", "__proto__", "toString"]) {
+            expect(() => normalizeColor(color)).toThrow("is not a valid color");
+            expect(() => normalizeFill({ color })).toThrow("is not a valid color");
+            expect(() => normalizeLine({ color })).toThrow("is not a valid color");
+            expect(() => normalizeShadow({ type: "outer", color })).toThrow("is not a valid color");
+        }
+        expect(normalizeColor("#ED7D31")).toBe("#ED7D31");
+        expect(normalizeColor({ color: "tx1", transparency: 50 })).toBe("rgba(0, 0, 0, 0.5)");
+    });
+
+    test("the API throws on an injected color before any HTML is written (#148)", async () => {
+        const bad = "red; background-image: url(http://127.0.0.1/x)";
+        const deck = () => new PuppeteerGen();
+        const draw = async (add: (slide: ReturnType<PuppeteerGen["addSlide"]>) => void) => {
+            const pres = deck();
+            add(pres.addSlide());
+            return pres.toHtml();
+        };
+        await expect(draw(slide => slide.addText("a", { x: 0, y: 0, w: 1, h: 1, color: bad }))).rejects.toThrow("is not a valid color");
+        await expect(draw(slide => slide.addText("a", { x: 0, y: 0, w: 1, h: 1, highlight: bad }))).rejects.toThrow("is not a valid color");
+        await expect(draw(slide => slide.addText("a", { x: 0, y: 0, w: 1, h: 1, glow: { size: 4, opacity: 0.5, color: bad } }))).rejects.toThrow("is not a valid color");
+        await expect(draw(slide => slide.addTable([[{ text: "a", options: { fill: { color: bad } } }]], { x: 0, y: 0, w: 1 }))).rejects.toThrow("is not a valid color");
+        await expect(draw(slide => slide.addTable([[{ text: "a", options: { border: { type: "solid", pt: 1, color: bad } } }]], { x: 0, y: 0, w: 1 }))).rejects.toThrow("is not a valid color");
+        await expect(draw(slide => slide.addShape("rect", { x: 0, y: 0, w: 1, h: 1, fill: { color: bad } }))).rejects.toThrow("is not a valid color");
+        await expect(draw(slide => (slide.background = { color: bad }))).rejects.toThrow("is not a valid color");
+        await expect(draw(slide => slide.addChart("bar", [{ name: "s", labels: ["a"], values: [1] }], { x: 0, y: 0, w: 2, h: 2, chartColors: [bad] }))).rejects.toThrow("is not a valid color");
     });
 
     // PptxGenJS 4.0.1 copies only width, dashType and the arrow types from a line object (addShapeDefinition,
