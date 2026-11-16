@@ -95,6 +95,15 @@ describe("Puppeteer renderer", () => {
         expect(ascii(pdf)).toContain("/MediaBox [0 0 288 216]");
     }, 60_000);
 
+    // Without preferCSSPageSize Chromium printed this page on 595.92 x 842.88pt paper with the @page box centred
+    // at a whole CSS px, so everything moved 0.75pt right and down.
+    test("prints on the document's @page size, not a paper centred around it", async () => {
+        const html = `<!DOCTYPE html><html><head><style>@page { size: 8.2646in 11.695in; margin: 0 }</style></head><body></body></html>`;
+        const pdf = await new PuppeteerPdfRenderer().render({ html, pageSize: { width: 8.2646, height: 11.695, name: "Custom" } });
+        // 594.96 x 841.92pt: Chromium's paper no longer rounds up past the 595.05 x 842.04pt page.
+        expect(ascii(pdf)).toContain("/MediaBox [0 0 594.95996 841.91998]");
+    }, 60_000);
+
     test("prints an edited toHtml() document and a hand-written one through pptxHtmlDocument()", async () => {
         const pres = new PuppeteerGen();
         pres.addSlide().addText("Draft", { x: 1, y: 1, w: 3, h: 1 });

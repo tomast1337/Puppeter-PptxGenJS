@@ -116,6 +116,10 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
     const pdf = await page.pdf({
         width: `${pageSize.width}in`,
         height: `${pageSize.height}in`,
+        // The document's @page size wins over width and height, which are only the fallback. Chromium rounds a
+        // width/height paper up and centres the @page box on it at a whole CSS px, shifting everything by up to
+        // 1px (0.75pt) on sizes such as 8.2646 x 11.695in; LibreOffice and PowerPoint place it at the origin.
+        preferCSSPageSize: true,
         // printHtml lays the document out at PRINT_ZOOM; this scales it back to the deck size.
         scale: 1 / PRINT_ZOOM,
         printBackground: true,
