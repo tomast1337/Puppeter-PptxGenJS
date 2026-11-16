@@ -21,9 +21,14 @@ pub(crate) fn tab_box(id: usize, index: usize) -> InlineBox {
     }
 }
 
+/// A tab that ends text on a stop (a right stop) sits on it: positions within this many px before a
+/// stop count as on it, so float rounding cannot send the next tab back to the same stop.
+const ON_STOP: f32 = 0.01;
+
 /// Where a tab at `pos` (px from the text area's left edge) jumps to: the first explicit stop past it,
 /// else the next multiple of `default_stop`, as LibreOffice and PowerPoint do after the last stop.
 fn next_stop(stops: &[TabStop], default_stop: f32, pos: f32) -> Option<TabStop> {
+    let pos = pos + ON_STOP;
     if let Some(stop) = stops.iter().find(|s| s.position > pos) {
         return Some(*stop);
     }
@@ -99,6 +104,8 @@ mod tests {
             next_stop(&stops, 96.0, 100.0).map(|s| (s.position, s.alignment)),
             Some((250.0, TabAlign::Decimal))
         );
+        // Text right-aligned to a stop ends a hair before it in float: the next tab still moves on.
+        assert_eq!(next_stop(&stops, 96.0, 99.9999).map(|s| s.position), Some(250.0));
         assert_eq!(next_stop(&stops, 96.0, 260.0).map(|s| (s.position, s.alignment)), Some((288.0, TabAlign::Left)));
         assert_eq!(next_stop(&[], 96.0, 0.0).map(|s| s.position), Some(96.0));
         assert!(next_stop(&[], 0.0, 5.0).is_none());
