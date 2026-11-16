@@ -15,54 +15,30 @@ export const CROP_TARGET = 0.08;
 export const BASELINE_EPSILON = 0.002;
 
 // Crop exceptions above CROP_TARGET (tests/visual/fixture.ts). Do not raise one to pass a regression.
+// Scores measured in the pinned image (`bun run test:visual:docker`); each limit is the score plus at
+// least BASELINE_EPSILON, capped at PAGE_THRESHOLD.
 
 /**
- * table-* crops (d9dbab6): dense table grids hit a divider-stroke rasterization difference; the
- * table pages stay below 0.09 whole-slide RMSE. No per-crop scores were recorded when it was set.
- */
-export const TABLE_CROP_THRESHOLD = 0.09;
-
-/**
- * Table crops whose text sat off LibreOffice's (#44, #49). Scores measured in the pinned image
- * (`bun run test:visual:docker`); each limit is the score plus at least BASELINE_EPSILON, capped at
- * PAGE_THRESHOLD. Grid geometry (column widths, row heights, pagination breaks) matches the reference.
+ * Table crops still off LibreOffice's (#44, #49). Grid geometry (column widths, row heights, pagination
+ * breaks) matches the reference, and since the print zoom and cell inset (printWorkarounds.ts) cell text
+ * lands within 0.1 px of LibreOffice's in the pagination and tableToSlides tables (all under CROP_TARGET).
  *
- * - Baselines (#49): text now uses LibreOffice's font-independent line box (defaults.ts
- *   singleLineEm), which removed the 1-4 px upward offset (table-html-first 0.1011 -> 0.0928,
- *   table-pagination-first 0.1002 -> 0.0880). Up to 1 px remains: Chromium snaps each line to whole
- *   CSS px while LibreOffice keeps fractional baselines (probe at 384 dpi: a baseline computed at
- *   61.33 px paints at 61 px in Chromium and 61.33 px in LibreOffice).
- * - Chromium floors CSS border widths to whole CSS px: 1pt (1.33 px) draws as 1 px and 2pt as 2 px
- *   (measured at 384 dpi), which also moves row lines up ~1 px. Drawing the borders as exact SVG
- *   strokes instead fixes the widths (table-inheritance 0.1183 -> 0.0956) but makes the 0.75pt
- *   pagination grids worse (table-pagination-first 0.1002 -> 0.1148): pdftoppm snaps LibreOffice's
- *   1 px strokes to the pixel grid, while a stroke at a fractional position antialiases over 2 px.
+ * table-inheritance, 0.0957: its text sits 0.6-0.8 px above LibreOffice's and its row lines one pixel row
+ * higher at 96 dpi. Likely cause: the table offset moves the whole grid up by half the table's widest
+ * stroke (2pt), more than half of the thinner borders around these cells. The border between the second
+ * and third rows that LibreOffice draws is missing.
  */
 export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
-    // 0.1109: the 1pt and 2pt borders drawn thinner, and the border between the second and third
-    // rows that LibreOffice draws is missing.
-    "table-inheritance": 0.113,
-    // 0.0880, 0.0923 (table-pagination-third, 0.0699, is under CROP_TARGET).
-    "table-pagination-first": 0.09,
-    "table-pagination-second": 0.095,
-    // 0.0928, 0.0829: the tableToSlides import.
-    "table-html-first": 0.095,
-    "table-html-second": 0.085,
+    "table-inheritance": 0.098,
 };
 
 /**
- * Text crops off by Chromium's whole-px line snapping (#49), limits set as above (score plus at least
- * BASELINE_EPSILON). text-line-spacing-multiple, 0.0999: 12pt Arial at 1.5x line spacing. LibreOffice
- * keeps its baselines at 500.8 and 529.6 px; Chromium paints both lines 1 px higher (glyph rows 15-29
- * and 44-58 of the crop against LibreOffice's 16-30 and 45-59). The WASM backend matches LibreOffice's
- * rows exactly (0.0456).
- * text-line-hairline, 0.1306: a text box line without width, which PptxGenJS writes without `w` (a hairline).
- * Its box spans px [528, 912) x [120, 192). LibreOffice draws the 1 px hairline on columns 527 and 911 and rows
- * 120 and 191; Chromium snaps the 1 px outline centred on the edge outward, to columns 527 and 912 and rows 119
- * and 192, and paints the text 1 px higher (ink rows 46-59 of the crop against 47-60). The same box with a 2pt
- * line, where the strokes overlap, scores 0.0342.
+ * text-line-hairline, 0.0856: a text box line without width, which PptxGenJS writes without `w` (a
+ * hairline). Its box spans px [528, 912) x [120, 192). LibreOffice draws the 1 px hairline inside the box
+ * on rows 120 and 191; ours is centred on the edges, which pdftoppm rounds to rows 119 and 191, so the
+ * top line is one pixel row higher. The text matches (baseline within 0.05 px). The same box with a 2pt
+ * line, where the strokes overlap, scores under CROP_TARGET.
  */
 export const TEXT_LINE_SNAP_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
-    "text-line-spacing-multiple": 0.102,
-    "text-line-hairline": 0.133,
+    "text-line-hairline": 0.088,
 };

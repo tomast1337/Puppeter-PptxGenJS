@@ -2,7 +2,7 @@ import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type PresentationRender
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { type DocumentInfo, withDocumentInfo } from "./pdfInfo";
-import { printHtml } from "./printWorkarounds";
+import { PRINT_ZOOM, printHtml } from "./printWorkarounds";
 
 // Model page sizes are in inches.
 const inchesToPixels = (inches: number): number => inches * CSS_PX_PER_INCH;
@@ -116,6 +116,8 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
     const pdf = await page.pdf({
         width: `${pageSize.width}in`,
         height: `${pageSize.height}in`,
+        // printHtml lays the document out at PRINT_ZOOM; this scales it back to the deck size.
+        scale: 1 / PRINT_ZOOM,
         printBackground: true,
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
