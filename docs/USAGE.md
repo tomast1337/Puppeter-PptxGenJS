@@ -326,6 +326,11 @@ new PuppeteerGen(pageSize?: PageSize, options?: PuppeteerGenOptions)
 
 Creates a new PuppeteerGen instance with the specified page size (default: 16:9 landscape).
 `options` injects the `renderer`, `resolveImage` and `createDocument`; see [BACKENDS.md](./BACKENDS.md).
+`options.target` picks the rendering target, `"libreoffice"` (the default) or `"powerpoint"`.
+
+`PuppeteerGenLibreOffice` and `PuppeteerGenPowerPoint` are `PuppeteerGen` subclasses with the target set,
+taking the same arguments: use them to match LibreOffice or PowerPoint rendering. They can be extended
+and wrapped like `PuppeteerGen`. See "Choosing a rendering target" in [MIGRATION.md](./MIGRATION.md).
 
 #### Methods
 

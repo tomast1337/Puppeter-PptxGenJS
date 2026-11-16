@@ -70,6 +70,8 @@ async function checkConsumer(consumerDirectory: string, dependencies: string[], 
 import PuppeteerGen, {
     modelToHtml,
     PAGE_SIZES,
+    PuppeteerGenLibreOffice,
+    PuppeteerGenPowerPoint,
     type PuppeteerSlide,
     type PptxSlide,
     type PptxTextPropsOptions,
@@ -96,6 +98,13 @@ if (html.split('class="slide-element slide-chart"').length - 1 !== 1) {
     throw new Error("Built package did not render the consumer chart");
 }
 if (typeof modelToHtml !== "function") throw new Error("Built package does not export modelToHtml");
+class ConsumerDeck extends PuppeteerGenPowerPoint {}
+for (const [Target, unkerned] of [[ConsumerDeck, true], [PuppeteerGenLibreOffice, false]] as const) {
+    const deck = new Proxy(new Target(), {});
+    if (!(deck instanceof PuppeteerGen)) throw new Error("A target class is not a PuppeteerGen");
+    deck.addSlide().addText("Target", { x: 1, y: 1, w: 3, h: 1, fontSize: 10 });
+    if ((await deck.toHtml()).html.includes("font-kerning: none") !== unkerned) throw new Error(\`\${Target.name} wrote the wrong font-kerning\`);
+}
 console.log("standalone package consumer passed");
 `;
     const consumerSourcePath = join(consumerDirectory, "consumer.ts");

@@ -277,6 +277,8 @@ pub(crate) struct Run {
     /// Super/subscript are already resolved into `font_size` and `baseline_offset`.
     pub(crate) baseline_offset: f32,
     pub(crate) character_spacing: f32,
+    /// False: laid out without the font's pair kerning (`font-kerning: none`, the PowerPoint target).
+    pub(crate) kerning: bool,
     pub(crate) highlight: Option<String>,
     pub(crate) outline: Option<Outline>,
     pub(crate) glow: Option<Shadow>,
@@ -426,6 +428,7 @@ pub(crate) mod build {
             },
             baseline_offset: 0.0,
             character_spacing: 0.0,
+            kerning: true,
             highlight: None,
             outline: None,
             glow: None,

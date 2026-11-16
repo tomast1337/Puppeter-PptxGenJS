@@ -32,6 +32,7 @@ export async function resolveImageSource(source: string, cwd = process.cwd()): P
 export class PuppeteerGen extends CorePuppeteerGen {
     constructor(pageSize?: PageSize, options: PuppeteerGenOptions = {}) {
         super(pageSize, {
+            ...options,
             renderer: options.renderer ?? new PuppeteerPdfRenderer(),
             resolveImage: options.resolveImage ?? (source => resolveImageSource(source)),
             createDocument: options.createDocument ?? createNodeDocument,
@@ -43,5 +44,19 @@ export class PuppeteerGen extends CorePuppeteerGen {
         const fileName = resolveFileName(props);
         await writeFile(fileName, await this.toPdf());
         return fileName;
+    }
+}
+
+/** PuppeteerGen with the LibreOffice rendering target, the default: the PDF matches LibreOffice's export of the .pptx. */
+export class PuppeteerGenLibreOffice extends PuppeteerGen {
+    constructor(pageSize?: PageSize, options: Omit<PuppeteerGenOptions, "target"> = {}) {
+        super(pageSize, { ...options, target: "libreoffice" });
+    }
+}
+
+/** PuppeteerGen with the PowerPoint rendering target: the PDF matches PowerPoint's rendering of the .pptx (text under 12pt is not kerned). */
+export class PuppeteerGenPowerPoint extends PuppeteerGen {
+    constructor(pageSize?: PageSize, options: Omit<PuppeteerGenOptions, "target"> = {}) {
+        super(pageSize, { ...options, target: "powerpoint" });
     }
 }

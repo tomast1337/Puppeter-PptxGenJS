@@ -111,12 +111,18 @@ reads no other text option of a slide number.
 | Fit                   |                                  None | Mapped                         |
 | Rotation/transparency |                                     0 | Mapped                         |
 | Outline without width |       Hairline (`<a:ln>` without `w`) | 0.75pt (one CSS px)            |
+| Kerning               |    From 12pt, none with `charSpacing` | PowerPoint target (see below)  |
 
 Text `margin` values are points. A scalar applies to all sides. PptxGenJS
 4.0.1 emits a four-value text margin as `[left, right, bottom, top]`, although
 its type documentation says `[top, right, bottom, left]`. PuppeteerGen mirrors
 the emitted behavior for compatibility. The deprecated `inset` is in inches
 and sets all four sides; any `margin`, `0` included, replaces it.
+
+PptxGenJS writes `kern="1200"` on the default text style and `kern="0"` on a
+run with `charSpacing`. PowerPoint reads both, so the PowerPoint target draws
+text under 12pt, and text with `charSpacing`, without the font's pair
+kerning; LibreOffice kerns every run, and so does the LibreOffice target.
 
 Text is never clipped to its box: what does not fit is drawn past it from the
 anchor, as in PowerPoint and LibreOffice. A box shorter than its top and bottom

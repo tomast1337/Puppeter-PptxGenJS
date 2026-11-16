@@ -157,6 +157,13 @@ Without a renderer, the `/html` entry still produces the HTML document (`toHtml(
 printing, and any object implementing `PresentationRenderer` can turn that HTML into a PDF. Details,
 constructor options, fonts and bundling: [docs/BACKENDS.md](./docs/BACKENDS.md).
 
+### Matching PowerPoint or LibreOffice
+
+The default matches LibreOffice rendering, the reference PdfLapas is scored against. To match
+PowerPoint rendering instead (it does not kern text under 12pt or with `charSpacing`, so some lines
+wrap earlier), construct `PuppeteerGenPowerPoint`; `PuppeteerGenLibreOffice` names the default. Both
+work with either backend. See [docs/MIGRATION.md](./docs/MIGRATION.md).
+
 ## Rendering your own HTML
 
 `toHtml()` is the exact document both backends draw ([docs/HTML_PROFILE.md](./docs/HTML_PROFILE.md)),

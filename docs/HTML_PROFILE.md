@@ -86,7 +86,7 @@ From the maintainer's decisions on #69:
   serialized with parse5 (`render/fragment.ts`), as an `innerHTML` round trip in jsdom does; every
   other element is written as a string, escaped as the HTML serializer escapes (`render/markup.ts`).
 - **A property at its default may be omitted**: `opacity` when 1, `letter-spacing` when 0,
-  `text-decoration-line` when there is none, `transform` when there is no rotation or flip.
+  `font-kerning` when the run is kerned, `text-decoration-line` when there is none, `transform` when there is no rotation or flip.
 
 ## Document
 
@@ -226,6 +226,11 @@ height becomes `min-height` and `height: auto`. A soft break is a `<br>` before 
 CSS cannot state exactly are `data-*` on the run: `data-vertical-align` (`sub`, `super`),
 `data-text-shadow` (which `text-shadow` entry is the `glow` and which the `shadow`), `data-double-strike`
 with `data-underline-style`, and `data-empty` on an empty run (its text is U+200B).
+
+The rendering target (`PuppeteerGenPowerPoint`, `PuppeteerGenLibreOffice`, or the `target` option) is not
+written as a document-level value: each difference is on the element it changes, so a reader of the HTML
+and the WASM renderer follow it without knowing the target. Today that is `font-kerning: none` on a run
+the PowerPoint target draws unkerned (under 12pt, or with `charSpacing`).
 
 ### Shape
 
@@ -368,7 +373,8 @@ backend.
   repeated property is an error. Numbers are JSON numbers with their unit (`px`, `deg`, `in`); `NaN`,
   infinities and values outside `f32` are errors. `font-family` is exactly one quoted family
   (`"Calibri"`), as `toHtml()` writes it: a fallback list is an error, since fallbacks are the print
-  step's.
+  step's. A run's `font-kerning` is `none`, `normal` or `auto`; `none` turns the font's `kern` feature off
+  in the layout.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
   always inlines images). PNG, JPEG, GIF and WebP are recognized by their bytes, whatever the media type
   says, as browsers sniff them; an animated GIF or WebP draws its first frame, and a GIF whose first frame
@@ -640,6 +646,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextRun.verticalAlign`              | profile      | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |
 | `NormalizedTextRun.baselineOffset`             | profile      | `position: relative; top: <-offset>px`, omitted at 0.                                                                      |
 | `NormalizedTextRun.characterSpacing`           | profile      | `letter-spacing`, omitted at 0.                                                                                            |
+| `NormalizedTextRun.kerning`                    | profile      | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
 | `NormalizedTextRun.highlight`                  | profile      | `background-color` on the run.                                                                                             |
 | `NormalizedTextRun.outline`                    | profile      | `-webkit-text-stroke: <width>px <color>`.                                                                                  |
 | `NormalizedTextRun.outline.color`              | profile      | Color of `-webkit-text-stroke`.                                                                                            |

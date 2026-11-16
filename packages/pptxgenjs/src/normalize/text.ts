@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
+import { DEFAULT_RENDERING_TARGET, type FourSideMargin, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "../defaults";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "../units";
 import { normalizeHyperlink } from "./link";
@@ -73,7 +73,13 @@ function getVerticalAlign(options: PptxGenJS.TextPropsOptions): "sub" | "super" 
     return "baseline";
 }
 
-export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions): NormalizedTextRun {
+/** Whether `target` kerns a run: PptxGenJS writes `kern="0"` with `charSpacing`, and inherits 12pt otherwise. */
+function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget): boolean {
+    if (!RENDERING_TARGETS[target].readsKern) return true;
+    return !options.charSpacing && (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) >= PPTX_DEFAULTS.text.kernMinSizePt;
+}
+
+export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextRun {
     const underline = typeof options.underline === "object" ? options.underline : undefined;
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const baseline = options.baseline ?? 0;
@@ -102,6 +108,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         verticalAlign: getVerticalAlign(options),
         baselineOffset: escapement === undefined ? pointsToPixels(baseline / 100) : escapement * fontSize,
         characterSpacing: pointsToPixels(options.charSpacing ?? 0),
+        ...(kerned(options, target) ? {} : { kerning: false as const }),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
         outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(options.outline.size) } : undefined,
         glow: textShadow(options),
@@ -198,12 +205,12 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number): NormalizedTextParagraph {
+function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget): NormalizedTextParagraph {
     const first = inheritedOptions(parent, pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
     const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : multiple;
-    const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options)));
+    const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options), target));
 
     return {
         runs,
@@ -286,13 +293,14 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
     return PPTX_DEFAULTS.text.fit;
 }
 
-export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}): NormalizedTextBox {
+/** `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS). */
+export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextBox {
     const pieces = piecesFromInput(input, options);
     const groups = groupPieces(pieces, options.align);
 
     let numberIndex = 0;
     const paragraphs = groups.map((group, index) => {
-        const paragraph = paragraphFromPieces(group, options, numberIndex);
+        const paragraph = paragraphFromPieces(group, options, numberIndex, target);
         numberIndex = paragraph.bullet?.kind === "number" ? numberIndex + 1 : 0;
         // PowerPoint and LibreOffice leave the last paragraph's space after out of the text height, so it does not
         // lift middle- or bottom-anchored text (or grow a table row).

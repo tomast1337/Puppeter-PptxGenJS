@@ -7,7 +7,7 @@ import { z } from "zod";
 import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
-import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { completeProfileHtml, pptxHtmlDocument } from "../packages/pptxgenjs/src/render/completion";
@@ -174,6 +174,17 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const source = ascii(pdf);
         expect(source.startsWith("%PDF-")).toBe(true);
         expect(source.match(/\/Type\s*\/Page\b(?!s)/g)).toHaveLength(3);
+    });
+
+    test("follows the PowerPoint target's font-kerning: none, so the unkerned runs move", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pdf = async (pres: PuppeteerGen) => {
+            pres.addSlide().addText("AVATAR WAVY Tower Toy Yay", { x: 1, y: 1, w: 4, h: 1, fontFace: "Arial", fontSize: 10 });
+            return ascii(await pres.toPdf());
+        };
+        const powerPoint = await pdf(new PuppeteerGenPowerPoint(PAGE, { renderer }));
+        expect(powerPoint).toBe(await pdf(new PuppeteerGenPowerPoint(PAGE, { renderer })));
+        expect(powerPoint).not.toBe(await pdf(new PuppeteerGenLibreOffice(PAGE, { renderer })));
     });
 
     test("throws on unsupported objects by default and lists them", async () => {

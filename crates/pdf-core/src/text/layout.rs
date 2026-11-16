@@ -2,6 +2,7 @@
 
 use std::ops::Range;
 
+use parley::setting::{FontFeature, Tag};
 use parley::{
     Alignment, AlignmentOptions, BaseDirection, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem, StyleProperty, TextWrapMode,
     WhiteSpaceCollapse,
@@ -15,6 +16,9 @@ use crate::effect::Effect;
 use crate::model::{LineBox, TextBox};
 use crate::text::font::family_stack;
 use crate::text::tabs::{TAB_PLACEHOLDER, place_tabs, tab_box};
+
+/// `font-kerning: none`: the OpenType `kern` feature off.
+const NO_KERNING: [FontFeature; 1] = [FontFeature::new(Tag::new(b"kern"), 0)];
 
 /// Per-run paint data that parley does not carry; the parley brush is the index.
 #[derive(Clone)]
@@ -207,6 +211,9 @@ impl Renderer {
                 builder.push(StyleProperty::Brush(Brush(index)), r.clone());
                 if run.character_spacing != 0.0 {
                     builder.push(StyleProperty::LetterSpacing(run.character_spacing), r.clone());
+                }
+                if !run.kerning {
+                    builder.push(StyleProperty::FontFeatures((&NO_KERNING).into()), r.clone());
                 }
             }
             // parley tries the run's own stack before the emoji family, so a text font that has

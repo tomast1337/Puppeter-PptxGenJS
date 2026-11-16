@@ -94,6 +94,11 @@ export const PPTX_DEFAULTS = Object.freeze({
         color: "000000",
         fontFace: "Calibri",
         fontSizePt: 18,
+        /**
+         * `<a:defRPr kern="1200">` in presentation.xml's defaultTextStyle and every master text style: text from 12pt
+         * up is kerned. A run with `charSpacing` writes `kern="0"`, which turns its kerning off.
+         */
+        kernMinSizePt: 12,
         generalFontSizePt: 12,
         titleFontSizePt: 18,
         align: "left" as const,
@@ -392,3 +397,17 @@ export function tableMarginToCSS(margin?: number | FourSideMargin): string {
 
 /** HTML component extension defaults (not part of the PptxGenJS compatibility surface). */
 export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
+
+/**
+ * Rendering targets: the application whose drawing of the PptxGenJS file the PDF matches, where the two differ.
+ * `readsKern`: whether it honours `<a:rPr kern>` (PPTX_DEFAULTS.text.kernMinSizePt) or kerns every run.
+ */
+export const RENDERING_TARGETS = Object.freeze({
+    /** LibreOffice Impress, the visual reference (tests/visual): it kerns every run whatever its `kern`. */
+    libreoffice: Object.freeze({ readsKern: false }),
+    /** PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. */
+    powerpoint: Object.freeze({ readsKern: true }),
+});
+export type RenderingTarget = keyof typeof RENDERING_TARGETS;
+/** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */
+export const DEFAULT_RENDERING_TARGET: RenderingTarget = "libreoffice";

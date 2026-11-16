@@ -69,6 +69,26 @@ alternative, and so do the options that need a slide master: `placeholder` on `a
 throws before rendering. `API_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs`, lists what PdfLapas
 does with each PptxGenJS presentation and slide member; `COMPATIBILITY` does the same per option.
 
+**Choosing a rendering target.** PowerPoint and LibreOffice draw the same `.pptx` differently. Pick
+the one whose output your PDFs should match; the target is set once, on the constructor:
+
+```typescript
+import { PuppeteerGenPowerPoint } from "@pdflapas/pptxgenjs";
+
+const pres = new PuppeteerGenPowerPoint(); // or new pptxgen(undefined, { target: "powerpoint" })
+```
+
+- `PuppeteerGenLibreOffice`, the default export and `PuppeteerGen` match LibreOffice rendering, the
+  reference the fidelity scores are measured against. Existing code keeps this behaviour.
+- `PuppeteerGenPowerPoint` matches PowerPoint rendering. PptxGenJS writes `kern="1200"` in its default
+  text style and `kern="0"` on a run with `charSpacing`; PowerPoint reads them, so text under 12pt and
+  text with `charSpacing` is drawn without the font's pair kerning, and a line that just fits kerned
+  may wrap. LibreOffice kerns every run.
+
+Both targets leave a text box's last paragraph's space after out of the height that middle and
+bottom anchoring centre, as PowerPoint and LibreOffice do. The target is written into the HTML
+(`font-kerning: none` on each unkerned run), so both backends follow it.
+
 **Using the WASM backend.** Pass its renderer to the constructor; nothing else changes:
 
 ```typescript

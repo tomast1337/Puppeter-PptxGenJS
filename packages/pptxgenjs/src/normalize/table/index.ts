@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { type FourSideMargin, PPTX_DEFAULTS } from "../../defaults";
+import { DEFAULT_RENDERING_TARGET, type FourSideMargin, PPTX_DEFAULTS, type RenderingTarget } from "../../defaults";
 import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
 import { convertToPixels, inchesToPixels, pointsToPixels } from "../../units";
@@ -107,7 +107,7 @@ function inheritedCellOptions(table: PptxGenJS.TableProps, cell: PptxGenJS.Table
     return inherited as PptxGenJS.TableCellProps;
 }
 
-export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): NormalizedTable {
+export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTable {
     if (!Array.isArray(tableRows) || tableRows.length === 0) {
         throw new Error("addTable: tableRows must be a non-empty array");
     }
@@ -129,7 +129,7 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text) : String(cell.text ?? "");
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
-                const text = normalizeText(input, textOptions);
+                const text = normalizeText(input, textOptions, target);
                 text.margin = normalizeTableMargins(cellOptions.margin as number | FourSideMargin | undefined);
                 return {
                     text,
