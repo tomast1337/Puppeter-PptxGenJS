@@ -49,6 +49,15 @@ describe("table normalization", () => {
         expect(table.rows[0]!.cells[0]!.borders.map(border => border.dashArray)).toEqual([undefined, `${(3 * 96) / 72} ${96 / 72}`, undefined, undefined]);
     });
 
+    // PptxGenJS 4.0.1 writes <a:lnX> solid lines for a border without `type` and none for a missing side.
+    test("draws a given border without a type as a solid line", () => {
+        const sides = (border: unknown) => normalizeTable([[{ text: "a", options: { border: border as PptxGenJS.BorderProps } }]], { w: 1 }, PAGE).rows[0]!.cells[0]!.borders.map(side => [side.visible, side.style, side.color, side.width]);
+        const solid = [true, "solid", "#FF0000", 2];
+        expect(sides({ color: "FF0000", pt: 1.5 })).toEqual([solid, solid, solid, solid]);
+        expect(sides([{ color: "FF0000", pt: 1.5 }, null, { type: "none" }, {}])).toEqual([solid, [false, "solid", "#666666", 0], [false, "solid", "#666666", 0], [true, "solid", "#666666", 96 / 72]]);
+        expect(sides(undefined)).toEqual(Array(4).fill([false, "solid", "#666666", 0]));
+    });
+
     test("inherits table typography, fill, margins, and direction into cells", () => {
         const table = normalizeTable(
             [
