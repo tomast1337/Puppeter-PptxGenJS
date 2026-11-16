@@ -116,7 +116,7 @@ const pageFiles = await Promise.all(
 const pageScores: number[] = [];
 for (const page of pageFiles) {
     const output = await run(["magick", "compare", "-metric", "RMSE", join(artifacts, page.referenceName), join(artifacts, page.actualName), join(artifacts, `${page.page}-diff.png`)], [0, 1]);
-    const normalizedScore = output.match(/\((\d*\.?\d+)\)/)?.[1];
+    const normalizedScore = output.match(/\((\d*\.?\d+(?:e-?\d+)?)\)/)?.[1];
     if (!normalizedScore) throw new Error(`Could not parse ImageMagick metric: ${output}`);
     pageScores.push(Number(normalizedScore));
 }
@@ -131,7 +131,7 @@ for (const region of PARITY_REGIONS) {
     await run(["magick", join(artifacts, page.referenceName), "-crop", geometry, "+repage", referenceCrop]);
     await run(["magick", join(artifacts, page.actualName), "-crop", geometry, "+repage", actualCrop]);
     const output = await run(["magick", "compare", "-metric", "RMSE", referenceCrop, actualCrop, join(artifacts, `${page.page}-${region.name}-diff.png`)], [0, 1]);
-    const metric = output.match(/\((\d*\.?\d+)\)/)?.[1];
+    const metric = output.match(/\((\d*\.?\d+(?:e-?\d+)?)\)/)?.[1];
     if (!metric) throw new Error(`Could not parse region metric: ${output}`);
     const score = Number(metric);
     console.log(`${region.name}: ${score.toFixed(4)} (limit ${region.threshold.toFixed(4)})`);

@@ -306,7 +306,8 @@ export const COMPATIBILITY = Object.freeze({
             rotate: "implemented",
             rtlMode: "implemented",
             shadow: "implemented",
-            shape: "partial",
+            // shape: any preset; the text is laid out in the preset's ECMA-376 text rectangle, as PowerPoint and LibreOffice do.
+            shape: "implemented",
             strike: "implemented",
             subscript: "implemented",
             superscript: "implemented",
@@ -394,7 +395,8 @@ export const COMPATIBILITY = Object.freeze({
             presetGeometry: "implemented",
             customGeometry: "implemented",
             arrows: "implemented",
-            text: "partial",
+            // text (addText with `shape`): laid out in the preset's text rectangle, outline and line heads unclipped.
+            text: "implemented",
             deprecatedLineSize: "implemented",
             deprecatedLineDash: "implemented",
             deprecatedLineHead: "implemented",

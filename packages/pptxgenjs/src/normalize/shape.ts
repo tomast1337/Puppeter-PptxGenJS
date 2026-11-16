@@ -4,7 +4,7 @@ import type { PageSize } from "../pageLayouts";
 import { convertToPixels, inchesToPixels } from "../units";
 import { PPTX_DEFAULTS } from "../defaults";
 import { normalizeLine } from "./style";
-import { GENERATED_PRESET_NAMES, generatedPresetGeometry } from "./generatedPreset";
+import { GENERATED_PRESET_NAMES, generatedPresetGeometry, presetTextInsets } from "./generatedPreset";
 import { normalizeHyperlink } from "./link";
 
 const POLYGON_SIDES = Object.freeze({ pentagon: 5, hexagon: 6, heptagon: 7, octagon: 8, decagon: 10, dodecagon: 12 } as const);
@@ -2209,12 +2209,10 @@ function presetPath(shapeName: string, width: number, height: number): string | 
     return arrowPath(shapeName, width, height);
 }
 
-function shapeTextInsets(shapeName: CustomShapeName, width: number, height: number): NormalizedShape["textInsets"] {
-    const short = Math.min(width, height);
-    if (shapeName === "diamond") return [height / 4, width / 4, height / 4, width / 4];
-    if (shapeName === "hexagon") return [0, short / 4, 0, short / 4];
-    if (shapeName === "rightArrow") return [height / 4, short / 2, height / 4, 0];
-    return undefined;
+function shapeTextInsets(shapeName: CustomShapeName, options: PptxGenJS.ShapeProps, width: number, height: number): NormalizedShape["textInsets"] {
+    // The roundRect corner is the only adjustment PdfLapas reads (rectRadius in inches, as the `adj` PptxGenJS writes).
+    const corner: Record<string, number> = shapeName === "roundRect" && options.rectRadius ? { adj: (inchesToPixels(options.rectRadius) * 100000) / Math.min(width, height) } : {};
+    return presetTextInsets(shapeName, width, height, corner);
 }
 
 export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.ShapeProps, width: number, height: number, pageSize: PageSize): NormalizedShape {
@@ -2250,7 +2248,7 @@ export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.Sh
     } else if (GENERATED_PRESET_NAMES.includes(shapeName as (typeof GENERATED_PRESET_NAMES)[number])) {
         geometry = generatedPresetGeometry(shapeName as (typeof GENERATED_PRESET_NAMES)[number], width, height);
     } else geometry = { kind: "path", data: presetPath(shapeName, width, height)! };
-    return { name: shapeName, width, height, geometry, textInsets: shapeTextInsets(shapeName, width, height), link };
+    return { name: shapeName, width, height, geometry, textInsets: shapeTextInsets(shapeName, options, width, height), link };
 }
 
 export function normalizeShapeTextBox(text: NormalizedTextBox, shape: NormalizedShape): NormalizedTextBox {

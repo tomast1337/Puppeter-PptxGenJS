@@ -54,6 +54,17 @@ describe("shape normalization", () => {
         }
     });
 
+    // ECMA-376 presetShapeDefinitions <rect>: the text body's rectangle, evaluated with the shape's guides.
+    test("insets text to the preset's text rectangle", () => {
+        const insets = (name: string, options: PptxGenJS.ShapeProps, width: number, height: number) => normalizeShape(name as PptxGenJS.SHAPE_NAME, options, width, height, PAGE).textInsets?.map(value => Number(value.toFixed(3)));
+        expect(insets("rect", {}, 100, 80)).toBeUndefined();
+        expect(insets("ellipse", {}, 100, 80)).toEqual([11.716, 14.645, 11.716, 14.645]);
+        // roundRect: il = x1 * 29289 / 100000, x1 the corner (1/6 of the shorter side, or rectRadius in inches).
+        expect(insets("roundRect", {}, 192, 96)).toEqual([4.686, 4.686, 4.686, 4.686]);
+        expect(insets("roundRect", { rectRadius: 0.25 }, 192, 96)).toEqual([7.029, 7.029, 7.029, 7.029]);
+        expect(insets("diamond", {}, 100, 80)).toEqual([20, 25, 20, 25]);
+    });
+
     test("normalizes core preset geometry and rounded radius", () => {
         expect(normalizeShape("rect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 0 });
         expect(normalizeShape("roundRect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 16 });
@@ -120,7 +131,8 @@ describe("shape normalization", () => {
             kind: "path",
             data: "M 20 0 L 80 0 L 100 40 L 80 80 L 20 80 L 0 40 Z",
         });
-        expect(hexagon.textInsets).toEqual([0, 20, 0, 20]);
+        // The hexagon's ECMA-376 text rectangle (il, it, ir, ib), not the box minus its points.
+        expect(hexagon.textInsets).toEqual([12, 15, 12, 15]);
         expect((normalizeShape("star5", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ L /g)).toHaveLength(9);
     });
 

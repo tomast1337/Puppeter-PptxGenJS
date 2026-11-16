@@ -251,7 +251,8 @@ apply again (#43).
 Arrow heads are markers whose id spells out the color and path, so equal heads share one id.
 
 A text object with a shape is a `.slide-text` with `data-shape` whose first child is the same
-`svg.shape-svg`, drawn behind `.text-content`; the box itself then has no fill, border or shadow.
+`svg.shape-svg`, drawn behind `.text-content`; the box itself then has no fill, border or shadow, and the
+stylesheet gives it `overflow: visible`, so the outline and line heads reach past the box as in PowerPoint.
 
 ### Image
 
@@ -648,29 +649,29 @@ object-valued field covers the field's presence; its own fields have their own r
 
 ### Shapes
 
-| Field                                                | Status       | HTML                                                                                      |
-| ---------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
-| `NormalizedShape.name`                               | profile      | `data-shape`.                                                                             |
-| `NormalizedShape.width`                              | profile      | SVG `viewBox` width; `data-shape-width` on the `svg` when the viewBox clamps it to 0.001. |
-| `NormalizedShape.height`                             | profile      | SVG `viewBox` height; `data-shape-height` on the `svg` when it is 0 (the viewBox uses 1). |
-| `NormalizedShape.geometry`                           | profile      | `.shape-geometry` element.                                                                |
-| `NormalizedShapeGeometry<rect>.kind`                 | profile      | `rect.shape-geometry`.                                                                    |
-| `NormalizedShapeGeometry<rect>.radius`               | profile      | `rx` and `ry`.                                                                            |
-| `NormalizedShapeGeometry<ellipse>.kind`              | profile      | `ellipse.shape-geometry` (`cx`, `cy`, `rx`, `ry` from the size).                          |
-| `NormalizedShapeGeometry<line>.kind`                 | profile      | `path.shape-geometry` with a single `M … L …` segment and `fill="none"`.                  |
-| `NormalizedShapeGeometry<line>.inverse`              | profile      | `d="M 0 H L W 0"` instead of `M 0 0 L W H`.                                               |
-| `NormalizedShapeGeometry<path>.kind`                 | profile      | `path.shape-geometry`, or `g.shape-geometry` with faces.                                  |
-| `NormalizedShapeGeometry<path>.data`                 | profile      | `d` of `path.shape-geometry`.                                                             |
-| `NormalizedShapeGeometry<path>.transform`            | profile      | `transform` attribute of the path or group.                                               |
-| `NormalizedShapeGeometry<path>.faces`                | profile      | `path.shape-face` children of `g.shape-geometry`.                                         |
-| `NormalizedShapeGeometry<path>.faces[].data`         | profile      | `d` of the face.                                                                          |
-| `NormalizedShapeGeometry<path>.faces[].fillModifier` | profile      | `data-fill-modifier`; the face `fill` already applies it (#43).                           |
-| `NormalizedShapeGeometry<path>.outlineData`          | profile      | `d` of `path.shape-outline`, which carries the stroke.                                    |
-| `NormalizedShape.textInsets`                         | not drawable | Folded into the text box `margin` during normalization (`normalize/shape.ts:2253-2255`).  |
-| `NormalizedShape.link`                               | profile      | The `.slide-shape` is an `a`.                                                             |
-| `NormalizedShapeLink.href`                           | profile      | `href`.                                                                                   |
-| `NormalizedShapeLink.tooltip`                        | profile      | `title`.                                                                                  |
-| `NormalizedShapeLink.slide`                          | profile      | `data-slide`.                                                                             |
+| Field                                                | Status       | HTML                                                                                          |
+| ---------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
+| `NormalizedShape.name`                               | profile      | `data-shape`.                                                                                 |
+| `NormalizedShape.width`                              | profile      | SVG `viewBox` width; `data-shape-width` on the `svg` when the viewBox clamps it to 0.001.     |
+| `NormalizedShape.height`                             | profile      | SVG `viewBox` height; `data-shape-height` on the `svg` when it is 0 (the viewBox uses 1).     |
+| `NormalizedShape.geometry`                           | profile      | `.shape-geometry` element.                                                                    |
+| `NormalizedShapeGeometry<rect>.kind`                 | profile      | `rect.shape-geometry`.                                                                        |
+| `NormalizedShapeGeometry<rect>.radius`               | profile      | `rx` and `ry`.                                                                                |
+| `NormalizedShapeGeometry<ellipse>.kind`              | profile      | `ellipse.shape-geometry` (`cx`, `cy`, `rx`, `ry` from the size).                              |
+| `NormalizedShapeGeometry<line>.kind`                 | profile      | `path.shape-geometry` with a single `M … L …` segment and `fill="none"`.                      |
+| `NormalizedShapeGeometry<line>.inverse`              | profile      | `d="M 0 H L W 0"` instead of `M 0 0 L W H`.                                                   |
+| `NormalizedShapeGeometry<path>.kind`                 | profile      | `path.shape-geometry`, or `g.shape-geometry` with faces.                                      |
+| `NormalizedShapeGeometry<path>.data`                 | profile      | `d` of `path.shape-geometry`.                                                                 |
+| `NormalizedShapeGeometry<path>.transform`            | profile      | `transform` attribute of the path or group.                                                   |
+| `NormalizedShapeGeometry<path>.faces`                | profile      | `path.shape-face` children of `g.shape-geometry`.                                             |
+| `NormalizedShapeGeometry<path>.faces[].data`         | profile      | `d` of the face.                                                                              |
+| `NormalizedShapeGeometry<path>.faces[].fillModifier` | profile      | `data-fill-modifier`; the face `fill` already applies it (#43).                               |
+| `NormalizedShapeGeometry<path>.outlineData`          | profile      | `d` of `path.shape-outline`, which carries the stroke.                                        |
+| `NormalizedShape.textInsets`                         | not drawable | The preset's ECMA-376 text rectangle (`presetTextInsets`), folded into the text box `margin`. |
+| `NormalizedShape.link`                               | profile      | The `.slide-shape` is an `a`.                                                                 |
+| `NormalizedShapeLink.href`                           | profile      | `href`.                                                                                       |
+| `NormalizedShapeLink.tooltip`                        | profile      | `title`.                                                                                      |
+| `NormalizedShapeLink.slide`                          | profile      | `data-slide`.                                                                                 |
 
 ### Images
 

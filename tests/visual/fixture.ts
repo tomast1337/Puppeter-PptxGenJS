@@ -273,6 +273,16 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             { name: "text-roundrect-zero", label: "roundRect, rectRadius 0: preset corner", text: "", options: { x: 5.5, y: 3.5, w: 4, h: 1.25, shape: "roundRect", rectRadius: 0, fill: { color: "D9E2F3" } } },
         ],
     },
+    {
+        // Text in a shape is laid out in the preset's ECMA-376 text rectangle; the outline is centred on the geometry.
+        title: "Text in preset shapes",
+        cases: [
+            { name: "text-shape-ellipse", label: "ellipse, margin 0, top left", text: "Ellipse", options: { x: 0.5, y: 1.25, w: 4, h: 1.25, shape: "ellipse", margin: 0, valign: "top", fill: { color: "D9E2F3" } } },
+            { name: "text-shape-can", label: "can, margin 0, top left", text: "Can", options: { x: 5.5, y: 1.25, w: 4, h: 1.25, shape: "can", margin: 0, valign: "top", fill: { color: "D9E2F3" } } },
+            { name: "text-shape-stroke", label: "roundRect with a 6pt line", text: "Stroke", options: { x: 0.5, y: 3.5, w: 4, h: 1.25, shape: "roundRect", line: { color: "2F5597", width: 6 }, fill: { color: "D9E2F3" } } },
+            { name: "text-shape-line-heads", label: "shape line with oval and triangle heads", text: "", options: { x: 5.5, y: 3.5, w: 4, h: 1.25, shape: "line", line: { color: "C00000", width: 3, beginArrowType: "oval", endArrowType: "triangle" } } },
+        ],
+    },
 ];
 const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h } }) => ({ page: 63 + index, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;

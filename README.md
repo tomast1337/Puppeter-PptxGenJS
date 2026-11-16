@@ -103,8 +103,8 @@ tables.
 
 | Family                             | Puppeteer (default)                                                            | WASM (opt-in)                                                                                      |
 | ---------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Text and rich text                 | Partial: 62 of 68 tracked options done (5 ignored, as in PptxGenJS), 5 partial | Drawn: runs, paragraphs, bullets, tab stops, insets, rotation, fit, hyperlinks, shadows, glow      |
-| Shapes                             | All 179 presets and custom geometry; 37 of 39 options done                     | All presets and custom geometry, hyperlinks, outer shadows                                         |
+| Text and rich text                 | Partial: 63 of 68 tracked options done (5 ignored, as in PptxGenJS), 4 partial | Drawn: runs, paragraphs, bullets, tab stops, insets, rotation, fit, hyperlinks, shadows, glow      |
+| Shapes                             | All 179 presets and custom geometry; 38 of 39 options done                     | All presets and custom geometry, hyperlinks, outer shadows                                         |
 | Images                             | Partial: 28 of 29 options done                                                 | PNG, JPEG, GIF and WebP (first frame), SVG (as vectors), in every sizing mode, hyperlinks, shadows |
 | Tables and pagination              | Partial: 46 of 48 options done, including `autoPage` and `tableToSlides`       | Drawn: merges, fills, borders, rows sized to cell text, hyperlinks; single-line underlines         |
 | Charts                             | ECharts: 9 of 11 chart types, `mixed` partial, `bubble3D` unsupported          | Drawn from the chart SVG: every type Puppeteer draws, `addChartExtension()`, text as text          |
