@@ -102,12 +102,12 @@ function tableWithWindow(element: Element | null | undefined): HTMLTableElement 
 }
 
 /**
- * The tableToSlides() source table. A string is PptxGenJS's element id, looked up in `page` (the deprecated
- * `pres.page`) and then in the global document, where PptxGenJS looks, unless it starts with `<`: then it is
+ * The tableToSlides() source table. A string is PptxGenJS's element id, looked up in the global document, where
+ * PptxGenJS looks, unless it starts with `<`: then it is
  * HTML markup, parsed into a `createDocument()` document, and its first <table> is the source. A <table>
  * element is used as it is. The element and markup forms are PdfLapas's; PptxGenJS 4.0.1 takes only the id.
  */
-export function findHtmlTable(source: string | HTMLTableElement, page: Document, createDocument: () => Document): HTMLTableElement {
+export function findHtmlTable(source: string | HTMLTableElement, createDocument: () => Document): HTMLTableElement {
     if (typeof source !== "string") {
         const table = tableWithWindow(source);
         if (!table) throw new TypeError("tableToSlides: the element is not a <table> in a document with a window, whose computed styles are read; pass a table of the page (or of a jsdom document), its id, or its HTML");
@@ -124,8 +124,8 @@ export function findHtmlTable(source: string | HTMLTableElement, page: Document,
         return table;
     }
     const globalDocument = (globalThis as { document?: Document }).document;
-    const table = tableWithWindow(page.getElementById(source)) ?? tableWithWindow(globalDocument?.getElementById(source));
-    if (!table) throw new Error(`tableToSlides: Table ID "${source}" does not exist!`);
+    const table = tableWithWindow(globalDocument?.getElementById(source));
+    if (!table) throw new Error(`tableToSlides: Table ID "${source}" does not exist! Put the table in the global document, or pass the <table> element or its HTML`);
     return table;
 }
 

@@ -241,9 +241,9 @@ pres.tableToSlides(`<table><tr><td style="width:2in">Widget</td><td>$19.99</td><
 The markup form needs a document with a window to compute styles: the Node entry's jsdom has one, a
 browser's default does not, so in a browser insert the table into the page and pass the element or its id.
 
-**`pres.page` is deprecated.** It was the only place `tableToSlides(id)` looked. It still works, but pass
-the element or the HTML instead, or put the table in the global `document` as with PptxGenJS. A later
-major release removes `pres.page` (#72).
+**`pres.page` is removed** (#112). `tableToSlides(id)` looks the id up in the global `document` only, as
+PptxGenJS does; a table put into `pres.page` before now goes in the global `document`, or pass the element or
+its HTML.
 
 ## Multiple Slides
 

@@ -77,7 +77,10 @@ describe("browser-safe html entry", () => {
 
     test("fails explicitly for missing runtime capabilities", async () => {
         expect((globalThis as { document?: Document }).document).toBeUndefined();
-        expect(() => new HtmlPuppeteerGen(PAGE)).toThrow("No DOM is available");
+        // A deck needs a document only to parse tableToSlides() markup or for a component that reads one.
+        const withoutDom = new HtmlPuppeteerGen(PAGE);
+        withoutDom.addSlide().addText("text", { x: 1, y: 1, w: 2, h: 1 });
+        expect(() => withoutDom.tableToSlides("<table><tr><td>a</td></tr></table>")).toThrow("No DOM is available");
 
         const pres = new HtmlPuppeteerGen(PAGE, { createDocument });
         pres.addSlide().addImage({ path: "images/logo.png", x: 1, y: 1, w: 1, h: 1 });

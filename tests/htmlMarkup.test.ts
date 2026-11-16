@@ -43,6 +43,19 @@ describe("string-built HTML", () => {
         expect((await modelToHtml(model, { components, createDocument })).html).toBe((await pres.toHtml()).html);
     });
 
+    test("a deck creates no document until a component it checks in addComponent() reads one, then reuses it", () => {
+        let created = 0;
+        const pres = new PuppeteerGen(undefined, { createDocument: () => (created++, createNodeDocument()) });
+        pres.registerComponent("test/text", 1, { render: props => String(props.label) });
+        pres.registerComponent("test/strong", 1, { render: (props, { document }) => Object.assign(document.createElement("strong"), { textContent: String(props.label) }) });
+        pres.addSlide().addText("plain", { x: 1, y: 1, w: 2, h: 1 });
+        pres.addSlide().addComponent({ type: "test/text", version: 1, props: { label: "A" } }, { x: 1, y: 1, w: 2, h: 1 });
+        expect(created).toBe(0);
+        pres.addSlide().addComponent({ type: "test/strong", version: 1, props: { label: "B" } }, { x: 1, y: 1, w: 2, h: 1 });
+        pres.addSlide().addComponent({ type: "test/strong", version: 1, props: { label: "C" } }, { x: 1, y: 1, w: 2, h: 1 });
+        expect(created).toBe(1);
+    });
+
     test("a component that builds an element gets one document per call", async () => {
         let created = 0;
         const createDocument = () => (created++, createNodeDocument());

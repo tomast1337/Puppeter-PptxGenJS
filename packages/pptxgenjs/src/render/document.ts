@@ -20,7 +20,7 @@ export interface ModelToHtmlOptions {
 }
 
 /** One document per call, created on first use. */
-function lazyDocument(createDocument: () => Document): () => Document {
+export function lazyDocument(createDocument: () => Document): () => Document {
     let document: Document | undefined;
     return () => (document ??= createDocument());
 }

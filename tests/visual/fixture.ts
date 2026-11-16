@@ -12,11 +12,13 @@ import { CROP_TARGET, TABLE_TEXT_OFFSET_CROP_THRESHOLDS, TEXT_LINE_SNAP_CROP_THR
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
-function installTableToSlidesFixture(presentation: Presentation): void {
-    const document = presentation instanceof PuppeteerGen ? presentation.page : globalThis.document;
-    const host = document.createElement("div");
+/**
+ * The tableToSlides() source: PptxGenJS takes the id of a table in the global document, so the table goes there;
+ * PuppeteerGen takes the markup, which it parses into a createDocument() document (jsdom in Node).
+ */
+function installTableToSlidesFixture(presentation: Presentation): string {
     const cellStyle = "font-family:Arial;font-size:12px;color:#363636;padding:4px;border:1px solid #9EADBA";
-    host.innerHTML = `
+    const html = `
         <table id="visual-html-table" style="width:600px;border-collapse:collapse">
             <thead><tr>
                 <th style="width:100px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">ID</th>
@@ -32,7 +34,11 @@ function installTableToSlidesFixture(presentation: Presentation): void {
                 </tr>`;
             }).join("")}</tbody>
         </table>`;
-    document.body.appendChild(host);
+    if (presentation instanceof PuppeteerGen) return html;
+    const host = globalThis.document.createElement("div");
+    host.innerHTML = html;
+    globalThis.document.body.appendChild(host);
+    return "visual-html-table";
 }
 
 const CURVED_SHAPES = ["curvedRightArrow", "curvedLeftArrow", "curvedUpArrow", "curvedDownArrow"] as const;
@@ -1512,8 +1518,7 @@ export function populateParityFixture(presentation: Presentation): void {
         border: { type: "solid", color: "9EADBA", pt: 0.75 },
     });
 
-    installTableToSlidesFixture(presentation);
-    presentation.tableToSlides("visual-html-table", {
+    presentation.tableToSlides(installTableToSlidesFixture(presentation), {
         w: 10,
         y: 0.75,
         slideMargin: 0.5,

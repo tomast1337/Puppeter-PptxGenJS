@@ -25,6 +25,9 @@ returns a `.pptx`:
 - `compression` is accepted and ignored: it only chooses how the `.pptx` zip is packed.
 - `toPdf()` (the bytes) and `toHtml()` (the HTML document the PDF is drawn from) are additions. See
   [docs/BACKENDS.md](./BACKENDS.md).
+- `tableToSlides(id)` finds the table in the global `document`, as PptxGenJS does (in Node, install a
+  jsdom one); it also takes the `<table>` element or its HTML markup. See
+  [docs/USAGE.md](./USAGE.md#tables-from-html-tabletoslides).
 
 **What differs.**
 
