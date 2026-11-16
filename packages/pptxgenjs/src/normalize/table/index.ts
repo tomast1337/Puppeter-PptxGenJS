@@ -66,12 +66,14 @@ function normalizeTableMargins(margin?: number | FourSideMargin): [number, numbe
     return values.map(convert) as [number, number, number, number];
 }
 
+// PptxGenJS 4.0.1 (addTableDefinition) gives a missing side { type: "none" } and fills a given one from
+// DEF_CELL_BORDER with `||`: `{ color, pt }` is a solid line.
 function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder {
-    const type = border?.type ?? PPTX_DEFAULTS.table.border.type;
+    const type = border ? border.type || PPTX_DEFAULTS.border.whenProvidedType : PPTX_DEFAULTS.table.border.type;
     const width = type === "none" ? 0 : pointsToPixels(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt);
     return {
         visible: type !== "none",
-        color: normalizeColor(border?.color ?? PPTX_DEFAULTS.table.border.color),
+        color: normalizeColor(border?.color || PPTX_DEFAULTS.table.border.color),
         width,
         style: type === "dash" ? "dashed" : "solid",
         // PptxGenJS 4.0.1 writes a "dash" cell border as <a:prstDash val="sysDash"/>.

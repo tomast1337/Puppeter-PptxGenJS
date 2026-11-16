@@ -336,6 +336,8 @@ export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;
 const TABLE_OPTION_CASES = [
     { name: "table-row-grow", x: 0.5, y: 1.25, w: 4, h: 2 },
     { name: "table-height-grow", x: 5.5, y: 1.25, w: 4, h: 2 },
+    { name: "table-border-no-type", x: 0.5, y: 3.75, w: 4, h: 0.75 },
+    { name: "table-border-sides-no-type", x: 5.5, y: 3.75, w: 4, h: 0.75 },
 ] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
@@ -2045,8 +2047,8 @@ export function populateTextOptionsFixture(presentation: Presentation): void {
 /** The parity fixture's table-option slide (TABLE_OPTION_CASES), also the WASM backend's tableOptions deck. */
 export function populateTableOptionsFixture(presentation: Presentation): void {
     const slide = presentation.addSlide();
-    slide.addText("Table rows grow to fit their text", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [rowGrow, heightGrow] = TABLE_OPTION_CASES;
+    slide.addText("Table rows and borders", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+    const [rowGrow, heightGrow, noType, sidesNoType] = TABLE_OPTION_CASES;
     const border = { type: "solid", pt: 1, color: "404040" } as const;
     const cell = (text: string) => ({ text, options: { border } });
     // rowH is a minimum: the middle row grows to its three lines and the last row moves down (PowerPoint, LibreOffice).
@@ -2059,4 +2061,9 @@ export function populateTableOptionsFixture(presentation: Presentation): void {
         ],
         { x: heightGrow.x, y: heightGrow.y, w: heightGrow.w, h: 0.4, fontFace: "Arial", fontSize: 12, color: "363636", valign: "middle" },
     );
+    // A border without `type` is solid (PptxGenJS DEF_CELL_BORDER); a missing side of an array has none.
+    const typeless = { color: "C00000", pt: 2 };
+    slide.addTable([[{ text: "Border without type" }, { text: "Solid" }]], { x: noType.x, y: noType.y, w: noType.w, rowH: 0.75, border: typeless, fontFace: "Arial", fontSize: 12, color: "363636" });
+    const sides = [typeless, null, typeless, null] as unknown as [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps];
+    slide.addTable([[{ text: "Top and bottom only", options: { border: sides } }]], { x: sidesNoType.x, y: sidesNoType.y, w: sidesNoType.w, rowH: 0.75, fontFace: "Arial", fontSize: 12, color: "363636" });
 }
