@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
-import { printHtml } from "../packages/puppeteer/src/printWorkarounds";
+import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
 
 const printedHtml = async (presentation: PuppeteerGen) => printHtml((await presentation.toHtml()).html);
 
@@ -27,7 +27,7 @@ describe("Puppeteer print workarounds", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
         slide.addShape("rect", { x: 1, y: 1, w: 1, h: 1 });
-        // 6.55in, 1.6in -> 628.8px, 153.6px: Chromium draws the SVG from 629, 154.
+        // 6.55in, 1.6in -> 628.8px, 153.6px: Chromium draws the SVG from the nearest 1 / PRINT_ZOOM px, 628.75, 153.625.
         slide.addShape("line", { x: 6.55, y: 1.6, w: 2.6, h: 0, line: { color: "4472C4", width: 2.25 } });
         slide.addText("Shape text", { x: 6.55, y: 1.6, w: 2, h: 1, shape: "rect" });
         // Chromium applies the page-space difference after the object's rotation and flips.
@@ -35,7 +35,7 @@ describe("Puppeteer print workarounds", () => {
         slide.addShape("rect", { x: 6.55, y: 1.6, w: 1, h: 1, flipH: true });
         slide.addShape("rect", { x: 6.55, y: 1.6, w: 1, h: 1, rotate: 180, flipH: true, flipV: true });
         const offsets = Array.from((await printedPage(presentation)).querySelectorAll<SVGSVGElement>(".shape-svg"), svg => svg.style.transform);
-        expect(offsets).toEqual(["", "translate(-0.2px, -0.4px)", "translate(-0.2px, -0.4px)", "translate(-0.4px, 0.2px)", "translate(0.2px, -0.4px)", "translate(-0.2px, -0.4px)"]);
+        expect(offsets).toEqual(["", "translate(0.05px, -0.025px)", "translate(0.05px, -0.025px)", "translate(-0.025px, -0.05px)", "translate(-0.05px, -0.025px)", "translate(0.05px, -0.025px)"]);
     });
 
     test("draws a dash pattern that starts with a gap as the same pattern shifted by an offset", async () => {
@@ -73,6 +73,28 @@ describe("Puppeteer print workarounds", () => {
         // 3pt = 4px: the grid moves up and left by 2px.
         expect([bordered?.style.position, bordered?.style.left, bordered?.style.top]).toEqual(["relative", "-2px", "-2px"]);
         expect([borderless?.style.position, borderless?.style.left]).toEqual(["", ""]);
+    });
+
+    test("grows each bordered cell's text box over the inner half of its borders, where DrawingML measures the margins from", async () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        const table = (text: string, position: { y: number; h?: number }) => slide.addTable([[{ text, options: { border: [{ type: "solid", pt: 3, color: "000000" }, { type: "none" }, { type: "solid", pt: 1.5, color: "000000" }, { type: "none" }] } }]], { x: 1, w: 4, ...position });
+        // A row without a height keeps its text box in flow; a table with a height puts it absolutely in the cell.
+        table("flow", { y: 1 });
+        table("absolute", { y: 3, h: 1 });
+        slide.addTable([[{ text: "none", options: { border: { type: "none" as const } } }]], { x: 1, y: 5, w: 4 });
+        const [flow, absolute, none] = Array.from((await printedPage(presentation)).querySelectorAll(".table-cell-text"), text => text.getAttribute("style") ?? "");
+        // 3pt = 4px on top, 1.5pt = 2px at the bottom, hidden sides 0px.
+        expect(flow).toEndWith("; margin: -2px 0px -1px 0px; width: calc(100% + 0px);");
+        expect(absolute).toEndWith("; inset: -2px 0px -1px 0px;");
+        expect(none).not.toMatch(/margin|inset/);
+    });
+
+    test("lays the document out at the print zoom, which page.pdf() scales back", () => {
+        const html = `<!DOCTYPE html><html lang="en"><head></head><body></body></html>`;
+        expect(printHtml(html)).toBe(`<!DOCTYPE html><html style="zoom: ${PRINT_ZOOM};" lang="en"><head></head><body></body></html>`);
+        expect(printHtml(`<!DOCTYPE html><html style="color: red"><body></body></html>`)).toBe(`<!DOCTYPE html><html style="color: red; zoom: ${PRINT_ZOOM};"><body></body></html>`);
+        expect(() => printHtml("<p>fragment")).toThrow("Cannot print: <html> must be written out in the document");
     });
 
     test("appends Chromium's fallback list to each run's and bullet's face", async () => {
@@ -128,7 +150,7 @@ describe("Puppeteer print workarounds", () => {
         expect(outsideTags(printed)).toBe(outsideTags(html));
         // Numbers are written as JavaScript prints them, the same text the in-page step gave the CSSOM setters.
         expect(printed).toContain('line-height: 28.799999999999997px; tab-size: 96px; position: relative; top: 9.599999999999998px;"');
-        expect(printed).toContain('style="overflow: visible; transform: translate(-0.2px, -0.4px);"');
+        expect(printed).toContain('style="overflow: visible; transform: translate(0.05px, -0.025px);"');
     });
 
     test("keeps data: URI payloads byte for byte while it skips them in the parse", async () => {
@@ -148,9 +170,8 @@ describe("Puppeteer print workarounds", () => {
         expect(printed).toContain("position: relative; top:");
     });
 
-    test("passes HTML outside the profile through unchanged", () => {
+    test("passes HTML outside the profile through with only the print zoom added", () => {
         const html = `<!DOCTYPE html><html><head><style>h1 { color: red }</style></head><body><h1 class="title" style="top: 1.5px;">Any HTML</h1><svg><path stroke-dasharray="0 2 4"/></svg></body></html>`;
-        expect(printHtml(html)).toBe(html);
-        expect(printHtml("<p>fragment")).toBe("<p>fragment");
+        expect(printHtml(html)).toBe(html.replace("<html>", `<html style="zoom: ${PRINT_ZOOM};">`));
     });
 });

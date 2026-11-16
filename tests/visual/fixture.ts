@@ -8,7 +8,7 @@ import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/g
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
-import { CROP_TARGET, TABLE_CROP_THRESHOLD, TABLE_TEXT_OFFSET_CROP_THRESHOLDS, TEXT_LINE_SNAP_CROP_THRESHOLDS } from "./thresholds";
+import { CROP_TARGET, TABLE_TEXT_OFFSET_CROP_THRESHOLDS, TEXT_LINE_SNAP_CROP_THRESHOLDS } from "./thresholds";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -294,7 +294,6 @@ function cropThreshold(name: string): number {
     if (tableTextOffset !== undefined) return tableTextOffset;
     const lineSnap = TEXT_LINE_SNAP_CROP_THRESHOLDS[name];
     if (lineSnap !== undefined) return lineSnap;
-    if (name.startsWith("table-")) return TABLE_CROP_THRESHOLD;
     return CROP_TARGET;
 }
 

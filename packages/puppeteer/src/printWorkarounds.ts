@@ -22,7 +22,8 @@ const LINE_HEIGHT = /(?:^|; )line-height: ([^;]+)px;/;
 const LEFT = /(?:^|; )left: ([^;]+)px;/;
 const TOP = /(?:^|; )top: ([^;]+)px;/;
 const ROTATE = /rotate\(([^)]+)deg\)/;
-const BORDER_WIDTH = /(?:^|; )border-(?:top|right|bottom|left): ([^ ;]+)px /g;
+const BORDER_WIDTH = /(?:^|; )border-(top|right|bottom|left): ([^ ;]+)px /g;
+const ABSOLUTE = /(?:^|; )position: absolute;/;
 // A box's line as render/style.ts applyLine writes it: color, width, style.
 const TEXT_BORDER = /(?:^|; )border-color: ([^;]+); border-width: ([^;]+)px; border-style: ([^;]+);/;
 // The face as the profile writes it: one CSS string, `\` and `"` escaped.
@@ -32,6 +33,14 @@ const FONT_FAMILY = /((?:^|; )font-family: "((?:[^"\\]|\\.)*)")/;
 const DATA_URI_PAYLOAD = /(\ssrc="data:[^,"<]*,)[^"<]*/g;
 const CALIBRI_FALLBACK = '"Noto Sans", Arial, "Liberation Sans", sans-serif';
 const SANS_FALLBACK = 'Arial, "Liberation Sans", sans-serif';
+
+/**
+ * Print zoom: Chromium paints every text baseline and SVG root on a whole CSS px, so text sits up to 1 px above
+ * LibreOffice's fractional baselines (#49). The printed document is laid out at this zoom and `page.pdf()` scales
+ * it back by its inverse, so the snap step becomes 1 / PRINT_ZOOM px. 8 is the largest power of two whose
+ * inverse is within Chromium's smallest pdf scale (0.1); a power of two keeps the scale exact in binary.
+ */
+export const PRINT_ZOOM = 8;
 
 const isElement = (node: DefaultTreeAdapterTypes.ChildNode | Parent): node is Element => "tagName" in node;
 const attribute = (element: Element, name: string) => element.attrs.find(attr => attr.name === name)?.value;
@@ -89,8 +98,9 @@ function addStyle(element: Element, declarations: string): Edit {
 /**
  * `html` as Puppeteer prints it: the document with the print workarounds written in. Open the result in a
  * browser to see what Chromium prints. It is for Chromium only: the declarations it adds are outside the
- * profile, so the WASM renderer, which needs none of them, rejects it, and the print snap is sized for print,
- * not the screen (under 1px). The same input always gives the same output.
+ * profile, so the WASM renderer, which needs none of them, rejects it, and it is laid out at PRINT_ZOOM times the
+ * deck size, which `page.pdf()` scales back (a browser shows it at 1 / PRINT_ZOOM page zoom). The same input always
+ * gives the same output. The document must write out its `<html>` start tag, which carries the zoom.
  */
 export function printHtml(html: string): string {
     // parse5 tokenizes every character, so parse the document with data: URI payloads emptied (about 30 ms per MB
@@ -102,7 +112,9 @@ export function printHtml(html: string): string {
     });
     const edits: Edit[] = [];
     for (const element of descendants(parse(masked, { sourceCodeLocationInfo: true }))) {
-        if (hasClass(element, "text-run") || hasClass(element, "text-bullet")) {
+        if (element.tagName === "html") {
+            edits.push(addStyle(element, `zoom: ${PRINT_ZOOM};`));
+        } else if (hasClass(element, "text-run") || hasClass(element, "text-bullet")) {
             // Font fallback: Chromium does not apply LibreOffice's Microsoft-font substitutions to an unknown
             // single-family declaration. Keep the face first, then the metric-compatible sans fallback the
             // fixtures use. Written into the document, so the font loading Puppeteer awaits sees the final families.
@@ -143,7 +155,15 @@ export function printHtml(html: string): string {
             let widest = 0;
             for (const cell of descendants(element)) {
                 if (cell.tagName !== "td") continue;
-                for (const [, width] of (attribute(cell, "style") ?? "").matchAll(BORDER_WIDTH)) widest = Math.max(widest, number(cell, width, "numeric border width"));
+                const half = { top: 0, right: 0, bottom: 0, left: 0 };
+                for (const [, side, width] of (attribute(cell, "style") ?? "").matchAll(BORDER_WIDTH)) {
+                    const value = number(cell, width, "numeric border width");
+                    widest = Math.max(widest, value);
+                    // The pattern's alternation matches only these four sides.
+                    half[side as keyof typeof half] = value / 2;
+                }
+                const text = cell.childNodes.find((child): child is Element => isElement(child) && hasClass(child, "table-cell-text"));
+                if (text && (half.top || half.right || half.bottom || half.left)) edits.push(cellInset(text, half));
             }
             if (widest) edits.push(addStyle(element, `position: relative; left: ${-widest / 2}px; top: ${-widest / 2}px;`));
         }
@@ -155,17 +175,29 @@ export function printHtml(html: string): string {
     return printed.replace(DATA_URI_PAYLOAD, (head: string) => `${head}${payloads[next++] ?? ""}`);
 }
 
+/**
+ * Cell inset: DrawingML measures a cell's margins from the grid line under its centred border; Chromium puts the
+ * inner half of a collapsed border inside the cell and the margins after it. Grow the cell's text box over that
+ * half on each side: an absolute box by its inset, one in flow by negative margins and a wider width.
+ */
+function cellInset(text: Element, half: Readonly<Record<"top" | "right" | "bottom" | "left", number>>): Edit {
+    const { top, right, bottom, left } = half;
+    if (ABSOLUTE.test(attribute(text, "style") ?? "")) return addStyle(text, `inset: ${-top}px ${-right}px ${-bottom}px ${-left}px;`);
+    return addStyle(text, `margin: ${-top}px ${-right}px ${-bottom}px ${-left}px; width: calc(100% + ${left + right}px);`);
+}
+
 function shapeEdits(svg: Element): Edit[] {
     const edits: Edit[] = [];
-    // Print snap: Chromium paints an SVG root from a whole CSS px. In print it rounds the object's offset
-    // on its page half up (-10.5 -> -10) and moves the drawing by the difference, in page space even
-    // under the object's rotation or flip. Measured from the PDF matrices (issue #42), also on later A4
-    // pages, whose 793.92px height puts them at fractional document offsets. Translate the drawing back,
-    // in the SVG's own pre-transform space. Print only: on screen the snap step is 1 / devicePixelRatio.
+    // Print snap: Chromium paints an SVG root from a whole device px, 1 / PRINT_ZOOM CSS px under the print
+    // zoom. In print it rounds the object's offset on its page half up (-10.5 -> -10) and moves the drawing by
+    // the difference, in page space even under the object's rotation or flip. Measured from the PDF matrices
+    // (issue #42), also on later A4 pages, whose 793.92px height puts them at fractional document offsets.
+    // Translate the drawing back, in the SVG's own pre-transform space. Print only: on screen the snap step is
+    // 1 / (devicePixelRatio * zoom).
     const object = parentElement(svg);
     if (!object) return edits;
-    const dx = fraction(px(object, LEFT, "left"));
-    const dy = fraction(px(object, TOP, "top"));
+    const dx = fraction(px(object, LEFT, "left") * PRINT_ZOOM) / PRINT_ZOOM;
+    const dy = fraction(px(object, TOP, "top") * PRINT_ZOOM) / PRINT_ZOOM;
     if (dx || dy) {
         // Undo the object's `rotate() scaleX() scaleY()` on the page-space offset.
         const box = attribute(object, "style") ?? "";
