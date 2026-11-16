@@ -37,7 +37,7 @@ export const SCHEME_COLOR = Object.freeze({
     accent5: "accent5",
     accent6: "accent6",
 } as const);
-/** `ShapeType` maps each preset name to itself; the presets are the ones normalize/shape.ts draws. */
+/** `ShapeType` maps each preset name to itself; the presets are the ones normalize/shape/ draws. */
 export const SHAPE_TYPE = Object.freeze(Object.fromEntries(CORE_SVG_SHAPES.map(name => [name, name]))) as Readonly<Record<(typeof CORE_SVG_SHAPES)[number], string>>;
 
 // Deprecated aliases PptxGenJS still exposes at runtime (`pres.charts`, `pres.colors`, `pres.shapes`), absent from its types.
