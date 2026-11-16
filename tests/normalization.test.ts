@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { normalizeGeometry, normalizeTransform } from "../packages/pptxgenjs/src/normalize/geometry";
 import { PuppeteerGen, resolveImageSource } from "../packages/pptxgenjs/src/node";
 import { arrowHeadPath, arrowShaftStart, normalizeColor, normalizeFill, normalizeLine, normalizeShadow, shaftDashes, startDashAt } from "../packages/pptxgenjs/src/normalize/style";
-import { normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
+import { normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape/line";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("shared object normalization", () => {

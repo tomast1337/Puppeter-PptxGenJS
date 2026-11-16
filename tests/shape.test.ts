@@ -3,7 +3,9 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { renderedPage } from "./renderedPage";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
-import { normalizeCustomPath, normalizeShape, normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape";
+import { CORE_SVG_SHAPES, normalizeShape } from "../packages/pptxgenjs/src/normalize/shape";
+import { normalizeCustomPath } from "../packages/pptxgenjs/src/normalize/shape/custom";
+import { normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape/line";
 import { arrowHeadPath, normalizeLine } from "../packages/pptxgenjs/src/normalize/style";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
@@ -115,6 +117,19 @@ describe("shape normalization", () => {
         expect(() => normalizeShape("custGeom", {}, 100, 100, PAGE)).toThrow("requires at least one point");
         expect(() => normalizeShape("definitelyUnknown" as never, {}, 100, 100, PAGE)).toThrow("Unsupported shape geometry: definitelyUnknown");
         expect(() => normalizeShape("rect", { hyperlink: {} }, 100, 100, PAGE)).toThrow("hyperlink requires either url or slide");
+        // The geometry table is keyed by preset name; Object.prototype names must not reach a lookup.
+        for (const name of ["constructor", "toString", "__proto__"]) expect(() => normalizeShape(name as never, {}, 100, 100, PAGE)).toThrow(`Unsupported shape geometry: ${name}`);
+    });
+
+    // Every name the API accepts (SHAPE_TYPE, SHAPE_GEOMETRY_COMPATIBILITY) draws something: no undefined path data.
+    test("draws a non-empty geometry for every supported preset", () => {
+        const options: PptxGenJS.ShapeProps = { points: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { close: true }] };
+        expect(CORE_SVG_SHAPES.length).toBe(new Set(CORE_SVG_SHAPES).size);
+        for (const name of CORE_SVG_SHAPES) {
+            const { geometry } = normalizeShape(name as PptxGenJS.SHAPE_NAME, options, 200, 100, PAGE);
+            if (geometry.kind === "path") expect(geometry.data, name).toMatch(/^M /);
+            else expect(["rect", "ellipse", "line"], name).toContain(geometry.kind);
+        }
     });
 
     test("normalizes polygon and star preset families", () => {

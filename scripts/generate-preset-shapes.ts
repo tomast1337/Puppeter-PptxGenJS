@@ -130,7 +130,7 @@ const textRects = Object.fromEntries(
 
 const output =
     `// Generated from ECMA-376 presetShapeDefinitions.xml by scripts/generate-preset-shapes.ts.\n` +
-    `// Keep this data declarative; rendering behavior belongs in normalize/shape.ts.\n` +
+    `// Keep this data declarative; rendering behavior belongs in normalize/generatedPreset.ts.\n` +
     `type GeneratedPresetDefinition = {\n` +
     `    readonly adjustments: readonly (readonly [string, string])[];\n` +
     `    readonly guides: readonly (readonly [string, string])[];\n` +

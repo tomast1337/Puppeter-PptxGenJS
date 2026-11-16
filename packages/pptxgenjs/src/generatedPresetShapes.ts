@@ -1,5 +1,5 @@
 // Generated from ECMA-376 presetShapeDefinitions.xml by scripts/generate-preset-shapes.ts.
-// Keep this data declarative; rendering behavior belongs in normalize/shape.ts.
+// Keep this data declarative; rendering behavior belongs in normalize/generatedPreset.ts.
 type GeneratedPresetDefinition = {
     readonly adjustments: readonly (readonly [string, string])[];
     readonly guides: readonly (readonly [string, string])[];
