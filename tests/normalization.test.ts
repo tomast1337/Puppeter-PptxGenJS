@@ -39,6 +39,12 @@ describe("shared object normalization", () => {
             expect(() => normalizeLine({ color })).toThrow("is not a valid color");
             expect(() => normalizeShadow({ type: "outer", color })).toThrow("is not a valid color");
         }
+        // PptxGenJS 4.0.1 writes no color element for a "none" line, fill or shadow, so their color is never read.
+        for (const color of ["transparent", "red; background-image: url(http://x)"]) {
+            expect(normalizeLine({ type: "none", color, width: 0 })).toEqual({ visible: false, color: "transparent", width: 0, style: "solid" });
+            expect(normalizeFill({ type: "none", color })).toEqual({ visible: false, color: "transparent" });
+            expect(normalizeShadow({ type: "none", color })).toMatchObject({ visible: false, color: "transparent" });
+        }
         expect(normalizeColor("#ED7D31")).toBe("#ED7D31");
         expect(normalizeColor({ color: "tx1", transparency: 50 })).toBe("rgba(0, 0, 0, 0.5)");
     });

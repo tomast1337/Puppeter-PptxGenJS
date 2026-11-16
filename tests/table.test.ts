@@ -42,7 +42,7 @@ describe("table normalization", () => {
         expect(table.rows[0]!.cells[0]!.borders.map(border => [border.visible, border.style, border.color, border.width])).toEqual([
             [true, "solid", "#FF0000", (2 * 96) / 72],
             [true, "dashed", "#00FF00", 96 / 72],
-            [false, "solid", "#666666", 0],
+            [false, "solid", "transparent", 0],
             [true, "solid", "#0000FF", 4],
         ]);
         // PptxGenJS writes "dash" as prstDash sysDash: 3 line widths on, 1 off.
@@ -54,8 +54,26 @@ describe("table normalization", () => {
         const sides = (border: unknown) => normalizeTable([[{ text: "a", options: { border: border as PptxGenJS.BorderProps } }]], { w: 1 }, PAGE).rows[0]!.cells[0]!.borders.map(side => [side.visible, side.style, side.color, side.width]);
         const solid = [true, "solid", "#FF0000", 2];
         expect(sides({ color: "FF0000", pt: 1.5 })).toEqual([solid, solid, solid, solid]);
-        expect(sides([{ color: "FF0000", pt: 1.5 }, null, { type: "none" }, {}])).toEqual([solid, [false, "solid", "#666666", 0], [false, "solid", "#666666", 0], [true, "solid", "#666666", 96 / 72]]);
-        expect(sides(undefined)).toEqual(Array(4).fill([false, "solid", "#666666", 0]));
+        expect(sides([{ color: "FF0000", pt: 1.5 }, null, { type: "none" }, {}])).toEqual([solid, [false, "solid", "transparent", 0], [false, "solid", "transparent", 0], [true, "solid", "#666666", 96 / 72]]);
+        expect(sides(undefined)).toEqual(Array(4).fill([false, "solid", "transparent", 0]));
+    });
+
+    // PptxGenJS 4.0.1 writes a "none" side as <a:noFill/> and never reads its color, so it is not validated either.
+    test("ignores the color of a none border, and validates a visible one", async () => {
+        const none = [false, "solid", "transparent", 0];
+        const sides = (border: PptxGenJS.BorderProps) => normalizeTable([[{ text: "a", options: { border } }]], { w: 1 }, PAGE).rows[0]!.cells[0]!.borders.map(side => [side.visible, side.style, side.color, side.width]);
+        const injected = "red; background-image: url(http://127.0.0.1/x)";
+        for (const color of ["transparent", injected]) {
+            expect(sides({ type: "none", color, pt: 0 })).toEqual(Array(4).fill(none));
+            const pres = new PuppeteerGen();
+            pres.addSlide().addTable([[{ text: "a", options: { border: { type: "none", color, pt: 0 } } }]], { x: 0, y: 0, w: 1 });
+            const { html } = await pres.toHtml();
+            expect(html).toContain("border-top: 0px none transparent;");
+            expect(html).not.toContain("background-image");
+            expect(html).not.toContain("url(");
+        }
+        expect(() => sides({ type: "solid", color: "transparent", pt: 1 })).toThrow('color "transparent" is not a valid color');
+        expect(() => sides({ color: "transparent", pt: 0 })).toThrow("is not a valid color");
     });
 
     test("inherits table typography, fill, margins, and direction into cells", () => {
