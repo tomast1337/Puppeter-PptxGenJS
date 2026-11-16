@@ -1,8 +1,9 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, type FourSideMargin, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "../defaults";
+import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "../defaults";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "../units";
 import { normalizeHyperlink } from "./link";
+import { textMarginPixels } from "./margin";
 import { normalizeColor, normalizeShadow } from "./style";
 
 export type TextInput = string | number | PptxGenJS.TextProps[];
@@ -16,23 +17,6 @@ interface TextPiece {
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
-}
-
-function normalizeMargins(margin?: number | FourSideMargin, inset?: number): [number, number, number, number] {
-    if (margin === undefined) {
-        // `inset`, deprecated since PptxGenJS 3.10, is in inches on all four sides; any `margin` overrides it.
-        if (typeof inset === "number" && !Number.isNaN(inset)) {
-            const value = inchesToPixels(inset);
-            return [value, value, value, value];
-        }
-        return PPTX_DEFAULTS.text.marginIn.map(inchesToPixels) as [number, number, number, number];
-    }
-    if (typeof margin === "number") {
-        const value = pointsToPixels(margin);
-        return [value, value, value, value];
-    }
-    const [left, right, bottom, top] = margin.map(pointsToPixels) as FourSideMargin;
-    return [top, right, bottom, left];
 }
 
 function inheritedOptions(parent: PptxGenJS.TextPropsOptions, child: PptxGenJS.TextPropsOptions = {}): PptxGenJS.TextPropsOptions {
@@ -311,7 +295,7 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
 
     return {
         paragraphs,
-        margin: normalizeMargins(options.margin as number | FourSideMargin | undefined, options.inset),
+        margin: textMarginPixels(options.margin, options.inset),
         verticalAlign: options.valign ?? PPTX_DEFAULTS.text.valign,
         wrap: options.wrap ?? PPTX_DEFAULTS.text.wrap,
         fit: getFitMode(options),

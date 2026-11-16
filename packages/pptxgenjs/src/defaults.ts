@@ -1,5 +1,4 @@
 import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdflapas/model";
-import { inchesToPixels, pointsToPixels } from "./units";
 
 export type FourSideMargin = [number, number, number, number];
 
@@ -362,38 +361,6 @@ export const PPTX_DEFAULTS = Object.freeze({
         objectName: "Background",
     }),
 });
-
-function padding(top: number, right: number, bottom: number, left: number): string {
-    const px = (value: number) => `${Number(value.toFixed(6))}px`;
-    return `${px(top)} ${px(right)} ${px(bottom)} ${px(left)}`;
-}
-
-/**
- * PptxGenJS text margins are points. Its v4.0.1 array implementation emits
- * [left, right, bottom, top], despite the public type documentation saying
- * [top, right, bottom, left]. This intentionally mirrors emitted OOXML.
- */
-export function textMarginToCSS(margin?: number | FourSideMargin): string {
-    if (margin === undefined) {
-        const [top, right, bottom, left] = PPTX_DEFAULTS.text.marginIn;
-        return padding(...([top, right, bottom, left].map(inchesToPixels) as FourSideMargin));
-    }
-    if (typeof margin === "number") {
-        const value = pointsToPixels(margin);
-        return padding(value, value, value, value);
-    }
-
-    const [left, right, bottom, top] = margin.map(pointsToPixels) as FourSideMargin;
-    return padding(top, right, bottom, left);
-}
-
-/** Table margins use TRBL order; values below 1 are inches, otherwise points. */
-export function tableMarginToCSS(margin?: number | FourSideMargin): string {
-    const values = margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? ([margin, margin, margin, margin] as FourSideMargin) : margin;
-    const convert = values[0] >= 1 ? pointsToPixels : inchesToPixels;
-    const [top, right, bottom, left] = values.map(convert) as FourSideMargin;
-    return padding(top, right, bottom, left);
-}
 
 /** HTML component extension defaults (not part of the PptxGenJS compatibility surface). */
 export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });

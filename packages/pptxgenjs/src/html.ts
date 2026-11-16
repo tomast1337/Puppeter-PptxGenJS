@@ -2,7 +2,8 @@
 import { UnsupportedChartError } from "./chart/errors";
 import { API_COMPATIBILITY, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
 import { parseComponentProps } from "./components/schema";
-import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION, tableMarginToCSS, textMarginToCSS } from "./defaults";
+import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION } from "./defaults";
+import { tableMarginToCSS, textMarginToCSS } from "./normalize/margin";
 import { PuppeteerGen } from "./PuppeteerGen";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "./pageLayouts";

@@ -1,8 +1,9 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, type FourSideMargin, PPTX_DEFAULTS, type RenderingTarget } from "../../defaults";
+import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, type RenderingTarget } from "../../defaults";
 import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
 import { convertToPixels, inchesToPixels, pointsToPixels } from "../../units";
+import { tableMarginPixels } from "../margin";
 import { normalizeColor, normalizeFill } from "../style";
 import { normalizeText, type TextInput } from "../text";
 
@@ -58,12 +59,6 @@ function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: P
         return Array(rowCount).fill(heightFromTable);
     }
     return Array(rowCount).fill(undefined);
-}
-
-function normalizeTableMargins(margin?: number | FourSideMargin): [number, number, number, number] {
-    const values = margin === undefined ? ([...PPTX_DEFAULTS.table.marginIn] as FourSideMargin) : typeof margin === "number" ? [margin, margin, margin, margin] : margin;
-    const convert = values[0]! >= 1 ? pointsToPixels : inchesToPixels;
-    return values.map(convert) as [number, number, number, number];
 }
 
 // PptxGenJS 4.0.1 (addTableDefinition) gives a missing side { type: "none" } and fills a given one from
@@ -131,7 +126,7 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text) : String(cell.text ?? "");
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
                 const text = normalizeText(input, textOptions, target);
-                text.margin = normalizeTableMargins(cellOptions.margin as number | FourSideMargin | undefined);
+                text.margin = tableMarginPixels(cellOptions.margin);
                 return {
                     text,
                     colspan: span(cellOptions.colspan),
