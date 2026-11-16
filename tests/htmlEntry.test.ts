@@ -35,6 +35,25 @@ describe("htmlDocument() from @pdflapas/model", () => {
         expect(() => htmlDocument("<p>Hi</p>")).toThrow('not a PdfLapas profile document: add <meta name="pdflapas-profile" content="2"> to <head>');
         expect(() => htmlDocument(`<meta name="pdflapas-profile" content="3">`)).toThrow(`profile version '3' in <meta name="pdflapas-profile"> is not supported (this library reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)`);
     });
+
+    test("reads only real tags and stylesheets: not inside comments, raw text, CDATA or CSS comments", () => {
+        const profile = `<meta name="pdflapas-profile" content="2">`;
+        const page = "<style>@page { size: 4in 3in }</style>";
+        const hidden = `<meta name="pdflapas-page-size" content="Hidden"><style>@page { size: 9in 9in }</style>`;
+        const read = (html: string) => htmlDocument(html).pageSize;
+        for (const wrap of [(x: string) => `<!-- ${x} -->`, (x: string) => `<!-- ${x} --!>`, (x: string) => `<script>const s = '${x}';</script>`, (x: string) => `<textarea>${x}</textarea>`, (x: string) => `<title>${x}</title>`, (x: string) => `<svg><![CDATA[${x}]]></svg>`]) {
+            expect(read(`${wrap(hidden)}${profile}${page}`)).toEqual({ width: 4, height: 3, name: "Custom" });
+        }
+        // "<!-->" is an empty comment: what follows it is read.
+        expect(read(`<!-->${profile}${page}`)).toEqual({ width: 4, height: 3, name: "Custom" });
+        // A comment that hides the profile meta leaves a document without one.
+        expect(() => htmlDocument(`<!-- ${profile} -->${page}`)).toThrow("not a PdfLapas profile document");
+        // A "<script>" inside an attribute value or a <script>'s text is not a tag either.
+        expect(read(`<p title="<script>">${profile}<script>"</script>"</script>${page}`)).toEqual({ width: 4, height: 3, name: "Custom" });
+        expect(read(`${profile}<style>/* @page { size: 9in 9in } */ @page { size: 4in 3in }</style>`)).toEqual({ width: 4, height: 3, name: "Custom" });
+        // Attribute values are decoded; the first of repeated attributes wins, as in HTML.
+        expect(read(`${profile}<meta name="pdflapas-page-size" content="A&amp;B &#8211; &#x41;" content="no">${page}`).name).toBe("A&B \u2013 A");
+    });
 });
 
 describe("pptxHtmlDocument()", () => {

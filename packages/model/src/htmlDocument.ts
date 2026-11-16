@@ -1,3 +1,4 @@
+import { type HtmlScan, scanHtml } from "./htmlScan";
 import type { HtmlPresentationDocument } from "./renderer";
 import type { PageSize } from "./types";
 
@@ -14,19 +15,12 @@ const META_PREFIX = "pdflapas-";
 const META_PREFIX_V1 = "pdfdeck-";
 const PROFILE_META = `<meta name="${META_PREFIX}profile" content="${HTML_PROFILE_VERSION}">`;
 const READABLE_PROFILE_METAS = `<meta name="${META_PREFIX_V1}profile" content="1"> and ${PROFILE_META}`;
-// shortcut: a regex scan, not a parser: it also matches tags inside comments, <script> or CDATA and does not decode
-// entities in attribute values. Enough to pick the version and page size; the renderers validate the whole document.
-const META_TAG = /<meta\b[^>]*>/gi;
-const ATTRIBUTE = /([^\s"'<>/=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
 const PAGE_RULE = /@page\s*\{[^}]*?\bsize:\s*([^\s;}]+)in\s+([^\s;}]+)in\s*[;}]/;
+const CSS_COMMENT = /\/\*[\s\S]*?\*\//g;
 
 /** The `content` of the first `<meta name="<name>">`. */
-function metaContent(html: string, name: string): string | undefined {
-    for (const [tag] of html.matchAll(META_TAG)) {
-        const attributes = new Map([...tag.matchAll(ATTRIBUTE)].map(([, key = "", ...values]) => [key.toLowerCase(), values.find(value => value !== undefined) ?? ""]));
-        if (attributes.get("name") === name) return attributes.get("content");
-    }
-    return undefined;
+function metaContent(scan: HtmlScan, name: string): string | undefined {
+    return scan.metas.find(attributes => attributes.get("name") === name)?.get("content");
 }
 
 /**
@@ -37,8 +31,9 @@ function metaContent(html: string, name: string): string | undefined {
  */
 export function htmlDocument(html: string): HtmlPresentationDocument {
     if (typeof html !== "string" || !html.trim()) throw new Error(`invalid PdfLapas HTML: expected a non-empty HTML string, got ${typeof html === "string" ? "an empty string" : typeof html}`);
-    const prefix = profileMetaPrefix(name => metaContent(html, name));
-    return { html, pageSize: pageSizeOf(html, prefix) };
+    const scan = scanHtml(html);
+    const prefix = profileMetaPrefix(name => metaContent(scan, name));
+    return { html, pageSize: pageSizeOf(scan, prefix) };
 }
 
 /**
@@ -58,12 +53,17 @@ export function profileMetaPrefix(metaContent: (name: string) => string | undefi
     throw new Error(`invalid PdfLapas HTML: profile version '${content}' in <meta name="${name}"> is not supported (this library reads ${READABLE_PROFILE_METAS})`);
 }
 
-function pageSizeOf(html: string, prefix: string): PageSize {
-    const match = PAGE_RULE.exec(html);
+/** The size of the first `@page` rule in the document's `<style>` elements, outside CSS comments. */
+function pageSizeOf(scan: HtmlScan, prefix: string): PageSize {
+    let match: RegExpExecArray | null = null;
+    for (const css of scan.styles) {
+        match = PAGE_RULE.exec(css.replace(CSS_COMMENT, ""));
+        if (match) break;
+    }
     const width = Number(match?.[1]);
     const height = Number(match?.[2]);
     if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
         throw new Error("invalid PdfLapas HTML: the stylesheet's @page rule has no 'size: <width>in <height>in'; write the page size in inches, as <style>@page { size: 10in 5.625in; margin: 0 }</style> in <head>");
     }
-    return { width, height, name: metaContent(html, `${prefix}page-size`) ?? CUSTOM_PAGE_SIZE_NAME };
+    return { width, height, name: metaContent(scan, `${prefix}page-size`) ?? CUSTOM_PAGE_SIZE_NAME };
 }
