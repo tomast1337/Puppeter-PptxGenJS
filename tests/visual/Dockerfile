@@ -10,6 +10,8 @@ LABEL org.opencontainers.image.source=https://github.com/tomast1337/Puppeter-Ppt
 ARG APT_SNAPSHOT=20261110T000000Z
 # 1.4.4 is the first release with `bun fmt` (bun run fmt:check); CI and release.yml pin the same.
 ARG BUN_VERSION=1.4.4
+# sha256 of bun-linux-x64.zip, from the bun-v1.4.4 release's SHASUMS256.txt; bump with BUN_VERSION.
+ARG BUN_SHA256=bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c
 ENV DEBIAN_FRONTEND=noninteractive
 
 # snapshot.ubuntu.com intermittently fails TLS/fetches or stalls mid-download: retry, and drop a
@@ -28,6 +30,7 @@ RUN printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https:
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" -o /tmp/bun.zip \
+    && echo "${BUN_SHA256}  /tmp/bun.zip" | sha256sum -c - \
     && unzip -q /tmp/bun.zip -d /tmp \
     && install -m 755 /tmp/bun-linux-x64/bun /usr/local/bin/bun \
     && rm -rf /tmp/bun.zip /tmp/bun-linux-x64
