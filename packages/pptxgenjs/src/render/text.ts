@@ -143,7 +143,6 @@ export function renderText(css: InlineStyle, text: NormalizedTextBox): { attribu
     css.set("white-space", text.wrap ? "pre-wrap" : "pre");
     css.set("overflow-wrap", text.wrap ? "break-word" : "normal");
     css.set("direction", text.rtl ? "rtl" : "ltr");
-    css.set("border-radius", `${text.borderRadius}%`);
     if (text.fit === "resize") {
         const minimumHeight = css.get("height");
         css.set("height", "auto");

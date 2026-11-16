@@ -115,7 +115,13 @@ reads no other text option of a slide number.
 Text `margin` values are points. A scalar applies to all sides. PptxGenJS
 4.0.1 emits a four-value text margin as `[left, right, bottom, top]`, although
 its type documentation says `[top, right, bottom, left]`. PuppeteerGen mirrors
-the emitted behavior for compatibility.
+the emitted behavior for compatibility. The deprecated `inset` is in inches
+and sets all four sides; any `margin`, `0` included, replaces it.
+
+A text box's `rectRadius` is the `roundRect` corner in inches, capped at half
+the shorter side. PptxGenJS writes the corner only for a truthy value, so `0`
+keeps the preset's corner of 1/6 of the shorter side. The text box itself
+stays square: the radius never clips the text.
 
 A text outline comes from the `line` object only. PptxGenJS 4.0.1 reads a
 string `line` and the deprecated `lineSize`, `lineDash`, `lineHead` and

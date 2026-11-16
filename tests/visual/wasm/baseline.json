@@ -429,6 +429,10 @@
     "p1-textlinehairline": 0.1212,
     "p1-textlinestringignored": 0.0109,
     "p1-textlineshapelinedeprecated": 0.008,
-    "p1-textlineshapelinestring": 0
+    "p1-textlineshapelinestring": 0,
+    "p2-textinset": 0.0042,
+    "p2-textinsetmargin": 0.007,
+    "p2-textroundrectcorner": 0.056,
+    "p2-textroundrectzero": 0.0016
   }
 }

@@ -2225,7 +2225,8 @@ export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.Sh
     let geometry: NormalizedShape["geometry"];
     if (shapeName === "rect") geometry = { kind: "rect", radius: 0 };
     else if (shapeName === "roundRect") {
-        const radius = options.rectRadius === undefined ? Math.min(width, height) / 6 : Math.min(Math.min(width, height) / 2, inchesToPixels(Math.max(0, options.rectRadius)));
+        // PptxGenJS 4.0.1 writes the `adj` guide only for a truthy rectRadius; 0 keeps the preset's 1/6 corner.
+        const radius = !options.rectRadius ? Math.min(width, height) / 6 : Math.min(Math.min(width, height) / 2, inchesToPixels(Math.max(0, options.rectRadius)));
         geometry = { kind: "rect", radius };
     } else if (shapeName === "ellipse") geometry = { kind: "ellipse" };
     else if (shapeName === "line" || shapeName === "lineInv") geometry = { kind: "line", inverse: shapeName === "lineInv" };
