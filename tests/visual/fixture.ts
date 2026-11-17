@@ -4,7 +4,6 @@ import { join } from "node:path";
 import type PptxGenJS from "pptxgenjs";
 import { createElement } from "react";
 import { z } from "zod";
-import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/generatedPreset";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
@@ -192,9 +191,64 @@ for (const [index, shape] of (["mathPlus", "heart", "moon", "sun", "smileyFace",
     const column = index % 3;
     SYMBOL_CASES.push({ page, name: `${shape}-wide`, shape, x: 0.5 + column * 3.125, y: 1, w: 2.5, h: 0.75 }, { page, name: `${shape}-tall`, shape, x: 1.3125 + column * 3.125, y: 2.75, w: 0.875, h: 1.75 });
 }
-// leftRightUpArrow and star4 already have crops on the arrow and star slides; leaving them out keeps
-// this grid, its crop names and the WASM baseline keys where they were.
-const GENERATED_PRESET_CASES = GENERATED_PRESET_NAMES.filter(shape => shape !== "leftRightUpArrow" && shape !== "star4").map((shape, index) => ({
+// The presets that were generated first (#42). Shapes generated later keep their crops on their family slides, so
+// this grid, its crop names and the WASM baseline keys stay where they were; leftRightUpArrow and star4 already
+// have crops on the arrow and star slides.
+const GENERATED_PRESET_GRID_NAMES: PptxGenJS.SHAPE_NAME[] = [
+    "accentBorderCallout1",
+    "accentBorderCallout2",
+    "accentBorderCallout3",
+    "accentCallout1",
+    "accentCallout2",
+    "accentCallout3",
+    "bevel",
+    "borderCallout1",
+    "borderCallout2",
+    "borderCallout3",
+    "callout1",
+    "callout2",
+    "callout3",
+    "can",
+    "chartPlus",
+    "chartStar",
+    "chartX",
+    "chevron",
+    "circularArrow",
+    "cloud",
+    "cloudCallout",
+    "corner",
+    "cornerTabs",
+    "cube",
+    "diagStripe",
+    "doubleWave",
+    "folderCorner",
+    "frame",
+    "funnel",
+    "gear6",
+    "gear9",
+    "halfFrame",
+    "homePlate",
+    "irregularSeal1",
+    "irregularSeal2",
+    "leftCircularArrow",
+    "leftRightCircularArrow",
+    "plaque",
+    "plaqueTabs",
+    "round1Rect",
+    "round2DiagRect",
+    "round2SameRect",
+    "snip1Rect",
+    "snip2DiagRect",
+    "snip2SameRect",
+    "snipRoundRect",
+    "squareTabs",
+    "teardrop",
+    "wave",
+    "wedgeEllipseCallout",
+    "wedgeRectCallout",
+    "wedgeRoundRectCallout",
+];
+const GENERATED_PRESET_CASES = GENERATED_PRESET_GRID_NAMES.map((shape, index) => ({
     page: 36 + Math.floor(index / 8),
     name: shape,
     shape,

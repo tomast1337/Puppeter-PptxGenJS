@@ -1,19 +1,8 @@
-import type PptxGenJS from "pptxgenjs";
-import { GENERATED_PRESET_SHAPES, GENERATED_TEXT_RECTS } from "#src/generatedPresetShapes";
+import { GENERATED_PRESET_SHAPES, GENERATED_TEXT_RECTS, type GeneratedPresetDefinition, type GeneratedPresetName } from "#src/generatedPresetShapes";
 import type { NormalizedShape } from "@pdflapas/model";
 
-type PresetName = PptxGenJS.SHAPE_NAME;
-type PresetDefinition = {
-    readonly adjustments: readonly (readonly [string, string])[];
-    readonly guides: readonly (readonly [string, string])[];
-    readonly paths: readonly {
-        readonly w?: string;
-        readonly h?: string;
-        readonly fill?: string;
-        readonly stroke?: string;
-        readonly commands: readonly (readonly string[])[];
-    }[];
-};
+export { GENERATED_PRESET_NAMES, type GeneratedPresetName } from "#src/generatedPresetShapes";
+
 type Point = readonly [number, number];
 
 const ANGLE = 60000;
@@ -124,7 +113,7 @@ function arcSegments(current: Point, rx: number, ry: number, start: number, swee
     return { data: commands.join(" "), end };
 }
 
-function renderPath(path: PresetDefinition["paths"][number], values: Record<string, number>, width: number, height: number): string {
+function renderPath(path: GeneratedPresetDefinition["paths"][number], values: Record<string, number>, width: number, height: number): string {
     const sourceWidth = path.w ? Number(path.w) : width;
     const sourceHeight = path.h ? Number(path.h) : height;
     const sx = width / sourceWidth;
@@ -153,14 +142,16 @@ function renderPath(path: PresetDefinition["paths"][number], values: Record<stri
     return commands.join(" ");
 }
 
-export const GENERATED_PRESET_NAMES = Object.freeze(Object.keys(GENERATED_PRESET_SHAPES) as PresetName[]);
+export function isGeneratedPreset(name: string): name is GeneratedPresetName {
+    return Object.hasOwn(GENERATED_PRESET_SHAPES, name);
+}
 
-export function generatedPresetGeometry(name: PresetName, width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
+export function generatedPresetGeometry(name: GeneratedPresetName, width: number, height: number): Extract<NormalizedShape["geometry"], { kind: "path" }> {
     // PptxGenJS 4.0.1 emits the non-standard `folderCorner` token while the
     // DrawingML preset is named `foldedCorner`; LibreOffice therefore renders
     // the pinned reference as an empty shape.
     if (name === "folderCorner") return { kind: "path", data: "M 0 0", faces: [], outlineData: "M 0 0" };
-    const definition = GENERATED_PRESET_SHAPES[name] as PresetDefinition;
+    const definition = GENERATED_PRESET_SHAPES[name];
     const values = variables(width, height);
     for (const [guide, formula] of [...definition.adjustments, ...definition.guides]) values[guide] = evaluate(formula, values);
     const rendered = definition.paths.map(path => ({ path, data: renderPath(path, values, width, height) }));
