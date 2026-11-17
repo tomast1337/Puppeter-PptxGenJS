@@ -196,3 +196,34 @@ describe("autoPage wrap width (PptxGenJS 4.0.1 parseTextToLines: the cell's own 
             }
     });
 });
+
+describe("empty and missing cells (PptxGenJS 4.0.1 addTableDefinition step 2, parseTextToLines)", () => {
+    // `as`: these rows hold values PptxGenJS receives at runtime that `TableRow` does not list.
+    const loose = (cells: unknown[][]) => cells as PptxGenJS.TableRow[];
+    const lines = (count: number) => Array.from({ length: count }, (_, line) => `Line ${line + 1}`).join("\n");
+
+    test.each([null, undefined])("rejects a %p cell, as PptxGenJS throws on it", cell => {
+        const rows = loose([
+            ["A", "B"],
+            ["C", cell],
+        ]);
+        expect(() => pptxGenJsPages(structuredClone(rows), {})).toThrow();
+        expect(() => normalizeTable(rows, {}, PAGE)).toThrow(`addTable: rows[1][1] is ${cell}. PptxGenJS 4.0.1 fails on a missing cell; pass "" or { text: "" } for an empty cell.`);
+        expect(() => paginateTableRows(rows, { autoPage: true }, PAGE)).toThrow("rows[1][1]");
+    });
+
+    // An empty cell is one line long for autoPage, whether it is "", { text: "" }, {} or { text: [] }.
+    test.each<[string, unknown]>([
+        ["an empty string", ""],
+        ['{ text: "" }', { text: "" }],
+        ["a cell without text", {}],
+        ["an empty text array", { text: [] }],
+    ])("counts %s as one line, as PptxGenJS does", (_, empty) => {
+        const rows = loose(Array.from({ length: 30 }, (_, index) => (index % 3 ? [lines((index % 4) + 1), structuredClone(empty)] : [structuredClone(empty), structuredClone(empty)])));
+        for (const fontSize of [8, 12, 18]) {
+            const options: PptxGenJS.TableProps = { autoPage: true, y: 0.5, w: 8, fontSize };
+            const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
+            expect({ fontSize, pages }).toEqual({ fontSize, pages: pptxGenJsPages(structuredClone(rows), { ...options }) });
+        }
+    });
+});

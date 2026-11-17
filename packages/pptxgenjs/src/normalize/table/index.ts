@@ -107,10 +107,14 @@ function inheritedCellOptions(table: PptxGenJS.TableProps, cell: PptxGenJS.Table
  * PptxGenJS 4.0.1 accepts a plain string or number as a table cell at runtime, although `TableRow` lists only cell
  * objects: addTableDefinition (step 2, "B") turns it into a cell `{ text: cell.toString() }` with no options of its
  * own, before rendering and before getSlidesForTableRows paginates it, so it inherits the table options like an
- * object cell does.
+ * object cell does. A `null` or `undefined` cell makes that step throw (it reads `cell.options` or `cell.text`), so it is
+ * rejected here, at `rows[row][column]`, instead of being drawn as the text "null".
  */
-export function tableCell(cell: PptxGenJS.TableCell | string | number): PptxGenJS.TableCell {
-    return typeof cell === "object" && cell !== null ? cell : { text: String(cell) };
+export function tableCell(cell: PptxGenJS.TableCell | string | number | null | undefined, row: number, column: number): PptxGenJS.TableCell {
+    if (cell === null || cell === undefined) {
+        throw new Error(`addTable: rows[${row}][${column}] is ${cell}. PptxGenJS 4.0.1 fails on a missing cell; pass "" or { text: "" } for an empty cell.`);
+    }
+    return typeof cell === "object" ? cell : { text: String(cell) };
 }
 
 export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTable {
@@ -130,8 +134,8 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
         columns,
         rows: tableRows.map((row, rowIndex) => ({
             height: heights[rowIndex],
-            cells: row.map(rawCell => {
-                const cell = tableCell(rawCell);
+            cells: row.map((rawCell, column) => {
+                const cell = tableCell(rawCell, rowIndex, column);
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text) : String(cell.text ?? "");
                 // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
