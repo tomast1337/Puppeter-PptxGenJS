@@ -187,6 +187,8 @@ The generated CSS includes:
 │   ├── model/src/         # @pdflapas/model: normalized model types and renderer interfaces
 │   ├── pptxgenjs/src/     # @pdflapas/pptxgenjs
 │   │   ├── PuppeteerGen.ts    # Runtime-neutral core (no Puppeteer, jsdom or node:*)
+│   │   ├── PuppeteerSlide.ts  # The slide addText(), addTable() and the other add*() calls build
+│   │   ├── slideContext.ts    # What a slide reads from its presentation, created by addSlide()
 │   │   ├── node.ts            # Node defaults: jsdom, file images, Puppeteer, writeFile
 │   │   ├── output.ts          # write()/stream() outputType conversion of PDF bytes
 │   │   ├── pageLayouts.ts     # Page size definitions

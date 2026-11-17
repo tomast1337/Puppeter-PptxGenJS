@@ -134,6 +134,7 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                 const cell = tableCell(rawCell);
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text) : String(cell.text ?? "");
+                // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
                 const text = normalizeText(input, textOptions, target);
                 text.margin = tableMarginPixels(cellOptions.margin);
