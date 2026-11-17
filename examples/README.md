@@ -37,7 +37,7 @@ network access and no files outside this folder.
 | [`launch-options.ts`](./launch-options.ts)               | Puppeteer `launchOptions` on the renderer (sandbox, timeouts, executable)                           | `launch-options.pdf`                                                    |
 | [`react-component.ts`](./react-component.ts)             | A React component on a slide through `@pdflapas/react`                                              | `react-component.pdf`                                                   |
 | [`comprehensive-example.ts`](./comprehensive-example.ts) | Page sizes, positioning, text, tables and layouts, written as both PDF and PPTX for comparison      | `example-*.pdf`, `example-*.pptx`                                       |
-| [`test.ts`](./test.ts)                                   | One deck function run through PptxGenJS and PdfLapas side by side                                   | `Hello-World-*.pdf`, `Hello-World-*.pptx`                               |
+| [`test.ts`](./test.ts)                                   | One deck function run through PptxGenJS and PdfLapas side by side                                   | `Hello-World-PdfLapas.pdf`, `Hello-World-PptxGenJS.pptx`                |
 
 ## Backends
 

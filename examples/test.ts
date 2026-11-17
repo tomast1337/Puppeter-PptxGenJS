@@ -1,7 +1,8 @@
 import pptxgen from "pptxgenjs";
 import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 
-function main(pres: pptxgen | PuppeteerGen) {
+// The file name is passed in: class names are minified in the built packages, so they cannot name the output.
+function main(pres: pptxgen | PuppeteerGen, fileName: string) {
     // First slide with simple text
     const slide1 = pres.addSlide();
     slide1.addText("Hello World from PptxGenJS/PuppeteerGen!", {
@@ -59,7 +60,7 @@ function main(pres: pptxgen | PuppeteerGen) {
         },
     );
 
-    pres.writeFile({ fileName: `Hello-World-${pres.constructor.name}.${pres.constructor.name === "pptxgen" ? "pptx" : "pdf"}` });
+    pres.writeFile({ fileName });
 }
 
 // Create presentation with PptxGenJS
@@ -69,7 +70,7 @@ const pres1 = new pptxgen();
 const pres2 = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
 
 // Run both
-main(pres1);
-main(pres2);
+main(pres1, "Hello-World-PptxGenJS.pptx");
+main(pres2, "Hello-World-PdfLapas.pdf");
 
 console.log("Presentations generated successfully!");
