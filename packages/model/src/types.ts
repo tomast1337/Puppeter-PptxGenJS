@@ -169,6 +169,11 @@ export interface NormalizedTable {
     height?: number;
     columns: number[];
     rows: NormalizedTableRow[];
+    /**
+     * Px a row without a height (when the table has none either) is taller than its tallest cell's text and
+     * margins, as free space of each cell's text area, where the cell's vertical anchor places the text.
+     */
+    contentRowSlack?: number;
 }
 
 export type NormalizedImageSizing = { type: "stretch" } | { type: "contain" | "cover"; x: number; y: number; width: number; height: number } | { type: "crop"; offsetX: number; offsetY: number; width: number; height: number };

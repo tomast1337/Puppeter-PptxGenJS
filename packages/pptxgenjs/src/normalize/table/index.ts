@@ -1,8 +1,8 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, type RenderingTarget } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
 import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
-import { convertToPixels, inchesToPixels, pointsToPixels } from "#src/units";
+import { convertToPixels, inchesToPixels, millimetersToPixels, pointsToPixels } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
 import { normalizeColor, normalizeFill } from "#src/normalize/style";
 import { normalizeText, type TextInput } from "#src/normalize/text";
@@ -127,11 +127,13 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
     const { width, columns } = tableWidthAndColumns(count, options, pageSize);
     const heights = rowHeights(tableRows.length, options, pageSize);
     const explicitHeight = options.h === undefined ? (heights.every(height => height !== undefined) ? heights.reduce<number>((sum, height) => sum + height!, 0) : undefined) : convertToPixels(options.h, inchesToPixels(pageSize.height));
+    const { contentRowSlackMm } = RENDERING_TARGETS[target];
 
     return {
         width,
         height: explicitHeight,
         columns,
+        ...(contentRowSlackMm ? { contentRowSlack: millimetersToPixels(contentRowSlackMm) } : {}),
         rows: tableRows.map((row, rowIndex) => ({
             height: heights[rowIndex],
             cells: row.map((rawCell, column) => {
