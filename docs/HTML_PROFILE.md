@@ -305,7 +305,10 @@ with the full scaled size, and the frame clips.
 (`width: 100%`), so a row's `height` is a minimum and the row grows to its text as in PowerPoint and
 LibreOffice; only vertical text in a row with a height fills the cell (`position: absolute; inset: 0px`). Its
 `data-text-fit` is always `none`: PptxGenJS writes a bare `<a:bodyPr/>` in a cell, whatever `fit`, `shrinkText` or
-`autoFit` say, and both renderers refuse another value. Borders are
+`autoFit` say, and both renderers refuse another value. In a row sized to its content (no row or table
+height), the cell's `padding` also holds the table's `contentRowSlack`: on the bottom for top text, half on
+each side for middle, on the top for bottom, so the row is that much taller than its text and margins and the
+text sits where the anchor puts it. Borders are
 `<width>px <solid|dashed> <color>` per side, `transparent` when hidden. Pagination happens in
 normalization (`normalize/table/pagination.ts`), so a paginated table is already several slides.
 
@@ -732,6 +735,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTable.height`          | profile | `table.slide-table` `height`, omitted when undefined.                                          |
 | `NormalizedTable.columns`         | profile | One `col` per column with `width: <n>px`.                                                      |
 | `NormalizedTable.rows`            | profile | One `tr` per row.                                                                              |
+| `NormalizedTable.contentRowSlack` | profile | Added to the `.table-cell-text` `padding` of rows without a height, by vertical anchor.        |
 | `NormalizedTableRow.height`       | profile | `tr` `height`, omitted when undefined.                                                         |
 | `NormalizedTableRow.cells`        | profile | `td` children.                                                                                 |
 | `NormalizedTableCell.text`        | profile | `div.table-cell-text`, a text box as for text objects.                                         |

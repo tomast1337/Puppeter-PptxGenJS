@@ -21,23 +21,15 @@ export const BASELINE_EPSILON = 0.002;
 /**
  * Table crops still off LibreOffice's (#44, #49). Grid geometry (column widths, row heights, pagination
  * breaks) matches the reference, and since the print zoom and cell inset (printWorkarounds.ts) cell text
- * lands within 0.1 px of LibreOffice's in the pagination and tableToSlides tables (all under CROP_TARGET except table-pagination-second, below).
+ * lands within 0.1 px of LibreOffice's in the pagination and tableToSlides tables (all under CROP_TARGET).
  *
  * table-inheritance, 0.0957: its text sits 0.6-0.8 px above LibreOffice's and its row lines one pixel row
  * higher at 96 dpi. Likely cause: the table offset moves the whole grid up by half the table's widest
  * stroke (2pt), more than half of the thinner borders around these cells. The border between the second
  * and third rows that LibreOffice draws is missing.
- *
- * table-pagination-second, 0.0824: autoPage tables size their rows to content, as PptxGenJS writes them
- * (`<a:tr h="0">`, no rowH on page tables; #196). A content-sized row there is 28.797 px (two 4.8 px margins
- * and a 19.2 px line, each floored to Chromium's 1/64 px layout unit), LibreOffice's row pitch is about
- * 28.82 px; over 11-14 rows the difference flips the pixel rounding of some row edges and baselines, so whole
- * rows sit 1 px off. Before #196 a guessed rowH of 28.838 px hid it (0.0625). Same rows and text, 1/64 px
- * rounding only; follow-up in #212.
  */
 export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
     "table-inheritance": 0.098,
-    "table-pagination-second": 0.085,
 };
 
 /**

@@ -1,4 +1,4 @@
-import type { NormalizedTable, NormalizedTableBorder, NormalizedTableCell } from "@pdflapas/model";
+import type { NormalizedTable, NormalizedTableBorder, NormalizedTableCell, NormalizedTextBox } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, voidElement } from "./markup";
 import { renderText } from "./text";
@@ -15,7 +15,18 @@ function borderCSS(border: NormalizedTableBorder): string {
 /** `fixed` when the row or the table sets a height, `auto` when the row sizes to its content. */
 type RowHeight = "fixed" | "auto";
 
-function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight): string {
+/**
+ * The text area of a cell in a row sized to its content: `slack` taller than the text (NormalizedTable.contentRowSlack).
+ * The anchor places the text in that free space, so it goes on the inset away from the anchor, half on each side for
+ * middle; the padding carries it, so the row grows by it and the text sits where the target puts it.
+ */
+function slackMargin({ margin, verticalAlign }: NormalizedTextBox, slack: number): NormalizedTextBox["margin"] {
+    const [top, right, bottom, left] = margin;
+    const above = { top: 0, middle: slack / 2, bottom: slack }[verticalAlign];
+    return [top + above, right, bottom + slack - above, left];
+}
+
+function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: number): string {
     const css: InlineStyle = new Map([
         ["padding", "0px"],
         ["overflow", "hidden"],
@@ -45,7 +56,8 @@ function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight): string {
         textCss.set("width", "100%");
     }
     textCss.set("overflow", "hidden");
-    const text = renderText(textCss, cell.text);
+    // shortcut: a row whose height is shorter than its text grows without the slack; add it once a fixture shows it.
+    const text = renderText(textCss, rowHeight === "auto" && slack ? { ...cell.text, margin: slackMargin(cell.text, slack) } : cell.text);
     const textElement = element("div", [["class", "table-cell-text"], ...text.attributes, styleAttribute(textCss)], text.content);
     return element("td", [["colspan", String(cell.colspan)], ["rowspan", String(cell.rowspan)], ...dashArrays, styleAttribute(css)], textElement);
 }
@@ -60,7 +72,7 @@ export function renderTable(table: NormalizedTable): string {
     const columns = element("colgroup", [], table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", `${width}px`]]))])).join(""));
     const rows = table.rows.map(row => {
         const rowHeight: RowHeight = row.height !== undefined || table.height !== undefined ? "fixed" : "auto";
-        const cells = row.cells.map(cell => renderCell(cell, rowHeight)).join("");
+        const cells = row.cells.map(cell => renderCell(cell, rowHeight, table.contentRowSlack ?? 0)).join("");
         return element("tr", [styleAttribute(new Map(row.height !== undefined ? [["height", `${row.height}px`]] : []))], cells);
     });
     return element("table", [["class", "slide-table"], styleAttribute(css)], `${columns}${rows.join("")}`);

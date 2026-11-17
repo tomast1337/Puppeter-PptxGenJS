@@ -374,12 +374,17 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
 /**
  * Rendering targets: the application whose drawing of the PptxGenJS file the PDF matches, where the two differ.
  * `readsKern`: whether it honours `<a:rPr kern>` (PPTX_DEFAULTS.text.kernMinSizePt) or kerns every run.
+ * `contentRowSlackMm`: what a row sized to its content (`<a:tr h="0">`) adds to its tallest cell's text and margins.
  */
 export const RENDERING_TARGETS = Object.freeze({
-    /** LibreOffice Impress, the visual reference (tests/visual): it kerns every run whatever its `kern`. */
-    libreoffice: Object.freeze({ readsKern: false }),
+    /**
+     * LibreOffice Impress, the visual reference (tests/visual): it kerns every run whatever its `kern`. A cell's
+     * minimum height is its text height plus one unit of its 1/100 mm model, then the margins (svx table
+     * Cell::getMinimumHeight, `GetTextHeight()+1`).
+     */
+    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01 }),
     /** PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. */
-    powerpoint: Object.freeze({ readsKern: true }),
+    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0 }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 /** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */

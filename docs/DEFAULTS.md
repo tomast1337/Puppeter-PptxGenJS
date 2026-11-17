@@ -159,6 +159,13 @@ string `line` and the deprecated `lineSize`, `lineDash`, `lineHead` and
 Table margins retain a historical dual-unit rule: values below 1 are inches;
 values of 1 or greater are points.
 
+A row without a height (PptxGenJS writes `<a:tr h="0">`, as on autoPage and
+`tableToSlides` pages) sizes to its tallest cell. LibreOffice makes it 1/100 mm
+taller than that cell's text and margins (svx `Cell::getMinimumHeight` returns
+`GetTextHeight()+1` in its 1/100 mm model units), so a 4.8 + 19.2 + 4.8 px row is
+28.838 px, not 28.8; the LibreOffice target does the same, and the cell's anchor
+places the text in that extra space. The PowerPoint target adds nothing.
+
 `autoPage` splits rows as PptxGenJS 4.0.1 does, which reads margins differently from the drawn
 cell: the unit comes from the cell's own `margin` array only, so a table-level `margin` on a cell
 without one counts as inches whatever its size (`margin: 1` is drawn as 1pt but paginated as 1in).

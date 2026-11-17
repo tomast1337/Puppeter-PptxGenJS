@@ -168,6 +168,43 @@ describe("table rendering", () => {
         expect(vertical?.style.position).toBe("absolute");
     });
 
+    // LibreOffice's Cell::getMinimumHeight is GetTextHeight() + 1 (1/100 mm) plus the margins; PowerPoint adds nothing.
+    test("makes a content-sized row 1/100 mm taller than its text and margins for LibreOffice, away from the anchor", () => {
+        const slack = 96 / 2540;
+        const rows: PptxGenJS.TableRow[] = [[{ text: "top" }, { text: "middle", options: { valign: "middle" } }, { text: "bottom", options: { valign: "bottom" } }]];
+        const paddings = (presentation: PuppeteerGen) => Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".table-cell-text"), cell => [parseFloat(cell.style.paddingTop), parseFloat(cell.style.paddingBottom)]);
+        const deck = (target: "libreoffice" | "powerpoint", options: PptxGenJS.TableProps) => {
+            const presentation = new PuppeteerGen(PAGE, { target });
+            presentation.addSlide().addTable(rows, { x: 1, y: 1, w: 6, margin: 0.05, ...options });
+            return presentation;
+        };
+
+        const libreOffice = deck("libreoffice", {});
+        const table = libreOffice.getModel().slides[0]?.objects[0];
+        expect(table?.kind === "table" ? table.table.contentRowSlack : undefined).toBeCloseTo(slack);
+        // Cell margins stay the drawn margins; the slack is applied where the row is laid out.
+        const margin = table?.kind === "table" ? table.table.rows[0]?.cells[0]?.text.margin : undefined;
+        expect(margin?.[0]).toBeCloseTo(4.8);
+        expect(margin?.[2]).toBeCloseTo(4.8);
+        const [top, middle, bottom] = paddings(libreOffice);
+        expect(top?.[0]).toBeCloseTo(4.8);
+        expect(top?.[1]).toBeCloseTo(4.8 + slack);
+        expect(middle?.[0]).toBeCloseTo(4.8 + slack / 2);
+        expect(middle?.[1]).toBeCloseTo(4.8 + slack / 2);
+        expect(bottom?.[0]).toBeCloseTo(4.8 + slack);
+        expect(bottom?.[1]).toBeCloseTo(4.8);
+
+        // A row with a height, and the PowerPoint target, keep the plain margins.
+        for (const presentation of [deck("libreoffice", { rowH: 0.5 }), deck("powerpoint", {})]) {
+            for (const [paddingTop, paddingBottom] of paddings(presentation)) {
+                expect(paddingTop).toBeCloseTo(4.8);
+                expect(paddingBottom).toBeCloseTo(4.8);
+            }
+        }
+        const powerPoint = deck("powerpoint", {}).getModel().slides[0]?.objects[0];
+        expect(powerPoint?.kind === "table" && "contentRowSlack" in powerPoint.table).toBe(false);
+    });
+
     test("keeps a dashed border's DrawingML pattern, which CSS can only draw as dashed", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addTable([[{ text: "a", options: { border: [{ type: "dash", pt: 2, color: "70AD47" }, { type: "none" }, { type: "solid", pt: 1 }, { type: "none" }] } }]], { x: 1, y: 1, w: 2 });
