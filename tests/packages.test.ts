@@ -54,6 +54,24 @@ describe("workspace packages", () => {
         expect(escaping).toEqual([]);
     });
 
+    test("#src/ names a source file of the importing package", async () => {
+        const broken = [];
+        for (const { pkg, file, specifier } of (await imports()).filter(({ specifier }) => specifier.startsWith("#"))) {
+            const target = join(PACKAGES_DIR, pkg, "src", `${specifier.slice("#src/".length)}.ts`);
+            const inside = specifier.startsWith("#src/") && !specifier.split("/").includes("..") && target.startsWith(join(PACKAGES_DIR, pkg, "src/"));
+            if (!inside || !(await Bun.file(target).exists())) broken.push({ file, specifier });
+        }
+        expect(broken).toEqual([]);
+    });
+
+    test("every package maps #src/* to its sources for development and to its declarations once published", async () => {
+        for (const pkg of Object.keys(ALLOWED)) {
+            const manifest = JSON.parse(await readFile(join(PACKAGES_DIR, pkg, "package.json"), "utf8"));
+            // Key order is resolution order: tsc takes "source" through customConditions, consumers "types".
+            expect({ pkg, imports: JSON.stringify(manifest.imports) }).toEqual({ pkg, imports: JSON.stringify({ "#src/*": { source: "./src/*.ts", types: "./dist/*.d.ts", default: "./src/*.ts" } }) });
+        }
+    });
+
     test("package.json dependencies match the allowed direction, and the model has none", async () => {
         for (const [pkg, allowed] of Object.entries(ALLOWED)) {
             const manifest = JSON.parse(await readFile(join(PACKAGES_DIR, pkg, "package.json"), "utf8"));

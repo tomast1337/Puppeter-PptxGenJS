@@ -13,6 +13,10 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
+    // Each package's "#src/*" imports map lists "source" before "types", so tsc reads the sources
+    // instead of dist declarations that only exist after a build. Bun ignores this setting; it reaches
+    // the sources through the map's "default".
+    "customConditions": ["source"],
 
     // Best practices
     "strict": true,
