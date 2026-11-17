@@ -153,6 +153,11 @@ export function printHtml(html: string): string {
                     half[side as keyof typeof half] = value / 2;
                 }
                 const text = cell.childNodes.find((child): child is Element => isElement(child) && hasClass(child, "table-cell-text"));
+                // PptxGenJS writes a bare <a:bodyPr/> in a cell, so the profile has no cell autofit; the WASM parser rejects it too.
+                const fit = text && attribute(text, "data-text-fit");
+                if (text && fit !== undefined && fit !== "none") {
+                    throw new Error(`Cannot print '${objectName(text)}': its .table-cell-text needs data-text-fit="none", since a table cell has no autofit and its row grows to the text (PdfLapas HTML profile)`);
+                }
                 if (text && (half.top || half.right || half.bottom || half.left)) edits.push(cellInset(text, half));
             }
             if (widest) edits.push(addStyle(element, `position: relative; left: ${-widest / 2}px; top: ${-widest / 2}px;`));

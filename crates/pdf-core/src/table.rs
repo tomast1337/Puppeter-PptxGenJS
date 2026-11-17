@@ -14,7 +14,7 @@ use krilla::surface::Surface;
 
 use crate::Renderer;
 use crate::color::unit;
-use crate::model::{Table, TableBorder, TableCell, TextBox, TextFit};
+use crate::model::{Table, TableBorder, TableCell, TextBox};
 use crate::path::rect_path;
 use crate::shape::dash_of;
 use crate::text::layout::BoxLayout;
@@ -155,11 +155,8 @@ impl Renderer {
         }
 
         for (placed, layout) in out.cells.iter().zip(out.texts.iter_mut()) {
+            // The profile parser accepts only `data-text-fit="none"` in a cell, so fit_text never shrinks here.
             let text = &cell_of(table, placed).text;
-            if matches!(text.fit, TextFit::Shrink(_)) {
-                // PowerPoint table cells have no autofit: rows grow to the text instead.
-                self.warn("table cell shrink-to-fit not applied (rows grow to fit)");
-            }
             let width = span(&out.col_x, placed.col, placed.cols);
             let height = span_sum(&out.row_y, placed.row, placed.rows);
             // Vertical text wraps against the row height, so it is laid out again below.

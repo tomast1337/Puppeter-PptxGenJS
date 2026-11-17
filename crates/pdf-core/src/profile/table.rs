@@ -5,7 +5,7 @@ use super::dom::{Dom, Element};
 use super::style::{Style, integer};
 use super::text::{self, text_box};
 use crate::color::{Rgba, parse_color};
-use crate::model::{FillModel, Table, TableBorder, TableCell, TableRow};
+use crate::model::{FillModel, Table, TableBorder, TableCell, TableRow, TextFit};
 
 const TABLE_CSS: &[&str] = &["width", "height", "table-layout", "border-collapse", "border-spacing"];
 const SIDES: [&str; 4] = ["top", "right", "bottom", "left"];
@@ -117,8 +117,13 @@ fn read_cell(dom: &Dom<'_>, cell: &Element<'_>) -> Result<TableCell, String> {
     let [text_content] = dom.elements_of(&content.children)?[..] else {
         return Err("div.table-cell-text must hold one div.text-content".into());
     };
+    let text = text_box(dom, content, &text_style, text_content)?;
+    if text.fit != TextFit::None {
+        // PptxGenJS writes a bare <a:bodyPr/> in a cell: no autofit, the row grows to the text instead.
+        return Err("div.table-cell-text: attribute 'data-text-fit' must be 'none' (a table cell has no autofit; its row grows to the text)".into());
+    }
     Ok(TableCell {
-        text: text_box(dom, content, &text_style, text_content)?,
+        text,
         colspan: span("colspan")?,
         rowspan: span("rowspan")?,
         fill: style.color("background-color")?.map(|color| FillModel { visible: true, color }),
@@ -227,6 +232,11 @@ mod tests {
                 cell(r#"colspan="1" rowspan="1""#, BORDERS).replace("<td", "<th").replace("</td>", "</th>")
             ),
             "<caption></caption>".to_owned(),
+            format!("<tr>{}</tr>", cell(r#"colspan="1" rowspan="1""#, BORDERS)).replace(
+                r#"data-text-fit="none""#,
+                r#"data-text-fit="shrink" data-text-fit-step="0.95" data-text-fit-max-steps="20" data-text-fit-tolerance="0.5""#,
+            ),
+            format!("<tr>{}</tr>", cell(r#"colspan="1" rowspan="1""#, BORDERS)).replace(r#"data-text-fit="none""#, r#"data-text-fit="resize""#),
         ] {
             let error = table(&rows).err().unwrap_or_default();
             assert!(error.starts_with("slide 1: object 'Tb': "), "{rows}: {error}");

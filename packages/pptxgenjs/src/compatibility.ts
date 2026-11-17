@@ -463,6 +463,8 @@ export const COMPATIBILITY = Object.freeze({
             newSlideStartY: "implemented",
             // Only prints PptxGenJS's paging steps to the console; the file is the same.
             verbose: "ignored",
+            // With `shrinkText` and `autoFit`: PptxGenJS writes a bare <a:bodyPr/> in a cell, so rows grow instead.
+            fit: "ignored",
             tableToSlides: "verified",
             addImage: "implemented",
             addShape: "verified",
