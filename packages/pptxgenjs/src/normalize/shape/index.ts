@@ -9,7 +9,6 @@ import { ACTION_BUTTON_GEOMETRY } from "./actionButton";
 import { BRACE_BRACKET_GEOMETRY } from "./braceBracket";
 import { CIRCULAR_GEOMETRY } from "./circular";
 import { normalizeCustomPath } from "./custom";
-import { FLOWCHART_GEOMETRY } from "./flowchart";
 import { OOXML_PERCENT, type ShapeGeometry } from "./path";
 import { POLYGON_GEOMETRY } from "./polygon";
 import { RIBBON_SCROLL_GEOMETRY } from "./ribbonScroll";
@@ -25,6 +24,9 @@ const BASIC_GEOMETRY = {
         return { kind: "rect", radius };
     },
     ellipse: () => ({ kind: "ellipse" }),
+    // Kept as an ellipse (#153): the generated flowChartConnector, four quarter arcs, draws the same in Chromium but
+    // scores 0.0055 against this ellipse's 0.0054 in the WASM shapes deck crop (p10-Shape2; 13 edge pixels differ).
+    flowChartConnector: () => ({ kind: "ellipse" }),
     line: () => ({ kind: "line", inverse: false }),
     lineInv: () => ({ kind: "line", inverse: true }),
     custGeom: (_width, _height, options, pageSize) => ({ kind: "path", data: normalizeCustomPath(options.points, pageSize) }),
@@ -42,7 +44,6 @@ const HAND_DRAWN_GEOMETRY = {
     ...RIBBON_SCROLL_GEOMETRY,
     ...ACTION_BUTTON_GEOMETRY,
     ...SYMBOL_GEOMETRY,
-    ...FLOWCHART_GEOMETRY,
 } as const satisfies Readonly<Record<Exclude<CustomShapeName, GeneratedPresetName>, ShapeGeometry>> & { readonly [name in GeneratedPresetName]?: never };
 
 type HandDrawnName = keyof typeof HAND_DRAWN_GEOMETRY;
