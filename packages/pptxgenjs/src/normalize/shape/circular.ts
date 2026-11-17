@@ -32,11 +32,6 @@ function pie(width: number, height: number, options: PptxGenJS.ShapeProps): Path
     return { kind: "path", data: `${outer.move} ${outer.arcs} L ${cleanNumber(width / 2)} ${cleanNumber(height / 2)} Z` };
 }
 
-function pieWedge(width: number, height: number): PathGeometry {
-    const arc = ellipseArcCommands(width, height, width, height, 180, 90);
-    return { kind: "path", data: `${arc.move} ${arc.arcs} L ${cleanNumber(width)} ${cleanNumber(height)} Z` };
-}
-
 function chord(width: number, height: number, options: PptxGenJS.ShapeProps): PathGeometry {
     const { outer } = outerArc("chord", options, width, height);
     return { kind: "path", data: `${outer.move} ${outer.arcs} Z` };
@@ -55,13 +50,4 @@ function blockArc(width: number, height: number, options: PptxGenJS.ShapeProps):
     };
 }
 
-function donut(width: number, height: number): PathGeometry {
-    const thickness = Math.min(width, height) / 4;
-    const innerX = Math.max(width / 2 - thickness, MIN_INNER_RADIUS);
-    const innerY = Math.max(height / 2 - thickness, MIN_INNER_RADIUS);
-    const outer = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 180, 360);
-    const inner = ellipseArcCommands(width / 2, height / 2, innerX, innerY, 180, -360);
-    return { kind: "path", data: `${outer.move} ${outer.arcs} Z ${inner.move} ${inner.arcs} Z` };
-}
-
-export const CIRCULAR_GEOMETRY = { arc, pie, pieWedge, chord, blockArc, donut } as const satisfies Readonly<Record<string, ShapeGeometry>>;
+export const CIRCULAR_GEOMETRY = { arc, pie, chord, blockArc } as const satisfies Readonly<Record<string, ShapeGeometry>>;

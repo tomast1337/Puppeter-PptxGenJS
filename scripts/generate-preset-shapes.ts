@@ -17,7 +17,6 @@ const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly stri
     // shortcut: the groups below are hand-transcribed and not yet compared with the generated geometry; each group
     // leaves this list once its visual crops do not get worse (#153).
     { why: "polygons and stars, not yet compared (#153)", names: ["triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid", "pentagon", "hexagon", "heptagon", "octagon", "decagon", "dodecagon", "star5", "star6", "star7", "star8", "star10", "star12", "star16", "star24", "star32"] },
-    { why: "circular presets without options, not yet compared (#153)", names: ["pieWedge", "donut"] },
 ];
 const WRITABLE: readonly string[] = Object.values(new pptxgen().ShapeType);
 const handDrawn = new Set(HAND_DRAWN.flatMap(group => group.names));
