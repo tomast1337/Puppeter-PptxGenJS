@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../../defaults";
 import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
-import { inchesToPoints, pixelsToInches, pointsToInches } from "../../units";
+import { pixelsToInches } from "../../units";
 import { slideMarginInches, tableMarginInches } from "../margin";
 import { normalizeTable, tableCell } from "./index";
 
@@ -98,9 +98,12 @@ function wrapLineToCapacity(line: TextPiece[], charactersPerLine: number): TextP
 }
 
 function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number, table: PptxGenJS.TableProps): TextPiece[][] {
-    const fontSize = cell.options?.fontSize ?? table.fontSize ?? PPTX_DEFAULTS.table.fontSizePt;
+    // PptxGenJS 4.0.1 parseTextToLines sizes characters per line from the cell's own fontSize or DEF_FONT_SIZE, never
+    // the table fontSize (unlike the line height), and floors only the width in points: CPL = floor(w pt) / (size / FOCO).
+    const fontSize = cell.options?.fontSize || PPTX_DEFAULTS.table.fontSizePt;
     const characterWeight = table.autoPageCharWeight ?? PPTX_DEFAULTS.table.autoPageCharWeight;
-    const charactersPerLine = Math.max(1, Math.floor(inchesToPoints(columnWidth) / (fontSize / (PPTX_DEFAULTS.table.autoPageCharConstant + characterWeight))));
+    const widthPoints = Math.floor((columnWidth / PPTX_DEFAULTS.units.emuPerPoint) * PPTX_DEFAULTS.units.emuPerInch);
+    const charactersPerLine = widthPoints / (fontSize / (PPTX_DEFAULTS.table.autoPageCharConstant + characterWeight));
 
     const pieces = inputPieces(cell);
     const explicitLines = splitExplicitLines(pieces);
