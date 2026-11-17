@@ -13,11 +13,11 @@ const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly stri
     { why: "PptxGenJS writes their adjustments from angleRange and arcThicknessRatio", names: ["arc", "pie", "chord", "blockArc"] },
     { why: "drawn as an ellipse, as before: the generated four-arc path scores 0.0055 against 0.0054 in its WASM crop (#153)", names: ["flowChartConnector"] },
     { why: "drawn by hand: the generated geometry scores 0.0001 worse in its wide and WASM crops (#153)", names: ["actionButtonInformation"] },
+    { why: "drawn by hand: the generated geometry scores 0.0001 worse in its tall crop, both backends (#153)", names: ["leftRightRibbon"] },
     // shortcut: the groups below are hand-transcribed and not yet compared with the generated geometry; each group
     // leaves this list once its visual crops do not get worse (#153).
     { why: "polygons and stars, not yet compared (#153)", names: ["triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid", "pentagon", "hexagon", "heptagon", "octagon", "decagon", "dodecagon", "star5", "star6", "star7", "star8", "star10", "star12", "star16", "star24", "star32"] },
     { why: "circular presets without options, not yet compared (#153)", names: ["pieWedge", "donut"] },
-    { why: "ribbons and scrolls, not yet compared (#153)", names: ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"] },
 ];
 const WRITABLE: readonly string[] = Object.values(new pptxgen().ShapeType);
 const handDrawn = new Set(HAND_DRAWN.flatMap(group => group.names));
