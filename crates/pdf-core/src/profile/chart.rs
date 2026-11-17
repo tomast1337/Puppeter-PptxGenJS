@@ -2,7 +2,7 @@
 
 use super::allow;
 use super::dom::{Dom, Element};
-use super::object::{BOX_ATTRS, BOX_CSS, object_style};
+use super::object::{BOX_ATTRS, BOX_CSS, BoxPaint, object_style};
 use super::style::Style;
 use crate::model::SvgObject;
 
@@ -19,7 +19,7 @@ pub(crate) fn object(dom: &Dom<'_>, element: &Element<'_>) -> Result<SvgObject, 
         return Err("a chart object must hold one <svg>".into());
     };
     Ok(SvgObject {
-        style: object_style(element, &style, true)?,
+        style: object_style(element, &style, BoxPaint::OnBox)?,
         svg: super::svg::chart(dom, svg)?,
     })
 }

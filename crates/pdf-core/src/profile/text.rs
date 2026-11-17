@@ -6,7 +6,7 @@ use super::object::link;
 use super::style::{Style, font_family, integer, keyword, number, px, shadow, split_top_level};
 use crate::color::parse_color;
 use crate::model::{
-    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, TabAlign, TabStop, TextBox, TextDirection, TextFit, VerticalAlign,
+    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, TabAlign, TabStop, TextBox, TextDirection, TextFit, VerticalAlign,
 };
 
 /// Attributes of the element that holds a text box.
@@ -312,7 +312,7 @@ fn glow(element: &Element<'_>, style: &Style<'_>) -> Result<Option<Shadow>, Stri
         .iter()
         .zip(entries)
         .find(|(name, _)| **name == "glow")
-        .map(|(_, entry)| shadow(entry, false).map_err(|e| format!("CSS property 'text-shadow': {e}")))
+        .map(|(_, entry)| shadow(entry, ShadowKind::Outer).map_err(|e| format!("CSS property 'text-shadow': {e}")))
         .transpose()
 }
 

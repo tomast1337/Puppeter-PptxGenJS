@@ -28,7 +28,7 @@ use kurbo::{Affine, BezPath, PathEl, Point};
 
 use crate::Renderer;
 use crate::color::Rgba;
-use crate::model::Shadow;
+use crate::model::{Shadow, ShadowKind};
 use raster::Line;
 
 const SHADOW_SIGMA_PER_BLUR: f32 = 0.46;
@@ -59,7 +59,7 @@ impl Effect {
         if !shadow.visible {
             return None;
         }
-        if shadow.inset {
+        if shadow.kind == ShadowKind::Inner {
             // shortcut: inner shadows are not drawn; draw one inside the silhouette when a deck needs it.
             return Some(Err("inner shadow not rendered"));
         }
@@ -212,14 +212,14 @@ impl Effects {
 
     /// Ends the innermost capture and renders `effect` from it: the image and its box (px, in the
     /// capture's user space). `None` when nothing was captured.
-    fn end(&mut self, effect: &Effect) -> Option<(Image, kurbo::Rect)> {
+    fn end(&mut self, effect: &Effect) -> Option<EffectImage> {
         let mut capture = self.active.pop()?;
         let image = self.render(&mut capture, effect);
         self.spare.push(capture);
         image
     }
 
-    fn render(&mut self, capture: &mut Capture, effect: &Effect) -> Option<(Image, kurbo::Rect)> {
+    fn render(&mut self, capture: &mut Capture, effect: &Effect) -> Option<EffectImage> {
         let bounds = capture.lines.iter().fold(None, |b: Option<kurbo::Rect>, l| {
             let r = kurbo::Rect::new(f64::from(l.x0), f64::from(l.y0), f64::from(l.x1), f64::from(l.y1)).abs();
             Some(b.map_or(r, |b| b.union(r)))
@@ -268,8 +268,14 @@ impl Effects {
             area.x0 + f64::from(effect.dx) + w as f64 / f64::from(scale),
             area.y0 + f64::from(effect.dy) + h as f64 / f64::from(scale),
         );
-        Some((image, at))
+        Some(EffectImage { image, at })
     }
+}
+
+/// A rendered effect: its image and where it goes (px, in the capture's user space).
+struct EffectImage {
+    image: Image,
+    at: kurbo::Rect,
 }
 
 /// The area `stroke` paints along `path`, from tiny-skia's stroker (krilla's, for stroke bounds).
@@ -353,14 +359,23 @@ impl CustomImage for Matte {
     }
 }
 
+/// What an effect is cast by.
+#[derive(Clone, Copy)]
+pub(crate) enum EffectSource {
+    /// Everything drawn: an object's shadow.
+    Everything,
+    /// Only the text runs glowing with the effect.
+    GlowingRuns,
+}
+
 impl Renderer {
-    /// Runs `draw` into a sub-stream while capturing its silhouette (only the runs glowing with
-    /// `effect` for a glow), draws `effect` from the silhouette, then the sub-stream over it.
+    /// Runs `draw` into a sub-stream while capturing the silhouette of what `source` names, draws
+    /// `effect` from the silhouette, then the sub-stream over it.
     pub(crate) fn under_effect(
         &mut self,
         surface: &mut Surface,
         effect: &Effect,
-        glow: bool,
+        source: EffectSource,
         draw: impl FnOnce(&mut Self, &mut Surface) -> Result<(), String>,
     ) -> Result<(), String> {
         let base = surface.ctm();
@@ -368,7 +383,11 @@ impl Renderer {
             self.warn("effect on a degenerate transform not rendered");
             return draw(self, surface);
         };
-        self.effects.begin(glow.then_some(*effect), affine_of(inverse));
+        let glow = match source {
+            EffectSource::Everything => None,
+            EffectSource::GlowingRuns => Some(*effect),
+        };
+        self.effects.begin(glow, affine_of(inverse));
         let mut builder = surface.stream_builder();
         let mut sub = builder.surface();
         // The sub-stream starts at the identity: give it the page's transform so link areas and
@@ -378,7 +397,7 @@ impl Renderer {
         sub.pop();
         sub.finish();
         let stream = builder.finish();
-        if let Some((image, at)) = self.effects.end(effect)
+        if let Some(EffectImage { image, at }) = self.effects.end(effect)
             && let Some(size) = Size::from_wh(at.width() as f32, at.height() as f32)
         {
             surface.push_transform(&Transform::from_translate(at.x0 as f32, at.y0 as f32));
@@ -413,9 +432,11 @@ mod tests {
         infinite.line_to((f64::INFINITY, 0.0));
         effects.capture(Transform::identity(), &infinite, 1.0, None);
         assert_eq!(effects.active.first().map_or(0, |c| c.lines.len()), lines);
-        let shadow = Effect::shadow(&crate::model::build::shadow("#000000", 8.0, 4.0, false));
+        let shadow = Effect::shadow(&crate::model::build::shadow("#000000", 8.0, 4.0, ShadowKind::Outer));
         let Some(Ok(shadow)) = shadow else { panic!("an outer shadow") };
-        let Some((_, at)) = effects.end(&shadow) else { panic!("a mask") };
+        let Some(EffectImage { at, .. }) = effects.end(&shadow) else {
+            panic!("a mask")
+        };
         assert!(at.width() > 7e16 && at.height() > 1e17 - 1e10, "{at:?}");
     }
 }

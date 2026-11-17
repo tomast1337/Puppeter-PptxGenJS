@@ -4,19 +4,21 @@ use std::sync::Arc;
 
 use krilla::Data;
 use krilla::color::rgb;
+use krilla::geom::Quadrilateral;
 use krilla::geom::{Point, Transform};
 use krilla::paint::Stroke;
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
-use parley::{Layout, PositionedLayoutItem};
+use parley::{FontMetrics, GlyphRun, Layout, PositionedLayoutItem};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
 use crate::effect::Effect;
+use crate::effect::EffectSource;
 use crate::link::page_quad;
 use crate::model::{TextBox, TextDirection, VerticalAlign};
 use crate::path::rect_path;
-use crate::text::layout::{BoxLayout, Brush, RunPaint, TextStroke};
+use crate::text::layout::{BoxLayout, Brush, BulletMarker, RunPaint, RunRef, TextStroke};
 use crate::text::outline::glyph_outlines;
 
 /// LibreOffice's synthetic styles for a face that lacks them, read from its PDF export of a
@@ -30,6 +32,12 @@ const MAX_GLOWS_PER_BOX: usize = 16;
 /// Shears what is drawn on `baseline` (y down) to the right above it and to the left below it.
 fn oblique(baseline: f32) -> Transform {
     Transform::from_row(1.0, 0.0, -SYNTHETIC_ITALIC_SHEAR, 1.0, SYNTHETIC_ITALIC_SHEAR * baseline, 0.0)
+}
+
+/// A text link's clickable area on one line, and the run whose link it is.
+pub(crate) struct LinkQuad {
+    pub(crate) run: RunRef,
+    pub(crate) quad: Quadrilateral,
 }
 
 fn stroke_of(Rgba(r, g, b, a): Rgba, width: f32) -> Stroke {
@@ -68,9 +76,9 @@ impl Renderer {
         let mut lines = |r: &mut Self, surface: &mut Surface| {
             surface.push_transform(&frame);
             for para in &layout.paras {
-                if let Some((marker, ml, mx)) = &para.marker {
+                if let Some(BulletMarker { text, layout: marker, x }) = &para.marker {
                     let first = layout.baselines.get(para.baselines.start..para.baselines.start + 1).unwrap_or_default();
-                    r.draw_layout(surface, ml, marker, &layout.paints, (*mx, v0 + para.y), first);
+                    r.draw_layout(surface, marker, text, &layout.paints, (*x, v0 + para.y), first);
                 }
                 let baselines = layout.baselines.get(para.baselines.clone()).unwrap_or_default();
                 r.draw_layout(surface, &para.layout, &para.text, &layout.paints, (para.x, v0 + para.y), baselines);
@@ -97,8 +105,8 @@ impl Renderer {
         }
         self.under_glows(surface, &glows, &mut lines)?;
         let mut quads = std::mem::take(&mut self.link_quads);
-        let linked = quads.drain(..).try_for_each(|(p, r, quad)| {
-            let run = text.paragraphs.get(p as usize).and_then(|para| para.runs.get(r as usize));
+        let linked = quads.drain(..).try_for_each(|LinkQuad { run, quad }| {
+            let run = text.paragraphs.get(run.paragraph as usize).and_then(|para| para.runs.get(run.run as usize));
             match run.and_then(|run| run.link.as_ref()) {
                 Some(link) => self.add_link(link, quad),
                 None => Ok(()),
@@ -115,7 +123,7 @@ impl Renderer {
         draw: &mut dyn FnMut(&mut Self, &mut Surface) -> Result<(), String>,
     ) -> Result<(), String> {
         match glows.split_first() {
-            Some((glow, rest)) => self.under_effect(surface, glow, true, |r, surface| r.under_glows(surface, rest, draw)),
+            Some((glow, rest)) => self.under_effect(surface, glow, EffectSource::GlowingRuns, |r, surface| r.under_glows(surface, rest, draw)),
             None => draw(self, surface),
         }
     }
@@ -142,125 +150,142 @@ impl Renderer {
         (ox, oy): (f32, f32),
         baselines: &[f32],
     ) {
-        let mut ranges = std::mem::take(&mut self.glyph_ranges);
-        let mut positioned = std::mem::take(&mut self.positioned);
-        let mut glyphs = std::mem::take(&mut self.glyphs);
         for (line, baseline) in layout.lines().zip(baselines) {
             let oy = oy + baseline - line.metrics().baseline;
             for item in line.items() {
                 let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
-                let run = glyph_run.run();
-                let size = run.font_size();
-                let metrics = *run.font_metrics();
                 let paint = paints
                     .get(glyph_run.style().brush.0 as usize)
                     .expect("layout_text sets every brush to the index of the paint it pushes alongside");
-                let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
-                let start = ox + glyph_run.offset();
-                let advance = glyph_run.advance();
-                if let Some((p, r)) = paint.link {
-                    // One annotation per line fragment, over the run's line box, as Chromium does for an inline <a>.
-                    if let Some(quad) = page_quad(surface, start, baseline - metrics.ascent, advance, metrics.ascent + metrics.descent) {
-                        self.link_quads.push((p, r, quad));
-                    }
-                }
-                if let Some(hl) = paint.highlight {
-                    self.fill(
-                        surface,
-                        &rect_path(start, baseline - metrics.ascent, advance, metrics.ascent + metrics.descent, 0.0),
-                        hl,
-                    );
-                }
+                self.draw_glyph_run(surface, &glyph_run, paint, text, (ox, oy));
+            }
+        }
+    }
 
-                // Glyph -> source text cluster ranges, for the PDF ToUnicode map.
-                ranges.clear();
-                for cluster in run.visual_clusters() {
-                    if cluster.style_index() == glyph_run.style_index() {
-                        for _ in cluster.glyphs() {
-                            ranges.push(cluster.text_range());
-                        }
-                    }
-                }
-                positioned.clear();
-                positioned.extend(glyph_run.positioned_glyphs());
-                if ranges.len() != positioned.len() {
-                    // shortcut: a run whose style repeats non-contiguously maps all glyphs to the run's text; fix if text extraction matters.
-                    ranges.clear();
-                    ranges.resize(positioned.len(), run.text_range());
-                }
-                let mut pen = glyph_run.offset();
-                glyphs.clear();
-                glyphs.extend(positioned.iter().zip(ranges.drain(..)).map(|(g, range)| {
-                    let glyph = KrillaGlyph::new(
-                        GlyphId::new(g.id),
-                        g.advance / size,
-                        (g.x - pen) / size,
-                        -(g.y - glyph_run.baseline()) / size,
-                        0.0,
-                        range,
-                        None,
-                    );
-                    pen += g.advance;
-                    glyph
-                }));
-                let Some(font) = self.pdf_font(run.font()) else {
-                    self.warn("font could not be embedded");
-                    continue;
-                };
-                let origin = Point::from_xy(start, baseline);
-                // fontique asks for synthesis when the face it matched lacks the requested style.
-                let synthesis = run.synthesis();
-                let skewed = synthesis.skew().is_some();
-                if skewed {
-                    surface.push_transform(&oblique(baseline));
-                }
-                if let Some(outline) = paint.outline.filter(|o| o.under) {
-                    surface.set_fill(None);
-                    surface.set_stroke(Some(outline_stroke(outline)));
-                    surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
-                }
-                surface.set_stroke(synthesis.embolden().then(|| stroke_of(paint.color, size * SYNTHETIC_BOLD_STROKE_EM)));
-                surface.set_fill(Some(fill_of(paint.color)));
-                surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
-                if self.effects.capturing() {
-                    // Pen positions as krilla places them: x from the line start, y from the line's top.
-                    let at = positioned.iter().map(|g| (ox + g.x, oy + g.y - paint.baseline_offset, g.id));
-                    let outline = glyph_outlines(run.font(), size, at);
-                    self.effects.capture(surface.ctm(), &outline, paint.color.3, paint.glow.as_ref());
-                }
-                if let Some(outline) = paint.outline.filter(|o| !o.under) {
-                    surface.set_fill(None);
-                    surface.set_stroke(Some(outline_stroke(outline)));
-                    surface.draw_glyphs(origin, &glyphs, font, text, size, false);
-                }
-                surface.set_stroke(None);
-                if skewed {
-                    surface.pop();
-                }
+    /// One glyph run of a line whose top is `oy`: its link area and highlight, glyphs and decorations.
+    fn draw_glyph_run(&mut self, surface: &mut Surface, glyph_run: &GlyphRun<'_, Brush>, paint: &RunPaint, text: &str, (ox, oy): (f32, f32)) {
+        let run = glyph_run.run();
+        let metrics = *run.font_metrics();
+        let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
+        let start = ox + glyph_run.offset();
+        let advance = glyph_run.advance();
+        if let Some(link) = paint.link {
+            // One annotation per line fragment, over the run's line box, as Chromium does for an inline <a>.
+            if let Some(quad) = page_quad(surface, start, baseline - metrics.ascent, advance, metrics.ascent + metrics.descent) {
+                self.link_quads.push(LinkQuad { run: link, quad });
+            }
+        }
+        if let Some(hl) = paint.highlight {
+            self.fill(
+                surface,
+                &rect_path(start, baseline - metrics.ascent, advance, metrics.ascent + metrics.descent, 0.0),
+                hl,
+            );
+        }
+        let Some(font) = self.pdf_font(run.font()) else {
+            self.warn("font could not be embedded");
+            return;
+        };
+        self.draw_glyphs(surface, glyph_run, paint, font, text, (ox, oy));
+        self.draw_decorations(surface, paint, &metrics, start, baseline, advance);
+    }
 
-                let deco = paint.underline_color.unwrap_or(paint.color);
-                if paint.underline {
-                    self.fill(
-                        surface,
-                        &rect_path(start, baseline - metrics.underline_offset, advance, metrics.underline_size.max(0.5), 0.0),
-                        deco,
-                    );
-                }
-                if paint.strike || paint.double_strike {
-                    let t = metrics.strikethrough_size.max(0.5);
-                    let y = baseline - metrics.strikethrough_offset;
-                    if paint.double_strike {
-                        self.fill(surface, &rect_path(start, y - t, advance, t, 0.0), paint.color);
-                        self.fill(surface, &rect_path(start, y + t, advance, t, 0.0), paint.color);
-                    } else {
-                        self.fill(surface, &rect_path(start, y, advance, t, 0.0), paint.color);
-                    }
+    /// The run's glyphs in `font`: an outline under them, the fill (synthetic bold and italic
+    /// as LibreOffice draws them), their silhouette for a capture, an outline over them.
+    fn draw_glyphs(&mut self, surface: &mut Surface, glyph_run: &GlyphRun<'_, Brush>, paint: &RunPaint, font: Font, text: &str, (ox, oy): (f32, f32)) {
+        let run = glyph_run.run();
+        let size = run.font_size();
+        let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
+        let mut ranges = std::mem::take(&mut self.glyph_ranges);
+        let mut positioned = std::mem::take(&mut self.positioned);
+        let mut glyphs = std::mem::take(&mut self.glyphs);
+
+        // Glyph -> source text cluster ranges, for the PDF ToUnicode map.
+        ranges.clear();
+        for cluster in run.visual_clusters() {
+            if cluster.style_index() == glyph_run.style_index() {
+                for _ in cluster.glyphs() {
+                    ranges.push(cluster.text_range());
                 }
             }
+        }
+        positioned.clear();
+        positioned.extend(glyph_run.positioned_glyphs());
+        if ranges.len() != positioned.len() {
+            // shortcut: a run whose style repeats non-contiguously maps all glyphs to the run's text; fix if text extraction matters.
+            ranges.clear();
+            ranges.resize(positioned.len(), run.text_range());
+        }
+        let mut pen = glyph_run.offset();
+        glyphs.clear();
+        glyphs.extend(positioned.iter().zip(ranges.drain(..)).map(|(g, range)| {
+            let glyph = KrillaGlyph::new(
+                GlyphId::new(g.id),
+                g.advance / size,
+                (g.x - pen) / size,
+                -(g.y - glyph_run.baseline()) / size,
+                0.0,
+                range,
+                None,
+            );
+            pen += g.advance;
+            glyph
+        }));
+        let origin = Point::from_xy(ox + glyph_run.offset(), baseline);
+        // fontique asks for synthesis when the face it matched lacks the requested style.
+        let synthesis = run.synthesis();
+        let skewed = synthesis.skew().is_some();
+        if skewed {
+            surface.push_transform(&oblique(baseline));
+        }
+        if let Some(outline) = paint.outline.filter(|o| o.under) {
+            surface.set_fill(None);
+            surface.set_stroke(Some(outline_stroke(outline)));
+            surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
+        }
+        surface.set_stroke(synthesis.embolden().then(|| stroke_of(paint.color, size * SYNTHETIC_BOLD_STROKE_EM)));
+        surface.set_fill(Some(fill_of(paint.color)));
+        surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
+        if self.effects.capturing() {
+            // Pen positions as krilla places them: x from the line start, y from the line's top.
+            let at = positioned.iter().map(|g| (ox + g.x, oy + g.y - paint.baseline_offset, g.id));
+            let outline = glyph_outlines(run.font(), size, at);
+            self.effects.capture(surface.ctm(), &outline, paint.color.3, paint.glow.as_ref());
+        }
+        if let Some(outline) = paint.outline.filter(|o| !o.under) {
+            surface.set_fill(None);
+            surface.set_stroke(Some(outline_stroke(outline)));
+            surface.draw_glyphs(origin, &glyphs, font, text, size, false);
+        }
+        surface.set_stroke(None);
+        if skewed {
+            surface.pop();
         }
         self.glyph_ranges = ranges;
         self.positioned = positioned;
         self.glyphs = glyphs;
+    }
+
+    /// Underline and strikethrough over `advance` px from `start`.
+    fn draw_decorations(&mut self, surface: &mut Surface, paint: &RunPaint, metrics: &FontMetrics, start: f32, baseline: f32, advance: f32) {
+        let deco = paint.underline_color.unwrap_or(paint.color);
+        if paint.underline {
+            self.fill(
+                surface,
+                &rect_path(start, baseline - metrics.underline_offset, advance, metrics.underline_size.max(0.5), 0.0),
+                deco,
+            );
+        }
+        if paint.strike || paint.double_strike {
+            let t = metrics.strikethrough_size.max(0.5);
+            let y = baseline - metrics.strikethrough_offset;
+            if paint.double_strike {
+                self.fill(surface, &rect_path(start, y - t, advance, t, 0.0), paint.color);
+                self.fill(surface, &rect_path(start, y + t, advance, t, 0.0), paint.color);
+            } else {
+                self.fill(surface, &rect_path(start, y, advance, t, 0.0), paint.color);
+            }
+        }
     }
 }
 

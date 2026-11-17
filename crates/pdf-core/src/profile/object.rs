@@ -3,7 +3,7 @@
 use super::dom::{Dom, Element};
 use super::style::{Style, integer, keyword, number, shadow};
 use super::{allow, chart, component, image, shape, table, text};
-use crate::model::{ArrowKind, FillModel, Geometry, LineModel, Link, ObjectStyle, ShapeObject, SlideObject, TableObject, TextObject, Transform2};
+use crate::model::{ArrowKind, FillModel, Geometry, LineModel, Link, ObjectStyle, ShadowKind, ShapeObject, SlideObject, TableObject, TextObject, Transform2};
 
 /// Attributes every object box may carry.
 pub(crate) const BOX_ATTRS: &[&str] = &["data-object-name", "data-line-dash-array", "data-line-begin-arrow", "data-line-end-arrow"];
@@ -53,20 +53,27 @@ pub(crate) fn read(dom: &Dom<'_>, element: &Element<'_>) -> Result<SlideObject, 
             return Err("a table object must hold one table.slide-table".into());
         };
         return Ok(SlideObject::Table(TableObject {
-            style: object_style(element, &style, true)?,
+            style: object_style(element, &style, BoxPaint::OnBox)?,
             table: table::read(dom, inner)?,
         }));
     }
     Err(format!("{}.slide-element has no profile kind class ({KINDS})", element.name))
 }
 
-/// The common box. `paint` reads fill, line and shadow from the box; objects with SVG geometry
-/// keep them on the SVG and pass false.
-pub(crate) fn object_style(element: &Element<'_>, style: &Style<'_>, paint: bool) -> Result<ObjectStyle, String> {
-    let (fill, line, shadow) = if paint {
-        (box_fill(style)?, box_line(element, style)?, box_shadow(style)?)
-    } else {
-        (None, None, None)
+/// Where an object's fill, line and shadow are written.
+#[derive(Clone, Copy)]
+pub(crate) enum BoxPaint {
+    /// On the box itself (`background`, `border`, `box-shadow`).
+    OnBox,
+    /// On the SVG of its geometry, which the shape reader reads.
+    OnSvg,
+}
+
+/// The common box, with its fill, line and shadow when `paint` puts them on it.
+pub(crate) fn object_style(element: &Element<'_>, style: &Style<'_>, paint: BoxPaint) -> Result<ObjectStyle, String> {
+    let (fill, line, shadow) = match paint {
+        BoxPaint::OnBox => (box_fill(style)?, box_line(element, style)?, box_shadow(style)?),
+        BoxPaint::OnSvg => (None, None, None),
     };
     Ok(ObjectStyle {
         geometry: geometry(style)?,
@@ -169,11 +176,11 @@ fn box_line(element: &Element<'_>, style: &Style<'_>) -> Result<Option<LineModel
 /// `box-shadow: [inset ]<x>px <y>px <blur>px <color>`.
 fn box_shadow(style: &Style<'_>) -> Result<Option<crate::model::Shadow>, String> {
     let Some(value) = style.get("box-shadow") else { return Ok(None) };
-    let (value, inset) = match value.strip_prefix("inset ") {
-        Some(rest) => (rest, true),
-        None => (value, false),
+    let (value, kind) = match value.strip_prefix("inset ") {
+        Some(rest) => (rest, ShadowKind::Inner),
+        None => (value, ShadowKind::Outer),
     };
-    shadow(value, inset).map(Some).map_err(|e| format!("CSS property 'box-shadow': {e}"))
+    shadow(value, kind).map(Some).map_err(|e| format!("CSS property 'box-shadow': {e}"))
 }
 
 /// The link an `a` element carries: `href`, `title` and `data-slide`. Other elements have none.
@@ -198,7 +205,7 @@ pub(crate) fn shape_object(dom: &Dom<'_>, element: &Element<'_>) -> Result<Shape
     let [svg] = dom.elements_of(&element.children)?[..] else {
         return Err("a shape object must hold one svg.shape-svg".into());
     };
-    let mut object_style = object_style(element, &style, false)?;
+    let mut object_style = object_style(element, &style, BoxPaint::OnSvg)?;
     let shape = shape::read(dom, element, svg, &mut object_style)?;
     Ok(ShapeObject {
         style: object_style,
@@ -221,7 +228,7 @@ pub(crate) fn text_object(dom: &Dom<'_>, element: &Element<'_>) -> Result<TextOb
         [content] if !element.has_attr("data-shape") => (None, content),
         _ => return Err("a text object must hold .text-content, after an svg.shape-svg when it has data-shape".into()),
     };
-    let mut object_style = object_style(element, &style, svg.is_none())?;
+    let mut object_style = object_style(element, &style, if svg.is_some() { BoxPaint::OnSvg } else { BoxPaint::OnBox })?;
     let shape = svg.map(|svg| shape::read(dom, element, svg, &mut object_style)).transpose()?;
     Ok(TextObject {
         text: Some(text::text_box(dom, element, &style, content)?),
@@ -233,7 +240,7 @@ pub(crate) fn text_object(dom: &Dom<'_>, element: &Element<'_>) -> Result<TextOb
 #[cfg(test)]
 mod tests {
     use crate::model::build::css;
-    use crate::model::{SlideObject, TextFit, VerticalAlign};
+    use crate::model::{ShadowKind, SlideObject, TextFit, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -265,7 +272,7 @@ mod tests {
         let line = s.line.as_ref().expect("line");
         assert_eq!((line.color, line.width, line.dash_array.as_deref()), (css("#FF0000"), 2.0, Some("4 2")));
         let shadow = s.shadow.as_ref().expect("shadow");
-        assert_eq!((shadow.offset_x, shadow.offset_y, shadow.blur, shadow.inset), (1.0, 2.0, 3.0, true));
+        assert_eq!((shadow.offset_x, shadow.offset_y, shadow.blur, shadow.kind), (1.0, 2.0, 3.0, ShadowKind::Inner));
         assert_eq!(s.object_name.as_deref(), Some("T"));
         let text = object.text.expect("text");
         assert_eq!(

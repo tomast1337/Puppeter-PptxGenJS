@@ -45,7 +45,7 @@ pub(crate) fn parse(html: &str) -> Result<Presentation, String> {
     };
     expect_name(head, "head")?;
     expect_name(body, "body")?;
-    let (page_size, metadata) = read_head(&dom, head)?;
+    let Head { page_size, metadata } = read_head(&dom, head)?;
     let slides = dom
         .elements_of(&body.children)?
         .into_iter()
@@ -78,9 +78,15 @@ pub(crate) fn allow(element: &Element<'_>, style: &Style<'_>, attrs: &[&[&str]],
     Ok(())
 }
 
+/// What `<head>` says about the document.
+struct Head {
+    page_size: PageSize,
+    metadata: Metadata,
+}
+
 /// Checks the profile version, reads the page size from the stylesheet's `@page` rule and, in
 /// version 2, the metadata.
-fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<(PageSize, Metadata), String> {
+fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<Head, String> {
     let mut version = None;
     let mut version_1 = None;
     let mut page_size = None;
@@ -138,7 +144,7 @@ fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<(PageSize, Metadata), 
         ));
     }
     let page_size = page_size.ok_or("the stylesheet has no '@page { size: <width>in <height>in }' rule")?;
-    Ok((page_size, metadata))
+    Ok(Head { page_size, metadata })
 }
 
 /// Stores a metadata value, empty as absent; a second element for the same field is an error.
