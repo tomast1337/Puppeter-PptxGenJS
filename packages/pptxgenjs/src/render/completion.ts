@@ -176,10 +176,13 @@ function where(slide: number, element: Element): string {
     return `slide ${slide}${name !== undefined ? `: object '${name}'` : ""}`;
 }
 
+/** Where text sits, which picks its defaults: a slide's text box or a table cell. */
+type TextContext = "slide" | "cell";
+
 /** The line box from the paragraph's largest run, as normalization computes it (`paragraphLineBox`). */
-function completeParagraph(paragraph: Element, inCell: boolean, slide: number): SourceEdit | undefined {
+function completeParagraph(paragraph: Element, context: TextContext, slide: number): SourceEdit | undefined {
     const style = styleOf(paragraph);
-    const defaultSize = pointsToPixels(inCell ? PPTX_DEFAULTS.table.fontSizePt : PPTX_DEFAULTS.text.fontSizePt);
+    const defaultSize = pointsToPixels(context === "cell" ? PPTX_DEFAULTS.table.fontSizePt : PPTX_DEFAULTS.text.fontSizePt);
     const sizes = paragraph.childNodes.filter(isElement).flatMap(child => {
         if (!hasClass(child, "text-run")) return [];
         const size = styleOf(child).get("font-size");
@@ -192,24 +195,24 @@ function completeParagraph(paragraph: Element, inCell: boolean, slide: number): 
     return addToElement(paragraph, [...DEFAULTS.paragraph.css.filter(([property]) => !style.has(property)), ...(lineHeight === undefined ? [["line-height", px(lineBox.height)] as const] : [])], has ? [] : [["data-line-baseline", String(lineBox.baseline)]]);
 }
 
-function collectEdits(node: Parent, inCell: boolean, slide: number, edits: SourceEdit[]): void {
+function collectEdits(node: Parent, context: TextContext, slide: number, edits: SourceEdit[]): void {
     for (const child of node.childNodes) {
         if (!isElement(child)) continue;
         if (OPAQUE_CLASSES.some(name => hasClass(child, name))) continue;
-        const cell = inCell || hasClass(child, "table-cell-text");
-        const edit = completeElement(child, cell, slide);
+        const childContext = hasClass(child, "table-cell-text") ? "cell" : context;
+        const edit = completeElement(child, childContext, slide);
         if (edit) edits.push(edit);
-        collectEdits(child, cell, slide, edits);
+        collectEdits(child, childContext, slide, edits);
     }
 }
 
-function completeElement(element: Element, inCell: boolean, slide: number): SourceEdit | undefined {
+function completeElement(element: Element, context: TextContext, slide: number): SourceEdit | undefined {
     const linked = element.tagName === "a";
     if (hasClass(element, "slide-container")) return missing(element, DEFAULTS.slide);
     if (hasClass(element, "slide-text")) return missing(element, DEFAULTS.text);
     if (hasClass(element, "table-cell-text")) return missing(element, DEFAULTS.cellText);
-    if (hasClass(element, "text-paragraph")) return completeParagraph(element, inCell, slide);
-    if (hasClass(element, "text-run")) return missing(element, inCell ? (linked ? DEFAULTS.cellLink : DEFAULTS.cellRun) : linked ? DEFAULTS.link : DEFAULTS.run);
+    if (hasClass(element, "text-paragraph")) return completeParagraph(element, context, slide);
+    if (hasClass(element, "text-run")) return missing(element, context === "cell" ? (linked ? DEFAULTS.cellLink : DEFAULTS.cellRun) : linked ? DEFAULTS.link : DEFAULTS.run);
     if (hasClass(element, "slide-image-content")) return missing(element, DEFAULTS.image);
     if (element.tagName === "td") return missing(element, DEFAULTS.cell);
     return undefined;
@@ -271,9 +274,9 @@ export function completeProfileHtml(html: string): string {
     const edits: SourceEdit[] = sheet ? [sheet] : [];
     const body = findElement(document, element => element.tagName === "body");
     body?.childNodes.filter(isElement).forEach((slide, index) => {
-        const edit = completeElement(slide, false, index + 1);
+        const edit = completeElement(slide, "slide", index + 1);
         if (edit) edits.push(edit);
-        collectEdits(slide, false, index + 1, edits);
+        collectEdits(slide, "slide", index + 1, edits);
     });
     const completed = applySourceEdits(html, edits);
     // Standards mode: quirks mode drops the line-box strut (render/document.ts).
