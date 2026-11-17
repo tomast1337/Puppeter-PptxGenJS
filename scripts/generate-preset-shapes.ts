@@ -12,16 +12,13 @@ const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly stri
     { why: "not a preset: the path is the caller's points", names: ["custGeom"] },
     { why: "PptxGenJS writes their adjustments from angleRange and arcThicknessRatio", names: ["arc", "pie", "chord", "blockArc"] },
     { why: "drawn as an ellipse, as before: the generated four-arc path scores 0.0055 against 0.0054 in its WASM crop (#153)", names: ["flowChartConnector"] },
+    { why: "drawn by hand: the generated geometry scores 0.0001 worse in its wide and WASM crops (#153)", names: ["actionButtonInformation"] },
     // shortcut: the groups below are hand-transcribed and not yet compared with the generated geometry; each group
     // leaves this list once its visual crops do not get worse (#153).
     { why: "polygons and stars, not yet compared (#153)", names: ["triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid", "pentagon", "hexagon", "heptagon", "octagon", "decagon", "dodecagon", "star5", "star6", "star7", "star8", "star10", "star12", "star16", "star24", "star32"] },
     { why: "circular presets without options, not yet compared (#153)", names: ["pieWedge", "donut"] },
     { why: "braces and brackets, not yet compared (#153)", names: ["leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair"] },
     { why: "ribbons and scrolls, not yet compared (#153)", names: ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"] },
-    {
-        why: "action buttons, not yet compared (#153)",
-        names: ["actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument", "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome", "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound"],
-    },
     { why: "symbols and math, not yet compared (#153)", names: ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"] },
 ];
 const WRITABLE: readonly string[] = Object.values(new pptxgen().ShapeType);
