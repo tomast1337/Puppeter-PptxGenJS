@@ -176,3 +176,23 @@ describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableD
         expect(firstCells.join("\n")).toBe(lines(60));
     });
 });
+
+describe("autoPage wrap width (PptxGenJS 4.0.1 parseTextToLines: the cell's own fontSize or DEF_FONT_SIZE, not the table's)", () => {
+    const words = (count: number, seed: number) => Array.from({ length: count }, (_, index) => ["table", "of", "wrapping", "text", "at", "several", "widths"][(index + seed) % 7]).join(" ");
+    test.each<[string, PptxGenJS.TableRow[]]>([
+        ["long wrapping cells", Array.from({ length: 12 }, (_, index) => [{ text: `Row ${index + 1}` }, { text: words(20 + index * 9, index) }, { text: words(10 + index * 5, index + 3) }])],
+        ["long wrapping cells with a cell fontSize", Array.from({ length: 12 }, (_, index) => [{ text: words(15 + index * 7, index), options: { fontSize: index % 2 ? 10 : 16 } }, { text: words(25 + index * 6, index + 1) }, { text: `Row ${index + 1}` }])],
+    ])("wraps %s by the cell font size for pages, as PptxGenJS does", (_, rows) => {
+        for (const fontSize of [8, 12, 18])
+            for (const colW of [
+                [1.5, 4, 2.5],
+                [3, 2, 1],
+            ]) {
+                const options: PptxGenJS.TableProps = { autoPage: true, y: 0.5, colW, fontSize };
+                const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
+                // PptxGenJS writes into the rows and options it is given (cell options, colW), so it gets copies.
+                const reference = pptxGenJsPages(structuredClone(rows), { ...options, colW: [...colW] });
+                expect({ fontSize, colW, pages }).toEqual({ fontSize, colW, pages: reference });
+            }
+    });
+});
