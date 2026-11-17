@@ -259,10 +259,12 @@ describe("shape normalization", () => {
         }
         const down = normalizeShape("ribbon", {}, 180, 100, PAGE).geometry;
         const up = normalizeShape("ribbon2", {}, 180, 100, PAGE).geometry;
+        // ribbon2 and horizontalScroll are drawn from their own ECMA-376 guides, not as a transformed sibling.
         expect(down.kind === "path" && down.transform).toBeUndefined();
-        expect(up.kind === "path" && up.transform).toBe("matrix(1 0 0 -1 0 100)");
+        expect(up.kind === "path" && up.transform).toBeUndefined();
+        if (up.kind === "path" && down.kind === "path") expect(up.data).not.toBe(down.data);
         const horizontal = normalizeShape("horizontalScroll", {}, 180, 100, PAGE).geometry;
-        expect(horizontal.kind === "path" && horizontal.transform).toBe("matrix(0 1 1 0 0 0)");
+        expect(horizontal.kind === "path" && horizontal.transform).toBeUndefined();
     });
 
     test("normalizes the complete action-button preset family", () => {
@@ -305,7 +307,7 @@ describe("shape normalization", () => {
     });
 
     test("normalizes every generated ECMA preset without fallback geometry", () => {
-        expect(GENERATED_PRESET_NAMES).toHaveLength(137);
+        expect(GENERATED_PRESET_NAMES).toHaveLength(143);
         for (const name of GENERATED_PRESET_NAMES) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
