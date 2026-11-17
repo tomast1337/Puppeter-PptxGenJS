@@ -12,7 +12,6 @@ import { normalizeCustomPath } from "./custom";
 import { OOXML_PERCENT, type ShapeGeometry } from "./path";
 import { POLYGON_GEOMETRY } from "./polygon";
 import { RIBBON_SCROLL_GEOMETRY } from "./ribbonScroll";
-import { SYMBOL_GEOMETRY } from "./symbol";
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
 
@@ -43,7 +42,6 @@ const HAND_DRAWN_GEOMETRY = {
     ...BRACE_BRACKET_GEOMETRY,
     ...RIBBON_SCROLL_GEOMETRY,
     ...ACTION_BUTTON_GEOMETRY,
-    ...SYMBOL_GEOMETRY,
 } as const satisfies Readonly<Record<Exclude<CustomShapeName, GeneratedPresetName>, ShapeGeometry>> & { readonly [name in GeneratedPresetName]?: never };
 
 type HandDrawnName = keyof typeof HAND_DRAWN_GEOMETRY;
