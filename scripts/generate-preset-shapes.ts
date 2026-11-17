@@ -1,65 +1,97 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
+import pptxgen from "pptxgenjs";
 
 const source = process.argv[2];
 if (!source) throw new Error("Usage: bun scripts/generate-preset-shapes.ts <presetShapeDefinitions.xml>");
 
-const PRESETS = [
-    "accentBorderCallout1",
-    "accentBorderCallout2",
-    "accentBorderCallout3",
-    "accentCallout1",
-    "accentCallout2",
-    "accentCallout3",
-    "bevel",
-    "borderCallout1",
-    "borderCallout2",
-    "borderCallout3",
-    "callout1",
-    "callout2",
-    "callout3",
-    "can",
-    "chartPlus",
-    "chartStar",
-    "chartX",
-    "chevron",
-    "circularArrow",
-    "cloud",
-    "cloudCallout",
-    "corner",
-    "cornerTabs",
-    "cube",
-    "diagStripe",
-    "doubleWave",
-    "folderCorner",
-    "frame",
-    "funnel",
-    "gear6",
-    "gear9",
-    "halfFrame",
-    "homePlate",
-    "irregularSeal1",
-    "irregularSeal2",
-    "leftCircularArrow",
-    "leftRightCircularArrow",
-    "leftRightUpArrow",
-    "plaque",
-    "plaqueTabs",
-    "round1Rect",
-    "round2DiagRect",
-    "round2SameRect",
-    "snip1Rect",
-    "snip2DiagRect",
-    "snip2SameRect",
-    "snipRoundRect",
-    "squareTabs",
-    "star4",
-    "teardrop",
-    "wave",
-    "wedgeEllipseCallout",
-    "wedgeRectCallout",
-    "wedgeRoundRectCallout",
-] as const;
+// Presets PdfLapas draws by hand on purpose, each group with its reason. Every other preset PptxGenJS 4.0.1 can
+// write (its ShapeType values) is generated from presetShapeDefinitions.xml.
+const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly string[] }[] = [
+    { why: "drawn as an HTML box, ellipse or line, not a path; roundRect reads rectRadius", names: ["rect", "roundRect", "ellipse", "line", "lineInv"] },
+    { why: "not a preset: the path is the caller's points", names: ["custGeom"] },
+    { why: "PptxGenJS writes their adjustments from angleRange and arcThicknessRatio", names: ["arc", "pie", "chord", "blockArc"] },
+    // shortcut: the groups below are hand-transcribed and not yet compared with the generated geometry; each group
+    // leaves this list once its visual crops do not get worse (#153).
+    { why: "polygons and stars, not yet compared (#153)", names: ["triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid", "pentagon", "hexagon", "heptagon", "octagon", "decagon", "dodecagon", "star5", "star6", "star7", "star8", "star10", "star12", "star16", "star24", "star32"] },
+    {
+        why: "arrows, not yet compared (#153)",
+        names: [
+            "rightArrow",
+            "leftArrow",
+            "upArrow",
+            "downArrow",
+            "leftRightArrow",
+            "upDownArrow",
+            "quadArrow",
+            "notchedRightArrow",
+            "stripedRightArrow",
+            "leftUpArrow",
+            "bentUpArrow",
+            "bentArrow",
+            "uturnArrow",
+            "curvedRightArrow",
+            "curvedLeftArrow",
+            "curvedUpArrow",
+            "curvedDownArrow",
+            "swooshArrow",
+            "rightArrowCallout",
+            "leftArrowCallout",
+            "upArrowCallout",
+            "downArrowCallout",
+            "leftRightArrowCallout",
+            "upDownArrowCallout",
+            "quadArrowCallout",
+        ],
+    },
+    { why: "circular presets without options, not yet compared (#153)", names: ["pieWedge", "donut"] },
+    { why: "braces and brackets, not yet compared (#153)", names: ["leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair"] },
+    { why: "ribbons and scrolls, not yet compared (#153)", names: ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"] },
+    {
+        why: "action buttons, not yet compared (#153)",
+        names: ["actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument", "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome", "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound"],
+    },
+    { why: "symbols and math, not yet compared (#153)", names: ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"] },
+    {
+        why: "flowchart symbols, not yet compared (#153)",
+        names: [
+            "flowChartAlternateProcess",
+            "flowChartCollate",
+            "flowChartConnector",
+            "flowChartDecision",
+            "flowChartDelay",
+            "flowChartDisplay",
+            "flowChartExtract",
+            "flowChartInputOutput",
+            "flowChartInternalStorage",
+            "flowChartDocument",
+            "flowChartMagneticDisk",
+            "flowChartMagneticDrum",
+            "flowChartMagneticTape",
+            "flowChartManualInput",
+            "flowChartManualOperation",
+            "flowChartMerge",
+            "flowChartMultidocument",
+            "flowChartOfflineStorage",
+            "flowChartOffpageConnector",
+            "flowChartOnlineStorage",
+            "flowChartOr",
+            "flowChartPredefinedProcess",
+            "flowChartPreparation",
+            "flowChartProcess",
+            "flowChartPunchedCard",
+            "flowChartPunchedTape",
+            "flowChartSort",
+            "flowChartSummingJunction",
+            "flowChartTerminator",
+        ],
+    },
+];
+const WRITABLE: readonly string[] = Object.values(new pptxgen().ShapeType);
+const handDrawn = new Set(HAND_DRAWN.flatMap(group => group.names));
+const unknown = [...handDrawn].filter(name => !WRITABLE.includes(name));
+if (unknown.length) throw new Error(`HAND_DRAWN names that PptxGenJS 4.0.1 cannot write: ${unknown.join(", ")}`);
+const PRESETS = WRITABLE.filter(name => !handDrawn.has(name)).sort();
 const document = new JSDOM(readFileSync(source, "utf8"), { contentType: "text/xml" }).window.document;
 
 const attr = (element: Element, name: string) => element.getAttribute(name) ?? undefined;
@@ -131,7 +163,7 @@ const textRects = Object.fromEntries(
 const output =
     `// Generated from ECMA-376 presetShapeDefinitions.xml by scripts/generate-preset-shapes.ts.\n` +
     `// Keep this data declarative; rendering behavior belongs in normalize/generatedPreset.ts.\n` +
-    `type GeneratedPresetDefinition = {\n` +
+    `export type GeneratedPresetDefinition = {\n` +
     `    readonly adjustments: readonly (readonly [string, string])[];\n` +
     `    readonly guides: readonly (readonly [string, string])[];\n` +
     `    readonly paths: readonly {\n` +
@@ -142,7 +174,9 @@ const output =
     `        readonly commands: readonly (readonly string[])[];\n` +
     `    }[];\n` +
     `};\n` +
-    `export const GENERATED_PRESET_SHAPES: Readonly<Record<string, GeneratedPresetDefinition>> = ${JSON.stringify(definitions)};\n` +
+    `export const GENERATED_PRESET_NAMES = ${JSON.stringify(PRESETS)} as const;\n` +
+    `export type GeneratedPresetName = (typeof GENERATED_PRESET_NAMES)[number];\n` +
+    `export const GENERATED_PRESET_SHAPES: Readonly<Record<GeneratedPresetName, GeneratedPresetDefinition>> = ${JSON.stringify(definitions)};\n` +
     `type GeneratedTextRect = {\n` +
     `    readonly adjustments: readonly (readonly [string, string])[];\n` +
     `    readonly guides: readonly (readonly [string, string])[];\n` +

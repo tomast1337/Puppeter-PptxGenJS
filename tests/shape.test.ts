@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type PptxGenJS from "pptxgenjs";
+import pptxgen from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { renderedPage } from "./renderedPage";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
@@ -126,6 +127,8 @@ describe("shape normalization", () => {
     test("draws a non-empty geometry for every supported preset", () => {
         const options: PptxGenJS.ShapeProps = { points: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { close: true }] };
         expect(CORE_SVG_SHAPES.length).toBe(new Set(CORE_SVG_SHAPES).size);
+        // Every name PptxGenJS 4.0.1 can write, hand-drawn or generated, and nothing else.
+        expect([...CORE_SVG_SHAPES].sort()).toEqual(Object.values(new pptxgen().ShapeType).sort());
         for (const name of CORE_SVG_SHAPES) {
             const { geometry } = normalizeShape(name as PptxGenJS.SHAPE_NAME, options, 200, 100, PAGE);
             if (geometry.kind === "path") expect(geometry.data, name).toMatch(/^M /);
