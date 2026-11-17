@@ -1,5 +1,5 @@
-import { type FourSideMargin, PPTX_DEFAULTS } from "../defaults";
-import { inchesToPixels, pointsToInches, pointsToPixels } from "../units";
+import { type FourSideMargin, PPTX_DEFAULTS } from "#src/defaults";
+import { inchesToPixels, pointsToInches, pointsToPixels } from "#src/units";
 
 type Sides<T> = readonly [T, T, T, T];
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 const PACKAGES_DIR = resolve(import.meta.dir, "../packages");
 
@@ -49,14 +49,11 @@ describe("workspace packages", () => {
         expect(wrong).toEqual([]);
     });
 
-    test("relative imports stay inside their own package", async () => {
-        const escaping = (await imports()).filter(({ pkg, file, specifier }) => specifier.startsWith(".") && !relative(join(PACKAGES_DIR, pkg, "src"), resolve(PACKAGES_DIR, dirname(file), specifier)).match(/^[^.]/));
-        expect(escaping).toEqual([]);
-    });
-
-    test("#src/ names a source file of the importing package", async () => {
+    test("imports never climb with ../, and #src/ names a source file of the importing package", async () => {
+        const all = await imports();
+        expect(all.filter(({ specifier }) => specifier.startsWith(".") && specifier.split("/").includes(".."))).toEqual([]);
         const broken = [];
-        for (const { pkg, file, specifier } of (await imports()).filter(({ specifier }) => specifier.startsWith("#"))) {
+        for (const { pkg, file, specifier } of all.filter(({ specifier }) => specifier.startsWith("#"))) {
             const target = join(PACKAGES_DIR, pkg, "src", `${specifier.slice("#src/".length)}.ts`);
             const inside = specifier.startsWith("#src/") && !specifier.split("/").includes("..") && target.startsWith(join(PACKAGES_DIR, pkg, "src/"));
             if (!inside || !(await Bun.file(target).exists())) broken.push({ file, specifier });

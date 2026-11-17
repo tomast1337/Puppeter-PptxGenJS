@@ -1,5 +1,5 @@
 import type { HtmlPresentationDocument, NormalizedPresentation } from "@pdflapas/model";
-import { IMAGE_SOURCE_LIMITS, resolveRemoteImageSource } from "../normalize/image";
+import { IMAGE_SOURCE_LIMITS, resolveRemoteImageSource } from "#src/normalize/image";
 import { componentImageSources } from "./component";
 import { type ComponentLookup, createBrowserDocument, presentationHtml, renderComponents } from "./slide";
 

@@ -1,11 +1,11 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, type RenderingTarget } from "../../defaults";
+import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, type RenderingTarget } from "#src/defaults";
 import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
-import type { PageSize } from "../../pageLayouts";
-import { convertToPixels, inchesToPixels, pointsToPixels } from "../../units";
-import { tableMarginPixels } from "../margin";
-import { normalizeColor, normalizeFill } from "../style";
-import { normalizeText, type TextInput } from "../text";
+import type { PageSize } from "#src/pageLayouts";
+import { convertToPixels, inchesToPixels, pointsToPixels } from "#src/units";
+import { tableMarginPixels } from "#src/normalize/margin";
+import { normalizeColor, normalizeFill } from "#src/normalize/style";
+import { normalizeText, type TextInput } from "#src/normalize/text";
 
 const INHERITED_CELL_OPTIONS = ["align", "bold", "border", "color", "fill", "fontFace", "fontSize", "margin", "textDirection", "underline", "valign"] as const;
 

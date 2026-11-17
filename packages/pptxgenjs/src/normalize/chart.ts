@@ -1,7 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
-import { UnsupportedChartError } from "../chart/errors";
-import { isSupportedChartNumberFormat } from "../chart/format";
-import { PPTX_DEFAULTS } from "../defaults";
+import { UnsupportedChartError } from "#src/chart/errors";
+import { isSupportedChartNumberFormat } from "#src/chart/format";
+import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedChart, NormalizedChartSeries, NormalizedChartType } from "@pdflapas/model";
 import { normalizeColor } from "./style";
 

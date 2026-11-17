@@ -1,7 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "../defaults";
+import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
-import { inchesToPixels, pointsToPixels } from "../units";
+import { inchesToPixels, pointsToPixels } from "#src/units";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { normalizeColor, normalizeShadow } from "./style";

@@ -1,7 +1,7 @@
 import type { DefaultTreeAdapterTypes } from "parse5";
-import type { normalizeComponent } from "../components/normalize";
-import type { ComponentDefinition } from "../components/types";
-import { COMPONENT_DEFAULTS } from "../defaults";
+import type { normalizeComponent } from "#src/components/normalize";
+import type { ComponentDefinition } from "#src/components/types";
+import { COMPONENT_DEFAULTS } from "#src/defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { descendants, type FragmentElement, getAttribute, HTML_NAMESPACE, parseMarkup, removeAttribute, serialize, setAttribute } from "./fragment";
 import { type Attribute, element } from "./markup";

@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
-import type { PageSize } from "../../pageLayouts";
-import { convertToPixels, inchesToPixels } from "../../units";
+import type { PageSize } from "#src/pageLayouts";
+import { convertToPixels, inchesToPixels } from "#src/units";
 import { arcPathCommand, cleanNumber } from "./path";
 
 type ShapePoint = NonNullable<PptxGenJS.ShapeProps["points"]>[number];

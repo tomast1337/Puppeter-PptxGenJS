@@ -1,9 +1,9 @@
 import type PptxGenJS from "pptxgenjs";
-import type { FourSideMargin } from "../../defaults";
-import type { PageSize } from "../../pageLayouts";
-import { HEX_COLOR } from "../../color";
-import { inchesToPixels, pointsToPixels } from "../../units";
-import { mapSides, slideMarginInches } from "../margin";
+import type { FourSideMargin } from "#src/defaults";
+import type { PageSize } from "#src/pageLayouts";
+import { HEX_COLOR } from "#src/color";
+import { inchesToPixels, pointsToPixels } from "#src/units";
+import { mapSides, slideMarginInches } from "#src/normalize/margin";
 
 export interface NormalizedHtmlTable {
     rows: PptxGenJS.TableRow[];

@@ -1,5 +1,5 @@
 import type { NormalizedObjectStyle, NormalizedShape } from "@pdflapas/model";
-import { PPTX_DEFAULTS } from "../defaults";
+import { PPTX_DEFAULTS } from "#src/defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element } from "./markup";
 import { applyGeometry, applyTransform, lineArrowAttributes, shadowInsetAttribute } from "./style";

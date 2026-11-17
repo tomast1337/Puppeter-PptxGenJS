@@ -1,10 +1,10 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedShape, NormalizedTextBox } from "@pdflapas/model";
-import type { PageSize } from "../../pageLayouts";
-import { UnsupportedFeatureError } from "../../UnsupportedFeatureError";
-import { inchesToPixels } from "../../units";
-import { GENERATED_PRESET_NAMES, generatedPresetGeometry, presetTextInsets } from "../generatedPreset";
-import { normalizeHyperlink } from "../link";
+import type { PageSize } from "#src/pageLayouts";
+import { UnsupportedFeatureError } from "#src/UnsupportedFeatureError";
+import { inchesToPixels } from "#src/units";
+import { GENERATED_PRESET_NAMES, generatedPresetGeometry, presetTextInsets } from "#src/normalize/generatedPreset";
+import { normalizeHyperlink } from "#src/normalize/link";
 import { ACTION_BUTTON_GEOMETRY } from "./actionButton";
 import { ARROW_GEOMETRY } from "./arrow";
 import { BRACE_BRACKET_GEOMETRY } from "./braceBracket";
