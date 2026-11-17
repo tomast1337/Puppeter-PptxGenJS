@@ -279,6 +279,20 @@ console.log("React adapter package consumer passed");
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
     await run([process.execPath, "run", reactConsumerPath], consumerDirectory);
     await run(["node", "--experimental-strip-types", reactConsumerPath], consumerDirectory);
+
+    // The same consumers under Node's own resolution (nodenext), which needs file extensions in every
+    // relative import of the shipped declarations (#226), plus a CommonJS file that requires each entry.
+    // The main entry's declarations reach @pdflapas/model and @pdflapas/puppeteer, and skipLibCheck is off.
+    const requireConsumerSource = `
+import Main = require("${names.main}");
+import Html = require("${names.html}");
+import Wasm = require("${names.wasm}");
+import React = require("${names.react}");
+export const entries: unknown[] = [Main.default, Html.default, Wasm.createWasmRenderer, React.registerReactComponent];
+`;
+    await Bun.write(join(consumerDirectory, "require-consumer.cts"), requireConsumerSource);
+    await Bun.write(join(consumerDirectory, "tsconfig.nodenext.json"), JSON.stringify({ extends: "./tsconfig.json", compilerOptions: { module: "NodeNext", moduleResolution: "NodeNext" }, files: [...config.files, "require-consumer.cts"] }, null, 2));
+    await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.nodenext.json"], consumerDirectory);
 }
 
 try {
