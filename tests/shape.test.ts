@@ -159,7 +159,8 @@ describe("shape normalization", () => {
         const right = normalizeShape("rightArrow", {}, 100, 80, PAGE).geometry as { data: string };
         const left = normalizeShape("leftArrow", {}, 100, 80, PAGE).geometry as { data: string };
         expect(right.data).toContain("L 100 40");
-        expect(left.data).toContain("M 100 20");
+        // The left arrow starts at its tip, the left edge's midpoint (presetShapeDefinitions.xml leftArrow).
+        expect(left.data).toMatch(/^M 0 40 /);
         expect((normalizeShape("quadArrow", {}, 100, 80, PAGE).geometry as { data: string }).data).toContain("L 100 40");
         expect((normalizeShape("stripedRightArrow", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ Z/g)).toHaveLength(3);
         expect((normalizeShape("rightArrowCallout", {}, 100, 80, PAGE).geometry as { data: string }).data).toContain("L 100 40");
@@ -170,18 +171,19 @@ describe("shape normalization", () => {
         expect((normalizeShape("bentUpArrow", {}, 120, 90, PAGE).geometry as { data: string }).data).toContain("L 97.5 0");
         expect((normalizeShape("bentArrow", {}, 120, 90, PAGE).geometry as { data: string }).data).toContain("A ");
         expect((normalizeShape("uturnArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/A /g)).toHaveLength(4);
-        expect((normalizeShape("curvedRightArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/A /g)).toHaveLength(4);
+        // Two faces of two arcs each (presetShapeDefinitions.xml curvedRightArrow); `data` also carries the unfilled outline path.
+        expect((normalizeShape("curvedRightArrow", {}, 120, 90, PAGE).geometry as { faces: ReadonlyArray<{ data: string }> }).faces.map(face => face.data.match(/A /g)?.length)).toEqual([2, 2]);
         const curvedUp = normalizeShape("curvedUpArrow", {}, 120, 90, PAGE).geometry as {
             data: string;
-            transform?: string;
             faces?: ReadonlyArray<{ data: string; fillModifier?: string }>;
             outlineData?: string;
         };
-        expect(curvedUp.data.match(/A /g)).toHaveLength(4);
+        // Drawn from its own guides (the head at the top), not as a transformed curvedRightArrow.
+        expect(curvedUp.data).toMatch(/^M 97.5 0 /);
+        expect(curvedUp.faces?.map(face => face.data.match(/A /g)?.length)).toEqual([2, 2]);
         expect(curvedUp.faces).toHaveLength(2);
         expect(curvedUp.faces?.[1]?.fillModifier).toBe("darkenLess");
         expect(curvedUp.outlineData).toContain("A ");
-        expect(curvedUp.transform).toBe("matrix(0 1 1 0 0 0)");
         expect((normalizeShape("swooshArrow", {}, 120, 90, PAGE).geometry as { data: string }).data.match(/Q /g)).toHaveLength(2);
     });
 
@@ -303,7 +305,7 @@ describe("shape normalization", () => {
     });
 
     test("normalizes every generated ECMA preset without fallback geometry", () => {
-        expect(GENERATED_PRESET_NAMES).toHaveLength(54);
+        expect(GENERATED_PRESET_NAMES).toHaveLength(79);
         for (const name of GENERATED_PRESET_NAMES) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
