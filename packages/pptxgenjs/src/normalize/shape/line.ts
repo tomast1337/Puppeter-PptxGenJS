@@ -1,7 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedLine } from "@pdflapas/model";
-import { PPTX_DEFAULTS } from "../../defaults";
-import { normalizeLine } from "../style";
+import { PPTX_DEFAULTS } from "#src/defaults";
+import { normalizeLine } from "#src/normalize/style";
 
 /**
  * The outline of addText(). PptxGenJS 4.0.1 (addTextDefinition) reads a string `line` and the deprecated

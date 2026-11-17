@@ -1,9 +1,9 @@
 import type PptxGenJS from "pptxgenjs";
-import { PPTX_DEFAULTS } from "../../defaults";
+import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedTable } from "@pdflapas/model";
-import type { PageSize } from "../../pageLayouts";
-import { pixelsToInches } from "../../units";
-import { slideMarginInches, tableMarginInches } from "../margin";
+import type { PageSize } from "#src/pageLayouts";
+import { pixelsToInches } from "#src/units";
+import { slideMarginInches, tableMarginInches } from "#src/normalize/margin";
 import { normalizeTable, tableCell } from "./index";
 
 export interface PaginatedTablePage {

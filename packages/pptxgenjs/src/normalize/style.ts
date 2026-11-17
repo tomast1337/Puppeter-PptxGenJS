@@ -1,8 +1,8 @@
 import type PptxGenJS from "pptxgenjs";
-import { PPTX_DEFAULTS } from "../defaults";
+import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdflapas/model";
-import { colorToCSS } from "../color";
-import { millimetersToPixels, pointsToPixels } from "../units";
+import { colorToCSS } from "#src/color";
+import { millimetersToPixels, pointsToPixels } from "#src/units";
 
 type ColorValue = string | { color?: string; transparency?: number; alpha?: number; type?: string };
 

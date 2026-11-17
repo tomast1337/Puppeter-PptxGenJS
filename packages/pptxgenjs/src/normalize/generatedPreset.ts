@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { GENERATED_PRESET_SHAPES, GENERATED_TEXT_RECTS } from "../generatedPresetShapes";
+import { GENERATED_PRESET_SHAPES, GENERATED_TEXT_RECTS } from "#src/generatedPresetShapes";
 import type { NormalizedShape } from "@pdflapas/model";
 
 type PresetName = PptxGenJS.SHAPE_NAME;

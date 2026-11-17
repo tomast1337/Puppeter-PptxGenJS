@@ -8,11 +8,11 @@
  */
 import { applySourceEdits, type HtmlPresentationDocument, htmlDocument, profileMetaPrefix, type SourceEdit } from "@pdflapas/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
-import { PPTX_DEFAULTS } from "../defaults";
-import { normalizeColor } from "../normalize/style";
-import { lineBoxOf } from "../normalize/text";
-import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "../pageLayouts";
-import { inchesToPixels, pointsToPixels } from "../units";
+import { PPTX_DEFAULTS } from "#src/defaults";
+import { normalizeColor } from "#src/normalize/style";
+import { lineBoxOf } from "#src/normalize/text";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "#src/pageLayouts";
+import { inchesToPixels, pointsToPixels } from "#src/units";
 import { attributeName, getAttribute } from "./fragment";
 import { escapeAttribute } from "./markup";
 import { presentationCSS } from "./slide";

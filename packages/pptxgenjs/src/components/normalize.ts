@@ -1,5 +1,5 @@
-import { normalizeObjectStyle } from "../normalize/object";
-import type { PageSize } from "../pageLayouts";
+import { normalizeObjectStyle } from "#src/normalize/object";
+import type { PageSize } from "#src/pageLayouts";
 import type { ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./types";
 
 function cloneValue(value: unknown, parents = new Set<object>()): ComponentValue {

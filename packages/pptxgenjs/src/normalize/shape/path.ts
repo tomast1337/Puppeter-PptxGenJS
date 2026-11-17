@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedShape } from "@pdflapas/model";
-import type { PageSize } from "../../pageLayouts";
+import type { PageSize } from "#src/pageLayouts";
 
 /** DrawingML percentage guides (ST_Percentage, ECMA-376 20.1.10.40) are in 1/1000ths of a percent. */
 export const OOXML_PERCENT = 100000;

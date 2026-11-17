@@ -1,5 +1,5 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
-import { PPTX_DEFAULTS } from "../defaults";
+import { PPTX_DEFAULTS } from "#src/defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, escapeText, voidElement } from "./markup";
 import { shadowInsetAttribute } from "./style";

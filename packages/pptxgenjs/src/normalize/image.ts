@@ -1,8 +1,8 @@
 import type PptxGenJS from "pptxgenjs";
-import { PPTX_DEFAULTS } from "../defaults";
+import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedImage, NormalizedImageSizing } from "@pdflapas/model";
-import type { PageSize } from "../pageLayouts";
-import { convertToPixels, inchesToPixels } from "../units";
+import type { PageSize } from "#src/pageLayouts";
+import { convertToPixels, inchesToPixels } from "#src/units";
 import { normalizeHyperlink } from "./link";
 
 export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
