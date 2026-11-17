@@ -6,7 +6,6 @@ import { inchesToPixels } from "#src/units";
 import { GENERATED_PRESET_NAMES, type GeneratedPresetName, generatedPresetGeometry, isGeneratedPreset, presetTextInsets } from "#src/normalize/generatedPreset";
 import { normalizeHyperlink } from "#src/normalize/link";
 import { ACTION_BUTTON_GEOMETRY } from "./actionButton";
-import { ARROW_GEOMETRY } from "./arrow";
 import { BRACE_BRACKET_GEOMETRY } from "./braceBracket";
 import { CIRCULAR_GEOMETRY } from "./circular";
 import { normalizeCustomPath } from "./custom";
@@ -38,7 +37,6 @@ const BASIC_GEOMETRY = {
 const HAND_DRAWN_GEOMETRY = {
     ...BASIC_GEOMETRY,
     ...POLYGON_GEOMETRY,
-    ...ARROW_GEOMETRY,
     ...CIRCULAR_GEOMETRY,
     ...BRACE_BRACKET_GEOMETRY,
     ...RIBBON_SCROLL_GEOMETRY,

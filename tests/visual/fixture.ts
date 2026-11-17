@@ -444,6 +444,21 @@ const TABLE_OPTION_CASES = [
     { name: "table-border-sides-no-type", x: 5.5, y: 3.75, w: 4, h: 0.75 },
 ] as const;
 
+// populatePresetAspectFixture(): presets whose OOXML geometry depends on the aspect ratio, drawn wide and tall
+// where no other slide does, one slide per entry, after the table-option slide (#153).
+const PRESET_ASPECT_SLIDES: ReadonlyArray<{ readonly title: string; readonly shapes: readonly PptxGenJS.SHAPE_NAME[] }> = [{ title: "Arrows: aspect ratios", shapes: ["notchedRightArrow"] }];
+const PRESET_ASPECT_CASES = PRESET_ASPECT_SLIDES.flatMap(({ shapes }, slideIndex) =>
+    shapes.flatMap((shape, index) => {
+        const page = 64 + TEXT_OPTION_PAGES + slideIndex;
+        const x = 0.4 + (index % 3) * 3.2;
+        const y = Math.floor(index / 3) * 2.4;
+        return [
+            { page, name: `${shape}-wide`, shape, x, y: y + 0.9, w: 2.5, h: 0.75 },
+            { page, name: `${shape}-tall`, shape, x: x + 0.8, y: y + 1.85, w: 0.9, h: 1.65 },
+        ];
+    }),
+);
+
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
 function cropThreshold(name: string): number {
@@ -477,6 +492,7 @@ export const PARITY_REGIONS = [
     { page: 62, name: "slide-number-inherited-style", x: 0.5, y: 1.2, w: 2.5, h: 1 },
     ...TEXT_OPTION_CASES,
     ...TABLE_OPTION_CASES.map(({ name, x, y, w, h }) => ({ page: 63 + TEXT_OPTION_PAGES, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
+    ...PRESET_ASPECT_CASES,
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1723,6 +1739,17 @@ export function populateParityFixture(presentation: Presentation): void {
     populateSlidePropertiesFixture(presentation);
     populateTextOptionsFixture(presentation);
     populateTableOptionsFixture(presentation);
+    populatePresetAspectFixture(presentation);
+}
+
+function populatePresetAspectFixture(presentation: Presentation): void {
+    PRESET_ASPECT_SLIDES.forEach(({ title }, slideIndex) => {
+        const slide = presentation.addSlide();
+        slide.addText(title, { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+        for (const { shape, x, y, w, h } of PRESET_ASPECT_CASES.filter(sample => sample.page === 64 + TEXT_OPTION_PAGES + slideIndex)) {
+            slide.addShape(shape, { x, y, w, h, fill: { color: "5B9BD5", transparency: 5 }, line: { color: "843C0C", width: 1.15 } });
+        }
+    });
 }
 
 /** The parity fixture's image slides (SVG pictures), also the WASM backend's SVG image deck (tests/visual/wasm/decks.ts). */
