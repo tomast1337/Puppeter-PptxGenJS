@@ -11,6 +11,7 @@ const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly stri
     { why: "drawn as an HTML box, ellipse or line, not a path; roundRect reads rectRadius", names: ["rect", "roundRect", "ellipse", "line", "lineInv"] },
     { why: "not a preset: the path is the caller's points", names: ["custGeom"] },
     { why: "PptxGenJS writes their adjustments from angleRange and arcThicknessRatio", names: ["arc", "pie", "chord", "blockArc"] },
+    { why: "drawn as an ellipse, as before: the generated four-arc path scores 0.0055 against 0.0054 in its WASM crop (#153)", names: ["flowChartConnector"] },
     // shortcut: the groups below are hand-transcribed and not yet compared with the generated geometry; each group
     // leaves this list once its visual crops do not get worse (#153).
     { why: "polygons and stars, not yet compared (#153)", names: ["triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid", "pentagon", "hexagon", "heptagon", "octagon", "decagon", "dodecagon", "star5", "star6", "star7", "star8", "star10", "star12", "star16", "star24", "star32"] },
@@ -22,40 +23,6 @@ const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly stri
         names: ["actionButtonBackPrevious", "actionButtonBeginning", "actionButtonBlank", "actionButtonDocument", "actionButtonEnd", "actionButtonForwardNext", "actionButtonHelp", "actionButtonHome", "actionButtonInformation", "actionButtonMovie", "actionButtonReturn", "actionButtonSound"],
     },
     { why: "symbols and math, not yet compared (#153)", names: ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"] },
-    {
-        why: "flowchart symbols, not yet compared (#153)",
-        names: [
-            "flowChartAlternateProcess",
-            "flowChartCollate",
-            "flowChartConnector",
-            "flowChartDecision",
-            "flowChartDelay",
-            "flowChartDisplay",
-            "flowChartExtract",
-            "flowChartInputOutput",
-            "flowChartInternalStorage",
-            "flowChartDocument",
-            "flowChartMagneticDisk",
-            "flowChartMagneticDrum",
-            "flowChartMagneticTape",
-            "flowChartManualInput",
-            "flowChartManualOperation",
-            "flowChartMerge",
-            "flowChartMultidocument",
-            "flowChartOfflineStorage",
-            "flowChartOffpageConnector",
-            "flowChartOnlineStorage",
-            "flowChartOr",
-            "flowChartPredefinedProcess",
-            "flowChartPreparation",
-            "flowChartProcess",
-            "flowChartPunchedCard",
-            "flowChartPunchedTape",
-            "flowChartSort",
-            "flowChartSummingJunction",
-            "flowChartTerminator",
-        ],
-    },
 ];
 const WRITABLE: readonly string[] = Object.values(new pptxgen().ShapeType);
 const handDrawn = new Set(HAND_DRAWN.flatMap(group => group.names));

@@ -153,20 +153,6 @@ export function ellipseArcCommands(
     return { move: pointCommand("M", [first]), arcs: commands.join(" "), start: first, end: current };
 }
 
-export function fullEllipsePath(width: number, height: number): string {
-    const ellipse = ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, 180, 360);
-    return `${ellipse.move} ${ellipse.arcs} Z`;
-}
-
-export function compoundShape(face: string, details = ""): PathGeometry {
-    return {
-        kind: "path",
-        data: face,
-        faces: [{ data: face }],
-        outlineData: details ? `${face} ${details}` : face,
-    };
-}
-
 export function ellipsePath(centerX: number, centerY: number, radiusX: number, radiusY: number, sweep = 360): string {
     const ellipse = ellipseArcCommands(centerX, centerY, radiusX, radiusY, 180, sweep);
     return `${ellipse.move} ${ellipse.arcs} Z`;
