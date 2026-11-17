@@ -8,7 +8,6 @@ import { normalizeTable, tableCell } from "./index";
 
 export interface PaginatedTablePage {
     rows: PptxGenJS.TableRow[];
-    rowHeights: number[];
     y: number;
 }
 
@@ -206,18 +205,13 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
     const headerCount = options.autoPageRepeatHeader ? Math.max(1, Math.floor(options.autoPageHeaderRows ?? PPTX_DEFAULTS.table.autoPageHeaderRows)) : 0;
     const headers = cloneRows(rows.slice(0, headerCount));
 
-    const headerHeights = headers.map(row => {
-        const metrics = calculateRowMetrics(row, normalized, options);
-        return metrics.margin + metrics.cycles * metrics.lineHeight;
-    });
-
-    const pages: PaginatedTablePage[] = [{ rows: [], rowHeights: [], y: firstY }];
+    const pages: PaginatedTablePage[] = [{ rows: [], y: firstY }];
     let used = 0;
 
     // Repeated headers add nothing to the used height: getSlidesForTableRows (step G) sums `_lineHeight`, which the raw
     // header cells it repeats do not carry.
     const startContinuation = (): void => {
-        pages.push({ rows: cloneRows(headers), rowHeights: [...headerHeights], y: continuationY });
+        pages.push({ rows: cloneRows(headers), y: continuationY });
         used = 0;
     };
 
@@ -232,7 +226,6 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
 
         if (used + rowHeight <= available()) {
             pages.at(-1)!.rows.push(row);
-            pages.at(-1)!.rowHeights.push(rowHeight);
             used += rowHeight - uncounted;
             continue;
         }
@@ -253,7 +246,6 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
             const fragment = row.map((cell, index) => cellFromLines(cell, lines[index]!.slice(firstLine, firstLine + count)));
 
             pages.at(-1)!.rows.push(fragment);
-            pages.at(-1)!.rowHeights.push(margins + count * perLine);
             used += countedMargins + count * perLine;
             firstLine += count;
 

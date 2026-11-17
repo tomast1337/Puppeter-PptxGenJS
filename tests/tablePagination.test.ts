@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
+import PptxGenJSRuntime from "pptxgenjs";
 import type PptxGenJS from "pptxgenjs";
+import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
-import { pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { pixelsToInches, pointsToPixels } from "../packages/pptxgenjs/src/units";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const rows = (count: number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: `Value ${index + 1}` }]);
@@ -136,5 +138,54 @@ describe("table auto-pagination", () => {
         const sizes = presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs.map(run => run.fontSize)))) : [])));
         expect(sizes.length).toBeGreaterThan(0);
         expect(new Set(sizes)).toEqual(new Set([pointsToPixels(10)]));
+    });
+});
+
+/**
+ * Row heights in inches per slide, as PptxGenJS 4.0.1 writes them to `<a:tr h>` (genXmlSlide, table step 4A): the
+ * table's `rowH[row]`, a number `rowH`, or its `h` shared over the rows; 0 lets the row size to its content.
+ */
+function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): number[][] {
+    const pptx = new PptxGenJSRuntime();
+    pptx.layout = "LAYOUT_16x9";
+    pptx.addSlide().addTable(rows, options);
+    // `as`: `_slides`, `_slideObjects`, `arrTabRows` and the EMU `options.h` are PptxGenJS 4.0.1 internals the types omit.
+    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ _type: string; arrTabRows: unknown[]; options: { rowH?: number | number[]; h?: number } }> }> })._slides;
+    const emu = PPTX_DEFAULTS.units.emuPerInch;
+    return slides.flatMap(slide =>
+        slide._slideObjects
+            .filter(object => object._type === "table")
+            .map(({ arrTabRows, options: { rowH, h } }) =>
+                arrTabRows.map((_, index) => {
+                    if (Array.isArray(rowH) && rowH[index]) return rowH[index];
+                    if (typeof rowH === "number") return rowH;
+                    return h ? Math.round(h / arrTabRows.length) / emu : 0;
+                }),
+            ),
+    );
+}
+
+/** Row heights in inches per slide from our model; 0 is a row sized to its content. */
+function rowHeightsOf(presentation: PuppeteerGen): number[][] {
+    return presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? [object.table.rows.map(row => (row.height === undefined ? 0 : pixelsToInches(row.height)))] : [])));
+}
+
+describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: each page gets the caller's options)", () => {
+    const round = (pages: number[][]) => pages.map(page => page.map(height => Number(height.toFixed(4))));
+    test.each<[string, PptxGenJS.TableProps]>([
+        ["no rowH", {}],
+        ["repeated headers", { autoPageRepeatHeader: true, autoPageHeaderRows: 2 }],
+        ["a number rowH", { rowH: 0.3 }],
+        ["a rowH array, indexed per page", { rowH: [0.6, 0.2, 0.4] }],
+        ["a table h", { h: 3 }],
+    ])("sizes rows as PptxGenJS does with %s", (_, extra) => {
+        const input = Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}` }, { text: index % 5 ? `Value ${index + 1}` : "Two\nlines" }]);
+        const options: PptxGenJS.TableProps = { autoPage: true, y: 1, w: 8, ...extra };
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addTable(input, options);
+        const ours = round(rowHeightsOf(presentation));
+        expect(ours.length).toBeGreaterThan(1);
+        // PptxGenJS writes into the rows and options it is given, so it gets copies.
+        expect(ours).toEqual(round(pptxGenJsRowHeights(structuredClone(input), structuredClone(options))));
     });
 });

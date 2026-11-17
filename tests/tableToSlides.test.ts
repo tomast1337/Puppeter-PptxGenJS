@@ -139,3 +139,13 @@ describe("tableToSlides", () => {
         expect(slides[1]?.querySelector("td")?.textContent).toBe("ID");
     });
 });
+
+// PptxGenJS 4.0.1 genTableToSlides (step 5 C) adds each table with only x, y, w and colW: no rowH, so rows size to
+// their content on every slide.
+test("tableToSlides leaves row heights to the content, whatever rowH says", () => {
+    const presentation = new PuppeteerGen(PAGE);
+    presentation.tableToSlides(sourceTable(30), { rowH: 0.8 });
+    const tables = presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? [object.table] : [])));
+    expect(tables.length).toBeGreaterThan(1);
+    expect(tables.flatMap(table => table.rows.map(row => row.height))).toEqual(tables.flatMap(table => table.rows.map(() => undefined)));
+});
