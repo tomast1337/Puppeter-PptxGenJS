@@ -20,6 +20,28 @@ const PACKAGES = [
     { name: "puppeteer-pptxgenjs", entrypoints: ["index", "html", "react", "wasm"], transpileOnly: true },
 ] as { name: string; entrypoints: string[]; transpileOnly?: boolean }[];
 
+const RELATIVE_SPECIFIER = /(\bfrom\s*|\bimport\(\s*)(["'])(\.{1,2}\/[^"']*)\2/g;
+
+/**
+ * tsc keeps the sources' extensionless relative imports in the declarations it emits, and Node's own resolution
+ * (`moduleResolution: "nodenext"`) needs the file named (#226). The sources stay extensionless; the shipped
+ * declarations name `./x.js`, or `./x/index.js` for a folder, whichever was emitted.
+ */
+async function withDeclarationExtensions(declarationFile: string, source: string): Promise<string> {
+    const resolved = new Map<string, string>();
+    for (const [, , , specifier] of source.matchAll(RELATIVE_SPECIFIER)) {
+        if (!specifier || resolved.has(specifier) || specifier.endsWith(".js")) continue;
+        const base = resolve(dirname(declarationFile), specifier);
+        if (await Bun.file(`${base}.d.ts`).exists()) resolved.set(specifier, `${specifier}.js`);
+        else if (await Bun.file(join(base, "index.d.ts")).exists()) resolved.set(specifier, `${specifier}/index.js`);
+        else throw new Error(`${declarationFile} imports ${specifier}, which has no emitted declaration`);
+    }
+    return source.replace(RELATIVE_SPECIFIER, (match, prefix: string, quote: string, specifier: string) => {
+        const target = resolved.get(specifier);
+        return target ? `${prefix}${quote}${target}${quote}` : match;
+    });
+}
+
 /** Bundles that must load in a browser: no puppeteer, jsdom or node:* imports. */
 const BROWSER_SAFE = ["model/dist/index.js", "pptxgenjs/dist/html.js", "wasm/dist/browser.js"];
 
@@ -115,7 +137,7 @@ for (const declarationFile of await declarationFiles(pptxDirectory)) {
     const source = await readFile(declarationFile, "utf8");
     const relativeTypePath = relative(dirname(declarationFile), pptxTypeTarget)
         .replaceAll("\\", "/")
-        .replace(/\.d\.ts$/, "");
+        .replace(/\.d\.ts$/, ".js");
     const importPath = relativeTypePath.startsWith(".") ? relativeTypePath : `./${relativeTypePath}`;
     const standalone = source.replace(/(["'])pptxgenjs\1/g, `"${importPath}"`);
     await writeFile(declarationFile, standalone);
@@ -154,6 +176,8 @@ if (await Bun.file(wasmBinary).exists()) await copyFile(wasmBinary, resolve(pack
 else console.warn("packages/wasm/src/pdf_wasm_bg.wasm is not built (bun run build:wasm); @pdflapas/wasm will not work");
 for (const { name } of PACKAGES) {
     for (const declarationFile of await declarationFiles(resolve(packagesDirectory, name, "dist"))) {
+        // The vendored PptxGenJS declarations are copied verbatim; their only relative paths are in comments.
+        if (declarationFile !== pptxTypeTarget) await writeFile(declarationFile, await withDeclarationExtensions(declarationFile, await readFile(declarationFile, "utf8")));
         const source = await readFile(declarationFile, "utf8");
         if (/from\s+["']pptxgenjs["']|import\(["']pptxgenjs["']\)/.test(source)) {
             throw new Error(`Generated declaration still depends on pptxgenjs: ${declarationFile}`);
