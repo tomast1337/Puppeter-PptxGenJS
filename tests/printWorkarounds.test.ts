@@ -124,8 +124,8 @@ describe("Puppeteer print workarounds", () => {
         expect(() => printHtml(html)).toThrow("Cannot print 'Title': its .text-paragraph has no numeric data-line-baseline");
     });
 
-    // An inner shadow on a shape throws from addShape (tests/shape.test.ts), so the print step decides nothing about
-    // shadows: an outer shadow and a text box's inner one print.
+    // An inner shadow on a shape throws from addShape (tests/shape.test.ts): an outer shadow and a text box's inner
+    // one print.
     test("prints outer shadows and a text box's inner shadow", async () => {
         const drawn = new PuppeteerGen();
         drawn
@@ -133,6 +133,16 @@ describe("Puppeteer print workarounds", () => {
             .addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } })
             .addText("Inset", { x: 3, y: 1, w: 2, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
         expect(await printedHtml(drawn)).toContain("Inset");
+    });
+
+    // Hand-written HTML can still mark a shape's shadow inset; drop-shadow() would draw it outside the shape (#198).
+    test("fails on an inner shadow on a shape instead of drawing it as an outer one", async () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, objectName: "Inset", shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
+        const html = (await presentation.toHtml()).html;
+        const inner = html.replace('<svg class="shape-svg"', '<svg class="shape-svg" data-shadow-inset=""');
+        expect(inner).not.toBe(html);
+        expect(() => printHtml(inner)).toThrow("Cannot print 'Inset': its .shape-svg has data-shadow-inset");
     });
 
     test("changes only the bytes it rewrites, the same way every time", async () => {

@@ -174,6 +174,11 @@ function cellInset(text: Element, half: Readonly<Record<"top" | "right" | "botto
 }
 
 function shapeEdits(svg: Element): SourceEdit[] {
+    // drop-shadow() has no inset form, so Chromium would draw an inner shadow outside the shape. addShape rejects
+    // one, so only hand-written HTML gets here: fail, as the WASM renderer does by default ("inner shadow not rendered").
+    if (attribute(svg, "data-shadow-inset") !== undefined) {
+        throw new Error(`Cannot print '${objectName(svg)}': its .shape-svg has data-shadow-inset, and Puppeteer cannot draw an inner shadow on a shape (drop-shadow() has no inset form); remove data-shadow-inset or the shadow (PdfLapas HTML profile)`);
+    }
     const edits: SourceEdit[] = [];
     // Print snap: Chromium paints an SVG root from a whole device px, 1 / PRINT_ZOOM CSS px under the print
     // zoom. In print it rounds the object's offset on its page half up (-10.5 -> -10) and moves the drawing by
