@@ -59,6 +59,16 @@ try {
                   packages: "external",
                   // The root tsconfig maps @pdflapas/* to sources for development; never inline them.
                   external: ["@pdflapas/*"],
+                  // `packages: "external"` also keeps "#src/..." subpath imports external (Bun 1.4.4); resolve them through
+                  // the package's imports map, to its own sources, so they are inlined.
+                  plugins: [
+                      {
+                          name: "inline-src-imports",
+                          setup: build => {
+                              build.onResolve({ filter: /^#src\// }, ({ path, importer }) => ({ path: Bun.resolveSync(path, importer) }));
+                          },
+                      },
+                  ],
                   sourcemap: "inline",
 
                   minify: true,

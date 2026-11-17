@@ -28,6 +28,13 @@
       "default": "./dist/react.js"
     }
   },
+  "imports": {
+    "#src/*": {
+      "source": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.ts"
+    }
+  },
   "files": [
     "dist"
   ],

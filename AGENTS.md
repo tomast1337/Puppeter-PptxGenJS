@@ -79,7 +79,9 @@ PptxGenJS-compatible API        @pdflapas/pptxgenjs  (PuppeteerGen)
 **Packages depend in one direction.** `@pdflapas/model` has no dependencies. Renderers (`puppeteer`,
 `wasm`) depend only on `model`. The compatibility layer (`pptxgenjs`) maps PptxGenJS input onto the
 model, never the other way round, and nothing below it imports PptxGenJS types or defaults. A package
-imports another only through its package name; a relative import never crosses `packages/<name>/`.
+imports another only through its package name. Inside a package, an import never climbs with `../`:
+it names the file from the package's `src/` through the `#src/*` subpath import (`#src/normalize/color`),
+which ships in the package manifest so the published declarations still resolve.
 `tests/packages.test.ts` enforces the direction, the manifests and the `tsconfig.json` paths; change
 its allow-list only with a reason in the PR. The target layout is #22.
 
@@ -199,7 +201,11 @@ hash changes only when Rust code or its pins change.
   field after field. Assign afterwards only fields that depend on control flow. Mark data that is not
   mutated `readonly` or `as const`.
 - **Imports**: `import type` for type-only imports (`verbatimModuleSyntax` requires it), package names
-  across packages, relative paths inside one.
+  across packages; inside one, `./x` for the same folder or below and `#src/...` for anything else,
+  never `../`. Each package's `imports` map lists `source` (read by tsc through `customConditions`),
+  then `types` (the published `dist` declarations), then `default`, which points at the sources
+  because Bun reads only `default` when running them; the bundle inlines every `#src/` import, so no
+  published JavaScript reaches it.
 - Match the surrounding code's naming and comment density. Comments say why, not what. A known limit
   gets a `shortcut: <the limit>, <when to fix it>` comment.
 
