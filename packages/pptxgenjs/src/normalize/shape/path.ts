@@ -4,8 +4,6 @@ import type { PageSize } from "#src/pageLayouts";
 
 /** DrawingML percentage guides (ST_Percentage, ECMA-376 20.1.10.40) are in 1/1000ths of a percent. */
 export const OOXML_PERCENT = 100000;
-/** The 21600-unit square path space of the legacy (VML-derived) preset paths in presetShapeDefinitions.xml. */
-export const LEGACY_PATH_SPACE = 21600;
 
 export type PathGeometry = Extract<NormalizedShape["geometry"], { kind: "path" }>;
 /** Draws one preset at the given size (px); every preset name maps to one of these. */
@@ -29,13 +27,13 @@ export function polygonPath(points: ReadonlyArray<readonly [number, number]>, wi
     return `${points.map(([x, y], index) => `${index === 0 ? "M" : "L"} ${x * width} ${y * height}`).join(" ")} Z`;
 }
 
-export type PixelPoint = readonly [number, number];
+type PixelPoint = readonly [number, number];
 
 export function pixelPath(points: ReadonlyArray<PixelPoint>): string {
     return `${points.map(([x, y], index) => `${index === 0 ? "M" : "L"} ${cleanNumber(x)} ${cleanNumber(y)}`).join(" ")} Z`;
 }
 
-export function pointCommand(command: "M" | "L" | "Q", points: ReadonlyArray<PixelPoint>): string {
+function pointCommand(command: "M" | "L" | "Q", points: ReadonlyArray<PixelPoint>): string {
     return `${command} ${points.flatMap(([x, y]) => [cleanNumber(x), cleanNumber(y)]).join(" ")}`;
 }
 
@@ -151,9 +149,4 @@ export function ellipseArcCommands(
         current = arc.end;
     }
     return { move: pointCommand("M", [first]), arcs: commands.join(" "), start: first, end: current };
-}
-
-export function ellipsePath(centerX: number, centerY: number, radiusX: number, radiusY: number, sweep = 360): string {
-    const ellipse = ellipseArcCommands(centerX, centerY, radiusX, radiusY, 180, sweep);
-    return `${ellipse.move} ${ellipse.arcs} Z`;
 }

@@ -19,7 +19,6 @@ const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly stri
     { why: "circular presets without options, not yet compared (#153)", names: ["pieWedge", "donut"] },
     { why: "braces and brackets, not yet compared (#153)", names: ["leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair"] },
     { why: "ribbons and scrolls, not yet compared (#153)", names: ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"] },
-    { why: "symbols and math, not yet compared (#153)", names: ["plus", "mathPlus", "mathMinus", "mathEqual", "mathNotEqual", "mathMultiply", "mathDivide", "heart", "lightningBolt", "moon", "sun", "smileyFace", "noSmoking"] },
 ];
 const WRITABLE: readonly string[] = Object.values(new pptxgen().ShapeType);
 const handDrawn = new Set(HAND_DRAWN.flatMap(group => group.names));
