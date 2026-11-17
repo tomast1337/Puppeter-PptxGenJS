@@ -86,9 +86,9 @@ pub(crate) struct BoxLayout {
 }
 
 impl Renderer {
-    /// Lays the box out, applying the current renderer's shrink-to-fit rule:
-    /// scale fonts (and px line heights) by 0.95 up to 20 times while the
-    /// content overflows the inset box. Fills `layout`, reusing its buffers.
+    /// Lays the box out, applying the box's shrink-to-fit rule: scale fonts and line boxes by
+    /// `step` up to `max_steps` times while the content overflows the inset box by more than
+    /// `tolerance`. Fills `layout`, reusing its buffers.
     pub(crate) fn fit_text(&mut self, text: &TextBox, w: f32, h: f32, layout: &mut BoxLayout) {
         let [top, right, bottom, left] = text.margin;
         let vertical = text.direction.is_vertical();
@@ -99,12 +99,12 @@ impl Renderer {
         };
         let mut scale = 1.0;
         self.layout_text(text, inner_w, scale, layout);
-        if text.fit == TextFit::Shrink {
-            for _ in 0..20 {
-                if layout.height <= inner_h + 0.5 && layout.width <= inner_w + 0.5 {
+        if let TextFit::Shrink(shrink) = text.fit {
+            for _ in 0..shrink.max_steps {
+                if layout.height <= inner_h + shrink.tolerance && layout.width <= inner_w + shrink.tolerance {
                     break;
                 }
-                scale *= 0.95;
+                scale *= shrink.step;
                 self.layout_text(text, inner_w, scale, layout);
             }
         }

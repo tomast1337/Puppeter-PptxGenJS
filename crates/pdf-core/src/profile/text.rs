@@ -6,11 +6,18 @@ use super::object::link;
 use super::style::{Style, font_family, integer, keyword, number, px, shadow, split_top_level};
 use crate::color::parse_color;
 use crate::model::{
-    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, TabAlign, TabStop, TextBox, TextDirection, TextFit, VerticalAlign,
+    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, TabAlign, TabStop, TextBox, TextDirection, TextFit,
+    VerticalAlign,
 };
 
 /// Attributes of the element that holds a text box.
-pub(crate) const BOX_ATTRS: &[&str] = &["data-text-fit", "data-text-direction"];
+pub(crate) const BOX_ATTRS: &[&str] = &[
+    "data-text-fit",
+    "data-text-fit-step",
+    "data-text-fit-max-steps",
+    "data-text-fit-tolerance",
+    "data-text-direction",
+];
 /// CSS a text box adds to its element (`renderText`).
 pub(crate) const BOX_CSS: &[&str] = &[
     "padding",
@@ -123,11 +130,10 @@ pub(crate) fn text_box(dom: &Dom<'_>, element: &Element<'_>, style: &Style<'_>, 
         margin,
         vertical_align,
         wrap,
-        fit: keyword(
-            "attribute 'data-text-fit'",
-            &fit,
-            &[("none", TextFit::None), ("shrink", TextFit::Shrink), ("resize", TextFit::Resize)],
-        )?,
+        fit: match &*fit {
+            "shrink" => TextFit::Shrink(shrink(element)?),
+            _ => keyword("attribute 'data-text-fit'", &fit, &[("none", TextFit::None), ("resize", TextFit::Resize)])?,
+        },
         direction: keyword(
             "attribute 'data-text-direction'",
             &direction,
@@ -139,6 +145,23 @@ pub(crate) fn text_box(dom: &Dom<'_>, element: &Element<'_>, style: &Style<'_>, 
             ],
         )?,
     })
+}
+
+/// The rule of a `data-text-fit="shrink"` box: its three required `data-text-fit-*` attributes.
+fn shrink(element: &Element<'_>) -> Result<Shrink, String> {
+    let step = number_attr(element, "data-text-fit-step")?;
+    if !(step > 0.0 && step < 1.0) {
+        return Err(format!("attribute 'data-text-fit-step': '{step}' is not between 0 and 1"));
+    }
+    let max_steps = element
+        .attr("data-text-fit-max-steps")?
+        .ok_or("attribute 'data-text-fit-max-steps' is missing")?;
+    let max_steps = integer(&max_steps).map_err(|e| format!("attribute 'data-text-fit-max-steps': {e}"))?;
+    let tolerance = number_attr(element, "data-text-fit-tolerance")?;
+    if tolerance < 0.0 {
+        return Err(format!("attribute 'data-text-fit-tolerance': '{tolerance}' is negative"));
+    }
+    Ok(Shrink { step, max_steps, tolerance })
 }
 
 /// A required number attribute.
@@ -319,7 +342,7 @@ fn glow(element: &Element<'_>, style: &Style<'_>) -> Result<Option<Shadow>, Stri
 #[cfg(test)]
 mod tests {
     use crate::color::Rgba;
-    use crate::model::{SlideObject, TabAlign, TextObject, VerticalAlign};
+    use crate::model::{Shrink, SlideObject, TabAlign, TextFit, TextObject, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -328,8 +351,12 @@ mod tests {
     const PARAGRAPH_STYLE: &str = "text-align: left; direction: ltr; margin-top: 1px; margin-bottom: 2px; line-height: 19.2px; tab-size: 96px;";
 
     fn text_object(paragraphs: &str) -> Result<TextObject, String> {
+        fitted_object(r#"data-text-fit="none""#, paragraphs)
+    }
+
+    fn fitted_object(fit: &str, paragraphs: &str) -> Result<TextObject, String> {
         let html = document(&format!(
-            r#"<div class="slide-element slide-text" data-object-name="T" data-text-fit="none" data-text-direction="horizontal" style="left: 0px; top: 0px; width: 100px; height: 50px; padding: 0px 0px 0px 0px; align-items: flex-end; white-space: pre-wrap; overflow-wrap: break-word; direction: ltr; border-radius: 0%;"><div class="text-content" style="width: 100%;">{paragraphs}</div></div>"#
+            r#"<div class="slide-element slide-text" data-object-name="T" {fit} data-text-direction="horizontal" style="left: 0px; top: 0px; width: 100px; height: 50px; padding: 0px 0px 0px 0px; align-items: flex-end; white-space: pre-wrap; overflow-wrap: break-word; direction: ltr; border-radius: 0%;"><div class="text-content" style="width: 100%;">{paragraphs}</div></div>"#
         ));
         match parse(&html)?.slides.pop().and_then(|mut s| s.objects.pop()) {
             Some(SlideObject::Text(object)) => Ok(object),
@@ -416,6 +443,52 @@ mod tests {
             ("<div class=\"text-paragraph\">text</div>".into(), "unexpected text"),
         ] {
             let error = text_object(&html).err().unwrap_or_default();
+            assert!(error.starts_with("slide 1: object 'T': ") && error.contains(wants), "{wants}: {error}");
+        }
+    }
+
+    #[test]
+    fn reads_the_shrink_rule_and_rejects_a_missing_or_invalid_one() {
+        let shrink = |attrs: &str| fitted_object(&format!(r#"data-text-fit="shrink"{attrs}"#), "");
+        let text = shrink(r#" data-text-fit-step="0.9" data-text-fit-max-steps="7" data-text-fit-tolerance="0.25""#)
+            .unwrap()
+            .text
+            .expect("text");
+        assert_eq!(
+            text.fit,
+            TextFit::Shrink(Shrink {
+                step: 0.9,
+                max_steps: 7,
+                tolerance: 0.25
+            })
+        );
+        for (attrs, wants) in [
+            (
+                r#" data-text-fit-max-steps="7" data-text-fit-tolerance="0.25""#,
+                "attribute 'data-text-fit-step' is missing",
+            ),
+            (
+                r#" data-text-fit-step="1" data-text-fit-max-steps="7" data-text-fit-tolerance="0.25""#,
+                "'1' is not between 0 and 1",
+            ),
+            (
+                r#" data-text-fit-step="0.9" data-text-fit-tolerance="0.25""#,
+                "attribute 'data-text-fit-max-steps' is missing",
+            ),
+            (
+                r#" data-text-fit-step="0.9" data-text-fit-max-steps="2.5" data-text-fit-tolerance="0.25""#,
+                "'2.5' is not a whole number",
+            ),
+            (
+                r#" data-text-fit-step="0.9" data-text-fit-max-steps="7""#,
+                "attribute 'data-text-fit-tolerance' is missing",
+            ),
+            (
+                r#" data-text-fit-step="0.9" data-text-fit-max-steps="7" data-text-fit-tolerance="-1""#,
+                "'-1' is negative",
+            ),
+        ] {
+            let error = shrink(attrs).err().unwrap_or_default();
             assert!(error.starts_with("slide 1: object 'T': ") && error.contains(wants), "{wants}: {error}");
         }
     }

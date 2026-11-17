@@ -126,25 +126,33 @@ async function prepareForPrint(): Promise<string[]> {
         });
     }
 
-    /** Shrinks the text of `fit: "shrink"` boxes until it fits inside the box padding. */
-    // shortcut: font size and line height in 0.95 steps, not LibreOffice's font and spacing scale or PowerPoint's
-    // fontScale; match one of them once a fixture measures the shrunk size against the reference.
+    /**
+     * Shrinks the text of `fit: "shrink"` boxes until it fits inside the box padding, by the rule the box states
+     * (docs/HTML_PROFILE.md, Text): run and bullet font sizes, px line heights and the baseline shift scale together.
+     */
     function shrinkTextToFit(): void {
         document.querySelectorAll<HTMLElement>('.slide-text[data-text-fit="shrink"]').forEach(box => {
             const content = box.querySelector<HTMLElement>(".text-content");
             if (!content) return;
+            const step = Number(box.dataset.textFitStep);
+            const maxSteps = Number(box.dataset.textFitMaxSteps);
+            const tolerance = Number(box.dataset.textFitTolerance);
+            if (!(step > 0 && step < 1) || !Number.isInteger(maxSteps) || maxSteps < 0 || !(tolerance >= 0)) {
+                const name = box.dataset.objectName ?? "unnamed text box";
+                throw new Error(`Cannot print '${name}': a data-text-fit="shrink" box needs data-text-fit-step (between 0 and 1), data-text-fit-max-steps (a whole number) and data-text-fit-tolerance (px); complete hand-written HTML with completeProfileHtml()`);
+            }
             const boxStyle = getComputedStyle(box);
             const availableWidth = box.clientWidth - parseFloat(boxStyle.paddingLeft) - parseFloat(boxStyle.paddingRight);
             const availableHeight = box.clientHeight - parseFloat(boxStyle.paddingTop) - parseFloat(boxStyle.paddingBottom);
-            for (let iteration = 0; iteration < 20 && (content.scrollWidth > availableWidth + 0.5 || content.scrollHeight > availableHeight + 0.5); iteration++) {
+            for (let iteration = 0; iteration < maxSteps && (content.scrollWidth > availableWidth + tolerance || content.scrollHeight > availableHeight + tolerance); iteration++) {
                 content.querySelectorAll<HTMLElement>(".text-run, .text-bullet").forEach(run => {
-                    run.style.fontSize = `${parseFloat(getComputedStyle(run).fontSize) * 0.95}px`;
+                    run.style.fontSize = `${parseFloat(getComputedStyle(run).fontSize) * step}px`;
                 });
                 content.querySelectorAll<HTMLElement>(".text-paragraph").forEach(paragraph => {
                     const lineHeight = paragraph.style.lineHeight;
-                    if (lineHeight.endsWith("px")) paragraph.style.lineHeight = `${parseFloat(lineHeight) * 0.95}px`;
+                    if (lineHeight.endsWith("px")) paragraph.style.lineHeight = `${parseFloat(lineHeight) * step}px`;
                     // The baseline shift is a fraction of the line box and font size, so it shrinks with them.
-                    if (paragraph.style.top.endsWith("px")) paragraph.style.top = `${parseFloat(paragraph.style.top) * 0.95}px`;
+                    if (paragraph.style.top.endsWith("px")) paragraph.style.top = `${parseFloat(paragraph.style.top) * step}px`;
                 });
             }
         });

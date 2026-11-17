@@ -1,4 +1,5 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
+import { PPTX_DEFAULTS } from "../defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, escapeText, voidElement } from "./markup";
 import { shadowInsetAttribute } from "./style";
@@ -138,6 +139,16 @@ export function alignItemsCSS(verticalAlign: NormalizedTextBox["verticalAlign"])
     return verticalAlign === "top" ? "flex-start" : verticalAlign === "bottom" ? "flex-end" : "center";
 }
 
+/** The shrink-to-fit rule a `data-text-fit="shrink"` box carries, so every renderer applies the same one. */
+export function shrinkAttributes(): (readonly [name: string, value: string])[] {
+    const { step, maxSteps, tolerancePx } = PPTX_DEFAULTS.text.shrink;
+    return [
+        ["data-text-fit-step", String(step)],
+        ["data-text-fit-max-steps", String(maxSteps)],
+        ["data-text-fit-tolerance", String(tolerancePx)],
+    ];
+}
+
 /** Adds the text box's declarations to `css`, which the caller writes; returns the box's attributes and its content. */
 export function renderText(css: InlineStyle, text: NormalizedTextBox): { attributes: Attribute[]; content: string } {
     const [top, right, bottom, left] = text.margin;
@@ -167,10 +178,7 @@ export function renderText(css: InlineStyle, text: NormalizedTextBox): { attribu
     }
     const paragraphs = text.paragraphs.map(renderParagraph).join("");
     return {
-        attributes: [
-            ["data-text-fit", text.fit],
-            ["data-text-direction", text.direction],
-        ],
+        attributes: [["data-text-fit", text.fit], ...(text.fit === "shrink" ? shrinkAttributes() : []), ["data-text-direction", text.direction]],
         content: element("div", [["class", "text-content"], styleAttribute(contentCss)], paragraphs),
     };
 }

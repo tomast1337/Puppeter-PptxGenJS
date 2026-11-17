@@ -254,8 +254,17 @@ pub(crate) enum VerticalAlign {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum TextFit {
     None,
-    Shrink,
+    Shrink(Shrink),
     Resize,
+}
+
+/// The shrink rule a `data-text-fit="shrink"` box states (`data-text-fit-*`): scale by `step` while the text
+/// overflows by more than `tolerance` px, at most `max_steps` times.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct Shrink {
+    pub(crate) step: f32,
+    pub(crate) max_steps: u32,
+    pub(crate) tolerance: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -359,6 +368,13 @@ pub(crate) struct Outline {
 #[cfg(test)]
 pub(crate) mod build {
     use super::*;
+
+    /// The shrink rule `toHtml()` writes (`PPTX_DEFAULTS.text.shrink`).
+    pub(crate) const SHRINK: TextFit = TextFit::Shrink(Shrink {
+        step: 0.95,
+        max_steps: 20,
+        tolerance: 0.5,
+    });
 
     /// A color the test writes as CSS.
     pub(crate) fn css(color: &str) -> Rgba {

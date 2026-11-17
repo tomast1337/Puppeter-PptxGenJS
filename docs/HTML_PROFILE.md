@@ -23,6 +23,10 @@ and both renderers put `company` and `revision` in the PDF. For the same reason,
 corrected in place: `toHtml()` leaves a hidden slide out instead of marking it `data-hidden`, so a slide
 container's `#slide-N` is the slide's number in the deck and can skip one, and a slide link jumps to the
 container with that number ([Slide](#slide)). Readers accept `data-hidden` and give it no meaning.
+Likewise, a `data-text-fit="shrink"` box now states its shrink rule in `data-text-fit-step`,
+`data-text-fit-max-steps` and `data-text-fit-tolerance` ([Text](#text)) instead of each renderer
+keeping its own copy (#154); the WASM reader requires them in both versions, and
+[completion](#completion) fills them in a hand-written or older document.
 
 **Meta names.** The project was called pdfdeck when version 1 was frozen, so a version 1 document spells its
 meta names `pdfdeck-profile` and `pdfdeck-page-size`, and readers keep accepting exactly that. Version 2 was
@@ -221,7 +225,13 @@ There is no media, notes or master element: the model has no such kinds.
 `render/text.ts`. The box is a flex container: `align-items` is the vertical anchor (`flex-start`,
 `center`, `flex-end`). Vertical text sets `writing-mode` (`vertical-rl` for `vertical270`, `vertical-lr`
 otherwise) and `text-orientation` (`upright` for `stacked`) on `.text-content`. With `fit: resize` the
-height becomes `min-height` and `height: auto`. A soft break is a `<br>` before the run and
+height becomes `min-height` and `height: auto`. With `fit: shrink` the box also states the shrink rule
+(`PPTX_DEFAULTS.text.shrink`): `data-text-fit-step="0.95"`, `data-text-fit-max-steps="20"` and
+`data-text-fit-tolerance="0.5"`. While the text overflows the box's inner size (its size less the
+`padding`) by more than the tolerance in px, a renderer scales every run and bullet `font-size`, every px
+`line-height` and the baseline shift (`data-line-baseline` within it) by the step, at most max-steps
+times. The step is between 0 and 1, max-steps a whole number and the tolerance not negative; a reader
+rejects a shrink box without all three. A soft break is a `<br>` before the run and
 `data-soft-break-before` on it. A run is an `a` when it has a link, a `span` otherwise. Model values that
 CSS cannot state exactly are `data-*` on the run: `data-vertical-align` (`sub`, `super`),
 `data-text-shadow` (which `text-shadow` entry is the `glow` and which the `shadow`), `data-double-strike`
@@ -470,6 +480,7 @@ or a `font-size` or `line-height` it needs for a line box that is not in px.
 |                           | `align-items`                                        | `center`                                                                                              | `text.valign` (`middle`)                              |
 |                           | `white-space`, `overflow-wrap`                       | `pre-wrap`, `break-word`                                                                              | `text.wrap`                                           |
 |                           | `data-text-fit`, `data-text-direction`               | `none`, `horizontal`                                                                                  | `text.fit`, `text.textDirection`                      |
+|                           | `data-text-fit-*` on a `shrink` box                  | `step` `0.95`, `max-steps` `20`, `tolerance` `0.5`                                                    | `text.shrink`                                         |
 | `.table-cell-text`        | as `.slide-text`, except `padding`                   | `4.8…px 9.6…px 4.8…px 9.6…px`                                                                         | `table.marginIn`                                      |
 |                           | `align-items`                                        | `flex-start`                                                                                          | `table.valign` (`top`)                                |
 | `.text-paragraph`         | `text-align`, `direction`                            | `left`, `ltr`                                                                                         | `text.align`, `text.rtlMode`                          |
@@ -608,7 +619,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextBox.margin`                     | profile      | `padding: <top>px <right>px <bottom>px <left>px` on the box.                                                               |
 | `NormalizedTextBox.verticalAlign`              | profile      | `align-items: flex-start\|center\|flex-end`; also `vertical-align` on a table cell's `td`.                                 |
 | `NormalizedTextBox.wrap`                       | profile      | `white-space: pre-wrap\|pre` (and `overflow-wrap`).                                                                        |
-| `NormalizedTextBox.fit`                        | profile      | `data-text-fit`.                                                                                                           |
+| `NormalizedTextBox.fit`                        | profile      | `data-text-fit`; a `shrink` box adds its rule, `data-text-fit-step`, `-max-steps` and `-tolerance`.                        |
 | `NormalizedTextBox.direction`                  | profile      | `data-text-direction` (plus `writing-mode`/`text-orientation` on `.text-content`).                                         |
 | `NormalizedTextBox.rtl`                        | profile      | `direction: rtl\|ltr` on the box.                                                                                          |
 | `NormalizedTextParagraph.runs`                 | profile      | `.text-run` children (`span`, or `a` when linked).                                                                         |

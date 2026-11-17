@@ -17,7 +17,7 @@ import { attributeName, getAttribute } from "./fragment";
 import { escapeAttribute } from "./markup";
 import { presentationCSS } from "./slide";
 import { HIDDEN_BORDER_CSS } from "./table";
-import { alignItemsCSS, fontFamilyCSS } from "./text";
+import { alignItemsCSS, fontFamilyCSS, shrinkAttributes } from "./text";
 
 type Node = DefaultTreeAdapterTypes.ChildNode | DefaultTreeAdapterTypes.ParentNode;
 type Parent = DefaultTreeAdapterTypes.ParentNode;
@@ -167,6 +167,12 @@ function missing(element: Element, defaults: Defaults): SourceEdit | undefined {
     );
 }
 
+/** A shrink box also needs the shrink rule (`shrinkAttributes`). */
+function withShrink(element: Element, defaults: Defaults): Defaults {
+    if (getAttribute(element, "data-text-fit") !== "shrink") return defaults;
+    return { ...defaults, attributes: [...defaults.attributes, ...shrinkAttributes()] };
+}
+
 function where(slide: number, element: Element): string {
     let object = element;
     for (let node: Element | undefined = element; node; node = node.parentNode && isElement(node.parentNode) ? node.parentNode : undefined) {
@@ -209,8 +215,8 @@ function collectEdits(node: Parent, context: TextContext, slide: number, edits: 
 function completeElement(element: Element, context: TextContext, slide: number): SourceEdit | undefined {
     const linked = element.tagName === "a";
     if (hasClass(element, "slide-container")) return missing(element, DEFAULTS.slide);
-    if (hasClass(element, "slide-text")) return missing(element, DEFAULTS.text);
-    if (hasClass(element, "table-cell-text")) return missing(element, DEFAULTS.cellText);
+    if (hasClass(element, "slide-text")) return missing(element, withShrink(element, DEFAULTS.text));
+    if (hasClass(element, "table-cell-text")) return missing(element, withShrink(element, DEFAULTS.cellText));
     if (hasClass(element, "text-paragraph")) return completeParagraph(element, context, slide);
     if (hasClass(element, "text-run")) return missing(element, context === "cell" ? (linked ? DEFAULTS.cellLink : DEFAULTS.cellRun) : linked ? DEFAULTS.link : DEFAULTS.run);
     if (hasClass(element, "slide-image-content")) return missing(element, DEFAULTS.image);

@@ -56,7 +56,8 @@ returns a `.pptx`:
   `size`, `lineDash`, `lineHead` and `lineTail` are ignored: use `width`, `dashType`, `beginArrowType`
   and `endArrowType`.
 - **Text fit and tab stops:** `fit: "shrink"` (`shrinkText`) scales font size and line height in
-  steps until the text fits, close to but not the scale PowerPoint or LibreOffice pick.
+  0.95 steps until the text fits, close to but not the scale PowerPoint or LibreOffice pick; the HTML
+  states the rule on the box (`data-text-fit-step`).
   `fit: "resize"` (`autoFit`) grows the box to its text, where PowerPoint keeps the stored size until
   the text is edited. Explicit `tabStops` are drawn by the WASM renderer; the Puppeteer renderer
   uses the 1in default stops.

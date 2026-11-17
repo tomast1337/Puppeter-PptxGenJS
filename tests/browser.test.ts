@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { DEFAULT_LAUNCH_OPTIONS } from "../packages/puppeteer/src/launchOptions";
 import { PuppeteerPdfRenderer } from "../packages/puppeteer/src/puppeteerPdf";
@@ -41,4 +42,15 @@ test("PuppeteerPdfRenderer launches Chromium with its launch options", async () 
     const renderer = new PuppeteerPdfRenderer({ launchOptions: { executablePath: "/nonexistent/chromium" } });
     const document = { html: "<!DOCTYPE html><html></html>", pageSize: { width: 10, height: 5.625, name: "Custom" } };
     await expect(renderer.render(document)).rejects.toThrow("/nonexistent/chromium");
+});
+
+test("PuppeteerPdfRenderer shrinks by the rule the box states, and names a shrink box without one", async () => {
+    const presentation = new PuppeteerGen();
+    presentation.addSlide().addText("Shrink this oversized text until it fits", { x: 1, y: 1, w: 1, h: 0.5, fit: "shrink", fontSize: 24, objectName: "Fit" });
+    const document = await presentation.toHtml();
+    const renderer = new PuppeteerPdfRenderer();
+    expect(new TextDecoder("latin1").decode((await renderer.render(document)).subarray(0, 5))).toBe("%PDF-");
+    const html = document.html.replace(/ data-text-fit-step="[^"]*"/, "");
+    expect(html).not.toBe(document.html);
+    await expect(renderer.render({ ...document, html })).rejects.toThrow(`Cannot print 'Fit': a data-text-fit="shrink" box needs data-text-fit-step`);
 });
