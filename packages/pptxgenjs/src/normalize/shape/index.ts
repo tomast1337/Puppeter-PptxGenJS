@@ -6,7 +6,6 @@ import { inchesToPixels } from "#src/units";
 import { GENERATED_PRESET_NAMES, type GeneratedPresetName, generatedPresetGeometry, isGeneratedPreset, presetTextInsets } from "#src/normalize/generatedPreset";
 import { normalizeHyperlink } from "#src/normalize/link";
 import { ACTION_BUTTON_GEOMETRY } from "./actionButton";
-import { BRACE_BRACKET_GEOMETRY } from "./braceBracket";
 import { CIRCULAR_GEOMETRY } from "./circular";
 import { normalizeCustomPath } from "./custom";
 import { OOXML_PERCENT, type ShapeGeometry } from "./path";
@@ -39,7 +38,6 @@ const HAND_DRAWN_GEOMETRY = {
     ...BASIC_GEOMETRY,
     ...POLYGON_GEOMETRY,
     ...CIRCULAR_GEOMETRY,
-    ...BRACE_BRACKET_GEOMETRY,
     ...RIBBON_SCROLL_GEOMETRY,
     ...ACTION_BUTTON_GEOMETRY,
 } as const satisfies Readonly<Record<Exclude<CustomShapeName, GeneratedPresetName>, ShapeGeometry>> & { readonly [name in GeneratedPresetName]?: never };

@@ -47,36 +47,6 @@ function arcEndpoint(current: PixelPoint, rx: number, ry: number, startDegrees: 
     return [centerX + rx * Math.cos(end), centerY + ry * Math.sin(end)];
 }
 
-export function presetArcPath(rx: number, ry: number) {
-    const commands: string[] = [];
-    let current: PixelPoint = [0, 0];
-    return {
-        move(x: number, y: number) {
-            current = [x, y];
-            commands.push(pointCommand("M", [current]));
-            return this;
-        },
-        line(x: number, y: number) {
-            current = [x, y];
-            commands.push(pointCommand("L", [current]));
-            return this;
-        },
-        arc(start: number, sweep: number) {
-            const result = arcPathCommand(current, rx, ry, start, sweep);
-            current = result.end;
-            commands.push(result.command);
-            return this;
-        },
-        close() {
-            commands.push("Z");
-            return this;
-        },
-        data() {
-            return commands.join(" ");
-        },
-    };
-}
-
 export function drawingPath() {
     const commands: string[] = [];
     let current: PixelPoint = [0, 0];
