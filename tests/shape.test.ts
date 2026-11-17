@@ -307,7 +307,7 @@ describe("shape normalization", () => {
     });
 
     test("normalizes every generated ECMA preset without fallback geometry", () => {
-        expect(GENERATED_PRESET_NAMES).toHaveLength(143);
+        expect(GENERATED_PRESET_NAMES).toHaveLength(145);
         for (const name of GENERATED_PRESET_NAMES) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");
