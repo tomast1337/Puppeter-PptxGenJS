@@ -344,7 +344,7 @@
     "p1-Table0": 0.0116,
     "p2-Table0": 0.0205,
     "p3-Table0": 0.0538,
-    "p3-Table1": 0.0465,
+    "p3-Table1": 0.0458,
     "p4-Table0": 0.0242,
     "p5-Table0": 0.0246,
     "p6-Table0": 0.0227
@@ -452,7 +452,19 @@
     "p7-textlastspaceaftertwo": 0.015,
     "p8-textkerning8pt": 0.0299,
     "p8-textkerning10pt": 0.0411,
-    "p8-textkerning14pt": 0.0435
+    "p8-textkerning14pt": 0.0435,
+    "p9-textunderlinesng": 0.0913,
+    "p9-textunderlinedbl": 0.1143,
+    "p9-textunderlineheavy": 0.0905,
+    "p9-textunderlinedotted": 0.0656,
+    "p9-textunderlinedottedHeavy": 0.0783,
+    "p9-textunderlinedash": 0.0733,
+    "p9-textunderlinedashLong": 0.0847,
+    "p9-textunderlinedotDash": 0.0805,
+    "p9-textunderlinedotDotDash": 0.0745,
+    "p9-textunderlinewavy": 0.0577,
+    "p9-textunderlinewavyDbl": 0.0845,
+    "p9-textunderlinewavyHeavy": 0.0576
   },
   "tableOptions": {
     "p1-Table0": 0.0138,
