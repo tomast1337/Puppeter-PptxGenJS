@@ -8,7 +8,7 @@ import { GENERATED_PRESET_NAMES } from "../../packages/pptxgenjs/src/normalize/g
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
-import { CROP_TARGET, TABLE_TEXT_OFFSET_CROP_THRESHOLDS, TEXT_LINE_SNAP_CROP_THRESHOLDS } from "./thresholds";
+import { CROP_TARGET, TABLE_TEXT_OFFSET_CROP_THRESHOLDS, TEXT_LINE_SNAP_CROP_THRESHOLDS, UNDERLINE_DOUBLE_CROP_THRESHOLDS } from "./thresholds";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -367,6 +367,16 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
         ],
     },
     { title: "Kerning-sensitive wrapping", cases: KERNING_CASES },
+    {
+        // PptxGenJS 4.0.1 writes `underline.style` as <a:rPr u="...">; the HTML carries it as text-decoration-style.
+        title: "Underline styles",
+        cases: (["sng", "dbl", "heavy", "dotted", "dottedHeavy", "dash", "dashLong", "dotDash", "dotDotDash", "wavy", "wavyDbl", "wavyHeavy"] as const).map((style, index) => ({
+            name: `text-underline-${style}`,
+            label: `underline style ${style}`,
+            text: "Underline gjy",
+            options: { x: 0.5 + (index % 3) * 3.125, y: 1.25 + Math.floor(index / 3) * 1.05, w: 2.75, h: 0.5, fontSize: 20, margin: 0, valign: "top", underline: { style, color: "2F5597" } },
+        })),
+    },
 ];
 const TEXT_OPTION_CASES = TEXT_OPTION_SLIDES.flatMap(({ cases }, index) => cases.map(({ name, options: { x, y, w, h = 0 }, pad = 0.15 }) => ({ page: 63 + index, name, x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad })));
 export const TEXT_OPTION_PAGES = TEXT_OPTION_SLIDES.length;
@@ -387,7 +397,7 @@ function cropThreshold(name: string): number {
     if (tableTextOffset !== undefined) return tableTextOffset;
     const lineSnap = TEXT_LINE_SNAP_CROP_THRESHOLDS[name];
     if (lineSnap !== undefined) return lineSnap;
-    return CROP_TARGET;
+    return UNDERLINE_DOUBLE_CROP_THRESHOLDS[name] ?? CROP_TARGET;
 }
 
 export const PARITY_REGIONS = [

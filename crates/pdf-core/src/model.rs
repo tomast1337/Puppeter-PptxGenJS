@@ -354,9 +354,23 @@ pub(crate) struct Run {
 
 pub(crate) struct Decoration {
     pub(crate) underline: bool,
+    pub(crate) underline_style: UnderlineStyle,
     pub(crate) underline_color: Option<Rgba>,
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
+}
+
+/// `NormalizedTextDecoration.underlineStyle`: the CSS `text-decoration-style` the PptxGenJS style maps to.
+// shortcut: the HTML carries only these five styles, so `heavy` variants draw at the normal thickness and
+// `dashLong`, `dotDash` and `dotDotDash` as plain dashes in both renderers; carry the OOXML style in the
+// profile when a fixture needs them.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum UnderlineStyle {
+    Solid,
+    Double,
+    Dotted,
+    Dashed,
+    Wavy,
 }
 
 pub(crate) struct Outline {
@@ -499,6 +513,7 @@ pub(crate) mod build {
             italic: false,
             decoration: Decoration {
                 underline: false,
+                underline_style: UnderlineStyle::Solid,
                 underline_color: None,
                 strike: false,
                 double_strike: false,

@@ -232,8 +232,7 @@ outside the [SVG subset](HTML_PROFILE.md#parsing-wasm) throws naming the slide,
 picture and element; an animated GIF or WebP draws its first frame, as Chromium
 prints it, and a GIF whose first frame does not fill its logical screen throws)
 and tables (merged cells, fills, per-side solid and dashed borders,
-cell insets and alignment, vertical text, rows grown to fit their text;
-underline styles draw as a single line) and charts (every `addChart()` type and
+cell insets and alignment, vertical text, rows grown to fit their text) and charts (every `addChart()` type and
 `addChartExtension()`, drawn from the chart's SVG in the HTML: paths, gradients,
 clip paths, opacity and text as text; an SVG outside the
 [subset](HTML_PROFILE.md#parsing-wasm) throws, naming the element) and

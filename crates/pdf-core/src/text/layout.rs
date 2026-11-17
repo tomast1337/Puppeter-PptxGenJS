@@ -13,7 +13,7 @@ use krilla::paint::Stroke;
 use crate::Renderer;
 use crate::color::Rgba;
 use crate::effect::Effect;
-use crate::model::{LineBox, ParagraphAlign, TextBox, TextDirection, TextFit};
+use crate::model::{LineBox, ParagraphAlign, TextBox, TextDirection, TextFit, UnderlineStyle};
 use crate::text::font::family_stack;
 use crate::text::tabs::{MAX_TAB_REBREAK_BYTES, TAB_PLACEHOLDER, TabRuler, place_tabs, tab_box};
 
@@ -27,6 +27,7 @@ pub(crate) struct RunPaint {
     pub(crate) highlight: Option<Rgba>,
     pub(crate) outline: Option<TextStroke>,
     pub(crate) underline: bool,
+    pub(crate) underline_style: UnderlineStyle,
     pub(crate) underline_color: Option<Rgba>,
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
@@ -202,6 +203,7 @@ impl Renderer {
                         under: false,
                     }),
                     underline: run.decoration.underline,
+                    underline_style: run.decoration.underline_style,
                     underline_color: run.decoration.underline_color,
                     strike: run.decoration.strike,
                     double_strike: run.decoration.double_strike,
@@ -301,6 +303,7 @@ impl Renderer {
                         highlight: None,
                         outline: None,
                         underline: false,
+                        underline_style: UnderlineStyle::Solid,
                         underline_color: None,
                         strike: false,
                         double_strike: false,

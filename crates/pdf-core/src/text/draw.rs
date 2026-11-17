@@ -9,6 +9,7 @@ use krilla::geom::{Point, Transform};
 use krilla::paint::Stroke;
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
+use kurbo::BezPath;
 use parley::{FontMetrics, GlyphRun, Layout, PositionedLayoutItem};
 
 use crate::Renderer;
@@ -16,7 +17,7 @@ use crate::color::{Rgba, fill_of, unit};
 use crate::effect::Effect;
 use crate::effect::EffectSource;
 use crate::link::page_quad;
-use crate::model::{TextBox, TextDirection, VerticalAlign};
+use crate::model::{TextBox, TextDirection, UnderlineStyle, VerticalAlign};
 use crate::path::rect_path;
 use crate::text::layout::{BoxLayout, Brush, BulletMarker, RunPaint, RunRef, TextStroke};
 use crate::text::outline::glyph_outlines;
@@ -28,6 +29,80 @@ const SYNTHETIC_BOLD_STROKE_EM: f32 = 1.0 / 30.0;
 const SYNTHETIC_ITALIC_SHEAR: f32 = 0.346_253_56;
 /// Most distinct glows drawn under one text box.
 const MAX_GLOWS_PER_BOX: usize = 16;
+
+// Underline patterns in units of the font's underline thickness, read from LibreOffice's PDF export of the
+// visual fixture's "Underline styles" slide (Liberation Sans 20pt, a 1.95px thickness): dashes 6px with 3px
+// gaps, a wave about 11px long and 2px high, a double line of two 1px lines 2px apart; dots are one
+// thickness long, as in Chromium.
+const DOT_ON: f32 = 1.0;
+const DOT_OFF: f32 = 1.0;
+const DASH_ON: f32 = 3.0;
+const DASH_OFF: f32 = 1.5;
+const DOUBLE_LINE: f32 = 0.5;
+const DOUBLE_GAP: f32 = 1.0;
+const WAVE_PERIOD: f32 = 6.0;
+const WAVE_HEIGHT: f32 = 1.0;
+/// LibreOffice draws its wave thinner than the straight line.
+const WAVE_THICKNESS: f32 = 0.5;
+
+/// The filled outline of an underline of `style` whose straight form is the `thickness` px tall band from
+/// `top`, over `advance` px from `start` (y down).
+fn underline_path(style: UnderlineStyle, start: f32, top: f32, advance: f32, thickness: f32) -> BezPath {
+    let t = thickness;
+    match style {
+        UnderlineStyle::Solid => rect_path(start, top, advance, t, 0.0),
+        // Two thinner lines centred on the single line.
+        UnderlineStyle::Double => {
+            let (line, gap) = (DOUBLE_LINE * t, DOUBLE_GAP * t);
+            let first = top + t / 2.0 - gap / 2.0 - line;
+            let mut path = rect_path(start, first, advance, line, 0.0);
+            path.extend(rect_path(start, first + line + gap, advance, line, 0.0));
+            path
+        }
+        UnderlineStyle::Dotted => dashes(start, top, advance, t, DOT_ON * t, DOT_OFF * t),
+        UnderlineStyle::Dashed => dashes(start, top, advance, t, DASH_ON * t, DASH_OFF * t),
+        UnderlineStyle::Wavy => wave(start, top + t / 2.0, advance, t),
+    }
+}
+
+/// `on`-long pieces of the band, `off` apart, from `start`; the last one is cut at the end.
+fn dashes(start: f32, top: f32, advance: f32, t: f32, on: f32, off: f32) -> BezPath {
+    let end = start + advance;
+    let mut path = BezPath::new();
+    let mut x = start;
+    while x < end {
+        path.extend(rect_path(x, top, on.min(end - x), t, 0.0));
+        x += on + off;
+    }
+    path
+}
+
+/// A band WAVE_THICKNESS thicknesses tall along a wave centred on `middle`: quadratic half-waves, as many
+/// whole ones as fit nearest to WAVE_PERIOD, so it starts and ends on `middle`.
+fn wave(start: f32, middle: f32, advance: f32, t: f32) -> BezPath {
+    let halves = (advance / (WAVE_PERIOD * t / 2.0)).round().max(1.0);
+    let half = advance / halves;
+    // A quadratic's control point is twice as far from the chord as the curve's peak.
+    let reach = WAVE_HEIGHT * t;
+    let band = WAVE_THICKNESS * t / 2.0;
+    let point = |x: f32, y: f32| (f64::from(x), f64::from(y));
+    // halves is a whole number of at least 1, from a finite advance in px.
+    let count = halves as u32;
+    let control = |i: u32| if i.is_multiple_of(2) { -reach } else { reach };
+    let mut path = BezPath::new();
+    path.move_to(point(start, middle - band));
+    for i in 0..count {
+        let x = start + half * i as f32;
+        path.quad_to(point(x + half / 2.0, middle - band + control(i)), point(x + half, middle - band));
+    }
+    path.line_to(point(start + advance, middle + band));
+    for i in (0..count).rev() {
+        let x = start + half * i as f32;
+        path.quad_to(point(x + half / 2.0, middle + band + control(i)), point(x, middle + band));
+    }
+    path.close_path();
+    path
+}
 
 /// Shears what is drawn on `baseline` (y down) to the right above it and to the left below it.
 fn oblique(baseline: f32) -> Transform {
@@ -270,11 +345,14 @@ impl Renderer {
     fn draw_decorations(&mut self, surface: &mut Surface, paint: &RunPaint, metrics: &FontMetrics, start: f32, baseline: f32, advance: f32) {
         let deco = paint.underline_color.unwrap_or(paint.color);
         if paint.underline {
-            self.fill(
-                surface,
-                &rect_path(start, baseline - metrics.underline_offset, advance, metrics.underline_size.max(0.5), 0.0),
-                deco,
+            let path = underline_path(
+                paint.underline_style,
+                start,
+                baseline - metrics.underline_offset,
+                advance,
+                metrics.underline_size.max(0.5),
             );
+            self.fill(surface, &path, deco);
         }
         if paint.strike || paint.double_strike {
             let t = metrics.strikethrough_size.max(0.5);
@@ -301,5 +379,57 @@ mod tests {
         close(map(5.0, 100.0), (5.0, 100.0));
         close(map(5.0, 90.0), (5.0 + 10.0 * SYNTHETIC_ITALIC_SHEAR, 90.0));
         close(map(5.0, 110.0), (5.0 - 10.0 * SYNTHETIC_ITALIC_SHEAR, 110.0));
+    }
+
+    /// The path's subpaths as (min x, min y, max x, max y) boxes.
+    fn pieces(path: &BezPath) -> Vec<(f64, f64, f64, f64)> {
+        use kurbo::Shape as _;
+        let mut boxes = Vec::new();
+        let mut current = BezPath::new();
+        for el in path.elements() {
+            if matches!(el, kurbo::PathEl::MoveTo(_)) && !current.elements().is_empty() {
+                let b = current.bounding_box();
+                boxes.push((b.x0, b.y0, b.x1, b.y1));
+                current = BezPath::new();
+            }
+            current.push(*el);
+        }
+        let b = current.bounding_box();
+        boxes.push((b.x0, b.y0, b.x1, b.y1));
+        boxes
+    }
+
+    #[test]
+    fn solid_and_double_underlines_are_one_and_two_bands() {
+        assert_eq!(
+            pieces(&underline_path(UnderlineStyle::Solid, 10.0, 20.0, 100.0, 2.0)),
+            [(10.0, 20.0, 110.0, 22.0)]
+        );
+        // Half as thick, a thickness apart, centred on the single band's middle (21).
+        assert_eq!(
+            pieces(&underline_path(UnderlineStyle::Double, 10.0, 20.0, 100.0, 2.0)),
+            [(10.0, 19.0, 110.0, 20.0), (10.0, 22.0, 110.0, 23.0)]
+        );
+    }
+
+    #[test]
+    fn dotted_and_dashed_underlines_repeat_and_cut_the_last_piece() {
+        let dots = pieces(&underline_path(UnderlineStyle::Dotted, 0.0, 0.0, 9.0, 2.0));
+        assert_eq!(dots, [(0.0, 0.0, 2.0, 2.0), (4.0, 0.0, 6.0, 2.0), (8.0, 0.0, 9.0, 2.0)]);
+        let dashes = pieces(&underline_path(UnderlineStyle::Dashed, 0.0, 0.0, 15.0, 2.0));
+        assert_eq!(dashes, [(0.0, 0.0, 6.0, 2.0), (9.0, 0.0, 15.0, 2.0)]);
+    }
+
+    #[test]
+    fn wavy_underlines_span_the_run_around_the_single_line() {
+        let [(x0, y0, x1, y1)] = pieces(&underline_path(UnderlineStyle::Wavy, 10.0, 20.0, 100.0, 2.0))[..] else {
+            panic!("one band")
+        };
+        assert!((x0, x1) == (10.0, 110.0), "{x0}..{x1}");
+        // Centred on 21: half the WAVE_HEIGHT plus half the band either side.
+        let reach = f64::from(WAVE_HEIGHT * 2.0 / 2.0 + WAVE_THICKNESS * 2.0 / 2.0);
+        assert!((y0 - (21.0 - reach)).abs() < 1e-4 && (y1 - (21.0 + reach)).abs() < 1e-4, "{y0}..{y1}");
+        // A run shorter than half a wave still draws one half-wave.
+        assert_eq!(pieces(&underline_path(UnderlineStyle::Wavy, 0.0, 0.0, 1.0, 2.0)).len(), 1);
     }
 }

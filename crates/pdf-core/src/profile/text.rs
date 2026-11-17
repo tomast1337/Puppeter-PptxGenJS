@@ -7,7 +7,7 @@ use super::style::{Style, font_family, integer, keyword, number, px, shadow, spl
 use crate::color::parse_color;
 use crate::model::{
     Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, TabAlign, TabStop, TextBox, TextDirection, TextFit,
-    VerticalAlign,
+    UnderlineStyle, VerticalAlign,
 };
 
 /// Attributes of the element that holds a text box.
@@ -221,6 +221,27 @@ fn paragraph(dom: &Dom<'_>, element: &Element<'_>) -> Result<Paragraph, String> 
     })
 }
 
+/// The run's `text-decoration-style` (solid when omitted), or `data-underline-style` when a double strike
+/// took the CSS property.
+fn underline_style(element: &Element<'_>, style: &Style<'_>) -> Result<UnderlineStyle, String> {
+    let attr = element.attr("data-underline-style")?;
+    let (what, value) = match attr.as_deref() {
+        Some(value) => ("attribute 'data-underline-style'", value),
+        None => ("CSS property 'text-decoration-style'", style.get("text-decoration-style").unwrap_or("solid")),
+    };
+    keyword(
+        what,
+        value,
+        &[
+            ("solid", UnderlineStyle::Solid),
+            ("double", UnderlineStyle::Double),
+            ("dotted", UnderlineStyle::Dotted),
+            ("dashed", UnderlineStyle::Dashed),
+            ("wavy", UnderlineStyle::Wavy),
+        ],
+    )
+}
+
 /// `<position>:<alignment>` in `data-tab-stops`.
 fn tab_stop(stop: &str) -> Result<TabStop, String> {
     let invalid = || format!("attribute 'data-tab-stops': '{stop}' is not '<position>:<left|right|center|decimal>'");
@@ -298,6 +319,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
         italic: one_of("CSS property 'font-style'", style.require("font-style")?, &["italic", "normal"])? == "italic",
         decoration: Decoration {
             underline: lines.split_ascii_whitespace().any(|l| l == "underline"),
+            underline_style: underline_style(element, &style)?,
             underline_color: style.color("text-decoration-color")?,
             strike: lines.split_ascii_whitespace().any(|l| l == "line-through"),
             double_strike: element.has_attr("data-double-strike"),
@@ -342,7 +364,7 @@ fn glow(element: &Element<'_>, style: &Style<'_>) -> Result<Option<Shadow>, Stri
 #[cfg(test)]
 mod tests {
     use crate::color::Rgba;
-    use crate::model::{Shrink, SlideObject, TabAlign, TextFit, TextObject, VerticalAlign};
+    use crate::model::{Shrink, SlideObject, TabAlign, TextFit, TextObject, UnderlineStyle, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -389,6 +411,11 @@ mod tests {
             ("a & b", "Calibri", 4.5, 1.5)
         );
         assert!(a.decoration.underline && a.decoration.strike && a.decoration.double_strike);
+        // The double strike took text-decoration-style; the underline keeps data-underline-style.
+        assert_eq!(
+            (a.decoration.underline_style, c.decoration.underline_style),
+            (UnderlineStyle::Wavy, UnderlineStyle::Solid)
+        );
         assert_eq!(
             (a.decoration.underline_color, a.highlight),
             (Some(Rgba(0, 255, 0, 1.0)), Some(Rgba(255, 255, 0, 1.0)))
@@ -407,6 +434,25 @@ mod tests {
     }
 
     #[test]
+    fn reads_each_underline_style() {
+        for (css, wants) in [
+            ("solid", UnderlineStyle::Solid),
+            ("double", UnderlineStyle::Double),
+            ("dotted", UnderlineStyle::Dotted),
+            ("dashed", UnderlineStyle::Dashed),
+            ("wavy", UnderlineStyle::Wavy),
+        ] {
+            let style = RUN_STYLE.replace("text-decoration-style: solid", &format!("text-decoration-style: {css}"));
+            let html = format!(
+                r#"<div class="text-paragraph" data-line-baseline="16" style="{PARAGRAPH_STYLE}"><span class="text-run" style="{style} text-decoration-line: underline;">x</span></div>"#
+            );
+            let text = text_object(&html).unwrap().text.expect("text");
+            let style = text.paragraphs.first().and_then(|p| p.runs.first()).map(|r| r.decoration.underline_style);
+            assert_eq!(style, Some(wants), "{css}");
+        }
+    }
+
+    #[test]
     fn rejects_out_of_profile_text() {
         let run = |attrs: &str, style: &str, text: &str| {
             format!(
@@ -422,6 +468,11 @@ mod tests {
             (run("", " text-shadow: 1px 1px 1px red;", "x"), "data-text-shadow"),
             (run("", " text-decoration-line: overline;", "x"), "overline"),
             (run("", " font-kerning: off;", "x"), "font-kerning"),
+            (
+                run("", "", "x").replace("text-decoration-style: solid", "text-decoration-style: groove"),
+                "CSS property 'text-decoration-style': 'groove'",
+            ),
+            (run(" data-underline-style=\"thick\"", "", "x"), "attribute 'data-underline-style': 'thick'"),
             (run("", "", "<b>x</b>"), "unexpected <b>"),
             (run("", "", "a &copy; b"), "character reference"),
             (run(" onclick=\"x\"", "", "x"), "attribute 'onclick'"),

@@ -541,8 +541,8 @@ export const WASM_COMPATIBILITY = Object.freeze({
             slideMargin: "implemented",
             addShape: "implemented",
             addText: "implemented",
-            // The WASM text layout draws every underline style as a single line.
-            underline: "partial",
+            // Every text-decoration-style is drawn; the options deck's underline slide checks text boxes, not cells.
+            underline: "implemented",
         }),
     }),
     text: Object.freeze<CompatibilityEntry>({
