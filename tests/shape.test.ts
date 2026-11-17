@@ -237,7 +237,7 @@ describe("shape normalization", () => {
             expect(geometry.kind).toBe("path");
             if (geometry.kind !== "path") continue;
             expect(geometry.faces).toHaveLength(1);
-            expect(geometry.data.endsWith(" Z")).toBe(true);
+            expect(geometry.faces?.[0]?.data.endsWith(" Z")).toBe(true);
             expect(geometry.outlineData?.endsWith(" Z")).toBe(false);
             expect(geometry.outlineData).toContain("A ");
         }
@@ -305,7 +305,7 @@ describe("shape normalization", () => {
     });
 
     test("normalizes every generated ECMA preset without fallback geometry", () => {
-        expect(GENERATED_PRESET_NAMES).toHaveLength(131);
+        expect(GENERATED_PRESET_NAMES).toHaveLength(137);
         for (const name of GENERATED_PRESET_NAMES) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");

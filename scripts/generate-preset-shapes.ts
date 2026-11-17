@@ -17,7 +17,6 @@ const HAND_DRAWN: readonly { readonly why: string; readonly names: readonly stri
     // leaves this list once its visual crops do not get worse (#153).
     { why: "polygons and stars, not yet compared (#153)", names: ["triangle", "rtTriangle", "diamond", "parallelogram", "trapezoid", "nonIsoscelesTrapezoid", "pentagon", "hexagon", "heptagon", "octagon", "decagon", "dodecagon", "star5", "star6", "star7", "star8", "star10", "star12", "star16", "star24", "star32"] },
     { why: "circular presets without options, not yet compared (#153)", names: ["pieWedge", "donut"] },
-    { why: "braces and brackets, not yet compared (#153)", names: ["leftBrace", "rightBrace", "bracePair", "leftBracket", "rightBracket", "bracketPair"] },
     { why: "ribbons and scrolls, not yet compared (#153)", names: ["ribbon", "ribbon2", "ellipseRibbon", "ellipseRibbon2", "leftRightRibbon", "horizontalScroll", "verticalScroll"] },
 ];
 const WRITABLE: readonly string[] = Object.values(new pptxgen().ShapeType);
