@@ -12,7 +12,10 @@ function borderCSS(border: NormalizedTableBorder): string {
     return border.visible ? `${border.width}px ${border.style} ${border.color}` : HIDDEN_BORDER_CSS;
 }
 
-function renderCell(cell: NormalizedTableCell, fixedHeight: boolean): string {
+/** `fixed` when the row or the table sets a height, `auto` when the row sizes to its content. */
+type RowHeight = "fixed" | "auto";
+
+function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight): string {
     const css: InlineStyle = new Map([
         ["padding", "0px"],
         ["overflow", "hidden"],
@@ -35,7 +38,7 @@ function renderCell(cell: NormalizedTableCell, fixedHeight: boolean): string {
     // A row height is a minimum: PowerPoint and LibreOffice grow the row until its text fits, so the text box stays
     // in flow and the HTML table grows the row. shortcut: vertical text needs a definite height and fills the cell
     // instead, so its row does not grow; lay it out in flow once a fixture needs it.
-    if (fixedHeight && cell.text.direction !== "horizontal") {
+    if (rowHeight === "fixed" && cell.text.direction !== "horizontal") {
         textCss.set("position", "absolute");
         textCss.set("inset", "0px");
     } else {
@@ -56,8 +59,8 @@ export function renderTable(table: NormalizedTable): string {
 
     const columns = element("colgroup", [], table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", `${width}px`]]))])).join(""));
     const rows = table.rows.map(row => {
-        const fixedHeight = row.height !== undefined || table.height !== undefined;
-        const cells = row.cells.map(cell => renderCell(cell, fixedHeight)).join("");
+        const rowHeight: RowHeight = row.height !== undefined || table.height !== undefined ? "fixed" : "auto";
+        const cells = row.cells.map(cell => renderCell(cell, rowHeight)).join("");
         return element("tr", [styleAttribute(new Map(row.height !== undefined ? [["height", `${row.height}px`]] : []))], cells);
     });
     return element("table", [["class", "slide-table"], styleAttribute(css)], `${columns}${rows.join("")}`);
