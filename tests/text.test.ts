@@ -308,7 +308,8 @@ describe("text DOM rendering", () => {
 
         const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
         const svg = box?.querySelector<SVGSVGElement>(":scope > .shape-svg");
-        const geometry = svg?.querySelector<SVGPathElement>(".shape-geometry");
+        const geometry = svg?.querySelector<SVGGElement>(".shape-geometry");
+        const face = geometry?.querySelector<SVGPathElement>(".shape-face");
         expect(renderedPage(presentation).querySelectorAll(".slide-element")).toHaveLength(1);
         expect(box?.dataset.shape).toBe("diamond");
         expect(box?.style.width).toBe("192px");
@@ -319,9 +320,9 @@ describe("text DOM rendering", () => {
         expect(svg?.getAttribute("viewBox")).toBe("0 0 192 144");
         expect(svg?.style.transform).toBe("");
         expect(svg?.style.filter).toContain("drop-shadow");
-        expect(geometry?.getAttribute("d")).toBe("M 96 0 L 192 72 L 96 144 L 0 72 Z");
-        expect(geometry?.getAttribute("fill")).toBe("rgba(68, 114, 196, 0.9)");
-        expect(geometry?.getAttribute("stroke")).toBe("#17365D");
+        expect(face?.getAttribute("d")).toBe("M 0 72 L 96 0 L 192 72 L 96 144 Z");
+        expect(face?.getAttribute("fill")).toBe("rgba(68, 114, 196, 0.9)");
+        expect(geometry?.querySelector(".shape-outline")?.getAttribute("stroke")).toBe("#17365D");
         expect(box?.lastElementChild?.classList.contains("text-content")).toBe(true);
         expect(box?.querySelector(".text-run")?.textContent).toBe("Decision");
     });
