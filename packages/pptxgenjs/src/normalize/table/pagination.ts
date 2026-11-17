@@ -184,7 +184,7 @@ function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTabl
 
 export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
     if (!inputRows.length) return [];
-    const rows = inputRows.map(row => row.map(tableCell));
+    const rows = inputRows.map((row, rowIndex) => row.map((cell, column) => tableCell(cell, rowIndex, column)));
 
     const normalized = normalizeTable(rows, options, pageSize);
     const extendedOptions = options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin };
