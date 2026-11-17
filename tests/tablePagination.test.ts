@@ -4,6 +4,7 @@ import type PptxGenJS from "pptxgenjs";
 import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { pointsToPixels } from "../packages/pptxgenjs/src/units";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const rows = (count: number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: `Value ${index + 1}` }]);
@@ -122,5 +123,18 @@ describe("table auto-pagination", () => {
         const drawn = slides.map(slide => slide.querySelectorAll("td")[1]?.textContent ?? "");
         expect(drawn.every(text => text.length > 0)).toBe(true);
         expect(drawn.join("").replaceAll(/\s+/g, "")).toBe(lines.join("").replaceAll(" ", ""));
+    });
+
+    // A row moved to a continuation slide is drawn as word runs carrying a copy of the cell options. PptxGenJS 4.0.1
+    // genXmlTextBody (step 6 C) fills each unset run option from the cell, so `{ fontSize: undefined }` takes the
+    // table's 10pt: its slide 2 XML has sz="1000" on every run, with or without repeated headers.
+    test.each([false, true])("keeps the table font size on rows moved to a continuation slide (repeat header %p)", autoPageRepeatHeader => {
+        const presentation = new PuppeteerGen(PAGE);
+        const input: PptxGenJS.TableRow[] = Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}`, options: { fontSize: undefined } }, { text: `Value ${index + 1}` }]);
+        presentation.addSlide().addTable(input, { autoPage: true, autoPageRepeatHeader, y: 1, w: 8, fontSize: 10 });
+
+        const sizes = presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs.map(run => run.fontSize)))) : [])));
+        expect(sizes.length).toBeGreaterThan(0);
+        expect(new Set(sizes)).toEqual(new Set([pointsToPixels(10)]));
     });
 });
