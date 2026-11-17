@@ -2,7 +2,7 @@
 
 use super::allow;
 use super::dom::{Dom, Element};
-use super::object::{BOX_ATTRS, BOX_CSS, LINK_ATTRS, link, object_style};
+use super::object::{BOX_ATTRS, BOX_CSS, BoxPaint, LINK_ATTRS, link, object_style};
 use super::style::{Style, number};
 use crate::model::{ImageModel, ImageObject, ImageSizing};
 
@@ -85,7 +85,7 @@ pub(crate) fn object(dom: &Dom<'_>, element: &Element<'_>) -> Result<ImageObject
         Some(other) => return Err(format!("CSS property 'border-radius': '{other}' is not {ROUNDED}")),
     };
     Ok(ImageObject {
-        style: object_style(element, &style, true)?,
+        style: object_style(element, &style, BoxPaint::OnBox)?,
         image: ImageModel {
             source: source.into_owned(),
             sizing,

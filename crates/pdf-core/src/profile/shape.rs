@@ -6,7 +6,7 @@ use super::dom::{Dom, Element};
 use super::object::{arrow, link};
 use super::style::{Style, number, shadow};
 use crate::color::parse_color;
-use crate::model::{FillModel, LineModel, ObjectStyle, ShapeFace, ShapeGeometry, ShapeModel};
+use crate::model::{FillModel, LineModel, ObjectStyle, ShadowKind, ShapeFace, ShapeGeometry, ShapeModel};
 
 const SVG_ATTRS: &[&str] = &[
     "viewBox",
@@ -64,17 +64,22 @@ pub(crate) fn read(dom: &Dom<'_>, object: &Element<'_>, svg: &Element<'_>, style
         return Err("svg.shape-svg must hold <defs> and the .shape-geometry element".into());
     }
     let heads = markers(dom, defs)?;
-    let (geometry, fill, stroke_target) = read_geometry(dom, geometry, width, height)?;
+    let ShapeRead { geometry, fill, stroke } = read_geometry(dom, geometry, width, height)?;
 
     style.fill = fill;
-    style.line = line(svg, stroke_target, &heads)?;
+    style.line = line(svg, stroke, &heads)?;
     style.shadow = match css.get("filter") {
         Some(filter) => {
             let inner = filter
                 .strip_prefix("drop-shadow(")
                 .and_then(|f| f.strip_suffix(')'))
                 .ok_or_else(|| format!("CSS property 'filter': '{filter}' is not drop-shadow(…)"))?;
-            Some(shadow(inner, svg.has_attr("data-shadow-inset")).map_err(|e| format!("CSS property 'filter': {e}"))?)
+            let kind = if svg.has_attr("data-shadow-inset") {
+                ShadowKind::Inner
+            } else {
+                ShadowKind::Outer
+            };
+            Some(shadow(inner, kind).map_err(|e| format!("CSS property 'filter': {e}"))?)
         }
         None => None,
     };
@@ -107,13 +112,16 @@ fn markers(dom: &Dom<'_>, defs: &Element<'_>) -> Result<Vec<(String, String)>, S
     Ok(heads)
 }
 
-/// The geometry, its fill (`None` when `fill="none"`) and the element that carries the stroke.
-fn read_geometry<'e, 'a>(
-    dom: &'e Dom<'a>,
-    element: &'e Element<'a>,
-    width: f32,
-    height: f32,
-) -> Result<(ShapeGeometry, Option<FillModel>, &'e Element<'a>), String> {
+/// What `.shape-geometry` draws.
+struct ShapeRead<'e, 'a> {
+    geometry: ShapeGeometry,
+    /// `None` when `fill="none"` or the faces carry the fills.
+    fill: Option<FillModel>,
+    /// The element that carries the stroke.
+    stroke: &'e Element<'a>,
+}
+
+fn read_geometry<'e, 'a>(dom: &'e Dom<'a>, element: &'e Element<'a>, width: f32, height: f32) -> Result<ShapeRead<'e, 'a>, String> {
     let css = Style::of(element)?;
     allow(element, &css, &[GEOMETRY_ATTRS, PAINT_ATTRS], &[])?;
     if element.name == "g" {
@@ -140,12 +148,16 @@ fn read_geometry<'e, 'a>(
         }
         name => return Err(format!("<{name}> is not a profile shape geometry (rect, ellipse, path, g)")),
     };
-    Ok((geometry, fill, element))
+    Ok(ShapeRead {
+        geometry,
+        fill,
+        stroke: element,
+    })
 }
 
 /// A multi-face preset: `path.shape-face` children with their final fills, then an optional
 /// stroke-only `path.shape-outline`. The faces carry the fills, so the shape itself has none.
-fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<(ShapeGeometry, Option<FillModel>, &'e Element<'a>), String> {
+fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<ShapeRead<'e, 'a>, String> {
     let mut faces = Vec::new();
     let mut outline = None;
     for child in dom.elements_of(&group.children)? {
@@ -165,7 +177,7 @@ fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<(ShapeGeome
     if faces.is_empty() {
         return Err("g.shape-geometry must hold at least one path.shape-face".into());
     }
-    let (outline_data, stroke_target) = match outline {
+    let (outline_data, stroke) = match outline {
         Some((data, element)) => (Some(data), element),
         None => (None, group),
     };
@@ -176,7 +188,7 @@ fn faces<'e, 'a>(dom: &'e Dom<'a>, group: &'e Element<'a>) -> Result<(ShapeGeome
         faces: Some(faces),
         outline_data,
     };
-    Ok((geometry, None, stroke_target))
+    Ok(ShapeRead { geometry, fill: None, stroke })
 }
 
 fn number_attr(element: &Element<'_>, name: &str) -> Result<f32, String> {
@@ -245,7 +257,7 @@ fn line(svg: &Element<'_>, target: &Element<'_>, heads: &[(String, String)]) -> 
 mod tests {
     use crate::color::Rgba;
     use crate::model::build::css;
-    use crate::model::{ArrowKind, ShapeGeometry, ShapeObject, SlideObject};
+    use crate::model::{ArrowKind, ShadowKind, ShapeGeometry, ShapeObject, SlideObject};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -289,7 +301,7 @@ mod tests {
             (l.dash_array.as_deref(), l.end_arrow, l.end_head_path.as_deref(), l.begin_head_path.as_deref()),
             (Some("0 4 8"), Some(ArrowKind::Triangle), Some("M 0 0 L -8 4 Z"), None)
         );
-        assert!(line.style.shadow.as_ref().is_some_and(|s| s.inset && s.blur == 3.0));
+        assert!(line.style.shadow.as_ref().is_some_and(|s| s.kind == ShadowKind::Inner && s.blur == 3.0));
         let error = shape(r#" data-line-end-arrow="hook""#, "", &body).err().unwrap_or_default();
         assert!(error.contains("attribute 'data-line-end-arrow': 'hook' is not one of none, arrow"), "{error}");
         let error = shape("", "", &body.replace("stroke=\"#17365D\"", "stroke=\"#17365\""))

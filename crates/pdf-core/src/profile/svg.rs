@@ -92,7 +92,7 @@ pub(crate) fn chart(dom: &Dom<'_>, svg: &Element<'_>) -> Result<Svg, String> {
         return Err(format!("attribute 'xmlns': '{namespace}' is not the SVG namespace"));
     }
     let view_box = svg.attr("viewBox")?.map(|v| view_box(&v)).transpose()?;
-    read(dom, svg, view_box, Fit::CENTER_MEET, false)
+    read(dom, svg, view_box, Fit::CENTER_MEET, RootPaint::Ignore)
 }
 
 /// An SVG image: the decoded `data:image/svg+xml` document. Its root `<svg>` is sized into the
@@ -126,12 +126,18 @@ pub(crate) fn image(text: &str) -> Result<Svg, String> {
             _ => return Err("an <svg> without a viewBox must have both width and height in px, or neither".into()),
         },
     };
-    read(&dom, svg, view_box, fit, true)
+    read(&dom, svg, view_box, fit, RootPaint::Inherit)
 }
 
-/// The display list of `svg`'s content; `root_paint` when the `<svg>`'s own fill, stroke and font
-/// are inherited.
-fn read(dom: &Dom<'_>, svg: &Element<'_>, view_box: Option<[f32; 4]>, fit: Fit, root_paint: bool) -> Result<Svg, String> {
+/// Whether the `<svg>`'s own fill, stroke and font are inherited by its content.
+#[derive(Clone, Copy)]
+enum RootPaint {
+    Inherit,
+    Ignore,
+}
+
+/// The display list of `svg`'s content.
+fn read(dom: &Dom<'_>, svg: &Element<'_>, view_box: Option<[f32; 4]>, fit: Fit, root_paint: RootPaint) -> Result<Svg, String> {
     let mut reader = Reader {
         dom,
         svg: Svg {
@@ -146,10 +152,9 @@ fn read(dom: &Dom<'_>, svg: &Element<'_>, view_box: Option<[f32; 4]>, fit: Fit, 
     };
     // References may point forward (ECharts writes its <defs> last), so definitions go first.
     reader.definitions(svg, 0)?;
-    let inherited = if root_paint {
-        reader.inherit(svg, &Style::of(svg)?, &Inherited::default())?
-    } else {
-        Inherited::default()
+    let inherited = match root_paint {
+        RootPaint::Inherit => reader.inherit(svg, &Style::of(svg)?, &Inherited::default())?,
+        RootPaint::Ignore => Inherited::default(),
     };
     reader.children(svg, &inherited, 0)?;
     Ok(reader.svg)

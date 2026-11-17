@@ -7,7 +7,7 @@
 //! errors naming the element and property.
 
 use super::dom::{Dom, Element, Node};
-use super::object::{BOX_ATTRS, BOX_CSS, object_style};
+use super::object::{BOX_ATTRS, BOX_CSS, BoxPaint, object_style};
 use super::style::{Style, number};
 use super::{PROFILE_VERSION, allow};
 use crate::color::Rgba;
@@ -29,7 +29,7 @@ pub(crate) fn object(dom: &Dom<'_>, element: &Element<'_>) -> Result<SvgObject, 
     if style.get("position") != Some("absolute") || style.get("overflow") != Some("hidden") {
         return Err("a component object must have 'position: absolute' and 'overflow: hidden'".into());
     }
-    let object_style = object_style(element, &style, true)?;
+    let object_style = object_style(element, &style, BoxPaint::OnBox)?;
     let (Some(width), Some(height)) = (object_style.geometry.width, object_style.geometry.height) else {
         return Err("a component object must have a px width and height".into());
     };

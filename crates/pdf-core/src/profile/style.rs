@@ -6,7 +6,7 @@ use std::ops::Range;
 
 use super::dom::Element;
 use crate::color::{Rgba, parse_color};
-use crate::model::Shadow;
+use crate::model::{Shadow, ShadowKind};
 
 /// The declarations of one `style` attribute, in source order.
 pub(crate) struct Style<'a> {
@@ -208,7 +208,7 @@ pub(crate) fn px(text: &str) -> Result<f32, String> {
 
 /// `<x>px <y>px <blur>px <color>`, the CSS shadow forms `render/style.ts` writes (`box-shadow`
 /// without `inset`, `drop-shadow()`, a `text-shadow` entry).
-pub(crate) fn shadow(text: &str, inset: bool) -> Result<Shadow, String> {
+pub(crate) fn shadow(text: &str, kind: ShadowKind) -> Result<Shadow, String> {
     let mut rest = text.trim_ascii();
     let mut lengths = [0.0f32; 3];
     for length in &mut lengths {
@@ -225,7 +225,7 @@ pub(crate) fn shadow(text: &str, inset: bool) -> Result<Shadow, String> {
         blur,
         offset_x,
         offset_y,
-        inset,
+        kind,
     })
 }
 
@@ -296,9 +296,12 @@ mod tests {
 
     #[test]
     fn reads_shadows_and_font_families() {
-        let s = shadow("3px -2.5px 4px rgba(0, 0, 0, 0.35)", true).unwrap();
-        assert_eq!((s.offset_x, s.offset_y, s.blur, s.color, s.inset), (3.0, -2.5, 4.0, Rgba(0, 0, 0, 0.35), true));
-        assert!(shadow("3px 4px rgba(0,0,0,1)", false).is_err());
+        let s = shadow("3px -2.5px 4px rgba(0, 0, 0, 0.35)", ShadowKind::Inner).unwrap();
+        assert_eq!(
+            (s.offset_x, s.offset_y, s.blur, s.color, s.kind),
+            (3.0, -2.5, 4.0, Rgba(0, 0, 0, 0.35), ShadowKind::Inner)
+        );
+        assert!(shadow("3px 4px rgba(0,0,0,1)", ShadowKind::Outer).is_err());
         assert_eq!(font_family(r#""Calibri""#).unwrap(), "Calibri");
         assert_eq!(font_family(r#""a\"b\\c""#).unwrap(), r#"a"b\c"#);
         for bad in [

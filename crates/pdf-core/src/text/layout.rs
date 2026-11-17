@@ -31,10 +31,25 @@ pub(crate) struct RunPaint {
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
     pub(crate) baseline_offset: f32,
-    /// (paragraph, run) of the run's `link` in its `TextBox`.
-    pub(crate) link: Option<(u32, u32)>,
+    /// The run whose `link` this run carries.
+    pub(crate) link: Option<RunRef>,
     /// The glow drawn under the run's glyphs.
     pub(crate) glow: Option<Effect>,
+}
+
+/// A run of a `TextBox`: its paragraph's index and its index in that paragraph.
+#[derive(Clone, Copy)]
+pub(crate) struct RunRef {
+    pub(crate) paragraph: u32,
+    pub(crate) run: u32,
+}
+
+/// A paragraph's bullet, laid out on its own.
+pub(crate) struct BulletMarker {
+    pub(crate) text: String,
+    pub(crate) layout: Layout<Brush>,
+    /// Its start, from the paragraph's left edge.
+    pub(crate) x: f32,
 }
 
 /// A stroke around the glyphs: a run's outline, or a chart label's halo drawn `under` its fill
@@ -57,7 +72,7 @@ pub(crate) struct ParaLayout {
     pub(crate) y: f32,
     /// This paragraph's line baselines in `BoxLayout::baselines`, below `y`.
     pub(crate) baselines: Range<usize>,
-    pub(crate) marker: Option<(String, Layout<Brush>, f32)>,
+    pub(crate) marker: Option<BulletMarker>,
 }
 
 #[derive(Default)]
@@ -96,13 +111,13 @@ impl Renderer {
     }
 
     /// One unwrapped line of `text` in one face, every glyph with brush 0: a chart SVG `<text>`.
-    pub(crate) fn layout_line(&mut self, text: &str, face: &str, size: f32, bold: bool, italic: bool) -> Layout<Brush> {
+    pub(crate) fn layout_line(&mut self, text: &str, face: &str, size: f32, weight: FontWeight, style: FontStyle) -> Layout<Brush> {
         let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, text, 1.0, false);
         builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
         builder.push_default(StyleProperty::FontFamily(family_stack(face).as_str().into()));
         builder.push_default(StyleProperty::FontSize(size));
-        builder.push_default(StyleProperty::FontWeight(if bold { FontWeight::BOLD } else { FontWeight::NORMAL }));
-        builder.push_default(StyleProperty::FontStyle(if italic { FontStyle::Italic } else { FontStyle::Normal }));
+        builder.push_default(StyleProperty::FontWeight(weight));
+        builder.push_default(StyleProperty::FontStyle(style));
         builder.push_default(StyleProperty::Brush(Brush(0)));
         let mut layout: Layout<Brush> = builder.build(text);
         layout.break_all_lines(None);
@@ -191,7 +206,7 @@ impl Renderer {
                     strike: run.decoration.strike,
                     double_strike: run.decoration.double_strike,
                     baseline_offset: run.baseline_offset,
-                    link: run.link.is_some().then_some((p, r)),
+                    link: run.link.is_some().then_some(RunRef { paragraph: p, run: r }),
                     glow: run.glow.as_ref().and_then(Effect::glow),
                 });
                 let r = range.clone();
@@ -298,7 +313,11 @@ impl Renderer {
                     mb.push_default(StyleProperty::Brush(Brush(index)));
                     let mut ml: Layout<Brush> = mb.build(&b.marker);
                     ml.break_all_lines(None);
-                    Some((b.marker.clone(), ml, marker_x))
+                    Some(BulletMarker {
+                        text: b.marker.clone(),
+                        layout: ml,
+                        x: marker_x,
+                    })
                 }
                 _ => None,
             };

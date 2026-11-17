@@ -24,7 +24,7 @@ use std::ops::Range;
 
 use krilla::Document;
 use krilla::annotation::Annotation;
-use krilla::geom::{Quadrilateral, Size, Transform};
+use krilla::geom::{Size, Transform};
 use krilla::page::PageSettings;
 use krilla::surface::Surface;
 use krilla::text::{Font, KrillaGlyph};
@@ -32,12 +32,13 @@ use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, Sourc
 use parley::{FontContext, LayoutContext};
 
 use crate::color::unit;
-use crate::effect::{Effect, Effects};
+use crate::effect::{Effect, EffectSource, Effects};
 use crate::image::Picture;
 use crate::link::page_quad;
 use crate::model::{Presentation, SlideObject, TextFit};
 use crate::path::rect_path;
 use crate::table::TableLayout;
+use crate::text::draw::LinkQuad;
 use crate::text::layout::{BoxLayout, Brush};
 
 /// Model page sizes are in inches; PDF user space is in points.
@@ -62,8 +63,8 @@ pub struct Renderer {
     page_slides: Vec<u32>,
     /// Link annotations of the page being drawn, attached to it once its surface is finished.
     links: Vec<Annotation>,
-    /// Text links of the box being drawn: (paragraph, run) index and its clickable area per glyph run.
-    link_quads: Vec<(u32, u32, Quadrilateral)>,
+    /// Text links of the box being drawn: their run and its clickable area per glyph run.
+    link_quads: Vec<LinkQuad>,
     /// Shadow and glow silhouettes being captured, and the buffers their masks are made in.
     effects: Effects,
     // Scratch buffers for the per-object, per-paragraph and per-glyph-run paths: each user
@@ -233,7 +234,7 @@ impl Renderer {
         // The shadow is cast in slide space: PptxGenJS writes rotWithShape="0".
         let body = |r: &mut Self, surface: &mut Surface| r.draw_body(surface, object, &layout, &cells, x, y, w, h);
         let drawn = match shadow {
-            Some(effect) => self.under_effect(surface, &effect, false, body),
+            Some(effect) => self.under_effect(surface, &effect, EffectSource::Everything, body),
             None => body(self, surface),
         };
         self.text_layout = layout;
@@ -313,8 +314,8 @@ mod tests {
     use crate::color::Rgba;
     use crate::model::build::css;
     use crate::model::{
-        ArrowKind, Bullet, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShapeFace, ShapeGeometry, ShapeModel, Slide,
-        Table, TableBorder, TableCell, TableObject, TableRow, TextDirection, TextObject, Transform2, VerticalAlign, build,
+        ArrowKind, Bullet, ImageModel, ImageObject, ImageSizing, LineModel, Link, ObjectStyle, Outline, Shadow, ShadowKind, ShapeFace, ShapeGeometry,
+        ShapeModel, Slide, Table, TableBorder, TableCell, TableObject, TableRow, TextDirection, TextObject, Transform2, VerticalAlign, build,
     };
 
     /// Draws an already parsed presentation, as `render_html` does after parsing.
@@ -556,7 +557,7 @@ mod tests {
         if let Some(line) = style.line.as_mut() {
             line.end_arrow = Some(ArrowKind::Stealth);
         }
-        style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.3)", 4.0, 3.0, false));
+        style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.3)", 4.0, 3.0, ShadowKind::Outer));
         render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap();
         assert_eq!(r.warnings(), vec!["line arrowhead Stealth not rendered"]);
     }
@@ -754,7 +755,7 @@ mod tests {
         let mut r = Renderer::new();
         let plain = render(&mut r, &linked_rect_with_shadow(None)).unwrap();
         assert!(!String::from_utf8_lossy(&plain).contains("/SMask"));
-        let shadow = build::shadow("rgba(0, 0, 0, 0.75)", 10.67, 4.0, false);
+        let shadow = build::shadow("rgba(0, 0, 0, 0.75)", 10.67, 4.0, ShadowKind::Outer);
         let pdf = render(&mut r, &linked_rect_with_shadow(Some(shadow))).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the shadow is an image with a soft mask");
@@ -767,7 +768,7 @@ mod tests {
     #[test]
     fn reports_inner_shadows_and_draws_the_object() {
         let mut r = Renderer::new();
-        let inset = build::shadow("#000000", 4.0, 2.0, true);
+        let inset = build::shadow("#000000", 4.0, 2.0, ShadowKind::Inner);
         let pdf = render(&mut r, &linked_rect_with_shadow(Some(inset))).unwrap();
         assert_eq!(r.warnings(), vec!["inner shadow not rendered".to_string()]);
         assert!(!String::from_utf8_lossy(&pdf).contains("/SMask"));
@@ -792,7 +793,7 @@ mod tests {
         };
         let plain = render(&mut r, &text(None)).unwrap();
         assert!(!String::from_utf8_lossy(&plain).contains("/SMask"));
-        let glow = build::shadow("rgba(255, 192, 0, 0.6)", 10.67, 0.0, false);
+        let glow = build::shadow("rgba(255, 192, 0, 0.6)", 10.67, 0.0, ShadowKind::Outer);
         let pdf = render(&mut r, &text(Some(glow))).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
         assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the glow is an image with a soft mask");
@@ -808,7 +809,7 @@ mod tests {
         // One glow per run, each a different radius: thousands of them overflowed the wasm stack.
         let runs = (0..2000)
             .map(|i| model::Run {
-                glow: Some(build::shadow("rgba(255, 192, 0, 0.6)", 1.0 + i as f32 / 100.0, 0.0, false)),
+                glow: Some(build::shadow("rgba(255, 192, 0, 0.6)", 1.0 + i as f32 / 100.0, 0.0, ShadowKind::Outer)),
                 ..build::run("g", "Liberation Sans", 10.0)
             })
             .collect();
@@ -822,7 +823,7 @@ mod tests {
     fn shadows_a_shape_with_huge_coordinates() {
         let mut r = Renderer::new();
         let (mut style, shape) = dashed_shape(path("M 0 0 C 1e17 0 1e17 1e17 0 1e17 Z", None));
-        style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.75)", 10.67, 4.0, false));
+        style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.75)", 10.67, 4.0, ShadowKind::Outer));
         render(&mut r, &build::deck(vec![build::shape_object(style, shape)])).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());
     }
@@ -919,7 +920,7 @@ mod tests {
             svg_image(r##"<rect width="100" height="50" rx="8" fill="navy"/><circle cx="50" cy="25" r="20" style="fill: #fff; stroke: red" opacity=".5"/>"##);
         let mut shadowed = picture(build::image(&shapes));
         if let SlideObject::Image(object) = &mut shadowed {
-            object.style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.3)", 4.0, 3.0, false));
+            object.style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.3)", 4.0, 3.0, ShadowKind::Outer));
         }
         let pdf = render(&mut r, &build::deck(vec![picture(build::image(&shapes)), shadowed])).unwrap();
         assert_eq!(r.warnings(), Vec::<String>::new());

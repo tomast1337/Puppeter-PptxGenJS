@@ -185,16 +185,34 @@ fn webp_size(bytes: &[u8]) -> Option<(u32, u32)> {
 }
 
 /// The rectangle the picture is drawn into, relative to the box origin (px).
-pub(crate) fn placement(sizing: &ImageSizing, w: f32, h: f32) -> (f32, f32, f32, f32) {
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct Placement {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) width: f32,
+    pub(crate) height: f32,
+}
+
+pub(crate) fn placement(sizing: &ImageSizing, w: f32, h: f32) -> Placement {
     match *sizing {
-        ImageSizing::Stretch => (0.0, 0.0, w, h),
-        ImageSizing::Contain { x, y, width, height } | ImageSizing::Cover { x, y, width, height } => (x, y, width, height),
+        ImageSizing::Stretch => Placement {
+            x: 0.0,
+            y: 0.0,
+            width: w,
+            height: h,
+        },
+        ImageSizing::Contain { x, y, width, height } | ImageSizing::Cover { x, y, width, height } => Placement { x, y, width, height },
         ImageSizing::Crop {
             offset_x,
             offset_y,
             width,
             height,
-        } => (-offset_x, -offset_y, width, height),
+        } => Placement {
+            x: -offset_x,
+            y: -offset_y,
+            width,
+            height,
+        },
     }
 }
 
@@ -215,7 +233,12 @@ impl Renderer {
                 decoded
             }
         };
-        let (px, py, pw, ph) = placement(&image.sizing, w, h);
+        let Placement {
+            x: px,
+            y: py,
+            width: pw,
+            height: ph,
+        } = placement(&image.sizing, w, h);
         let Some(size) = Size::from_wh(pw, ph) else { return Ok(()) };
         // The HTML frame clips to the box (`overflow: hidden`, `border-radius: 50%` when rounded).
         let frame = if image.rounding {
@@ -401,15 +424,33 @@ mod tests {
     #[test]
     fn places_each_sizing_mode() {
         let (x, y, width, height) = (5.0, -10.0, 100.0, 120.0);
-        assert_eq!(placement(&ImageSizing::Stretch, 80.0, 60.0), (0.0, 0.0, 80.0, 60.0));
-        assert_eq!(placement(&ImageSizing::Contain { x, y, width, height }, 80.0, 60.0), (x, y, width, height));
-        assert_eq!(placement(&ImageSizing::Cover { x, y, width, height }, 80.0, 60.0), (x, y, width, height));
+        let stretched = Placement {
+            x: 0.0,
+            y: 0.0,
+            width: 80.0,
+            height: 60.0,
+        };
+        assert_eq!(placement(&ImageSizing::Stretch, 80.0, 60.0), stretched);
+        assert_eq!(
+            placement(&ImageSizing::Contain { x, y, width, height }, 80.0, 60.0),
+            Placement { x, y, width, height }
+        );
+        assert_eq!(
+            placement(&ImageSizing::Cover { x, y, width, height }, 80.0, 60.0),
+            Placement { x, y, width, height }
+        );
         let crop = ImageSizing::Crop {
             offset_x: 96.0,
             offset_y: 24.0,
             width: 384.0,
             height: 192.0,
         };
-        assert_eq!(placement(&crop, 80.0, 60.0), (-96.0, -24.0, 384.0, 192.0));
+        let cropped = Placement {
+            x: -96.0,
+            y: -24.0,
+            width: 384.0,
+            height: 192.0,
+        };
+        assert_eq!(placement(&crop, 80.0, 60.0), cropped);
     }
 }

@@ -161,7 +161,14 @@ pub(crate) struct Shadow {
     pub(crate) blur: f32,
     pub(crate) offset_x: f32,
     pub(crate) offset_y: f32,
-    pub(crate) inset: bool,
+    pub(crate) kind: ShadowKind,
+}
+
+/// PptxGenJS `ShadowProps.type`: cast outside the object, or inside it (CSS `inset`).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum ShadowKind {
+    Outer,
+    Inner,
 }
 
 pub(crate) struct FillModel {
@@ -413,14 +420,14 @@ pub(crate) mod build {
         }
     }
 
-    pub(crate) fn shadow(color: &str, blur: f32, offset: f32, inset: bool) -> Shadow {
+    pub(crate) fn shadow(color: &str, blur: f32, offset: f32, kind: ShadowKind) -> Shadow {
         Shadow {
             visible: true,
             color: css(color),
             blur,
             offset_x: offset,
             offset_y: offset,
-            inset,
+            kind,
         }
     }
 

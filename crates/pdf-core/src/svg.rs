@@ -10,6 +10,7 @@ use krilla::num::NormalizedF32;
 use krilla::paint::{Fill, FillRule, LinearGradient, SpreadMethod, Stop, Stroke};
 use krilla::surface::Surface;
 use kurbo::{Affine, BezPath, Shape as _};
+use parley::{FontStyle, FontWeight};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
@@ -206,7 +207,9 @@ impl Renderer {
         if text.text.is_empty() || text.font_size <= 0.0 {
             return;
         }
-        let layout = self.layout_line(&text.text, &text.font_family, text.font_size, text.bold, text.italic);
+        let weight = if text.bold { FontWeight::BOLD } else { FontWeight::NORMAL };
+        let style = if text.italic { FontStyle::Italic } else { FontStyle::Normal };
+        let layout = self.layout_line(&text.text, &text.font_family, text.font_size, weight, style);
         let width = layout.width();
         let x = match text.anchor {
             Anchor::Start => text.x,
