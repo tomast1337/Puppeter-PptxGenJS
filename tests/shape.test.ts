@@ -10,6 +10,7 @@ import { arrowHeadPath, normalizeLine } from "../packages/pptxgenjs/src/normaliz
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { renderShapeSvg } from "../packages/pptxgenjs/src/render/shape";
+import { UnsupportedFeatureError } from "../packages/pptxgenjs/src/UnsupportedFeatureError";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
@@ -421,11 +422,22 @@ describe("SVG shape rendering", () => {
         expect(dashed?.hasAttribute("stroke-dashoffset")).toBe(false);
     });
 
+    // PptxGenJS 4.0.1 writes <a:innerShdw> closed by </a:outerShdw>, which LibreOffice drops, and no renderer draws an
+    // inner shadow on a shape: the call that adds it fails, not the print step. A text box keeps its inner shadow.
+    test("an inner shadow on a shape throws where the shape is added", () => {
+        const slide = new PuppeteerGen(PAGE).addSlide();
+        expect(() => slide.addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } })).toThrow(UnsupportedFeatureError);
+        expect(() => slide.addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } })).toThrow('shadow: { type: "inner" } on shape "ellipse" is not supported by PuppeteerGen yet.');
+        expect(() => slide.addText("Inset", { x: 1, y: 1, w: 2, h: 1, shape: "roundRect" as PptxGenJS.SHAPE_NAME, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } })).toThrow('Use shadow type "outer"');
+        expect(() => normalizeShape("rect", { shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } }, 96, 96, PAGE)).toThrow(UnsupportedFeatureError);
+        slide.addText("Inset", { x: 1, y: 1, w: 2, h: 1, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } });
+    });
+
     test("writes the line, shadow and size values the drawing only shows resolved as data attributes", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
         slide.addShape("line", { x: 1, y: 3, w: 4, h: 0, line: { color: "ED7D31", width: 2, dashType: "sysDot", beginArrowType: "oval", endArrowType: "triangle" } });
-        slide.addShape("rect", { x: 1, y: 1, w: 2, h: 1, fill: { color: "4472C4" }, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } });
+        slide.addShape("rect", { x: 1, y: 1, w: 2, h: 1, fill: { color: "4472C4" }, shadow: { type: "outer", color: "000000", blur: 3, offset: 2, angle: 45 } });
         slide.addText("boxed", { x: 4, y: 1, w: 2, h: 1, line: { color: "000000", width: 1, dashType: "dash" } });
 
         const page = renderedPage(presentation);
@@ -438,7 +450,8 @@ describe("SVG shape rendering", () => {
         expect(line?.getAttribute("data-line-end-arrow")).toBe("triangle");
         expect(line?.getAttribute("data-shape-height")).toBe("0");
         expect(line?.hasAttribute("data-shape-width")).toBe(false);
-        expect(rect?.hasAttribute("data-shadow-inset")).toBe(true);
+        // drop-shadow() says an outer shadow itself; an inner one never reaches the HTML from the API (see below).
+        expect(rect?.hasAttribute("data-shadow-inset")).toBe(false);
         expect(rect?.hasAttribute("data-line-dash-array")).toBe(false);
         // A CSS border has no dash pattern, so the box keeps it.
         expect(page.querySelector(".slide-text")?.getAttribute("data-line-dash-array")).toBe(presentation.getModel().slides[0]?.objects[2]?.style.line?.dashArray ?? "");
