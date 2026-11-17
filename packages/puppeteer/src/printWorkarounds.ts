@@ -69,6 +69,12 @@ function number(element: Element, value: string | undefined, what: string): numb
 
 const px = (element: Element, pattern: RegExp, property: string) => number(element, attribute(element, "style")?.match(pattern)?.[1], `'${property}: <number>px' in its style attribute`);
 // 1e-4 px is far below Chromium's 1/64 px layout unit; it drops float noise from inch conversions.
+/**
+ * Border snap: Chromium lays a border out at a whole device px, its width floored (at least 1 device px), so under
+ * the print zoom a 1pt (1.333px) border is 10/8 px wide, not 10.667/8. Measured on the collapsed table borders of
+ * the visual fixture (#196): a row was 1/12 px shorter than its margins and line height, 1px every 12 rows.
+ */
+const snapBorder = (width: number) => (width > 0 ? Math.max(1, Math.floor(width * PRINT_ZOOM)) / PRINT_ZOOM : 0);
 const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4) / 1e4;
 const local = (value: number) => Number(value.toFixed(4)) || 0;
 
@@ -147,7 +153,7 @@ export function printHtml(html: string): string {
                 if (cell.tagName !== "td") continue;
                 const half = { top: 0, right: 0, bottom: 0, left: 0 };
                 for (const [, side, width] of (attribute(cell, "style") ?? "").matchAll(BORDER_WIDTH)) {
-                    const value = number(cell, width, "numeric border width");
+                    const value = snapBorder(number(cell, width, "numeric border width"));
                     widest = Math.max(widest, value);
                     // The pattern's alternation matches only these four sides.
                     half[side as keyof typeof half] = value / 2;

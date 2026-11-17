@@ -91,6 +91,15 @@ describe("Puppeteer print workarounds", () => {
         expect(none).not.toMatch(/margin|inset/);
     });
 
+    test("measures the inset and offset from the border width Chromium lays out, floored to a whole print device px", async () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addTable([[{ text: "x", options: { border: { type: "solid", pt: 1, color: "000000" } } }]], { x: 1, y: 1, w: 4 });
+        const page = await printedPage(presentation);
+        // 1pt = 1.333px is 10.667 device px at PRINT_ZOOM 8; Chromium draws 10, so 1.25px and its half 0.625px.
+        expect(page.querySelector(".table-cell-text")?.getAttribute("style")).toEndWith("; margin: -0.625px -0.625px -0.625px -0.625px; width: calc(100% + 1.25px);");
+        expect(page.querySelector<HTMLElement>("table.slide-table")?.style.top).toBe("-0.625px");
+    });
+
     test("lays the document out at the print zoom, which page.pdf() scales back", () => {
         const html = `<!DOCTYPE html><html lang="en"><head></head><body></body></html>`;
         expect(printHtml(html)).toBe(`<!DOCTYPE html><html style="zoom: ${PRINT_ZOOM};" lang="en"><head></head><body></body></html>`);
