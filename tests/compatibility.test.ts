@@ -154,7 +154,7 @@ describe("compatibility manifest", () => {
         expect(WASM_COMPATIBILITY.table.status).toBe("partial");
         expect(WASM_COMPATIBILITY.table.options.rowspan).toBe("verified");
         expect(WASM_COMPATIBILITY.table.options.tableToSlides).toBe("implemented");
-        expect(WASM_COMPATIBILITY.table.options.underline).toBe("partial");
+        expect(WASM_COMPATIBILITY.table.options.underline).toBe("implemented");
     });
 
     test("tracks the WASM backend's text support on the same option surface", () => {

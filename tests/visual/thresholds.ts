@@ -42,3 +42,16 @@ export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>>
 export const TEXT_LINE_SNAP_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
     "text-line-hairline": 0.088,
 };
+
+/**
+ * Puppeteer crops of the double underlines on the "Underline styles" slide. The HTML says
+ * `text-decoration-style: double`; at 20pt Chromium prints it as one 5px band (rows 148-152 at 96 dpi, the
+ * two lines and their gap merged), where LibreOffice draws two 1px lines 3px apart (rows 148 and 151), and
+ * draws `wavyDbl` as a faint double wave. The glyphs match. text-underline-dbl 0.0854, text-underline-wavyDbl
+ * 0.1073, measured with `bun run test:visual` outside the pinned image (#205); the Visual parity job's
+ * scores replace these.
+ */
+export const UNDERLINE_DOUBLE_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
+    "text-underline-dbl": 0.088,
+    "text-underline-wavyDbl": 0.11,
+};
