@@ -21,7 +21,10 @@ function clamp(value: number, min: number, max: number): number {
 
 function inheritedOptions(parent: PptxGenJS.TextPropsOptions, child: PptxGenJS.TextPropsOptions = {}): PptxGenJS.TextPropsOptions {
     const { x: _x, y: _y, w: _w, h: _h, fill: _fill, line: _line, shadow: _shadow, rotate: _rotate, flipH: _flipH, flipV: _flipV, rectRadius: _rectRadius, objectName: _objectName, ...parentText } = parent;
-    const inherited = { ...parentText, ...child };
+    // PptxGenJS 4.0.1 genXmlTextBody (step 6 C) fills a run option the run leaves unset from its parent's, so a key
+    // present with an undefined value (a table cell's `{ fontSize: undefined }`, copied onto its autoPage word runs)
+    // inherits rather than resetting to the default.
+    const inherited = { ...parentText, ...Object.fromEntries(Object.entries(child).filter(([, value]) => value !== undefined)) };
     if (child.hyperlink && child.color === undefined) delete inherited.color;
     return inherited;
 }
