@@ -229,8 +229,9 @@ export class PuppeteerSlide implements PptxSlide {
                 if (index > 0) continuationSlides.push(target);
                 target.addTable(page.rows, {
                     ...tableOptions,
+                    // PptxGenJS 4.0.1 addTableDefinition (step 6 C) adds each page with the caller's options, so its
+                    // rows keep the caller's rowH or h and otherwise size to their content.
                     y: page.y,
-                    rowH: page.rowHeights,
                     autoPage: false,
                 });
             });

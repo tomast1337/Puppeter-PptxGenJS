@@ -387,8 +387,10 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         const table = normalizeHtmlTable(findHtmlTable(source, this.createDocument), options, this.pageSize);
         const firstIndex = this.slides.length;
         const firstSlide = this.addSlide();
+        // genTableToSlides (step 5 C) adds each table with only x, y, w and colW, so a `rowH` never reaches its rows.
+        const { rowH: _rowH, ...tableOptions } = options;
         firstSlide.addTable(table.rows, {
-            ...options,
+            ...tableOptions,
             x: table.x,
             y: table.y,
             colW: table.columnWidths,
