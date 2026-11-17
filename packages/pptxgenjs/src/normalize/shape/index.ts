@@ -9,7 +9,6 @@ import { ACTION_BUTTON_GEOMETRY } from "./actionButton";
 import { CIRCULAR_GEOMETRY } from "./circular";
 import { normalizeCustomPath } from "./custom";
 import { OOXML_PERCENT, type ShapeGeometry } from "./path";
-import { POLYGON_GEOMETRY } from "./polygon";
 import { RIBBON_SCROLL_GEOMETRY } from "./ribbonScroll";
 
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
@@ -36,7 +35,6 @@ const BASIC_GEOMETRY = {
  */
 const HAND_DRAWN_GEOMETRY = {
     ...BASIC_GEOMETRY,
-    ...POLYGON_GEOMETRY,
     ...CIRCULAR_GEOMETRY,
     ...RIBBON_SCROLL_GEOMETRY,
     ...ACTION_BUTTON_GEOMETRY,

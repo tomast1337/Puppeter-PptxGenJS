@@ -137,19 +137,12 @@ describe("shape normalization", () => {
     });
 
     test("normalizes polygon and star preset families", () => {
-        expect(normalizeShape("triangle", {}, 100, 80, PAGE).geometry).toEqual({
-            kind: "path",
-            data: "M 50 0 L 100 80 L 0 80 Z",
-        });
-        expect(normalizeShape("diamond", {}, 100, 80, PAGE).geometry).toEqual({
-            kind: "path",
-            data: "M 50 0 L 100 40 L 50 80 L 0 40 Z",
-        });
+        // Paths start where presetShapeDefinitions.xml starts them.
+        expect((normalizeShape("triangle", {}, 100, 80, PAGE).geometry as { data: string }).data).toBe("M 0 80 L 50 0 L 100 80 Z");
+        expect((normalizeShape("diamond", {}, 100, 80, PAGE).geometry as { data: string }).data).toBe("M 0 40 L 50 0 L 100 40 L 50 80 Z");
         const hexagon = normalizeShape("hexagon", {}, 100, 80, PAGE);
-        expect(hexagon.geometry).toEqual({
-            kind: "path",
-            data: "M 20 0 L 80 0 L 100 40 L 80 80 L 20 80 L 0 40 Z",
-        });
+        // The spec's hexagon derives its corners from the short side and a vertical factor (vf), so they sit a hair off y = 0.
+        expect((hexagon.geometry as { data: string }).data).toBe("M 0 40 L 20 0.000019 L 80 0.000019 L 100 40 L 80 79.999981 L 20 79.999981 Z");
         // The hexagon's ECMA-376 text rectangle (il, it, ir, ib), not the box minus its points.
         expect(hexagon.textInsets).toEqual([12, 15, 12, 15]);
         expect((normalizeShape("star5", {}, 100, 80, PAGE).geometry as { data: string }).data.match(/ L /g)).toHaveLength(9);
@@ -307,7 +300,7 @@ describe("shape normalization", () => {
     });
 
     test("normalizes every generated ECMA preset without fallback geometry", () => {
-        expect(GENERATED_PRESET_NAMES).toHaveLength(145);
+        expect(GENERATED_PRESET_NAMES).toHaveLength(166);
         for (const name of GENERATED_PRESET_NAMES) {
             const geometry = normalizeShape(name, {}, 180, 100, PAGE).geometry;
             expect(geometry.kind).toBe("path");

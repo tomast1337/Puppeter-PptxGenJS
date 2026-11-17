@@ -23,10 +23,6 @@ function ellipseRayPoint(cx: number, cy: number, rx: number, ry: number, degrees
     return [cx + rx * Math.cos(parameter), cy + ry * Math.sin(parameter)];
 }
 
-export function polygonPath(points: ReadonlyArray<readonly [number, number]>, width: number, height: number): string {
-    return `${points.map(([x, y], index) => `${index === 0 ? "M" : "L"} ${x * width} ${y * height}`).join(" ")} Z`;
-}
-
 type PixelPoint = readonly [number, number];
 
 export function pixelPath(points: ReadonlyArray<PixelPoint>): string {

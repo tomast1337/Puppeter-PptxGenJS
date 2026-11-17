@@ -446,15 +446,24 @@ const TABLE_OPTION_CASES = [
 
 // populatePresetAspectFixture(): presets whose OOXML geometry depends on the aspect ratio, drawn wide and tall
 // where no other slide does, one slide per entry, after the table-option slide (#153).
-const PRESET_ASPECT_SLIDES: ReadonlyArray<{ readonly title: string; readonly shapes: readonly PptxGenJS.SHAPE_NAME[] }> = [{ title: "Arrows: aspect ratios", shapes: ["notchedRightArrow"] }];
+// Up to four shapes per slide, each drawn wide and tall: the generated presets derive their guides from the short
+// side (ss), so a square crop cannot show a guide taken from the wrong side.
+const PRESET_ASPECT_SLIDES: ReadonlyArray<{ readonly title: string; readonly shapes: readonly PptxGenJS.SHAPE_NAME[] }> = [
+    { title: "Arrows: aspect ratios", shapes: ["notchedRightArrow"] },
+    { title: "Polygons: aspect ratios", shapes: ["parallelogram", "trapezoid", "nonIsoscelesTrapezoid", "octagon"] },
+    { title: "Polygons: aspect ratios", shapes: ["heptagon", "decagon", "dodecagon"] },
+    { title: "Stars: aspect ratios", shapes: ["star5", "star6", "star7", "star8"] },
+    { title: "Stars: aspect ratios", shapes: ["star10", "star12", "star16", "star24"] },
+    { title: "Stars: aspect ratios", shapes: ["star32"] },
+];
 const PRESET_ASPECT_CASES = PRESET_ASPECT_SLIDES.flatMap(({ shapes }, slideIndex) =>
     shapes.flatMap((shape, index) => {
         const page = 64 + TEXT_OPTION_PAGES + slideIndex;
-        const x = 0.4 + (index % 3) * 3.2;
-        const y = Math.floor(index / 3) * 2.4;
+        const x = 0.4 + (index % 2) * 4.7;
+        const y = 0.9 + Math.floor(index / 2) * 2;
         return [
-            { page, name: `${shape}-wide`, shape, x, y: y + 0.9, w: 2.5, h: 0.75 },
-            { page, name: `${shape}-tall`, shape, x: x + 0.8, y: y + 1.85, w: 0.9, h: 1.65 },
+            { page, name: `${shape}-wide`, shape, x, y: y + 0.45, w: 2.5, h: 0.75 },
+            { page, name: `${shape}-tall`, shape, x: x + 2.7, y, w: 0.9, h: 1.65 },
         ];
     }),
 );
