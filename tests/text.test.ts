@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
+import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/normalize/text";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { presentationCSS } from "../packages/pptxgenjs/src/render/slide";
@@ -252,6 +253,9 @@ describe("text DOM rendering", () => {
         expect(box?.style.opacity).toBe("");
         expect(box?.dataset.textDirection).toBe("vertical270");
         expect(box?.dataset.textFit).toBe("shrink");
+        // The shrink rule is on the box, so both renderers apply PPTX_DEFAULTS.text.shrink and none decides its own.
+        const { step, maxSteps, tolerancePx } = PPTX_DEFAULTS.text.shrink;
+        expect({ step: box?.dataset.textFitStep, maxSteps: box?.dataset.textFitMaxSteps, tolerance: box?.dataset.textFitTolerance }).toEqual({ step: String(step), maxSteps: String(maxSteps), tolerance: String(tolerancePx) });
         expect(content?.style.writingMode).toBe("vertical-rl");
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
     });

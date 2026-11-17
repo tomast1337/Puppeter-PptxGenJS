@@ -468,7 +468,7 @@ mod tests {
         };
         assert!(render(&mut r, &table(None)).unwrap().starts_with(b"%PDF"));
         assert_eq!(r.warnings(), Vec::<String>::new());
-        render(&mut r, &table(Some(cell(1, 1, TextFit::Shrink, TextDirection::Horizontal)))).unwrap();
+        render(&mut r, &table(Some(cell(1, 1, build::SHRINK, TextDirection::Horizontal)))).unwrap();
         assert_eq!(r.warnings(), vec!["table cells beyond the column grid not rendered".to_string()]);
     }
 
@@ -1199,7 +1199,7 @@ mod tests {
         let long = vec![run("Shrink this oversized text until it fits "), run("within the fixed box")];
         let shrink = vec![para(long, Some(bullet)), para(vec![run("")], None), para(vec![run("Tail")], None)];
         build::deck(vec![
-            object(10.0, TextFit::Shrink, shrink),
+            object(10.0, build::SHRINK, shrink),
             object(300.0, TextFit::None, vec![para(vec![run("Plain")], None)]),
         ])
     }

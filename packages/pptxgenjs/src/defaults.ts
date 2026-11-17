@@ -112,6 +112,12 @@ export const PPTX_DEFAULTS = Object.freeze({
         transparency: 0,
         textDirection: "horz" as const,
         fit: "none" as const,
+        // fit: "shrink" scales every run and bullet font size, px line height and baseline shift by `step` while the
+        // text overflows the box's inner size by more than `tolerancePx`, at most `maxSteps` times. Written on the box
+        // (data-text-fit-*) so both renderers apply the same rule.
+        // shortcut: 0.95 steps approximate LibreOffice's font and spacing scale and PowerPoint's fontScale; match one of
+        // them once a fixture measures the shrunk size against the reference.
+        shrink: Object.freeze({ step: 0.95, maxSteps: 20, tolerancePx: 0.5 } as const),
         flipH: false,
         flipV: false,
         rotate: 0,

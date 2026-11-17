@@ -35,6 +35,18 @@ describe("completeProfileHtml()", () => {
         expect(find(completed, "slide-container").style).toBe("background-color: #FFFFFF;");
     });
 
+    test("gives a shrink box the shrink rule from PPTX_DEFAULTS, keeping a stated one", () => {
+        const { step, maxSteps, tolerancePx } = PPTX_DEFAULTS.text.shrink;
+        const box = (attributes: string) => `<div class="slide-element slide-text" data-text-fit="shrink"${attributes} style="left: 0px; top: 0px;"><div class="text-content"></div></div>`;
+        expect(find(completeProfileHtml(handWrittenDocument(box(""))), "slide-text").attributes).toMatchObject({
+            "data-text-fit-step": String(step),
+            "data-text-fit-max-steps": String(maxSteps),
+            "data-text-fit-tolerance": String(tolerancePx),
+        });
+        expect(find(completeProfileHtml(handWrittenDocument(box(' data-text-fit-step="0.5"'))), "slide-text").attributes["data-text-fit-step"]).toBe("0.5");
+        expect(find(completed, "slide-text").attributes).not.toHaveProperty("data-text-fit-step");
+    });
+
     test("uses the table defaults inside a cell, and the hyperlink color on a linked run", () => {
         const cellSize = `${pointsToPixels(PPTX_DEFAULTS.table.fontSizePt)}px`;
         expect(find(completed, "td")).toMatchObject({

@@ -156,7 +156,7 @@ impl Renderer {
 
         for (placed, layout) in out.cells.iter().zip(out.texts.iter_mut()) {
             let text = &cell_of(table, placed).text;
-            if text.fit == TextFit::Shrink {
+            if matches!(text.fit, TextFit::Shrink(_)) {
                 // PowerPoint table cells have no autofit: rows grow to the text instead.
                 self.warn("table cell shrink-to-fit not applied (rows grow to fit)");
             }

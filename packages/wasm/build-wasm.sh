@@ -46,7 +46,8 @@ root=$PWD
 # +9 B: a tab within 0.01px before a stop counts as on it, so float rounding cannot send the next tab back to that stop (#161), 1,048,628 -> 1,048,637 B measured; budget = that size.
 # +1,408 B: tab layout measures each line once and re-breaks only when a widened tab moves text to another line, within a re-break budget (#161: per-line cluster table sorted by byte offset), 1,048,637 -> 1,050,045 B measured; budget = that size.
 # -67 B: flag parameters and tuple results replaced by named enums and structs, draw_layout split (#158), 1,050,045 -> 1,049,978 B measured; budget = that size.
-GZIP_BUDGET=1049978
+# +306 B: the shrink-to-fit rule read from data-text-fit-step, -max-steps and -tolerance instead of renderer constants (#154: three attributes and their errors), 1,049,978 -> 1,050,284 B measured; budget = that size.
+GZIP_BUDGET=1050284
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
