@@ -57,7 +57,8 @@ export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOp
 export type { FourSideMargin, RenderingTarget } from "./defaults";
 export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdflapas/model";
 export type { ImageSourceOptions } from "./normalize/image";
-export type { PuppeteerGenOptions, PuppeteerSlide } from "./PuppeteerGen";
+export type { PuppeteerGenOptions } from "./PuppeteerGen";
+export type { PuppeteerSlide } from "./PuppeteerSlide";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
 export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 export type { HtmlPresentationDocument, ModelToHtmlOptions, PresentationRenderer } from "./render/document";
