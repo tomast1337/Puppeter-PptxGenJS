@@ -222,11 +222,15 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
         const { lines, cycles, lineHeight: perLine, margin: margins } = calculateRowMetrics(row, normalized, options);
         const available = () => (pages.length === 1 ? firstAvailable : pages.length === 2 ? secondAvailable : laterAvailable);
         const rowHeight = margins + cycles * perLine;
+        // getSlidesForTableRows (step 6, E-5) adds a line cycle to the used height only when it reaches the row's last
+        // cell, and stops once every cell is out of lines: when the last cell is shorter than the tallest one, the row's
+        // final line fits on the page but is left out of the used height.
+        const uncounted = (lines.at(-1)?.length ?? 0) < cycles ? perLine : 0;
 
         if (used + rowHeight <= available()) {
             pages.at(-1)!.rows.push(row);
             pages.at(-1)!.rowHeights.push(rowHeight);
-            used += rowHeight;
+            used += rowHeight - uncounted;
             continue;
         }
 
@@ -255,6 +259,7 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
                 countedMargins = 0;
             }
         }
+        used -= uncounted;
     }
     return pages;
 }

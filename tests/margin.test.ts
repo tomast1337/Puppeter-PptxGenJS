@@ -98,6 +98,9 @@ describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches
         ["40 one-line rows", longRows(40, () => 1)],
         ["35 rows of 1 to 4 lines", longRows(35, index => (index % 4) + 1)],
         ["32 rows of 1 or 9 lines", longRows(32, index => (index % 5 === 0 ? 9 : 1))],
+        // The last cell ends before the tallest one, so the row's final line is left out of the used height.
+        ["35 rows of 1 to 4 lines, last column shorter", longRows(35, index => (index % 4) + 1).map(row => [...row].reverse())],
+        ["32 rows of 1 or 9 lines, last column shorter", longRows(32, index => (index % 5 === 0 ? 9 : 1)).map(row => [...row].reverse())],
         // getSlidesForTableRows tells points from inches by the cell's own margin only (a table margin of 6 would be 6in).
         ["35 rows with a 6pt cell margin", longRows(35, index => (index % 3) + 1).map(row => row.map(cell => ({ ...cell, options: { margin: [6, 4, 6, 4] } })))],
     ])("paginates %s as PptxGenJS does", (_, rows) => {
@@ -144,13 +147,14 @@ describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableD
     // `as`: PptxGenJS accepts plain string and number cells at runtime, but `TableRow` lists only cell objects.
     const plain = (cells: Array<Array<string | number | PptxGenJS.TableCell>>) => cells as PptxGenJS.TableRow[];
     const tableMargins: Array<PptxGenJS.Margin | undefined> = [undefined, 0.1, [0.2, 0.1, 0.05, 0.1]];
-    // The tallest cell sits in the last column: getSlidesForTableRows leaves a row's last line cycle out of the used
-    // height when that column ends earlier, a separate quirk these rows keep out of the comparison.
+    // getSlidesForTableRows leaves a row's last line cycle out of the used height when its last cell ends earlier.
     test.each<[string, PptxGenJS.TableRow[]]>([
         ["string cells", plain(Array.from({ length: 8 }, (_, index) => [`Row ${index + 1}`, lines(60)]))],
         ["number cells", plain(Array.from({ length: 40 }, (_, index) => [index, index * 1.5]))],
         ["mixed rows", plain(Array.from({ length: 30 }, (_, index) => [`Row ${index + 1}`, index, { text: lines((index % 4) + 1) }]))],
         ["mixed rows, string tallest", plain(Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}` }, index, lines((index % 4) + 1)]))],
+        ["mixed rows, last column shorter", plain(Array.from({ length: 30 }, (_, index) => [lines((index % 4) + 1), index, { text: `Row ${index + 1}` }]))],
+        ["a long string row, last column shorter", plain([[lines(60), "A"], ...Array.from({ length: 20 }, (_, index) => [lines((index % 3) + 1), `Row ${index + 1}`])])],
     ])("paginates %s as PptxGenJS does", (_, rows) => {
         for (const fontSize of [8, 12, 18])
             for (const margin of tableMargins)
