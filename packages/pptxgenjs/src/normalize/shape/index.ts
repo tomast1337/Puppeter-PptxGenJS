@@ -1,6 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedShape, NormalizedTextBox } from "@pdflapas/model";
 import type { PageSize } from "../../pageLayouts";
+import { UnsupportedFeatureError } from "../../UnsupportedFeatureError";
 import { inchesToPixels } from "../../units";
 import { GENERATED_PRESET_NAMES, generatedPresetGeometry, presetTextInsets } from "../generatedPreset";
 import { normalizeHyperlink } from "../link";
@@ -56,9 +57,23 @@ function shapeTextInsets(shapeName: CustomShapeName, options: PptxGenJS.ShapePro
     return presetTextInsets(shapeName, width, height, corner);
 }
 
+/**
+ * PptxGenJS 4.0.1 writes a shape's inner shadow as malformed XML (<a:innerShdw> closed by </a:outerShdw>) that
+ * LibreOffice drops, and drop-shadow() has no inset form, so no renderer draws one: fail where the shape is added.
+ * shortcut: no inner shadow on shapes; draw one (an SVG filter) once a reference renderer shows it.
+ */
+function innerShadowError(shapeName: CustomShapeName): UnsupportedFeatureError {
+    return new UnsupportedFeatureError(
+        `shadow: { type: "inner" } on shape "${shapeName}"`,
+        'PptxGenJS 4.0.1 writes an inner shadow on a shape as malformed XML (<a:innerShdw> closed by </a:outerShdw>) that LibreOffice drops. Use shadow type "outer" or remove the shadow; a text box without `shape` keeps its inner shadow.',
+        "property",
+    );
+}
+
 export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.ShapeProps, width: number, height: number, pageSize: PageSize): NormalizedShape {
     const geometry = SHAPE_GEOMETRY.get(shapeName);
     if (!geometry) throw new Error(`Unsupported shape geometry: ${shapeName}`);
+    if (options.shadow?.type === "inner") throw innerShadowError(shapeName);
     const link = normalizeHyperlink(options.hyperlink);
     return { name: shapeName, width, height, geometry: geometry(width, height, options, pageSize), textInsets: shapeTextInsets(shapeName, options, width, height), link };
 }

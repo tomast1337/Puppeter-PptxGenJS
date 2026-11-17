@@ -27,6 +27,13 @@ const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const createDocument = () => new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;
 const ascii = (bytes: Uint8Array) => new TextDecoder("latin1").decode(bytes);
+/** The deck's HTML with its first shape's shadow marked inset: hand-written HTML, since addShape rejects an inner shadow. */
+async function innerShadowHtml(pres: PuppeteerGen): Promise<HtmlPresentationDocument> {
+    const { html, pageSize } = await pres.toHtml();
+    const inner = html.replace('<svg class="shape-svg"', '<svg class="shape-svg" data-shadow-inset=""');
+    expect(inner).not.toBe(html);
+    return { html: inner, pageSize };
+}
 const EMPTY = { html: "<html></html>", pageSize: PAGE };
 
 afterAll(() => closeBrowser());
@@ -188,11 +195,12 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     });
 
     test("throws on unsupported objects by default and lists them", async () => {
-        const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pres = new PuppeteerGen(PAGE);
         pres.addSlide()
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
-            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
-        await expect(pres.toPdf()).rejects.toThrow(/inner shadow not rendered/);
+            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
+        await expect(renderer.render(await innerShadowHtml(pres))).rejects.toThrow(/inner shadow not rendered/);
     });
 
     test("draws components made of sized boxes and names the slide, object and element of one that needs layout", async () => {
@@ -281,8 +289,8 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
             .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 })
             .addImage({ data: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==", x: 3, y: 2, w: 1, h: 1 })
-            .addShape("ellipse", { x: 5, y: 2, w: 1, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
-        expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
+            .addShape("ellipse", { x: 5, y: 2, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
+        expect(ascii(await renderer.render(await innerShadowHtml(pres))).startsWith("%PDF-")).toBe(true);
         expect(renderer.warnings()).toEqual(["inner shadow not rendered"]);
     });
 

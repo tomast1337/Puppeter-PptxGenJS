@@ -394,8 +394,8 @@ export const COMPATIBILITY = Object.freeze({
             points: "implemented",
             rectRadius: "implemented",
             rotate: "implemented",
-            // Outer shadows. An inner one throws when printing: drop-shadow() has no inset form, and PptxGenJS 4.0.1
-            // writes it as malformed XML (<a:innerShdw> closed by </a:outerShdw>) that LibreOffice drops.
+            // Outer shadows. An inner one throws UnsupportedFeatureError from addShape (normalize/shape): PptxGenJS
+            // 4.0.1 writes it as malformed XML (<a:innerShdw> closed by </a:outerShdw>) that LibreOffice drops.
             shadow: "partial",
             rectangle: "implemented",
             roundedRectangle: "implemented",
@@ -522,7 +522,7 @@ export const WASM_COMPATIBILITY = Object.freeze({
             ...Object.fromEntries(Object.keys(COMPATIBILITY.shape.options).map(option => [option, "implemented" as const])),
             // As in the Puppeteer renderer: addShape writes no text body.
             align: "ignored",
-            // Outer shadows are blurred rasters (crates/pdf-core/src/effect/); inner ones are reported through warnings().
+            // Outer shadows are blurred rasters (crates/pdf-core/src/effect/); inner ones throw from addShape.
             shadow: "partial",
             // Text in shapes uses the WASM text layout and inherits its gaps (right-to-left tab stops, ...).
             text: "partial",
