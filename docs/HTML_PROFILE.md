@@ -303,7 +303,9 @@ with the full scaled size, and the frame clips.
 
 `render/table.ts`. A cell's text box is the text renderer's output on `.table-cell-text`, in flow
 (`width: 100%`), so a row's `height` is a minimum and the row grows to its text as in PowerPoint and
-LibreOffice; only vertical text in a row with a height fills the cell (`position: absolute; inset: 0px`). Borders are
+LibreOffice; only vertical text in a row with a height fills the cell (`position: absolute; inset: 0px`). Its
+`data-text-fit` is always `none`: PptxGenJS writes a bare `<a:bodyPr/>` in a cell, whatever `fit`, `shrinkText` or
+`autoFit` say, and both renderers refuse another value. Borders are
 `<width>px <solid|dashed> <color>` per side, `transparent` when hidden. Pagination happens in
 normalization (`normalize/table/pagination.ts`), so a paginated table is already several slides.
 

@@ -142,6 +142,14 @@ describe("table normalization", () => {
         expect(normalizeTable([rows[0]!, rows[0]!], { h: 2, rowH: [0.5] }, PAGE).rows.map(row => row.height)).toEqual([48, 96]);
     });
 
+    // PptxGenJS 4.0.1 writes a bare <a:bodyPr/> in every cell (genXmlTextBody), so a cell has no autofit (#197).
+    test("ignores fit, shrinkText and autoFit on a cell or the table, as PptxGenJS does", () => {
+        // `as`: the types leave these options off cells and tables, but PptxGenJS accepts them at runtime.
+        const cells = [{ text: "A", options: { fit: "shrink" } }, { text: "B", options: { shrinkText: true } }, { text: "C", options: { autoFit: true } }, { text: "D" }] as unknown as PptxGenJS.TableCell[];
+        const table = normalizeTable([cells], { fit: "shrink" } as PptxGenJS.TableProps, PAGE);
+        expect(table.rows[0]?.cells.map(cell => cell.text.fit)).toEqual(["none", "none", "none", "none"]);
+    });
+
     test("rejects empty and malformed row input", () => {
         expect(() => normalizeTable([], {}, PAGE)).toThrow("non-empty array");
         expect(() => normalizeTable(["bad"] as unknown as PptxGenJS.TableRow[], {}, PAGE)).toThrow("each row");

@@ -142,6 +142,9 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
                 const text = normalizeText(input, textOptions, target);
                 text.margin = tableMarginPixels(cellOptions.margin);
+                // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
+                // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.
+                text.fit = "none";
                 return {
                     text,
                     colspan: span(cellOptions.colspan),

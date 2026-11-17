@@ -38,6 +38,17 @@ describe("Puppeteer print workarounds", () => {
         expect(offsets).toEqual(["", "translate(0.05px, -0.025px)", "translate(0.05px, -0.025px)", "translate(-0.025px, -0.05px)", "translate(-0.05px, -0.025px)", "translate(0.05px, -0.025px)"]);
     });
 
+    // A cell has no autofit (PptxGenJS writes a bare <a:bodyPr/>), so hand-written cell shrink fails, as in WASM (#197).
+    test("fails on a table cell with a text fit other than none", async () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addTable([[{ text: "Cell" }]], { x: 1, y: 1, w: 2, objectName: "Grid" });
+        const html = (await presentation.toHtml()).html;
+        const shrink = html.replace('class="table-cell-text" data-text-fit="none"', 'class="table-cell-text" data-text-fit="shrink" data-text-fit-step="0.95" data-text-fit-max-steps="20" data-text-fit-tolerance="0.5"');
+        expect(shrink).not.toBe(html);
+        expect(() => printHtml(html)).not.toThrow();
+        expect(() => printHtml(shrink)).toThrow(`Cannot print 'Grid': its .table-cell-text needs data-text-fit="none"`);
+    });
+
     test("draws a dash pattern that starts with a gap as the same pattern shifted by an offset", async () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
