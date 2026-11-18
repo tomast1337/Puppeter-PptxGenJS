@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { PARITY_REGIONS, populateParityFixture } from "./fixture";
-import { writeVisualGallery } from "./gallery";
+import { galleryPageTitles, writeVisualGallery } from "./gallery";
 import { PAGE_THRESHOLD } from "./thresholds";
 
 const threshold = Number(process.env.VISUAL_DIFF_THRESHOLD ?? PAGE_THRESHOLD);
@@ -102,6 +102,11 @@ const actualPages = files.filter(file => /^actual-\d+\.png$/.test(file)).sort((a
 if (referencePages.length !== actualPages.length || referencePages.length === 0) {
     throw new Error(`Page count mismatch: reference=${referencePages.length}, actual=${actualPages.length}`);
 }
+// Checked on every run, gallery or not, so a title rule that stops matching the printed pages fails in CI (#225).
+const pageTitles = galleryPageTitles(actual.getModel());
+if (pageTitles.length !== referencePages.length) {
+    throw new Error(`Gallery titles do not match the pages: titles=${pageTitles.length}, pages=${referencePages.length}`);
+}
 const pageDigits = Math.max(2, String(referencePages.length).length);
 const pageFiles = await Promise.all(
     referencePages.map(async (referencePage, index) => {
@@ -109,7 +114,7 @@ const pageFiles = await Promise.all(
         const referenceName = `${page}-reference.png`;
         const actualName = `${page}-actual.png`;
         await Promise.all([rename(join(artifacts, referencePage), join(artifacts, referenceName)), rename(join(artifacts, actualPages[index]!), join(artifacts, actualName))]);
-        return { page, referenceName, actualName };
+        return { page, title: pageTitles[index] ?? "", referenceName, actualName };
     }),
 );
 
