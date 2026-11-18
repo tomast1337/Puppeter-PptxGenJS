@@ -261,6 +261,21 @@ describe("rendering targets", () => {
         expect(await attributes(new PuppeteerGenLibreOffice())).toMatch(/^class="text-paragraph" data-line-baseline="37\.333\d*"$/);
     });
 
+    // Measured against PowerPoint's PDF export: 18pt Arial in a cell sits where an Arial mark puts it (0.08pt above
+    // PowerPoint's, a Calibri mark puts it 0.55 above), and a line ending in a soft break 0.12 above (0.35 below without
+    // the Calibri break). PptxGenJS writes the cell's fontFace on <a:endParaRPr>, never on <a:br/>.
+    test("in a table cell the paragraph mark takes the cell's fontFace and a soft break the theme font", async () => {
+        const paragraphs = async (cells: PptxGenJS.TableCell[]) => {
+            const presentation = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null });
+            presentation.addSlide().addTable([cells], { x: 1, y: 1, w: 6 });
+            return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"((?: data-[a-z-]*="[^"]*")*)/g)].map(([, attributes]) => attributes);
+        };
+        const single = { text: "Line", options: { fontFace: "Arial", fontSize: 18 } };
+        const broken = { text: [{ text: "Before" }, { text: "After", options: { softBreakBefore: true } }], options: { fontFace: "Arial", fontSize: 18 } };
+        // 28.8px line: Arial alone 23.337px; the Calibri break scales it back to 22.650px.
+        expect(await paragraphs([single, broken])).toEqual([expect.stringMatching(/^ data-line-baseline="23\.33\d*"$/), expect.stringMatching(/^ data-line-baseline="23\.33\d*" data-break-baseline="22\.65\d*"$/)]);
+    });
+
     // Measured against PowerPoint's PDF export and LibreOffice's: neither draws a marker on a paragraph PptxGenJS writes
     // without a run. PowerPoint numbers only paragraphs with text; LibreOffice restarts after a run-less one.
     test("a run-less paragraph has no marker; PowerPoint numbers only paragraphs with text, LibreOffice restarts after a run-less one", async () => {

@@ -198,7 +198,7 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string): NormalizedTextParagraph {
+function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
     const first = inheritedOptions(parent, pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
@@ -210,7 +210,7 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
         align: first.align ?? PPTX_DEFAULTS.text.align,
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineHeight,
-        lineBox: paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace),
+        lineBox: paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace),
         spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
         spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
         tabStops: (first.tabStops ?? [])
@@ -300,16 +300,17 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
 /**
  * `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS); `fontMetrics` looks up
  * the metrics of the faces that place a single-spaced baseline where the target reads them (`fontLineBaseline`), and
- * `themeFontFace` is the theme's minor font (`pres.theme.bodyFontFace`), the font of the paragraph mark and soft breaks.
+ * `themeFontFace` is the theme's minor font (`pres.theme.bodyFontFace`), the font of soft breaks and, unless
+ * `markFontFace` names the one PptxGenJS writes on `<a:endParaRPr>` (a table cell's fontFace), of the paragraph mark.
  */
-export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace): NormalizedTextBox {
+export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace, markFontFace: string = themeFontFace): NormalizedTextBox {
     const pieces = piecesFromInput(input, options);
     const groups = groupPieces(pieces, options.align);
 
     const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
     let numberIndex = 0;
     const paragraphs = groups.map((group, index) => {
-        const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target, fontMetrics, themeFontFace);
+        const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target, fontMetrics, themeFontFace, markFontFace);
         // A paragraph PptxGenJS writes without a run gets no marker in PowerPoint or LibreOffice.
         const runless = group.every(piece => piece.noRun);
         const empty = paragraph.runs.every(run => !run.text);
@@ -347,9 +348,16 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * by the paragraph's largest run. Chromium's own line box depends on each font's ascent and descent.
  * `target` may place the baseline differently: with explicit spacing (RENDERING_TARGETS.spacedLineBaseline), and with
  * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline), where the paragraph mark and soft breaks,
- * set in `themeFontFace`, may move the last line and the lines ending in a break (`markBaseline`, `breakBaseline`).
+ * set in `markFontFace` and `themeFontFace`, may move the last line and the lines ending in a break (`markBaseline`,
+ * `breakBaseline`).
  */
-export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace): NormalizedTextParagraph["lineBox"] {
+export function paragraphLineBox(
+    paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">,
+    target: RenderingTarget = DEFAULT_RENDERING_TARGET,
+    fontMetrics: FontMetricsLookup = builtInFontMetrics,
+    themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace,
+    markFontFace: string = themeFontFace,
+): NormalizedTextParagraph["lineBox"] {
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
@@ -361,12 +369,13 @@ export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs"
     const { runs } = paragraph;
     const last = runs.at(-1);
     if (!fontLineBaseline || !last) return box;
-    // PowerPoint counts the paragraph mark on the last line and a soft break on the line it ends, in the theme font at
-    // the size of the last run and of the run before the break; it ignores the size PptxGenJS writes on <a:endParaRPr>.
+    // PowerPoint counts the paragraph mark on the last line and a soft break on the line it ends, at the size of the last
+    // run and of the run before the break; it ignores the size PptxGenJS writes on <a:endParaRPr> but reads its typeface,
+    // written only in table cells (markFontFace), else takes the theme font.
     // shortcut: one line box per paragraph, so every line holds all the paragraph's runs and every break the largest
     // size before one; split it per line when the model gets a line box per line.
     const baseline = fontBaseline(runs, box.height, fontMetrics);
-    const markBaseline = fontBaseline([...runs, { fontFace: themeFontFace, fontSize: last.fontSize }], box.height, fontMetrics);
+    const markBaseline = fontBaseline([...runs, { fontFace: markFontFace, fontSize: last.fontSize }], box.height, fontMetrics);
     const breakSize = Math.max(0, ...runs.map((run, index) => (index > 0 && run.softBreakBefore ? (runs[index - 1]?.fontSize ?? 0) : 0)));
     const breakBaseline = breakSize ? fontBaseline([...runs, { fontFace: themeFontFace, fontSize: breakSize }], box.height, fontMetrics) : baseline;
     return { ...box, baseline, ...(markBaseline !== baseline ? { markBaseline } : {}), ...(breakBaseline !== baseline ? { breakBaseline } : {}) };

@@ -407,7 +407,9 @@ export const RENDERING_TARGETS = Object.freeze({
      * of the run before the break, whatever size PptxGenJS writes on `<a:endParaRPr>`: 18pt Arial with Calibri, the
      * default theme font, sits 17.05pt below the top on its last line (16.99) and 17.5 on a wrapped line, and a 32pt
      * Arial paragraph whose `<a:endParaRPr>` says 12pt has its last line 0.8pt above a wrapped line's place (0.91 for a
-     * 32pt mark, 0 for a 12pt one). An empty numbered paragraph keeps the current number and
+     * 32pt mark, 0 for a 12pt one). In a table cell PowerPoint reads the typeface PptxGenJS writes on `<a:endParaRPr>`,
+     * the cell's fontFace: 18pt Arial cells keep their place (0.08pt above PowerPoint's, 0.55 with a Calibri mark),
+     * while a soft break, written without one, stays in the theme font. An empty numbered paragraph keeps the current number and
      * does not advance it: three items each after a run-less paragraph are I., II., III.; "Item one\n" then
      * "Item two" are "1.", "2." (the empty line) and "2.".
      */
