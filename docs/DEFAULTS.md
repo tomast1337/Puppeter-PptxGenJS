@@ -139,6 +139,11 @@ PowerPoint also leaves out the first paragraph's `paraSpaceBefore`, and so does
 the PowerPoint target, in every anchor and in table cells (measured on
 top-anchored text boxes only); the LibreOffice target keeps it.
 
+With explicit line spacing (`lineSpacing`, or a `lineSpacingMultiple` other
+than 1), PowerPoint puts each line's baseline at 0.75 of the line height,
+whatever the font and size, and so does the PowerPoint target. The LibreOffice
+target keeps LibreOffice's baseline, 0.2em above the line's bottom.
+
 Text is never clipped to its box: what does not fit is drawn past it from the
 anchor, as in PowerPoint and LibreOffice. A box shorter than its top and bottom
 insets, such as one without `h`, has its text area collapsed onto the box's

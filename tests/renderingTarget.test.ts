@@ -108,6 +108,40 @@ describe("rendering targets", () => {
         expect(await margins(new PuppeteerGenLibreOffice())).toEqual(["16px", "16px"]);
     });
 
+    // Measured against PowerPoint's PDF export (baseline below the line top, pt): 18pt x0.8 13.0, x1.5 24.4, x2.0 32.4,
+    // exact 30 22.6, exact 18 13.6, exact 12 9.0, 12pt x1.5 16.25; 0.75 H is 12.96, 24.3, 32.4, 22.5, 13.5, 9.0, 16.2.
+    test("with explicit line spacing the PowerPoint target puts the baseline at 0.75 of the line height; LibreOffice at 0.2em above its bottom", async () => {
+        const box = (options: Parameters<typeof normalizeText>[1], target?: Parameters<typeof normalizeText>[2]) => {
+            const { height, baseline } = normalizeText("Line", options, target).paragraphs[0]!.lineBox;
+            return [height, baseline].map(px => Math.round(px * 0.75 * 1000) / 1000);
+        };
+        const cases: [Parameters<typeof normalizeText>[1], number, number, number][] = [
+            // options, H (pt), PowerPoint baseline (0.75 H), LibreOffice baseline (H - 0.2em)
+            [{ fontSize: 18, lineSpacingMultiple: 0.8 }, 17.28, 12.96, 13.68],
+            [{ fontSize: 18, lineSpacingMultiple: 1.5 }, 32.4, 24.3, 28.8],
+            [{ fontSize: 18, lineSpacingMultiple: 2 }, 43.2, 32.4, 39.6],
+            [{ fontSize: 18, lineSpacing: 30 }, 30, 22.5, 26.4],
+            [{ fontSize: 18, lineSpacing: 18 }, 18, 13.5, 14.4],
+            [{ fontSize: 18, lineSpacing: 12 }, 12, 9, 8.4],
+            [{ fontSize: 12, lineSpacingMultiple: 1.5 }, 21.6, 16.2, 19.2],
+        ];
+        for (const [options, height, powerPoint, libreOffice] of cases) {
+            expect(box(options, "powerpoint")).toEqual([height, powerPoint]);
+            expect(box(options, "libreoffice")).toEqual([height, libreOffice]);
+            expect(box(options)).toEqual(box(options, "libreoffice"));
+        }
+        // Single spacing, explicit x1.0 included, keeps the single line box with both targets (#234 is its own rule).
+        for (const options of [{ fontSize: 18 }, { fontSize: 18, lineSpacingMultiple: 1 }]) expect(box(options, "powerpoint")).toEqual([21.6, 18]);
+
+        const baselines = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText("Line", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, lineSpacingMultiple: 1.5 });
+            return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph" data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
+        };
+        // 32.4pt = 43.2px line: 32.4px with PowerPoint, 43.2 - 4.8 = 38.4px with LibreOffice.
+        expect(await baselines(new PuppeteerGenPowerPoint())).toEqual([expect.closeTo(32.4, 6)]);
+        expect(await baselines(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(38.4, 6)]);
+    });
+
     test("the target classes keep the other constructor options and stay subclassable and proxyable", async () => {
         const rendered: string[] = [];
         const renderer = { render: async ({ html }: { html: string }) => (rendered.push(html), new Uint8Array([1])) };

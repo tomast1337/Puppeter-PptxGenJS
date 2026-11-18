@@ -632,7 +632,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextParagraph.lineHeight`           | not drawable | Input of `lineBox` (`normalize/text.ts:314-318`); the line box is what is drawn.                                           |
 | `NormalizedTextParagraph.lineBox`              | profile      | `line-height` and `data-line-baseline` on the paragraph; the strut and the shift are [workarounds](#renderer-workarounds). |
 | `NormalizedTextParagraph.lineBox.height`       | profile      | `line-height: <height>px` on the paragraph.                                                                                |
-| `NormalizedTextParagraph.lineBox.baseline`     | profile      | `data-line-baseline` on the paragraph (px from the line top), verbatim.                                                    |
+| `NormalizedTextParagraph.lineBox.baseline`     | profile      | `data-line-baseline` on the paragraph (px from the line top), verbatim; the target decides it (`spacedLineBaseline`).      |
 | `NormalizedTextParagraph.spaceBefore`          | profile      | `margin-top`; the PowerPoint target adds the previous paragraph's space after, and has `0px` on the first paragraph.       |
 | `NormalizedTextParagraph.spaceAfter`           | profile      | `margin-bottom`; `0px` on a box's last paragraph, and on every paragraph with the PowerPoint target, which adds the two.   |
 | `NormalizedTextParagraph.tabStops`             | profile      | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                           |

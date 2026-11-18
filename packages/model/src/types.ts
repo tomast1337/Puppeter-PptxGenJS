@@ -120,7 +120,7 @@ export interface NormalizedTextParagraph {
     align: "left" | "center" | "right" | "justify";
     rtl: boolean;
     lineHeight?: number;
-    /** Each line's height and its baseline's distance below the line top, in px (LibreOffice's font-independent line box). */
+    /** Each line's height and its baseline's distance below the line top, in px (a font-independent line box, as the target draws it). */
     lineBox: { height: number; baseline: number };
     /** Adjacent spaces collapse to the larger (CSS margins); a producer that wants them added moves the space after here. */
     spaceBefore: number;

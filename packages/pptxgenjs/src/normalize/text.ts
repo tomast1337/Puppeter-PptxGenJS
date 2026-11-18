@@ -204,7 +204,7 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
         align: first.align ?? PPTX_DEFAULTS.text.align,
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineHeight,
-        lineBox: paragraphLineBox({ runs, lineHeight }),
+        lineBox: paragraphLineBox({ runs, lineHeight }, target),
         spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
         spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
         tabStops: (first.tabStops ?? [])
@@ -319,12 +319,17 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * LibreOffice's font-independent line box for a paragraph (PPTX_DEFAULTS.text.singleLineEm), in px:
  * `height` is each line's height and `baseline` its baseline's distance below the line top, both set
  * by the paragraph's largest run. Chromium's own line box depends on each font's ascent and descent.
+ * With explicit spacing, `target` may place the baseline differently (RENDERING_TARGETS.spacedLineBaseline).
  */
-export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">): NormalizedTextParagraph["lineBox"] {
+export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextParagraph["lineBox"] {
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
-    return lineBoxOf(fontSize, lineHeight === undefined ? undefined : lineHeight < 10 ? lineHeight * fontSize : lineHeight);
+    const box = lineBoxOf(fontSize, lineHeight === undefined ? undefined : lineHeight < 10 ? lineHeight * fontSize : lineHeight);
+    const { spacedLineBaseline } = RENDERING_TARGETS[target];
+    // lineSpacingMultiple 1 is the single line (singleLineEm), which PowerPoint lays out as single spacing.
+    const spaced = lineHeight !== undefined && lineHeight !== PPTX_DEFAULTS.text.singleLineEm;
+    return spaced && spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
 }
 
 /** The line box for a paragraph whose largest run is `fontSize` px: `height` px tall, or a single line. */
