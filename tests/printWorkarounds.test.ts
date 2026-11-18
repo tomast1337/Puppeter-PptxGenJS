@@ -124,6 +124,7 @@ describe("Puppeteer print workarounds", () => {
             [
                 { text: "a", options: { fontFace: "Calibri Light" } },
                 { text: "b", options: { fontFace: 'Odd "Face"' } },
+                { text: "c", options: { fontFace: "Cambria" } },
             ],
             { x: 1, y: 1, w: 4, h: 1, bullet: true },
         );
@@ -133,8 +134,10 @@ describe("Puppeteer print workarounds", () => {
                 .querySelector(selector)
                 ?.getAttribute("style")
                 ?.match(/font-family: ([^;]+);/)?.[1];
-        expect(family(".text-bullet")).toBe('"Calibri Light", "Noto Sans", Arial, "Liberation Sans", sans-serif');
+        // Carlito and Caladea come first: metric-compatible with Calibri and Cambria, as the WASM renderer maps them.
+        expect(family(".text-bullet")).toBe('"Calibri Light", "Carlito", "Noto Sans", Arial, "Liberation Sans", sans-serif');
         expect(family(".text-run:nth-of-type(3)")).toBe('"Odd \\"Face\\"", Arial, "Liberation Sans", sans-serif');
+        expect(family(".text-run:nth-of-type(4)")).toBe('"Cambria", "Caladea", Arial, "Liberation Sans", sans-serif');
     });
 
     test("names the object when a paragraph has no line box", async () => {

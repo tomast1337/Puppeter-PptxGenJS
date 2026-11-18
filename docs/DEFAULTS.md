@@ -44,6 +44,14 @@ was added under, as PptxGenJS resolves them against that slide's layout.
 `pres.theme.bodyFontFace` replaces Calibri as the font of text boxes, shape text, table cells and
 chart legends that set no `fontFace`: PptxGenJS writes it as the theme's minor font, which their
 runs inherit. `headFontFace` only reaches title placeholders, which need `defineSlideMaster()`.
+
+Where the Microsoft Office fonts are not installed, install their metric-compatible equivalents so
+text wraps as in PowerPoint: Carlito for Calibri, Caladea for Cambria, and Liberation Sans, Serif
+and Mono for Arial, Times New Roman and Courier New (Debian and Ubuntu: `fonts-crosextra-carlito`,
+`fonts-crosextra-caladea`, `fonts-liberation`). Puppeteer reaches them through fontconfig and the
+print step's fallback list, the WASM renderer through its alias table.
+Without Carlito, Calibri falls back to Noto Sans, whose glyphs are about 16% wider, so lines break
+in other places.
 `pres.rtlMode` writes `rtl="1"` on `<p:presentation>`, which orients PowerPoint's editing views;
 LibreOffice renders the same slides with or without it, so it changes nothing in the PDF.
 

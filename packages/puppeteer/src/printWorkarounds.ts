@@ -26,7 +26,11 @@ const FONT_FAMILY = /((?:^|; )font-family: "((?:[^"\\]|\\.)*)")/;
 // The payload of a `src="data:…"` attribute. Inlined images make up most of a large deck's HTML, and no print
 // step reads or writes them. It stops at `<` too, so text that only looks like one never spans markup.
 const DATA_URI_PAYLOAD = /(\ssrc="data:[^,"<]*,)[^"<]*/g;
-const CALIBRI_FALLBACK = '"Noto Sans", Arial, "Liberation Sans", sans-serif';
+// Calibri and Cambria name their metric-compatible faces first, as the WASM renderer's family_stack does
+// (crates/pdf-core/src/text/font.rs), so lines wrap as in PowerPoint where the Office fonts are missing. Noto Sans
+// comes next because LibreOffice draws Calibri in it on a machine without Carlito.
+const CALIBRI_FALLBACK = '"Carlito", "Noto Sans", Arial, "Liberation Sans", sans-serif';
+const CAMBRIA_FALLBACK = '"Caladea", Arial, "Liberation Sans", sans-serif';
 const SANS_FALLBACK = 'Arial, "Liberation Sans", sans-serif';
 
 /**
@@ -120,10 +124,10 @@ export function printHtml(html: string): string {
             // single-family declaration. Keep the face first, then the metric-compatible sans fallback the
             // fixtures use. Written into the document, so the font loading Puppeteer awaits sees the final families.
             const style = attribute(element, "style") ?? "";
-            const face = style.match(FONT_FAMILY)?.[2];
+            const face = style.match(FONT_FAMILY)?.[2]?.toLowerCase();
             // A bullet takes its first run's font; one without runs has none.
             if (face === undefined) continue;
-            const fallback = face.toLowerCase().startsWith("calibri") ? CALIBRI_FALLBACK : SANS_FALLBACK;
+            const fallback = face.startsWith("calibri") ? CALIBRI_FALLBACK : face.startsWith("cambria") ? CAMBRIA_FALLBACK : SANS_FALLBACK;
             edits.push(setAttribute(element, "style", style.replace(FONT_FAMILY, `$1, ${fallback}`)));
         } else if (hasClass(element, "text-paragraph")) {
             // Line box: the paragraph's 0px-font strut (stylesheet) puts the baseline in the middle of `line-height`;
