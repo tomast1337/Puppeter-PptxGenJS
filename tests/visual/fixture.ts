@@ -483,6 +483,8 @@ const PARAGRAPH_CASES = [
     { name: "text-underline-string-forms", x: 5.5, y: 2.3, w: 4, h: 0.3 },
 ] as const;
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
+// populateLineFeedTailFixture(): runs ending with line feeds, on the slide after the paragraph slide; no WASM deck takes it.
+const LINE_FEED_TAIL_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-line-feed-tail-run", x: 0.5, y: 1, w: 4, h: 2.5 } as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
@@ -519,6 +521,7 @@ export const PARITY_REGIONS = [
     ...TABLE_OPTION_CASES.map(({ name, x, y, w, h }) => ({ page: 63 + TEXT_OPTION_PAGES, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
     ...PRESET_ASPECT_CASES,
     ...PARAGRAPH_CASES.map(({ name, x, y, w, h }) => ({ page: PARAGRAPH_PAGE, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
+    { ...LINE_FEED_TAIL_CASE, x: LINE_FEED_TAIL_CASE.x - 0.15, y: LINE_FEED_TAIL_CASE.y - 0.15, w: LINE_FEED_TAIL_CASE.w + 0.3, h: LINE_FEED_TAIL_CASE.h + 0.3 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1771,6 +1774,25 @@ export function populateParityFixture(presentation: Presentation): void {
     populateTableOptionsFixture(presentation);
     populatePresetAspectFixture(presentation);
     populateParagraphFixture(presentation);
+    populateLineFeedTailFixture(presentation);
+}
+
+// A run ending with "\n" keeps its line feeds inside its <a:t>. The empty text after the last one takes no room in the
+// next run's paragraph, so each 8pt paragraph keeps an 8pt line pitch under the 16pt head.
+function populateLineFeedTailFixture(presentation: Presentation): void {
+    const slide = presentation.addSlide();
+    slide.addText("Runs ending with line feeds", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+    const { x, y, w, h } = LINE_FEED_TAIL_CASE;
+    slide.addText(
+        [
+            { text: "Lorem ipsum heading.\n\n", options: { bold: true, fontSize: 16 } },
+            { text: `${WRAPPING_TEXT} magna aliqua. ${WRAPPING_TEXT} magna aliqua.\n\n`, options: { fontSize: 8 } },
+            { text: `${WRAPPING_TEXT} magna aliqua.\n`, options: { fontSize: 8 } },
+        ],
+        // shortcut: left, not justify: LibreOffice draws the paragraphs a line feed inside <a:t> starts unjustified, which is
+        // the paragraph-properties follow-up (the <a:p>'s first <a:pPr>), not this line pitch; justify them once that lands.
+        { x, y, w, h, fontFace: "Arial", color: "363636", align: "left", valign: "bottom", margin: 0 },
+    );
 }
 
 function populateParagraphFixture(presentation: Presentation): void {

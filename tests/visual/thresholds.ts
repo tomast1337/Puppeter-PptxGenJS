@@ -38,9 +38,15 @@ export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>>
  * on rows 120 and 191; ours is centred on the edges, which pdftoppm rounds to rows 119 and 191, so the
  * top line is one pixel row higher. The text matches (baseline within 0.05 px). The same box with a 2pt
  * line, where the strokes overlap, scores under CROP_TARGET.
+ *
+ * text-line-feed-tail-run, 0.0800 (0.1626 before the line-feed tail fix): six dense 8pt Arial lines under a 16pt
+ * head. Every line band matches LibreOffice's to one pixel row: ink rows 109-129 (head), 158-167, 171-180 (ours
+ * 170-179), 183-192, 196-205, 222-231, 235-244 (ours 234-243), so the 12.8 px pitch rounds one row up on two
+ * lines; the rest is LibreOffice's and Chromium's different sub-pixel glyph advances at 8pt along each line.
  */
 export const TEXT_LINE_SNAP_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
     "text-line-hairline": 0.088,
+    "text-line-feed-tail-run": 0.082,
 };
 
 /**
