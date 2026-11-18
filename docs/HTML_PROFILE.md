@@ -732,7 +732,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | Field                             | Status  | HTML                                                                                           |
 | --------------------------------- | ------- | ---------------------------------------------------------------------------------------------- |
 | `NormalizedTable.width`           | profile | `table.slide-table` `width`.                                                                   |
-| `NormalizedTable.height`          | profile | `table.slide-table` `height`, omitted when undefined.                                          |
+| `NormalizedTable.height`          | profile | `table.slide-table` `height`, the sum of the row heights; omitted when a row has none.         |
 | `NormalizedTable.columns`         | profile | One `col` per column with `width: <n>px`.                                                      |
 | `NormalizedTable.rows`            | profile | One `tr` per row.                                                                              |
 | `NormalizedTable.contentRowSlack` | profile | Added to the `.table-cell-text` `padding` of rows without a height, by vertical anchor.        |

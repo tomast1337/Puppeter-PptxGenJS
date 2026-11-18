@@ -71,7 +71,7 @@ export function renderTable(table: NormalizedTable): string {
 
     const columns = element("colgroup", [], table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", `${width}px`]]))])).join(""));
     const rows = table.rows.map(row => {
-        const rowHeight: RowHeight = row.height !== undefined || table.height !== undefined ? "fixed" : "auto";
+        const rowHeight: RowHeight = row.height !== undefined ? "fixed" : "auto";
         const cells = row.cells.map(cell => renderCell(cell, rowHeight, table.contentRowSlack ?? 0)).join("");
         return element("tr", [styleAttribute(new Map(row.height !== undefined ? [["height", `${row.height}px`]] : []))], cells);
     });
