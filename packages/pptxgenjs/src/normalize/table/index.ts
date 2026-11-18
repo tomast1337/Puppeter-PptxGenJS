@@ -184,7 +184,11 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                 // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
-                const text = normalizeText(input, textOptions, target, fontMetrics);
+                // PptxGenJS writes the cell's fontFace on <a:endParaRPr>, the paragraph mark's font in PowerPoint.
+                // shortcut: the theme font (soft breaks, a cell without fontFace) is the default Calibri whatever the
+                // deck's theme; pass pres.theme.bodyFontFace in once #256 settles the table normalizer's inputs.
+                const theme = PPTX_DEFAULTS.theme.bodyFontFace;
+                const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme);
                 text.margin = tableMarginPixels(cellOptions.margin);
                 // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
                 // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.

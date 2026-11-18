@@ -249,8 +249,9 @@ except two lines whose baseline may sit elsewhere in the same height: the paragr
 `data-mark-baseline` px, and a line that ends in a soft break (the line before a `<br>`), at
 `data-break-baseline` px. A line that wraps keeps `data-line-baseline`. Each attribute is omitted when it
 equals `data-line-baseline`; the LibreOffice target never writes them. The PowerPoint target writes them
-when the paragraph mark or a soft break, which PowerPoint sets in the theme font at the size of the last
-run and of the run before the break, changes the line's largest ascent or descent: 18pt Arial with the
+when the paragraph mark or a soft break, which PowerPoint sets in the theme font (the mark in a table
+cell: the cell's font, which PptxGenJS writes on it) at the size of the last run and of the run before
+the break, changes the line's largest ascent or descent: 18pt Arial with the
 default theme (Calibri) has `data-line-baseline="23.337"` and `data-mark-baseline="22.650"`, so a
 one-line paragraph sits 0.5pt higher and a wrapped one keeps its first lines in place. A renderer moves
 only the glyphs of those lines (and the bullet, on a paragraph's first line); line breaks and the
