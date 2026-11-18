@@ -378,6 +378,8 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * `addsParagraphSpacing`: whether a paragraph's space after and the next one's space before add up, or only the larger
  * one counts (CSS margins collapse).
  * `spacesFirstParagraph`: whether a text box's first paragraph keeps its space before.
+ * `spacedLineBaseline`: with explicit line spacing (`lineSpacing`, or a `lineSpacingMultiple` other than 1), each
+ * line's baseline below its top as a fraction of the line height; undefined keeps `text.lineDescentEm` above its bottom.
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -385,15 +387,17 @@ export const RENDERING_TARGETS = Object.freeze({
      * minimum height is its text height plus one unit of its 1/100 mm model, then the margins (svx table
      * Cell::getMinimumHeight, `GetTextHeight()+1`).
      */
-    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true }),
+    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. It adds a
      * paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
      * `paraSpaceBefore: 6, paraSpaceAfter: 18` gives a 45.6pt pitch (21.6 + 6 + 18), not 39.6. It leaves out the
      * first paragraph's space before: with `paraSpaceBefore: 12` the first baseline is 17.05pt below the top inset,
-     * as without it.
+     * as without it. With explicit line spacing it puts each baseline at 0.75 of the line height H, whatever the font
+     * and size: a least-squares fit of its PDF export (Arial and Calibri, 12 and 18pt, x0.8 to x2.0 and exact 12 to
+     * 30pt) gives 0.7524 H, every baseline within 0.1pt.
      */
-    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false }),
+    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75 }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 /** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */
