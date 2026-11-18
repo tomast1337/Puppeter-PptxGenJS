@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
 import PptxGenJSRuntime from "pptxgenjs";
 import type PptxGenJS from "pptxgenjs";
+import JSZip from "jszip";
+import type { NormalizedTable } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
@@ -226,5 +228,54 @@ describe("autoPage line counting (PptxGenJS 4.0.1 parseTextToLines and getSlides
         const theirs = pptxGenJsPages(input, options);
         expect(theirs.length).toBeGreaterThan(1);
         expect(ourPages(input, options).map(page => page.length)).toEqual(theirs.map(page => page.length));
+    });
+});
+
+/** Per slide, per cell: the paragraphs PptxGenJS 4.0.1 writes into the slide XML, each as its runs joined by "+". */
+async function pptxGenJsParagraphs(input: unknown[], options: PptxGenJS.TableProps): Promise<string[][]> {
+    const pptx = new PptxGenJSRuntime();
+    pptx.layout = "LAYOUT_16x9";
+    pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
+    // `as`: write() returns a Buffer for the nodebuffer output type.
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+    const names = Object.keys(zip.files)
+        .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+        .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+    const slides = await Promise.all(names.map(async name => (await zip.file(name)?.async("string")) ?? ""));
+    const runs = (paragraph: string): string => [...paragraph.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, text]) => text).join("+");
+    return slides.map(xml => [...xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)].map(([, cell]) => [...(cell ?? "").matchAll(/<a:p>(.*?)<\/a:p>/g)].map(([, paragraph]) => runs(paragraph ?? "")).join(" || ")));
+}
+
+function ourParagraphs(input: unknown[], options: PptxGenJS.TableProps): string[][] {
+    const presentation = new PuppeteerGen(PAGE);
+    presentation.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], options);
+    const cells = (table: NormalizedTable): string[] => table.rows.flatMap(row => row.cells.map(cell => cell.text.paragraphs.map(paragraph => paragraph.runs.flatMap(run => (run.text ? [run.text] : [])).join("+")).join(" || ")));
+    return presentation.getModel().slides.map(slide => slide.objects.flatMap(object => (object.kind === "table" ? cells(object.table) : [])));
+}
+
+describe("autoPage rows are drawn from PptxGenJS's parsed words (getSlidesForTableRows step 6 E, 4)", () => {
+    const long = Array.from({ length: 80 }, (_, index) => `word${index}`).join(" ");
+    test.each<[string, unknown[], PptxGenJS.TableProps]>([
+        // A split row: single-line runs trimmed and joined ("Helloworld"), a non-string run dropped, the wrapped lines
+        // of a long cell in one paragraph; the rows that fit are parsed the same way.
+        [
+            "split and fitting rows",
+            [
+                [{ text: [{ text: "Hello " }, { text: "world" }, { text: 7 }, { text: "c\nd" }] }, { text: "  pad  " }],
+                [{ text: "fits " }, 0],
+                [{ text: long }, { text: [{ text: "x ", options: { breakLine: true } }, { text: "y" }] }],
+            ],
+            { autoPage: true, colW: [2, 2], y: 4.5 },
+        ],
+        [
+            "rows that all fit on one slide",
+            [
+                [{ text: [{ text: "Hello " }, { text: "world" }] }, { text: " a  b " }],
+                [{ text: [{ text: 1 }, { text: "only" }] }, ""],
+            ],
+            { autoPage: true },
+        ],
+    ])("matches the slide XML for %s", async (_, input, options) => {
+        expect(ourParagraphs(input, options)).toEqual(await pptxGenJsParagraphs(input, options));
     });
 });
