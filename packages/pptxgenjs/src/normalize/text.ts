@@ -10,7 +10,10 @@ export type TextInput = string | number | PptxGenJS.TextProps[];
 
 interface TextPiece {
     text: string;
+    /** The run's options record, shared and mutated as in PptxGenJS (piecesFromInput). */
     options: PptxGenJS.TextPropsOptions;
+    /** A line feed PptxGenJS keeps inside the run's `<a:t>` ends this piece, which PowerPoint draws as a new paragraph. */
+    lineFeed?: boolean;
 }
 
 // --- UTILITIES ---
@@ -219,44 +222,52 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
     };
 }
 
+// PptxGenJS 4.0.1 genXmlTextBody STEP 4 keeps one mutable options record per run: the run's own options object, or for
+// a run without one, a fresh `{}` in a text box (addTextDefinition) and the cell's own options in a table cell. Every
+// piece split from a run shares it, and so do the runs that share it, so a write to one is seen by all of them.
 function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): TextPiece[] {
     const source = Array.isArray(input) ? input.map(item => ({ text: String(item.text ?? ""), options: item.options ?? {} })) : [{ text: String(input), options: parent }];
+    // Copies, so the mutations below never reach the caller's options.
+    const records = new Map<PptxGenJS.TextPropsOptions, PptxGenJS.TextPropsOptions>();
     const pieces: TextPiece[] = [];
 
     for (const item of source) {
-        const lines = item.text.replace(/\r\n?/g, "\n").split("\n");
-        lines.forEach((line, index) => {
-            pieces.push({
-                text: line,
-                options: { ...item.options, breakLine: index < lines.length - 1 || item.options.breakLine },
-            });
-        });
+        const options = records.get(item.options) ?? { ...item.options };
+        records.set(item.options, options);
+        const text = item.text.replace(/\r\n?/g, "\n");
+        const lines = text.split("\n");
+        // STEP 4 C splits a text with a line feed that does not end with one, and sets `breakLine` on the shared record,
+        // so every piece ends a paragraph, the last one too. A text ending with a line feed is written whole, its line
+        // feeds kept inside `<a:t>`.
+        if (lines.length > 1 && !text.endsWith("\n")) options.breakLine = true;
+        const lineFeeds = text.endsWith("\n");
+        lines.forEach((line, index) => pieces.push({ text: line, options, ...(lineFeeds && index < lines.length - 1 ? { lineFeed: true } : {}) }));
     }
     return pieces;
 }
 
 // PptxGenJS 4.0.1 genXmlTextBody (STEP 5): when the run or the box has `align`, only a change of the run's
 // align starts a paragraph and `bullet` is not checked (the bullet test is an `else if`). Otherwise a bullet
-// run starts a paragraph and its own `breakLine` is dropped, so it does not also end one.
+// run starts a paragraph and its `breakLine` is cleared on the shared record, so it does not also end one.
 function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextPiece[][] {
     const groups: TextPiece[][] = [];
     let current: TextPiece[] = [];
 
     pieces.forEach((piece, index) => {
-        let breakLine = piece.options.breakLine;
+        const { options } = piece;
         if (current.length > 0) {
-            const aligned = Boolean(piece.options.align || parentAlign);
-            const startsGroup = aligned ? piece.options.align !== pieces[index - 1]?.options.align : Boolean(piece.options.bullet);
+            const aligned = Boolean(options.align || parentAlign);
+            const startsGroup = aligned ? options.align !== pieces[index - 1]?.options.align : Boolean(options.bullet);
             if (startsGroup) {
                 groups.push(current);
                 current = [];
-                if (!aligned) breakLine = false;
+                if (!aligned) options.breakLine = false;
             }
         }
 
         current.push(piece);
 
-        if (breakLine && index + 1 < pieces.length) {
+        if ((piece.lineFeed || options.breakLine) && index + 1 < pieces.length) {
             groups.push(current);
             current = [];
         }

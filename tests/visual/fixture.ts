@@ -468,6 +468,14 @@ const PRESET_ASPECT_CASES = PRESET_ASPECT_SLIDES.flatMap(({ shapes }, slideIndex
     }),
 );
 
+// populateParagraphFixture(): paragraphs PptxGenJS groups from runs, the last parity slide. No WASM deck takes it,
+// so its cases need no WASM baseline; the WASM renderer reads the same paragraphs from the HTML.
+const PARAGRAPH_PAGE = 64 + TEXT_OPTION_PAGES + PRESET_ASPECT_SLIDES.length;
+const PARAGRAPH_CASES = [
+    { name: "text-cell-paragraph-grouping", x: 0.5, y: 1.25, w: 4, h: 0.5 },
+    { name: "text-inner-line-feed", x: 5.5, y: 1.25, w: 4, h: 0.9 },
+] as const;
+
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
 function cropThreshold(name: string): number {
@@ -502,6 +510,7 @@ export const PARITY_REGIONS = [
     ...TEXT_OPTION_CASES,
     ...TABLE_OPTION_CASES.map(({ name, x, y, w, h }) => ({ page: 63 + TEXT_OPTION_PAGES, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
     ...PRESET_ASPECT_CASES,
+    ...PARAGRAPH_CASES.map(({ name, x, y, w, h }) => ({ page: PARAGRAPH_PAGE, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1749,6 +1758,28 @@ export function populateParityFixture(presentation: Presentation): void {
     populateTextOptionsFixture(presentation);
     populateTableOptionsFixture(presentation);
     populatePresetAspectFixture(presentation);
+    populateParagraphFixture(presentation);
+}
+
+function populateParagraphFixture(presentation: Presentation): void {
+    const slide = presentation.addSlide();
+    slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+    const [cell, lineFeed] = PARAGRAPH_CASES;
+    // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
+    // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
+    // paragraph after every piece, the last one too, whatever its own breakLine.
+    slide.addTable([[{ text: [{ text: "Heading:", options: { bold: true } }, { text: " body without options" }] }]], { x: cell.x, y: cell.y, w: cell.w, align: "left", fontFace: "Arial", fontSize: 12, color: "363636" });
+    slide.addText([{ text: "Intro", options: { breakLine: true } }, { text: "\nTitle after a blank line", options: { bold: true, breakLine: false } }, { text: "Description on its own line" }], {
+        x: lineFeed.x,
+        y: lineFeed.y,
+        w: lineFeed.w,
+        h: lineFeed.h,
+        fontFace: "Arial",
+        fontSize: 12,
+        color: "363636",
+        valign: "top",
+        margin: 0,
+    });
 }
 
 function populatePresetAspectFixture(presentation: Presentation): void {
