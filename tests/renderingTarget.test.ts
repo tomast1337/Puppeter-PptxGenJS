@@ -55,6 +55,30 @@ describe("rendering targets", () => {
         }
     });
 
+    // Measured against PowerPoint's PDF export: 18pt Arial with paraSpaceBefore 6 and paraSpaceAfter 18 has a
+    // 45.6pt pitch (21.6 + 6 + 18), where collapsing CSS margins gave 39.6pt (21.6 + 18).
+    test("the PowerPoint target adds a paragraph's space after to the next one's space before; LibreOffice keeps both", async () => {
+        const spacing = (target?: Parameters<typeof normalizeText>[2]) => normalizeText("Para one\nPara two\nPara three", { fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 }, target).paragraphs.map(({ spaceBefore, spaceAfter }) => [spaceBefore, spaceAfter]);
+        expect(spacing("powerpoint")).toEqual([
+            [8, 0],
+            [32, 0],
+            [32, 0],
+        ]);
+        expect(spacing("libreoffice")).toEqual([
+            [8, 24],
+            [8, 24],
+            [8, 0],
+        ]);
+        expect(spacing()).toEqual(spacing("libreoffice"));
+
+        const margins = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText("Para one\nPara two", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 });
+            return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*margin-top: ([^;]*); margin-bottom: ([^;]*);/g)].map(match => `${match[1]} ${match[2]}`);
+        };
+        expect(await margins(new PuppeteerGenPowerPoint())).toEqual(["8px 0px", "32px 0px"]);
+        expect(await margins(new PuppeteerGenLibreOffice())).toEqual(["8px 24px", "8px 0px"]);
+    });
+
     test("the target classes keep the other constructor options and stay subclassable and proxyable", async () => {
         const rendered: string[] = [];
         const renderer = { render: async ({ html }: { html: string }) => (rendered.push(html), new Uint8Array([1])) };
@@ -118,6 +142,22 @@ describe("rendering targets in Chromium", () => {
             }
         });
     }
+
+    test("Chromium lays the PowerPoint target's paragraphs 21.6 + 6 + 18 = 45.6pt apart", async () => {
+        const presentation = new PuppeteerGenPowerPoint();
+        presentation.addSlide().addText("Para one\nPara two\nPara three", { x: 1, y: 1, w: 3, h: 3, fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 });
+        const { html } = await presentation.toHtml();
+        const tops = await withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                await page.setContent(html);
+                return await page.evaluate(() => Array.from(document.querySelectorAll(".text-paragraph"), paragraph => paragraph.getBoundingClientRect().top));
+            } finally {
+                await page.close();
+            }
+        });
+        expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([60.8, 60.8].map(px => expect.closeTo(px, 1)));
+    });
 
     test("with the PowerPoint target a line under 12pt is the sum of its unkerned advances; from 12pt it is kerned as with LibreOffice", async () => {
         const powerPoint = await measure(kerningDeck(new PuppeteerGenPowerPoint(), false));

@@ -375,6 +375,8 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * Rendering targets: the application whose drawing of the PptxGenJS file the PDF matches, where the two differ.
  * `readsKern`: whether it honours `<a:rPr kern>` (PPTX_DEFAULTS.text.kernMinSizePt) or kerns every run.
  * `contentRowSlackMm`: what a row sized to its content (`<a:tr h="0">`) adds to its tallest cell's text and margins.
+ * `addsParagraphSpacing`: whether a paragraph's space after and the next one's space before add up, or only the larger
+ * one counts (CSS margins collapse).
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -382,9 +384,13 @@ export const RENDERING_TARGETS = Object.freeze({
      * minimum height is its text height plus one unit of its 1/100 mm model, then the margins (svx table
      * Cell::getMinimumHeight, `GetTextHeight()+1`).
      */
-    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01 }),
-    /** PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. */
-    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0 }),
+    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false }),
+    /**
+     * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. It adds a
+     * paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
+     * `paraSpaceBefore: 6, paraSpaceAfter: 18` gives a 45.6pt pitch (21.6 + 6 + 18), not 39.6.
+     */
+    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 /** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */

@@ -293,11 +293,14 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
         // lift middle- or bottom-anchored text (or grow a table row).
         return index === groups.length - 1 ? { ...paragraph, spaceAfter: 0 } : paragraph;
     });
+    // CSS keeps only the larger of two adjacent margins; a target that adds them gets each space after moved onto
+    // the next paragraph's space before, so the gap is their sum in every renderer.
+    const spaced = RENDERING_TARGETS[target].addsParagraphSpacing ? paragraphs.map((paragraph, index) => ({ ...paragraph, spaceBefore: paragraph.spaceBefore + (paragraphs[index - 1]?.spaceAfter ?? 0), spaceAfter: 0 })) : paragraphs;
 
     const direction = options.vert ?? PPTX_DEFAULTS.text.textDirection;
 
     return {
-        paragraphs,
+        paragraphs: spaced,
         margin: textMarginPixels(options.margin, options.inset),
         verticalAlign: options.valign ?? PPTX_DEFAULTS.text.valign,
         wrap: options.wrap ?? PPTX_DEFAULTS.text.wrap,
