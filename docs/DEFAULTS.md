@@ -214,6 +214,18 @@ When the first row's margins and one line do not fit below the table `y`, PptxGe
 `addTable: Array expected!`; PuppeteerGen throws too, with an error that names the cause. Give
 point margins per cell (`options.margin: [6, 4, 6, 4]`) or a table-level margin below 1.
 
+It also counts lines as PptxGenJS does: each rich-text run starts a line, a run without a line
+feed is trimmed first, a run whose `text` is not a string counts no line, and a first word longer
+than the line adds an empty line before it. Column widths are read at the cell's index, not its
+column, and a cell with any `colspan` gets every width from there to the table's right edge. A
+row that fits on its page is still drawn from its own runs, untrimmed, where PptxGenJS draws the
+trimmed ones (#222).
+
+Cells and runs inherit as in PptxGenJS: any falsy option (`false`, `""`, `null`, but not `0`) is
+filled from the table or the cell, so `bold: false` in a bold table is bold. A cell's text is kept
+only when truthy: `{ text: 0 }`, `{ text: false }` and `{ text: true }` are empty cells (a plain
+`0` cell still shows `0`).
+
 ## Shapes
 
 | Property                        |                                             Observed default | PuppeteerGen behavior |

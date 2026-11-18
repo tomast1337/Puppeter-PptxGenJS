@@ -477,8 +477,9 @@ const PARAGRAPH_CASES = [
     { name: "text-bullet-wrap-level-0", x: 0.5, y: 2.75, w: 4, h: 1 },
     { name: "text-bullet-wrap-level-1", x: 5.5, y: 2.75, w: 4, h: 1 },
     { name: "text-number-leading-line-feed", x: 0.5, y: 4.25, w: 4, h: 1 },
-    // Not a paragraph case: a free spot on the last parity slide, which no WASM deck takes.
+    // Not paragraph cases: free spots on the last parity slide, which no WASM deck takes.
     { name: "table-rows-under-frame-height", x: 5.5, y: 4.25, w: 4, h: 1.2 },
+    { name: "table-falsy-bold", x: 0.5, y: 2.1, w: 4, h: 0.35 },
 ] as const;
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
 
@@ -1770,7 +1771,7 @@ export function populateParityFixture(presentation: Presentation): void {
 function populateParagraphFixture(presentation: Presentation): void {
     const slide = presentation.addSlide();
     slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight] = PARAGRAPH_CASES;
+    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight, falsyBold] = PARAGRAPH_CASES;
     // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
     // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
     // paragraph after every piece, the last one too, whatever its own breakLine.
@@ -1817,6 +1818,17 @@ function populateParagraphFixture(presentation: Presentation): void {
             { text: `Value ${index + 1}`, options: { fill: { color } } },
         ]),
         { x: frameHeight.x, y: frameHeight.y, w: frameHeight.w, h: frameHeight.h, rowH: 0.3, fontFace: "Arial", fontSize: 8, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } },
+    );
+    // PptxGenJS 4.0.1 fills a falsy cell option from the table (genXmlTable step 2) and a falsy run option from the
+    // cell (genXmlTextBody step 6 C), so `bold: false` in a bold table is bold in both cells (#222).
+    slide.addTable(
+        [
+            [
+                { text: [{ text: "Run bold: false", options: { bold: false } }], options: { fill: { color: "D9EAF7" } } },
+                { text: "Cell bold: false", options: { bold: false, fill: { color: "FFF2CC" } } },
+            ],
+        ],
+        { x: falsyBold.x, y: falsyBold.y, w: falsyBold.w, bold: true, fontFace: "Arial", fontSize: 12, color: "363636" },
     );
 }
 

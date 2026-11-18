@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
+import PptxGenJSRuntime from "pptxgenjs";
+import JSZip from "jszip";
 import { normalizeTable } from "../packages/pptxgenjs/src/normalize/table";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
@@ -272,5 +274,44 @@ describe("table rendering", () => {
         expect(cells[0]?.rowSpan).toBe(2);
         expect(cells[0]?.querySelectorAll(".text-run")).toHaveLength(2);
         expect(cells[0]?.style.borderTop).toContain("solid");
+    });
+});
+
+/** The runs PptxGenJS 4.0.1 writes for a one-slide table, per cell: each run's text and whether it has `b="1"`. */
+async function pptxGenJsRuns(rows: unknown[], options: PptxGenJS.TableProps): Promise<string[]> {
+    const pptx = new PptxGenJSRuntime();
+    pptx.addSlide().addTable(structuredClone(rows) as PptxGenJS.TableRow[], structuredClone(options));
+    // `as`: write() returns a Buffer for the nodebuffer output type.
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+    const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+    return [...xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)].map(([, cell]) => [...(cell ?? "").matchAll(/<a:r><a:rPr([^>]*)>.*?<a:t>([^<]*)<\/a:t><\/a:r>/g)].map(([, props, text]) => `${text}${props?.includes('b="1"') ? "/b" : ""}`).join("|"));
+}
+
+function ourRuns(rows: unknown[], options: PptxGenJS.TableProps): string[] {
+    const table = normalizeTable(structuredClone(rows) as PptxGenJS.TableRow[], options, PAGE);
+    return table.rows.flatMap(row => row.cells.map(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs.filter(run => run.text).map(run => `${run.text}${run.bold ? "/b" : ""}`)).join("|")));
+}
+
+describe("falsy cell values (PptxGenJS 4.0.1 fills falsy options from the parent and keeps only truthy text)", () => {
+    test.each<[string, unknown[], PptxGenJS.TableProps]>([
+        ["a run's bold: false in a bold cell", [[{ text: [{ text: "a", options: { bold: false } }, { text: "b" }], options: { bold: true } }]], {}],
+        ["a cell's bold: false in a bold table", [[{ text: "a", options: { bold: false } }, { text: "b" }]], { bold: true }],
+        ["a cell's bold: null in a bold table", [[{ text: "a", options: { bold: null } }]], { bold: true }],
+        ["falsy and boolean text", [[{ text: 0 }, { text: false }, { text: true }, { text: "" }, 0, "0"]], {}],
+    ])("draws %s as PptxGenJS writes it", async (_, rows, options) => {
+        expect(ourRuns(rows, options)).toEqual(await pptxGenJsRuns(rows, options));
+    });
+
+    test("the HTML run shows the inherited bold", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addTable([[{ text: [{ text: "Bold", options: { bold: false } }], options: { bold: true } }]], {});
+        const run = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-table-container td .text-run")).find(span => span.textContent === "Bold");
+        expect(run?.style.fontWeight).toBe("bold");
+    });
+
+    test("a later row that is not an array names the row", () => {
+        const rows = [[{ text: "a" }], { text: "b" }] as unknown as PptxGenJS.TableRow[];
+        expect(() => normalizeTable(rows, {}, PAGE)).toThrow("addTable: rows[1] is of type object, not an array of cells");
+        expect(() => new PuppeteerGen(PAGE).addSlide().addTable(rows, { autoPage: true })).toThrow("rows[1] is of type object");
     });
 });

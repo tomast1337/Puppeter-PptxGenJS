@@ -454,6 +454,11 @@ export const COMPATIBILITY = Object.freeze({
             colW: "verified",
             rowH: "verified",
             inheritance: "verified",
+            // Rows split as PptxGenJS 4.0.1 counts them (parseTextToLines, tests/tablePagination.test.ts). Known
+            // differences (#222): a row that fits on its page keeps its own runs, where PptxGenJS draws its parsed
+            // ones (single-line runs trimmed, so "Hello " + "world" reads "Helloworld", and non-string runs
+            // dropped); a later row that is not an array throws, where PptxGenJS writes a row without cells (and
+            // fails under autoPage).
             autoPage: "verified",
             autoPageCharWeight: "implemented",
             autoPageLineWeight: "implemented",
@@ -465,6 +470,9 @@ export const COMPATIBILITY = Object.freeze({
             verbose: "ignored",
             // With `shrinkText` and `autoFit`: PptxGenJS writes a bare <a:bodyPr/> in a cell, so rows grow instead.
             fit: "ignored",
+            // An unstyled cell's font size is the computed one: 16px (16pt) in a browser. jsdom computes none, so the
+            // cell takes the table's 12pt here; PptxGenJS under jsdom reads 0 and writes no size (#222 leaves the
+            // jsdom default open: the browser's 16pt or the current 12pt).
             tableToSlides: "verified",
             addImage: "implemented",
             addShape: "verified",

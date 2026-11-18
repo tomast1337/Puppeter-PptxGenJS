@@ -222,7 +222,8 @@ describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableD
     test("splits a long string row and continues its text on the next page", () => {
         const flat = (cell: PptxGenJS.TableCell | undefined): string => (Array.isArray(cell?.text) ? cell.text.map(part => `${flat(part)}${part.options?.breakLine ? "\n" : ""}`).join("") : String(cell?.text ?? ""));
         const pages = paginateTableRows(plain([["A", lines(60)]]), { autoPage: true, y: 0.5, w: 8, fontSize: 12 }, PAGE);
-        const firstCells = pages.map(page => flat(page.rows[0]?.[1]));
+        // Each piece of a split line keeps PptxGenJS's breakLine, the page's last one too, which starts no paragraph.
+        const firstCells = pages.map(page => flat(page.rows[0]?.[1]).replace(/\n$/, ""));
         expect(pages.length).toBeGreaterThan(1);
         expect(firstCells.every(text => text.length > 0)).toBe(true);
         expect(firstCells.join("\n")).toBe(lines(60));
