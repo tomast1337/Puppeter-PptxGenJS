@@ -126,7 +126,7 @@ export class PuppeteerSlide implements PptxSlide {
     toModel(pageSize: PageSize, masterSlideNumber: PptxGenJS.SlideNumberProps | null): NormalizedSlide {
         const backgroundStyle = () => normalizeObjectStyle({ x: 0, y: 0, w: pageSize.width, h: pageSize.height }, PPTX_DEFAULTS.image, pageSize, PPTX_DEFAULTS.backgroundImage.objectName);
         const background: NormalizedSlideObject[] = this.backgroundImage ? [{ kind: "image", style: backgroundStyle(), image: this.backgroundImage }] : [];
-        const slideNumber = this._slideNumber ? [normalizeSlideNumber(this._slideNumber, masterSlideNumber ?? {}, this.context.slideIndex + 1, this.pageSize, this.context.bodyFontFace(), this.context.target)] : [];
+        const slideNumber = this._slideNumber ? [normalizeSlideNumber(this._slideNumber, masterSlideNumber ?? {}, this.context.slideIndex + 1, this.pageSize, this.context.bodyFontFace(), this.context.target, this.context.fontMetrics)] : [];
         // PptxGenJS writes the picture alone, so its transparent parts show white (LibreOffice), not the color.
         const color = this.backgroundImage ? normalizeColor(PPTX_DEFAULTS.slide.backgroundColor) : this.model.background;
         return { ...this.model, background: color, objects: [...background, ...this.model.objects, ...slideNumber] };
@@ -238,7 +238,7 @@ export class PuppeteerSlide implements PptxSlide {
             this.newAutoPagedSlides = continuationSlides;
             return this;
         }
-        const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.context.bodyFontFace() }, this.pageSize, this.context.target);
+        const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.context.bodyFontFace() }, this.pageSize, this.context.target, this.context.fontMetrics);
         const tableStyle = normalizeObjectStyle(
             {
                 ...tableOptions,
@@ -266,7 +266,7 @@ export class PuppeteerSlide implements PptxSlide {
             shadow: true,
         });
         textStyle.line = normalizeTextLine(textOptions, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0));
-        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.context.bodyFontFace() }, this.context.target);
+        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.context.bodyFontFace() }, this.context.target, this.context.fontMetrics);
         const height = textStyle.geometry.height ?? 0;
         if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizedText, height) });
         // `as`: PptxGenJS writes a text box's shape from its own options object, so normalizeShape reads them as ShapeProps.

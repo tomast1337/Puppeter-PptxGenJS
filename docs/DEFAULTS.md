@@ -144,6 +144,14 @@ than 1), PowerPoint puts each line's baseline at 0.75 of the line height,
 whatever the font and size, and so does the PowerPoint target. The LibreOffice
 target keeps LibreOffice's baseline, 0.2em above the line's bottom.
 
+With single spacing, PowerPoint makes each line 1.2x its largest run's size
+and splits each run's 1.2x between ascent and descent in its font's OS/2
+`usWinAscent` : `usWinDescent`; the PowerPoint target does the same from
+`FONT_WIN_METRICS` (Arial, Calibri, Cambria, Courier New, Times New Roman)
+and the `fontMetrics` constructor option, whose entries add faces and override
+built-in ones. A face in neither keeps the font-independent baseline, 1em below
+the line top, which the LibreOffice target uses for every face.
+
 A run that starts with "\n" makes PptxGenJS write an empty paragraph without
 a run before it. PowerPoint and LibreOffice draw no bullet or number on such a
 paragraph, and neither target does. PowerPoint numbers only paragraphs with

@@ -1,5 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, FONT_WIN_METRICS, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, FONT_WIN_METRICS, type FontMetricsTable, type FontWinMetrics, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
+import { fontWinMetrics } from "#src/fontMetrics";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "#src/units";
 import { normalizeHyperlink } from "./link";
@@ -197,7 +198,7 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget): NormalizedTextParagraph {
+function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsTable): NormalizedTextParagraph {
     const first = inheritedOptions(parent, pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
@@ -209,7 +210,7 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
         align: first.align ?? PPTX_DEFAULTS.text.align,
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineHeight,
-        lineBox: paragraphLineBox({ runs, lineHeight }, target),
+        lineBox: paragraphLineBox({ runs, lineHeight }, target, fontMetrics),
         spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
         spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
         tabStops: (first.tabStops ?? [])
@@ -293,15 +294,18 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
     return PPTX_DEFAULTS.text.fit;
 }
 
-/** `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS). */
-export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextBox {
+/**
+ * `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS); `fontMetrics` holds
+ * the faces whose metrics place a single-spaced baseline where the target reads them (`fontLineBaseline`).
+ */
+export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsTable = FONT_WIN_METRICS): NormalizedTextBox {
     const pieces = piecesFromInput(input, options);
     const groups = groupPieces(pieces, options.align);
 
     const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
     let numberIndex = 0;
     const paragraphs = groups.map((group, index) => {
-        const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target);
+        const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target, fontMetrics);
         // A paragraph PptxGenJS writes without a run gets no marker in PowerPoint or LibreOffice.
         const runless = group.every(piece => piece.noRun);
         const empty = paragraph.runs.every(run => !run.text);
@@ -340,7 +344,7 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * `target` may place the baseline differently: with explicit spacing (RENDERING_TARGETS.spacedLineBaseline), and with
  * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline).
  */
-export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextParagraph["lineBox"] {
+export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsTable = FONT_WIN_METRICS): NormalizedTextParagraph["lineBox"] {
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
@@ -357,16 +361,15 @@ export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs"
     let ascent = 0;
     let descent = 0;
     for (const run of paragraph.runs) {
-        const share = ascentShare(run.fontFace);
+        const share = ascentShare(fontWinMetrics(fontMetrics, run.fontFace));
         ascent = Math.max(ascent, share * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
         descent = Math.max(descent, (1 - share) * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
     }
     return { ...box, baseline: ascent + descent > box.height ? (ascent * box.height) / (ascent + descent) : ascent };
 }
 
-/** The part of a single-spaced line above the baseline in `fontFace` (FONT_WIN_METRICS), else the font-independent 1em of 1.2em. */
-function ascentShare(fontFace: string): number {
-    const metrics = FONT_WIN_METRICS[fontFace.toLowerCase()];
+/** The part of a single-spaced line above the baseline in a font with `metrics`, else the font-independent 1em of 1.2em. */
+function ascentShare(metrics: FontWinMetrics | undefined): number {
     const { singleLineEm, lineDescentEm } = PPTX_DEFAULTS.text;
     return metrics ? metrics.winAscent / (metrics.winAscent + metrics.winDescent) : (singleLineEm - lineDescentEm) / singleLineEm;
 }

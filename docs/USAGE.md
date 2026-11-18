@@ -353,6 +353,31 @@ your own `resolveImage`.
 taking the same arguments: use them to match LibreOffice or PowerPoint rendering. They can be extended
 and wrapped like `PuppeteerGen`. See "Choosing a rendering target" in [MIGRATION.md](./MIGRATION.md).
 
+**Font metrics for the PowerPoint target.** PowerPoint places a single-spaced line's baseline from its
+font's `head.unitsPerEm` and `OS/2` `usWinAscent` and `usWinDescent`. PdfLapas knows them for Arial,
+Calibri, Cambria, Courier New and Times New Roman (`FONT_WIN_METRICS` in `defaults.ts`); text in any
+other face sits about 0.03 to 0.05em low against PowerPoint. Pass the metrics of the faces your decks use
+with `options.fontMetrics`, keyed by face name (case-insensitive); an entry also overrides a built-in one:
+
+```typescript
+import { readFileSync } from "node:fs";
+import { PuppeteerGenPowerPoint, readFontWinMetrics } from "@pdflapas/pptxgenjs";
+
+const pres = new PuppeteerGenPowerPoint(undefined, {
+    fontMetrics: {
+        "My Brand Sans": { unitsPerEm: 1000, winAscent: 950, winDescent: 250 },
+        // or read them from the font file (TrueType, OpenType or the first face of a .ttc; not WOFF):
+        "My Brand Serif": readFontWinMetrics(readFileSync("fonts/MyBrandSerif-Regular.ttf")),
+    },
+});
+```
+
+The constructor checks each entry: `unitsPerEm` a positive integer, `winAscent` and `winDescent`
+non-negative integers with a positive sum, and no other field. An invalid entry throws a `TypeError`
+naming the face and field. `readFontWinMetrics(bytes)` is browser-safe (it takes bytes, not a path) and
+throws `FontFileError` on bytes that are not a readable TrueType or OpenType font. The LibreOffice target
+ignores `fontMetrics`, as LibreOffice's line box does not depend on the font.
+
 #### Methods
 
 - `addSlide(props?: AddSlideProps): PptxSlide`

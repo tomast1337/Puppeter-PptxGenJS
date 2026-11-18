@@ -410,6 +410,15 @@ export const RENDERING_TARGETS = Object.freeze({
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 
+/** A face's head.unitsPerEm and OS/2 usWinAscent and usWinDescent, in font units. */
+export interface FontWinMetrics {
+    readonly unitsPerEm: number;
+    readonly winAscent: number;
+    readonly winDescent: number;
+}
+/** Font metrics keyed by lower-case face name. */
+export type FontMetricsTable = Readonly<Record<string, FontWinMetrics>>;
+
 /**
  * OS/2 usWinAscent and usWinDescent of common Office fonts, in units of `unitsPerEm`, keyed by lower-case face name:
  * how a single-spaced line splits between ascent and descent with the PowerPoint target (`fontLineBaseline`). Bold and
@@ -419,9 +428,10 @@ export type RenderingTarget = keyof typeof RENDERING_TARGETS;
  * Checked against that export of synthetic decks: the first line of an 18pt paragraph broken by `softBreakBefore` (a
  * line break PowerPoint sets in the theme font, Calibri) has its baseline 16.92pt below the top in Times New Roman (16.96
  * predicted), 16.15 in Courier New (16.12) and 17.09 in Cambria (16.99). A face not listed keeps the font-independent
- * baseline, 1em below the line top (`text.singleLineEm` - `text.lineDescentEm`).
+ * baseline, 1em below the line top (`text.singleLineEm` - `text.lineDescentEm`), unless the caller's `fontMetrics`
+ * option lists it; the caller's entries also override these.
  */
-export const FONT_WIN_METRICS: Readonly<Record<string, { readonly unitsPerEm: number; readonly winAscent: number; readonly winDescent: number }>> = Object.freeze({
+export const FONT_WIN_METRICS: FontMetricsTable = Object.freeze({
     arial: Object.freeze({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 }),
     "times new roman": Object.freeze({ unitsPerEm: 2048, winAscent: 1825, winDescent: 443 }),
     "courier new": Object.freeze({ unitsPerEm: 2048, winAscent: 1705, winDescent: 615 }),

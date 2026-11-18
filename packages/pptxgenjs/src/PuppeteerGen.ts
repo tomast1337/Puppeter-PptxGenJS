@@ -2,9 +2,10 @@ import type PptxGenJS from "pptxgenjs";
 import type { NormalizedPresentation, PresentationMetadata } from "@pdflapas/model";
 import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentProps } from "./components/types";
-import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, PPTXGENJS_VERSION, RENDERING_TARGETS, type RenderingTarget } from "./defaults";
+import { DEFAULT_RENDERING_TARGET, type FontMetricsTable, type FontWinMetrics, PPTX_DEFAULTS, PPTXGENJS_VERSION, RENDERING_TARGETS, type RenderingTarget } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import { type ImageSourceOptions, imageResolver, resolveRemoteImageSource } from "./normalize/image";
+import { fontMetricsTable } from "./fontMetrics";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
 import type { PageSize } from "./pageLayouts";
@@ -52,6 +53,13 @@ export interface PuppeteerGenOptions {
      * (the default) or "powerpoint". PuppeteerGenLibreOffice and PuppeteerGenPowerPoint set it.
      */
     target?: RenderingTarget;
+    /**
+     * head.unitsPerEm and OS/2 usWinAscent and usWinDescent of the faces a deck uses, keyed by face name
+     * (case-insensitive), which the PowerPoint target places a single-spaced line's baseline from. They override the
+     * built-in FONT_WIN_METRICS; a face in neither keeps the font-independent baseline. `readFontWinMetrics(bytes)`
+     * reads them from a font file. The LibreOffice target ignores them, as LibreOffice's line box ignores the font.
+     */
+    fontMetrics?: Readonly<Record<string, FontWinMetrics>>;
 }
 
 /** The constructor's `target`, checked: a misspelled one would otherwise render silently for the default. */
@@ -91,6 +99,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     private readonly resolveImage: (source: string) => Promise<string>;
     private readonly createDocument: () => Document;
     private readonly target: RenderingTarget;
+    private readonly fontMetrics: FontMetricsTable;
     /** The `context.document` of components checked in addComponent(), created the first time one reads it. */
     private readonly componentDocument: () => Document;
 
@@ -101,6 +110,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.resolveImage = imageResolver(options, resolveRemoteImageSource);
         this.createDocument = options.createDocument ?? createBrowserDocument;
         this.target = renderingTarget(options.target);
+        this.fontMetrics = fontMetricsTable(options.fontMetrics);
         this.componentDocument = lazyDocument(this.createDocument);
     }
 
@@ -335,6 +345,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
             components: this.components,
             bodyFontFace: () => this.bodyFontFace(),
             target: this.target,
+            fontMetrics: this.fontMetrics,
             getDocument: this.componentDocument,
             continuationSlide: offset => this.slideAt(slideIndex + offset),
             setMasterSlideNumber: props => {
