@@ -41,6 +41,37 @@ describe("text normalization", () => {
         close(box({ fontSize: 12 }, [{ text: "small" }, { text: "LARGE", options: { fontSize: 24 } }]), 38.4, 32);
     });
 
+    // A run ending with line feeds keeps them inside its <a:t>; measured against PowerPoint's PDF export of synthetic decks
+    // (and LibreOffice), the empty text after the last one adds nothing to the next run's paragraph: its lines keep the
+    // next run's pitch. Alone (end of text, or before an align change) it stays an empty paragraph in the run's font.
+    test("drops the empty text after a run's last line feed from a paragraph that has other runs", () => {
+        const runs: Parameters<typeof normalizeText>[0] = [
+            { text: "Head line.\n\n", options: { bold: true, fontSize: 16 } },
+            { text: "Body text that wraps.\n\n", options: { fontSize: 8 } },
+            { text: "More body.\n", options: { fontSize: 8 } },
+        ];
+        for (const target of ["libreoffice", "powerpoint"] as const) {
+            const { paragraphs } = normalizeText(runs, { align: "justify", fontFace: "Arial" }, target);
+            expect(paragraphs.map(paragraph => paragraph.runs.map(run => [run.text, run.fontSize, run.bold]))).toEqual([[["Head line.", 64 / 3, true]], [["", 64 / 3, true]], [["Body text that wraps.", 32 / 3, false]], [["", 32 / 3, false]], [["More body.", 32 / 3, false]], [["", 32 / 3, false]]]);
+            // 1.2 x 8pt lines on every body paragraph, 1.2 x 16pt on the head and its empty paragraph.
+            expect(paragraphs.map(paragraph => paragraph.lineBox.height)).toEqual([25.6, 25.6, 12.8, 12.8, 12.8, 12.8].map(height => expect.closeTo(height) as unknown as number));
+        }
+
+        // A lone tail before an align change keeps the run's font and its line box.
+        const lone = normalizeText(
+            [
+                { text: "Left head.\n", options: { align: "left", fontSize: 16 } },
+                { text: "Right body.", options: { align: "right", fontSize: 8 } },
+            ],
+            { fontFace: "Arial" },
+        ).paragraphs;
+        expect(lone.map(paragraph => [paragraph.runs.map(run => [run.text, run.fontSize]), paragraph.align, paragraph.lineBox.height])).toEqual([
+            [[["Left head.", 64 / 3]], "left", expect.closeTo(25.6)],
+            [[["", 64 / 3]], "left", expect.closeTo(25.6)],
+            [[["Right body.", 32 / 3]], "right", expect.closeTo(12.8)],
+        ]);
+    });
+
     // PptxGenJS writes baseline="30000"/"-40000"; LibreOffice draws such runs at 58% of their size.
     test("resolves super- and subscript into LibreOffice's escapement size and shift", () => {
         const [sup, sub, custom] = normalizeText([
@@ -209,6 +240,25 @@ describe("text DOM rendering", () => {
         const [box, cell] = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-text, td"), element => Array.from(element.querySelectorAll(".text-paragraph"), paragraph => paragraph.textContent?.replace("\u200b", "")));
         expect(box).toEqual(["Intro", "", "TITLE", "Description", "Tail"]);
         expect(cell).toEqual(["Heading", "Body"]);
+    });
+
+    test("writes no run for the empty text after a run's last line feed in the next run's paragraph", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText(
+            [
+                { text: "Head line.\n\n", options: { bold: true, fontSize: 16 } },
+                { text: "Body text.\n", options: { fontSize: 8 } },
+            ],
+            { x: 1, y: 1, w: 4, h: 2, align: "justify", fontFace: "Arial" },
+        );
+
+        const paragraphs = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph"));
+        const body = paragraphs[2];
+        expect(body?.querySelectorAll(".text-run")).toHaveLength(1);
+        expect(body?.querySelector<HTMLElement>(".text-run")?.style.fontWeight).not.toBe("bold");
+        // 8pt: a 12.8px line, not the 16pt head's 25.6px.
+        expect(parseFloat(body?.style.lineHeight ?? "")).toBeCloseTo(12.8);
     });
 
     test("writes the bullet indent, start and number type that the marker only shows as a result", () => {

@@ -17,6 +17,8 @@ interface TextPiece {
     lineFeed?: boolean;
     /** PptxGenJS writes no `<a:r>` for this piece: an empty text of its own (genXmlTextRun skips it). */
     noRun?: boolean;
+    /** The empty text after a run's last line feed: a paragraph of its own only when nothing else falls into it (paragraphFromPieces). */
+    tail?: boolean;
 }
 
 // --- UTILITIES ---
@@ -211,7 +213,11 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
+function paragraphFromPieces(group: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
+    // PowerPoint and LibreOffice give the empty text after a run's last line feed no size in a paragraph that holds
+    // other text (measured against PowerPoint's PDF export); alone, it is an empty paragraph in the run's font. Without
+    // it, the paragraph's properties come from its next run.
+    const pieces = group.some(piece => !piece.tail) ? group.filter(piece => !piece.tail) : group;
     const first = inheritedOptions(parent, pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
@@ -260,7 +266,10 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): 
         // feeds kept inside `<a:t>`.
         if (lines.length > 1 && !text.endsWith("\n")) options.breakLine = true;
         const lineFeeds = text.endsWith("\n");
-        lines.forEach((line, index) => pieces.push({ text: line, options, ...(lineFeeds && index < lines.length - 1 ? { lineFeed: true } : {}), ...(!lineFeeds && !line ? { noRun: true } : {}) }));
+        lines.forEach((line, index) => {
+            const last = index === lines.length - 1;
+            pieces.push({ text: line, options, ...(lineFeeds && !last ? { lineFeed: true } : {}), ...(lineFeeds && last ? { tail: true } : {}), ...(!lineFeeds && !line ? { noRun: true } : {}) });
+        });
     }
     return pieces;
 }

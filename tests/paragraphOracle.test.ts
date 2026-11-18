@@ -74,6 +74,24 @@ const DECKS: Record<string, Deck> = {
         cell: () => [{ text: "Intro", options: { breakLine: true } }, ...["One", "Two"].map(item => ({ text: `\nItem ${item}`, options: { bullet: { type: "number" as const } } }))],
         options: { x: 0.5, y: 0.5, w: 6, ...FONT },
     },
+    // The empty text after a run's last line feed belongs to the next run's paragraph, or is one of its own at the end.
+    "runs ending with line feeds in a justified box": {
+        kind: "text",
+        text: () => [
+            { text: "Head line.\n\n", options: { bold: true, fontSize: 16 } },
+            { text: "Body text that wraps.\n\n", options: { fontSize: 8 } },
+            { text: "More body.\n", options: { fontSize: 8 } },
+        ],
+        options: { x: 1, y: 1, w: 4, h: 2, align: "justify", ...FONT },
+    },
+    "run ending with a line feed before an align change": {
+        kind: "text",
+        text: () => [
+            { text: "Left head.\n", options: { align: "left", fontSize: 16 } },
+            { text: "Right body.", options: { align: "right", fontSize: 8 } },
+        ],
+        options: { x: 1, y: 1, w: 4, h: 2, ...FONT },
+    },
     // Control: a run ending with "\n" is written whole; PowerPoint draws its line feed as a new paragraph.
     "line feed kept inside a bullet run": {
         kind: "text",
@@ -103,5 +121,7 @@ describe("paragraphs match the <a:p> list PptxGenJS 4.0.1 writes (genXmlTextBody
         expect(paragraphs("cell runs without options next to a run with options")).toEqual(["Alpha one.", "", "Beta two.", "", "Gamma bold."]);
         expect(paragraphs("cell align change without line feeds")).toEqual(["Heading", "Body"]);
         expect(paragraphs("inner line feed in one option-less cell run breaks all of them")).toEqual(["A", "B", "C", "D", "EF", "G"]);
+        expect(paragraphs("runs ending with line feeds in a justified box")).toEqual(["Head line.", "", "Body text that wraps.", "", "More body.", ""]);
+        expect(paragraphs("run ending with a line feed before an align change")).toEqual(["Left head.", "", "Right body."]);
     });
 });
