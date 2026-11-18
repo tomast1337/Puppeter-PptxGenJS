@@ -220,9 +220,19 @@ point margins per cell (`options.margin: [6, 4, 6, 4]`) or a table-level margin 
 It also counts lines as PptxGenJS does: each rich-text run starts a line, a run without a line
 feed is trimmed first, a run whose `text` is not a string counts no line, and a first word longer
 than the line adds an empty line before it. Column widths are read at the cell's index, not its
-column, and a cell with any `colspan` gets every width from there to the table's right edge. A
-row that fits on its page is still drawn from its own runs, untrimmed, where PptxGenJS draws the
-trimmed ones (#222).
+column, and a cell with any `colspan` gets every width from there to the table's right edge.
+
+Every autoPage and `tableToSlides` row, split or not, is drawn from those parsed words, as PptxGenJS
+writes them: single-line runs trimmed and run together (`"Hello " + "world"` reads `Helloworld`),
+non-string runs dropped, and a cell's wrapped lines kept in one paragraph. A later row that is not an
+array throws an error naming the row; PptxGenJS logs it and writes a row without cells, which fails
+only when the file is opened or converted.
+
+`tableToSlides` takes each cell's computed font size. Under jsdom a cell has none: PptxGenJS 4.0.1
+writes its run without `sz`, so PowerPoint draws the deck default, 18pt (`<a:defRPr sz="1800">` on
+`lvl1pPr` of `p:defaultTextStyle` in presentation.xml and of the master's `p:otherStyle`; the table
+style sets no size). PuppeteerGen draws 18pt too; pagination still counts such a cell at 12pt, as
+PptxGenJS does.
 
 Cells and runs inherit as in PptxGenJS: any falsy option (`false`, `""`, `null`, but not `0`) is
 filled from the table or the cell, so `bold: false` in a bold table is bold. A cell's text is kept
