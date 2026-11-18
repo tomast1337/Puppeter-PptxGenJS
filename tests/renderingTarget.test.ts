@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import type PptxGenJS from "pptxgenjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
@@ -59,8 +60,9 @@ describe("rendering targets", () => {
     // 45.6pt pitch (21.6 + 6 + 18), where collapsing CSS margins gave 39.6pt (21.6 + 18).
     test("the PowerPoint target adds a paragraph's space after to the next one's space before; LibreOffice keeps both", async () => {
         const spacing = (target?: Parameters<typeof normalizeText>[2]) => normalizeText("Para one\nPara two\nPara three", { fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 }, target).paragraphs.map(({ spaceBefore, spaceAfter }) => [spaceBefore, spaceAfter]);
+        // The first paragraph's space before is dropped too (next test).
         expect(spacing("powerpoint")).toEqual([
-            [8, 0],
+            [0, 0],
             [32, 0],
             [32, 0],
         ]);
@@ -75,8 +77,35 @@ describe("rendering targets", () => {
             presentation.addSlide().addText("Para one\nPara two", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 });
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*margin-top: ([^;]*); margin-bottom: ([^;]*);/g)].map(match => `${match[1]} ${match[2]}`);
         };
-        expect(await margins(new PuppeteerGenPowerPoint())).toEqual(["8px 0px", "32px 0px"]);
+        expect(await margins(new PuppeteerGenPowerPoint())).toEqual(["0px 0px", "32px 0px"]);
         expect(await margins(new PuppeteerGenLibreOffice())).toEqual(["8px 24px", "8px 0px"]);
+    });
+
+    // Measured against PowerPoint's PDF export: 18pt Arial with paraSpaceBefore 12 has its first baseline 17.05pt
+    // below the top inset, as without it, where PdfLapas drew it 29.95pt below; the next ones stay 33.6pt apart.
+    test("the PowerPoint target drops the first paragraph's space before, whatever the anchor; LibreOffice keeps it", async () => {
+        const before = (valign: "top" | "middle" | "bottom", target?: Parameters<typeof normalizeText>[2]) => normalizeText("Para one\nPara two\nPara three", { fontSize: 18, paraSpaceBefore: 12, valign }, target).paragraphs.map(paragraph => paragraph.spaceBefore);
+        for (const valign of ["top", "middle", "bottom"] as const) {
+            expect(before(valign, "powerpoint")).toEqual([0, 16, 16]);
+            expect(before(valign, "libreoffice")).toEqual([16, 16, 16]);
+            expect(before(valign)).toEqual(before(valign, "libreoffice"));
+        }
+        // Table cells go through the same text normalization. PptxGenJS writes a cell's paraSpaceBefore (genXmlTextBody)
+        // although its TableCellProps type leaves it out.
+        const options: PptxGenJS.TableCellProps & { paraSpaceBefore: number } = { paraSpaceBefore: 12 };
+        const cell = (presentation: PuppeteerGen) => {
+            presentation.addSlide().addTable([[{ text: "One\nTwo", options }]], { x: 1, y: 1, w: 3 });
+            return presentation.getModel().slides[0]?.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.map(paragraph => paragraph.spaceBefore))) : []));
+        };
+        expect(cell(new PuppeteerGenPowerPoint())).toEqual([0, 16]);
+        expect(cell(new PuppeteerGenLibreOffice())).toEqual([16, 16]);
+
+        const margins = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText("Para one\nPara two", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, paraSpaceBefore: 12 });
+            return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*margin-top: ([^;]*);/g)].map(match => match[1]);
+        };
+        expect(await margins(new PuppeteerGenPowerPoint())).toEqual(["0px", "16px"]);
+        expect(await margins(new PuppeteerGenLibreOffice())).toEqual(["16px", "16px"]);
     });
 
     test("the target classes keep the other constructor options and stay subclassable and proxyable", async () => {
@@ -143,7 +172,7 @@ describe("rendering targets in Chromium", () => {
         });
     }
 
-    test("Chromium lays the PowerPoint target's paragraphs 21.6 + 6 + 18 = 45.6pt apart", async () => {
+    test("Chromium lays the PowerPoint target's paragraphs 21.6 + 6 + 18 = 45.6pt apart, the first at the top of the text", async () => {
         const presentation = new PuppeteerGenPowerPoint();
         presentation.addSlide().addText("Para one\nPara two\nPara three", { x: 1, y: 1, w: 3, h: 3, fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 });
         const { html } = await presentation.toHtml();
@@ -151,12 +180,13 @@ describe("rendering targets in Chromium", () => {
             const page = await browser.newPage();
             try {
                 await page.setContent(html);
-                return await page.evaluate(() => Array.from(document.querySelectorAll(".text-paragraph"), paragraph => paragraph.getBoundingClientRect().top));
+                // The text content's top first: the first paragraph has no space before.
+                return await page.evaluate(() => Array.from(document.querySelectorAll(".text-content, .text-paragraph"), element => element.getBoundingClientRect().top));
             } finally {
                 await page.close();
             }
         });
-        expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([60.8, 60.8].map(px => expect.closeTo(px, 1)));
+        expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([0, 60.8, 60.8].map(px => expect.closeTo(px, 1)));
     });
 
     test("with the PowerPoint target a line under 12pt is the sum of its unkerned advances; from 12pt it is kerned as with LibreOffice", async () => {

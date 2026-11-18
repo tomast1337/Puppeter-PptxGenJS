@@ -377,6 +377,7 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * `contentRowSlackMm`: what a row sized to its content (`<a:tr h="0">`) adds to its tallest cell's text and margins.
  * `addsParagraphSpacing`: whether a paragraph's space after and the next one's space before add up, or only the larger
  * one counts (CSS margins collapse).
+ * `spacesFirstParagraph`: whether a text box's first paragraph keeps its space before.
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -384,13 +385,15 @@ export const RENDERING_TARGETS = Object.freeze({
      * minimum height is its text height plus one unit of its 1/100 mm model, then the margins (svx table
      * Cell::getMinimumHeight, `GetTextHeight()+1`).
      */
-    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false }),
+    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. It adds a
      * paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
-     * `paraSpaceBefore: 6, paraSpaceAfter: 18` gives a 45.6pt pitch (21.6 + 6 + 18), not 39.6.
+     * `paraSpaceBefore: 6, paraSpaceAfter: 18` gives a 45.6pt pitch (21.6 + 6 + 18), not 39.6. It leaves out the
+     * first paragraph's space before: with `paraSpaceBefore: 12` the first baseline is 17.05pt below the top inset,
+     * as without it.
      */
-    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true }),
+    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 /** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */

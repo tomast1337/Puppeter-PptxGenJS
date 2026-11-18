@@ -135,6 +135,9 @@ kerning; LibreOffice kerns every run, and so does the LibreOffice target.
 Two paragraphs are `paraSpaceAfter` of the first plus `paraSpaceBefore` of the
 second apart in PowerPoint, and the PowerPoint target adds them the same way.
 The LibreOffice target keeps only the larger of the two, as CSS margins collapse.
+PowerPoint also leaves out the first paragraph's `paraSpaceBefore`, and so does
+the PowerPoint target, in every anchor and in table cells (measured on
+top-anchored text boxes only); the LibreOffice target keeps it.
 
 Text is never clipped to its box: what does not fit is drawn past it from the
 anchor, as in PowerPoint and LibreOffice. A box shorter than its top and bottom

@@ -285,17 +285,22 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
     const pieces = piecesFromInput(input, options);
     const groups = groupPieces(pieces, options.align);
 
+    const { addsParagraphSpacing, spacesFirstParagraph } = RENDERING_TARGETS[target];
     let numberIndex = 0;
     const paragraphs = groups.map((group, index) => {
         const paragraph = paragraphFromPieces(group, options, numberIndex, target);
         numberIndex = paragraph.bullet?.kind === "number" ? numberIndex + 1 : 0;
+        // shortcut: PowerPoint's dropped first space before was measured on top-anchored text boxes only; middle and
+        // bottom anchors and table cells follow the same rule until a measurement says otherwise.
+        const first = index === 0 && !spacesFirstParagraph ? { spaceBefore: 0 } : {};
         // PowerPoint and LibreOffice leave the last paragraph's space after out of the text height, so it does not
         // lift middle- or bottom-anchored text (or grow a table row).
-        return index === groups.length - 1 ? { ...paragraph, spaceAfter: 0 } : paragraph;
+        const last = index === groups.length - 1 ? { spaceAfter: 0 } : {};
+        return { ...paragraph, ...first, ...last };
     });
     // CSS keeps only the larger of two adjacent margins; a target that adds them gets each space after moved onto
     // the next paragraph's space before, so the gap is their sum in every renderer.
-    const spaced = RENDERING_TARGETS[target].addsParagraphSpacing ? paragraphs.map((paragraph, index) => ({ ...paragraph, spaceBefore: paragraph.spaceBefore + (paragraphs[index - 1]?.spaceAfter ?? 0), spaceAfter: 0 })) : paragraphs;
+    const spaced = addsParagraphSpacing ? paragraphs.map((paragraph, index) => ({ ...paragraph, spaceBefore: paragraph.spaceBefore + (paragraphs[index - 1]?.spaceAfter ?? 0), spaceAfter: 0 })) : paragraphs;
 
     const direction = options.vert ?? PPTX_DEFAULTS.text.textDirection;
 
