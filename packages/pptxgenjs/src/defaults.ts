@@ -159,6 +159,11 @@ export const PPTX_DEFAULTS = Object.freeze({
         x: 0.5,
         y: 0.5,
         fontSizePt: 12,
+        // A cell run PptxGenJS 4.0.1 writes without `sz` (tableToSlides under jsdom: no computed font-size, read as 0)
+        // takes the deck's default text size: `<a:defRPr sz="1800">` on lvl1pPr of presentation.xml
+        // `p:defaultTextStyle` and of the master's `p:otherStyle`. The table style PptxGenJS names in tableStyles.xml
+        // ({5C22544A-…}, Medium Style 2 - Accent 1) sets fonts and colors in `a:tcTxStyle`, no size.
+        unsizedRunFontSizePt: 18,
         color: "000000",
         // PptxGenJS DEF_CELL_MARGIN_IN: top, right, bottom, left.
         marginIn: Object.freeze([0.05, 0.1, 0.05, 0.1] as const),
