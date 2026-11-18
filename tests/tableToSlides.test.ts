@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
 import PptxGenJSRuntime from "pptxgenjs";
+import JSZip from "jszip";
 import type PptxGenJS from "pptxgenjs";
 import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/table/html";
 import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
+import { pointsToPixels } from "../packages/pptxgenjs/src/units";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
@@ -148,9 +151,17 @@ describe("tableToSlides", () => {
  * tests/visual/compare.ts).
  */
 function pptxGenJsTableToSlides(rowCount: number, options: PptxGenJS.TableToSlidesProps): Array<{ rows: number; h: unknown; rowH: unknown }> {
+    const pptx = runPptxGenJsTableToSlides(tableHtml(rowCount), options);
+    // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
+    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: unknown[]; options: { h?: unknown; rowH?: unknown } }> }> })._slides;
+    return slides.map(slide => ({ rows: slide._slideObjects[0]?.arrTabRows.length ?? 0, h: slide._slideObjects[0]?.options.h, rowH: slide._slideObjects[0]?.options.rowH }));
+}
+
+/** PptxGenJS 4.0.1 tableToSlides("source") on `html`, in a jsdom document installed as the global one meanwhile. */
+function runPptxGenJsTableToSlides(html: string, options: PptxGenJS.TableToSlidesProps): PptxGenJSRuntime {
     const document = createNodeDocument();
     const view = document.defaultView!;
-    document.body.innerHTML = tableHtml(rowCount);
+    document.body.innerHTML = html;
     Object.defineProperty(view.HTMLElement.prototype, "offsetWidth", {
         get: function (this: HTMLElement) {
             return parseFloat(this.style.width) || 0;
@@ -168,9 +179,7 @@ function pptxGenJsTableToSlides(rowCount: number, options: PptxGenJS.TableToSlid
         const pptx = new PptxGenJSRuntime();
         pptx.layout = "LAYOUT_16x9";
         pptx.tableToSlides("source", structuredClone(options));
-        // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
-        const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: unknown[]; options: { h?: unknown; rowH?: unknown } }> }> })._slides;
-        return slides.map(slide => ({ rows: slide._slideObjects[0]?.arrTabRows.length ?? 0, h: slide._slideObjects[0]?.options.h, rowH: slide._slideObjects[0]?.options.rowH }));
+        return pptx;
     } finally {
         Object.assign(global, previous);
     }
@@ -200,4 +209,25 @@ test.each<[string, PptxGenJS.TableToSlidesProps]>([
     const rowStyles = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-table-container tr")).map(row => row.style.height);
     expect(rowStyles.length).toBeGreaterThan(30);
     expect(new Set(rowStyles)).toEqual(new Set([""]));
+});
+
+// Under jsdom a cell has no computed font-size: PptxGenJS reads 0 and writes its run without `sz`, so PowerPoint takes the
+// deck's default text size, 18pt (`<a:defRPr sz="1800">` in presentation.xml p:defaultTextStyle and the master's
+// p:otherStyle, both lvl1pPr). A cell with a computed size keeps it.
+test("tableToSlides draws a jsdom cell without a font size at the deck's default 18pt", async () => {
+    const html = `<table id="source" style="width:600px"><tr><td style="width:300px;color:rgb(0,0,0)">Plain</td><td style="width:300px;color:rgb(0,0,0);font-size:10px">Sized</td></tr></table>`;
+    const pptx = runPptxGenJsTableToSlides(html, {});
+    // `as`: write() returns a Buffer for the nodebuffer output type.
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+    const slide = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+    const presentation = (await zip.file("ppt/presentation.xml")?.async("string")) ?? "";
+    expect([...slide.matchAll(/<a:rPr([^>]*)>/g)].map(([, props]) => props?.match(/sz="(\d+)"/)?.[1])).toEqual([undefined, "1000"]);
+    expect(presentation).toMatch(/<p:defaultTextStyle><a:lvl1pPr[^>]*><a:defRPr sz="1800"/);
+
+    const ours = new PuppeteerGen(PAGE);
+    const document = createNodeDocument();
+    document.body.innerHTML = html;
+    ours.tableToSlides(document.getElementById("source") as HTMLTableElement);
+    const runs = ours.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs))) : [])));
+    expect(runs.filter(run => run.text).map(run => run.fontSize)).toEqual([pointsToPixels(PPTX_DEFAULTS.table.unsizedRunFontSizePt), pointsToPixels(10)]);
 });

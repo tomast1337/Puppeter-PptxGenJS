@@ -424,7 +424,9 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
             // genTableToSlides (step 5 C) adds each page with only x, y, w and colW: `h`, `rowH` and the other table
             // options size the pages but never reach the drawn rows, which size to their content. `w` is left out
             // because a full `colW` sets the width.
-            (index === 0 ? firstSlide : this.addSlide()).addTable(page.rows, { x: table.x, y: page.y, colW: table.columnWidths });
+            // A cell without a computed font size (jsdom) is written without `sz`; the table-level size only fills those
+            // cells, after pagination counted them at PptxGenJS's 12pt.
+            (index === 0 ? firstSlide : this.addSlide()).addTable(page.rows, { x: table.x, y: page.y, colW: table.columnWidths, fontSize: PPTX_DEFAULTS.table.unsizedRunFontSizePt });
         });
         // The first slide and the continuation slides added after it.
         const generatedSlides = this.slides.slice(firstIndex);
