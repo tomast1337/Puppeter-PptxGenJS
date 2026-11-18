@@ -1712,6 +1712,9 @@ export function populateParityFixture(presentation: Presentation): void {
 
     presentation.tableToSlides(installTableToSlidesFixture(presentation), {
         w: 10,
+        // The slide height: the same pages as without `h`, which PptxGenJS uses only to paginate (#224), so the
+        // drawn rows still size to their content instead of sharing the 5.625in.
+        h: 5.625,
         y: 0.75,
         slideMargin: 0.5,
         autoPageRepeatHeader: true,

@@ -7,6 +7,7 @@ import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_
 import { type ImageSourceOptions, imageResolver, resolveRemoteImageSource } from "./normalize/image";
 import { fontMetricsTable } from "./fontMetrics";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
+import { paginateTableRows } from "./normalize/table/pagination";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
 import type { PageSize } from "./pageLayouts";
 import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES } from "./pageLayouts";
@@ -398,19 +399,26 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         const table = normalizeHtmlTable(findHtmlTable(source, this.createDocument), options, this.pageSize);
         const firstIndex = this.slides.length;
         const firstSlide = this.addSlide();
-        // genTableToSlides (step 5 C) adds each table with only x, y, w and colW, so a `rowH` never reaches its rows.
-        const { rowH: _rowH, ...tableOptions } = options;
-        firstSlide.addTable(table.rows, {
-            ...tableOptions,
-            x: table.x,
-            y: table.y,
-            colW: table.columnWidths,
-            autoPage: true,
-            autoPageRepeatHeader: options.autoPageRepeatHeader ?? options.addHeaderToEach ?? false,
-            autoPageHeaderRows: table.headerRows || 1,
-            autoPageSlideStartY: table.continuationY,
+        const pages = paginateTableRows(
+            table.rows,
+            {
+                ...options,
+                x: table.x,
+                y: table.y,
+                colW: table.columnWidths,
+                autoPageRepeatHeader: options.autoPageRepeatHeader ?? options.addHeaderToEach ?? false,
+                autoPageHeaderRows: table.headerRows || 1,
+                autoPageSlideStartY: table.continuationY,
+            },
+            this.pageSize,
+        );
+        pages.forEach((page, index) => {
+            // genTableToSlides (step 5 C) adds each page with only x, y, w and colW: `h`, `rowH` and the other table
+            // options size the pages but never reach the drawn rows, which size to their content. `w` is left out
+            // because a full `colW` sets the width.
+            (index === 0 ? firstSlide : this.addSlide()).addTable(page.rows, { x: table.x, y: page.y, colW: table.columnWidths });
         });
-        // The first slide and the continuation slides its autoPage table added after it.
+        // The first slide and the continuation slides added after it.
         const generatedSlides = this.slides.slice(firstIndex);
         generatedSlides.forEach(slide => {
             if (options.addImage?.image && (options.addImage.image.path || options.addImage.image.data)) {
