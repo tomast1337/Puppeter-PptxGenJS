@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderedPage } from "./renderedPage";
+import PptxGenJSRuntime from "pptxgenjs";
+import type PptxGenJS from "pptxgenjs";
 import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/table/html";
 import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
@@ -140,12 +142,62 @@ describe("tableToSlides", () => {
     });
 });
 
-// PptxGenJS 4.0.1 genTableToSlides (step 5 C) adds each table with only x, y, w and colW: no rowH, so rows size to
-// their content on every slide.
-test("tableToSlides leaves row heights to the content, whatever rowH says", () => {
+/**
+ * PptxGenJS 4.0.1 tableToSlides on the same table: per slide, its rows and the `h`/`rowH` of the table it drew. It reads
+ * the global `document` and `window`, and the `offsetWidth` and `innerText` jsdom leaves out (shimmed as in
+ * tests/visual/compare.ts).
+ */
+function pptxGenJsTableToSlides(rowCount: number, options: PptxGenJS.TableToSlidesProps): Array<{ rows: number; h: unknown; rowH: unknown }> {
+    const document = createNodeDocument();
+    const view = document.defaultView!;
+    document.body.innerHTML = tableHtml(rowCount);
+    Object.defineProperty(view.HTMLElement.prototype, "offsetWidth", {
+        get: function (this: HTMLElement) {
+            return parseFloat(this.style.width) || 0;
+        },
+    });
+    Object.defineProperty(view.HTMLElement.prototype, "innerText", {
+        get: function (this: HTMLElement) {
+            return textOf(this, view);
+        },
+    });
+    const global = globalThis as { document?: Document; window?: Window };
+    const previous = { document: global.document, window: global.window };
+    Object.assign(global, { document, window: view });
+    try {
+        const pptx = new PptxGenJSRuntime();
+        pptx.layout = "LAYOUT_16x9";
+        pptx.tableToSlides("source", structuredClone(options));
+        // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
+        const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: unknown[]; options: { h?: unknown; rowH?: unknown } }> }> })._slides;
+        return slides.map(slide => ({ rows: slide._slideObjects[0]?.arrTabRows.length ?? 0, h: slide._slideObjects[0]?.options.h, rowH: slide._slideObjects[0]?.options.rowH }));
+    } finally {
+        Object.assign(global, previous);
+    }
+}
+
+function textOf(node: Node, view: Window & typeof globalThis): string {
+    const read = (child: Node): string => (child.nodeType === child.TEXT_NODE ? (child.nodeValue ?? "") : child instanceof view.HTMLBRElement ? "\n" : Array.from(child.childNodes).map(read).join(""));
+    return read(node).trim();
+}
+
+// PptxGenJS 4.0.1 genTableToSlides (step 5 C) adds each table with only x, y, w and colW: `h` and `rowH` decide how
+// many rows fit on a slide, then the drawn rows size to their content on every slide.
+test.each<[string, PptxGenJS.TableToSlidesProps]>([
+    ["rowH", { rowH: 0.8 }],
+    ["h", { h: 3 }],
+    ["h and rowH", { h: 4, rowH: [0.6, 0.4] }],
+])("tableToSlides paginates with %s but leaves row heights to the content", (_, options) => {
     const presentation = new PuppeteerGen(PAGE);
-    presentation.tableToSlides(sourceTable(30), { rowH: 0.8 });
+    presentation.tableToSlides(sourceTable(30), options);
     const tables = presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? [object.table] : [])));
+    const theirs = pptxGenJsTableToSlides(30, options);
     expect(tables.length).toBeGreaterThan(1);
+    expect(theirs.every(table => table.h === undefined && table.rowH === undefined)).toBe(true);
+    expect(tables.map(table => table.rows.length)).toEqual(theirs.map(table => table.rows));
     expect(tables.flatMap(table => table.rows.map(row => row.height))).toEqual(tables.flatMap(table => table.rows.map(() => undefined)));
+    expect(tables.map(table => table.height)).toEqual(tables.map(() => undefined));
+    const rowStyles = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-table-container tr")).map(row => row.style.height);
+    expect(rowStyles.length).toBeGreaterThan(30);
+    expect(new Set(rowStyles)).toEqual(new Set([""]));
 });

@@ -238,6 +238,10 @@ pres.tableToSlides(document.querySelector("table#orders") as HTMLTableElement);
 pres.tableToSlides(`<table><tr><td style="width:2in">Widget</td><td>$19.99</td></tr></table>`);
 ```
 
+Table options such as `h`, `rowH`, `fontSize` or `margin` only decide how many rows fit on each slide, as in
+PptxGenJS 4.0.1: each slide's table gets just its position and column widths, so its rows size to their content
+and its cells keep the styles read from the HTML.
+
 The markup form needs a document with a window to compute styles: the Node entry's jsdom has one, a
 browser's default does not, so in a browser insert the table into the page and pass the element or its id.
 
