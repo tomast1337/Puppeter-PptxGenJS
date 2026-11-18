@@ -668,7 +668,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextRun.outline.color`              | profile      | Color of `-webkit-text-stroke`.                                                                                            |
 | `NormalizedTextRun.outline.width`              | profile      | Width of `-webkit-text-stroke`, px.                                                                                        |
 | `NormalizedTextRun.glow`                       | profile      | The `text-shadow` entry that `data-text-shadow` names `glow`.                                                              |
-| `NormalizedTextRun.shadow`                     | profile      | The `text-shadow` entry that `data-text-shadow` names `shadow`.                                                            |
+| `NormalizedTextRun.shadow`                     | profile      | The `text-shadow` entry that `data-text-shadow` names `shadow`. A run's own `shadow` option (ignored) never sets it.       |
 | `NormalizedTextRun.language`                   | profile      | `lang`.                                                                                                                    |
 | `NormalizedTextRun.link`                       | profile      | The run is an `a`.                                                                                                         |
 | `NormalizedTextLink.href`                      | profile      | `href`.                                                                                                                    |

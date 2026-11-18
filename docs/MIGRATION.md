@@ -54,7 +54,9 @@ returns a `.pptx`:
   nothing different. A string `line` and `lineSize`, `lineDash`, `lineHead`, `lineTail` apply to
   `addText` only with `shape: "line"`, as in PptxGenJS. Inside a `line` object, the deprecated `pt`,
   `size`, `lineDash`, `lineHead` and `lineTail` are ignored: use `width`, `dashType`, `beginArrowType`
-  and `endArrowType`.
+  and `endArrowType`. A `shadow` on a text run (a run's `options`, in a text box or a table cell) draws
+  nothing: PptxGenJS writes only a run's `glow`, so PowerPoint shows no run shadow. Put `shadow` on the
+  text box instead (`COMPATIBILITY.text.options.runShadow` is `"ignored"`).
 - **Text fit and tab stops:** `fit: "shrink"` (`shrinkText`) scales font size and line height in
   0.95 steps until the text fits, close to but not the scale PowerPoint or LibreOffice pick; the HTML
   states the rule on the box (`data-text-fit-step`).

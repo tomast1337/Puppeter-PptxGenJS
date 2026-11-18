@@ -903,7 +903,8 @@ export function populateParityFixture(presentation: Presentation): void {
     effectsSlide.addText(
         [
             { text: "Transparent", options: { transparency: 35 } },
-            { text: " and outlined", options: { outline: { color: "ED7D31", size: 0.75 } } },
+            // PptxGenJS writes no run shadow (#223): neither side draws this one.
+            { text: " and outlined", options: { outline: { color: "ED7D31", size: 0.75 }, shadow: { type: "outer", color: "FF0000", blur: 3, offset: 3, angle: 45, opacity: 0.8 } } },
         ],
         {
             x: 5.25,

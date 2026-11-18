@@ -311,7 +311,12 @@ export const COMPATIBILITY = Object.freeze({
             rectRadius: "implemented",
             rotate: "implemented",
             rtlMode: "implemented",
+            // The text box's shadow (in its <p:spPr>).
             shadow: "implemented",
+            // `shadow` on a run (TextProps.options, also in table cells): PptxGenJS 4.0.1 genXmlTextRunProperties
+            // writes only `glow` into the run's <a:effectLst>, so PowerPoint and LibreOffice draw no run shadow; neither
+            // does PdfLapas. Use the text box's `shadow`, which PptxGenJS writes.
+            runShadow: "ignored",
             // shape: any preset; the text is laid out in the preset's ECMA-376 text rectangle, as PowerPoint and LibreOffice do.
             shape: "implemented",
             strike: "implemented",

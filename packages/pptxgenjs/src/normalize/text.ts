@@ -236,6 +236,9 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): 
 
     for (const item of source) {
         const options = records.get(item.options) ?? { ...item.options };
+        // A run's own `shadow` draws nothing: PptxGenJS 4.0.1 genXmlTextRunProperties writes only `glow` into the run's
+        // <a:effectLst> (COMPATIBILITY.text runShadow). A string's options are the text box's, whose shadow is written.
+        if (Array.isArray(input)) delete options.shadow;
         records.set(item.options, options);
         const text = item.text.replace(/\r\n?/g, "\n");
         const lines = text.split("\n");
