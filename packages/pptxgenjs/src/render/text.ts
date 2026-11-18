@@ -92,9 +92,9 @@ function paragraphAttributes(paragraph: NormalizedTextParagraph): Attribute[] {
     // them); lay the stops out in the print step once a reference renderer shows them (LibreOffice drops the list).
     css.set("tab-size", `${paragraph.defaultTabStop}px`);
     if (bullet) {
-        const levelIndent = bullet.indent / (bullet.level + 1);
-        css.set("padding-left", `${levelIndent * bullet.level}px`);
-        css.set("text-indent", "0px");
+        // PptxGenJS writes marL = indent and indent = -levelIndent: wrapped lines hang under the first line's text.
+        css.set("padding-left", `${bullet.indent}px`);
+        css.set("text-indent", `${-bullet.indent / (bullet.level + 1)}px`);
     }
     return [
         ["class", "text-paragraph"],

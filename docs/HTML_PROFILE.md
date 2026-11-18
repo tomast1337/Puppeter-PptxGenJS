@@ -212,7 +212,7 @@ There is no media, notes or master element: the model has no such kinds.
 ```html
 <div class="slide-element slide-text" style="…box…; padding; align-items; white-space; overflow-wrap; direction" data-object-name="Text 1" data-text-fit="none" data-text-direction="horizontal">
     <div class="text-content" style="width: 100%">
-        <div class="text-paragraph" style="text-align; direction; margin-top; margin-bottom; line-height; tab-size" data-line-baseline="14.4" data-tab-stops="96:left,192:right" data-bullet-level="0" data-bullet-type="bullet" data-bullet-indent="27" data-bullet-start="1">
+        <div class="text-paragraph" style="text-align; direction; margin-top; margin-bottom; line-height; tab-size; padding-left; text-indent" data-line-baseline="14.4" data-tab-stops="96:left,192:right" data-bullet-level="0" data-bullet-type="bullet" data-bullet-indent="27" data-bullet-start="1">
             <span class="text-bullet" style="display: inline-block; width; font-family; font-size; color">•&nbsp;</span>
             <span class="text-run" lang="en-US" style="font-family; font-size; color; font-weight; font-style; text-decoration-*; …">text</span>
             <br /><a class="text-run" href="…" title="…" data-slide="2" data-soft-break-before="" style="…">linked text</a>
@@ -642,7 +642,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextParagraph.bullet`               | profile      | `span.text-bullet` first child and `data-bullet-*`.                                                                        |
 | `NormalizedTextBullet.kind`                    | profile      | `data-bullet-type="bullet\|number"`.                                                                                       |
 | `NormalizedTextBullet.marker`                  | profile      | `.text-bullet` text, minus the trailing U+00A0.                                                                            |
-| `NormalizedTextBullet.indent`                  | profile      | `data-bullet-indent` (px), verbatim; the marker `width` and `padding-left` are `indent / (level + 1)` and its multiple.    |
+| `NormalizedTextBullet.indent`                  | profile      | `data-bullet-indent` (px); `padding-left` is it, the marker `width` and minus `text-indent` are `indent / (level + 1)`.    |
 | `NormalizedTextBullet.level`                   | profile      | `data-bullet-level`.                                                                                                       |
 | `NormalizedTextBullet.start`                   | profile      | `data-bullet-start`; the marker text is already numbered from it.                                                          |
 | `NormalizedTextBullet.numberType`              | profile      | `data-bullet-number-type`, the PptxGenJS name (`arabicPeriod`, `romanLcParenR`, …), omitted when unset.                    |
