@@ -120,6 +120,7 @@ reads no other text option of a slide number.
 | Rotation/transparency |                                     0 | Mapped                         |
 | Outline without width |       Hairline (`<a:ln>` without `w`) | 0.75pt (one CSS px)            |
 | Kerning               |    From 12pt, none with `charSpacing` | PowerPoint target (see below)  |
+| Kerning font support  |   Version 0 `kern`, else GPOS present | PowerPoint target (see below)  |
 | Run `shadow`          |      Not written (only run `glow` is) | Ignored, as PptxGenJS          |
 
 Text `margin` values are points. A scalar applies to all sides. PptxGenJS
@@ -132,6 +133,20 @@ PptxGenJS writes `kern="1200"` on the default text style and `kern="0"` on a
 run with `charSpacing`. PowerPoint reads both, so the PowerPoint target draws
 text under 12pt, and text with `charSpacing`, without the font's pair
 kerning; LibreOffice kerns every run, and so does the LibreOffice target.
+
+PowerPoint pair-kerns only a font it reads pair kerning from. Measured
+against its PDF export of synthetic decks and real decks: a font with a `kern`
+table is kerned from that table alone, so Arial and Calibri (a
+Microsoft-format, version 0 `kern` table) are kerned from 12pt, while a font
+whose only kerning is an Apple-format `kern` table plus GPOS is not kerned at
+any size (its 12 and 18pt lines come out 6 to 7% wider on kerning-heavy text).
+A font with no `kern` table is kerned from GPOS: an OpenType font whose only
+kerning is GPOS is kerned from 12pt, its pairs as wide as the browser's GPOS
+kerning. The PowerPoint target leaves a face unkerned when its metrics say
+`pairKerning: false` (the `fontMetrics` option, else `resolveFontMetrics`,
+which reads the installed font's `kern` and GPOS tables on Node, else
+`FONT_WIN_METRICS`, which says `true` for Arial and Calibri); a face none of
+them knows is kerned from 12pt.
 
 Two paragraphs are `paraSpaceAfter` of the first plus `paraSpaceBefore` of the
 second apart in PowerPoint, and the PowerPoint target adds them the same way.

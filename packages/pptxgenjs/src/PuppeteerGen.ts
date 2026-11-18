@@ -58,8 +58,10 @@ export interface PuppeteerGenOptions {
      * head.unitsPerEm and OS/2 usWinAscent and usWinDescent of the faces a deck uses, keyed by face name
      * (case-insensitive), which the PowerPoint target places a single-spaced line's baseline from. They override
      * `resolveFontMetrics` and the built-in FONT_WIN_METRICS; a face in none keeps the font-independent baseline.
-     * `readFontWinMetrics(bytes)` reads them from a font file. The LibreOffice target ignores them, as LibreOffice's
-     * line box ignores the font.
+     * `readFontWinMetrics(bytes)` reads them from a font file. `pairKerning: false` says the face has no pair kerning
+     * PowerPoint reads (no version 0 `kern` table), so the PowerPoint target draws it unkerned at any size; omitted, it
+     * is kerned from 12pt. The LibreOffice target ignores them, as LibreOffice's line box ignores the font and it kerns
+     * every run.
      */
     fontMetrics?: Readonly<Record<string, FontWinMetrics>>;
     /**

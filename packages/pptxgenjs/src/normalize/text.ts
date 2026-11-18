@@ -88,13 +88,17 @@ function getVerticalAlign(options: PptxGenJS.TextPropsOptions): "sub" | "super" 
     return "baseline";
 }
 
-/** Whether `target` kerns a run: PptxGenJS writes `kern="0"` with `charSpacing`, and inherits 12pt otherwise. */
-function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget): boolean {
+/**
+ * Whether `target` kerns a run: PptxGenJS writes `kern="0"` with `charSpacing`, and inherits 12pt otherwise. PowerPoint
+ * kerns only a face whose pair kerning it reads; a face `fontMetrics` does not know is kerned.
+ */
+function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup): boolean {
     if (!RENDERING_TARGETS[target].readsKern) return true;
-    return !options.charSpacing && (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) >= PPTX_DEFAULTS.text.kernMinSizePt;
+    if (options.charSpacing || (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) < PPTX_DEFAULTS.text.kernMinSizePt) return false;
+    return fontMetrics(options.fontFace ?? PPTX_DEFAULTS.text.fontFace)?.pairKerning !== false;
 }
 
-export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextRun {
+export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextRun {
     const underline = underlineType(options);
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const baseline = options.baseline ?? 0;
@@ -123,7 +127,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         verticalAlign: getVerticalAlign(options),
         baselineOffset: escapement === undefined ? pointsToPixels(baseline / 100) : escapement * fontSize,
         characterSpacing: pointsToPixels(options.charSpacing ?? 0),
-        ...(kerned(options, target) ? {} : { kerning: false as const }),
+        ...(kerned(options, target, fontMetrics) ? {} : { kerning: false as const }),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
         outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(options.outline.size) } : undefined,
         glow: textShadow(options),
@@ -231,7 +235,7 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceG
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
     const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : multiple;
-    const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options), target));
+    const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options), target, fontMetrics));
     const lineBox = paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace);
     // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
     const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
@@ -346,9 +350,10 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
 
 /**
  * `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS); `fontMetrics` looks up
- * the metrics of the faces that place a single-spaced baseline where the target reads them (`fontLineBaseline`), and
- * `themeFontFace` is the theme's minor font (`pres.theme.bodyFontFace`), the font of soft breaks and, unless
- * `markFontFace` names the one PptxGenJS writes on `<a:endParaRPr>` (a table cell's fontFace), of the paragraph mark.
+ * the metrics of the faces that place a single-spaced baseline where the target reads them (`fontLineBaseline`) and
+ * decide whether it kerns them (`readsKern`), and `themeFontFace` is the theme's minor font (`pres.theme.bodyFontFace`),
+ * the font of soft breaks and, unless `markFontFace` names the one PptxGenJS writes on `<a:endParaRPr>` (a table cell's
+ * fontFace), of the paragraph mark.
  */
 export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace, markFontFace: string = themeFontFace): NormalizedTextBox {
     const groups = groupPieces(piecesFromInput(input, options), options.align).flatMap(splitAtLineFeeds);

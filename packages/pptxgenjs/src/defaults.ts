@@ -399,8 +399,11 @@ export const RENDERING_TARGETS = Object.freeze({
      */
     libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined, fontLineBaseline: false, emptyNumberedParagraph: "restarts", lineFeedParagraph: "run" }),
     /**
-     * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. It adds a
-     * paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
+     * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
+     * pair kerning it reads (FontWinMetrics `pairKerning`): a font whose only pair kerning is an Apple-format `kern`
+     * table plus GPOS comes out of its PDF export unkerned at 12 and 18pt, lines 6-7% wider on kerning-heavy text, while
+     * a font with no `kern` table is kerned from GPOS (an OpenType font whose only kerning is GPOS, at 14pt). It
+     * adds a paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
      * `paraSpaceBefore: 6, paraSpaceAfter: 18` gives a 45.6pt pitch (21.6 + 6 + 18), not 39.6. It leaves out the
      * first paragraph's space before: with `paraSpaceBefore: 12` the first baseline is 17.05pt below the top inset,
      * as without it. With explicit line spacing it puts each baseline at 0.75 of the line height H, whatever the font
@@ -430,11 +433,18 @@ export const RENDERING_TARGETS = Object.freeze({
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 
-/** A face's head.unitsPerEm and OS/2 usWinAscent and usWinDescent, in font units. */
+/** A face's head.unitsPerEm and OS/2 usWinAscent and usWinDescent, in font units, and whether PowerPoint kerns it. */
 export interface FontWinMetrics {
     readonly unitsPerEm: number;
     readonly winAscent: number;
     readonly winDescent: number;
+    /**
+     * Whether PowerPoint pair-kerns the face: from its `kern` table alone when it has one (version 0 with a horizontal
+     * format 0 subtable), else from GPOS. `false`: PowerPoint does not kern it at any size, as with a font whose only
+     * pair kerning is an Apple-format `kern` table (version 1.0) plus GPOS. Omitted: kerned from `text.kernMinSizePt`,
+     * as for an unknown face.
+     */
+    readonly pairKerning?: boolean;
 }
 /** Font metrics keyed by lower-case face name. */
 export type FontMetricsTable = Readonly<Record<string, FontWinMetrics>>;
@@ -452,12 +462,15 @@ export type FontMetricsLookup = (fontFace: string) => FontWinMetrics | undefined
  * predicted), 16.15 in Courier New (16.12) and 17.09 in Cambria (16.99). A face not listed keeps the font-independent
  * baseline, 1em below the line top (`text.singleLineEm` - `text.lineDescentEm`). The caller's `fontMetrics` option and
  * the face's installed font (`resolveFontMetrics`, on Node by default) come before these.
+ * `pairKerning`: Arial and Calibri carry a version 0 `kern` table, which PowerPoint kerns from 12pt (measured against its
+ * PDF export of synthetic decks: our kerned lines match its line widths within 0.4% at 11, 12 and 18pt); Liberation Sans
+ * has one too. The other faces' `kern` tables were not checked in the Microsoft fonts, so they keep the default (kerned).
  */
 export const FONT_WIN_METRICS: FontMetricsTable = Object.freeze({
-    arial: Object.freeze({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 }),
+    arial: Object.freeze({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true }),
     "times new roman": Object.freeze({ unitsPerEm: 2048, winAscent: 1825, winDescent: 443 }),
     "courier new": Object.freeze({ unitsPerEm: 2048, winAscent: 1705, winDescent: 615 }),
-    calibri: Object.freeze({ unitsPerEm: 2048, winAscent: 1950, winDescent: 550 }),
+    calibri: Object.freeze({ unitsPerEm: 2048, winAscent: 1950, winDescent: 550, pairKerning: true }),
     cambria: Object.freeze({ unitsPerEm: 2048, winAscent: 1946, winDescent: 455 }),
 });
 /** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */

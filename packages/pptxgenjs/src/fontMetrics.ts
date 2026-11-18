@@ -10,6 +10,7 @@ const FONT_WIN_METRICS_SCHEMA = z
         unitsPerEm: integer(1, "a positive integer (head.unitsPerEm)"),
         winAscent: integer(0, "a non-negative integer (OS/2 usWinAscent)"),
         winDescent: integer(0, "a non-negative integer (OS/2 usWinDescent)"),
+        pairKerning: z.boolean({ error: "must be a boolean (whether PowerPoint pair-kerns the font)" }).optional(),
     })
     .refine(metrics => metrics.winAscent + metrics.winDescent > 0, { error: "winAscent + winDescent must be greater than 0" });
 
@@ -94,11 +95,23 @@ const TABLE_RECORD_SIZE = 16;
 const HEAD_UNITS_PER_EM = 18;
 const OS2_WIN_ASCENT = 74;
 const OS2_WIN_DESCENT = 76;
+// kern table (OpenType spec): Microsoft format uint16 version 0 then uint16 nTables; each subtable has uint16 version,
+// length and coverage (format in the high byte, horizontal in bit 0), then format 0's uint16 nPairs. Apple's format starts
+// with a 32-bit version 0x00010000, so its first uint16 is 1.
+const KERN_TABLES = 2;
+const KERN_SUBTABLES = 4;
+const KERN_SUBTABLE_LENGTH = 2;
+const KERN_SUBTABLE_COVERAGE = 4;
+const KERN_SUBTABLE_PAIRS = 6;
+const KERN_HORIZONTAL = 0x0001;
 
 /**
  * A font's head.unitsPerEm and OS/2 usWinAscent and usWinDescent, from TrueType or OpenType (CFF) bytes, for the
- * `fontMetrics` option. A TrueType collection (.ttc) gives the face at `faceIndex`, the first by default; a single font
- * has only face 0. WOFF and WOFF2 are not read: decompress first.
+ * `fontMetrics` option, and `pairKerning`: whether PowerPoint pair-kerns it. A font with a `kern` table is kerned from
+ * that table alone, so true only when it is version 0 with a horizontal format 0 subtable holding pairs (an Apple-format
+ * one gives false, whatever GPOS holds); a font without one is kerned from GPOS, so true when it has a GPOS table. A TrueType
+ * collection (.ttc) gives the face at `faceIndex`, the first by default; a single font has only face 0. WOFF and WOFF2
+ * are not read: decompress first.
  */
 export function readFontWinMetrics(bytes: Uint8Array, faceIndex = 0): FontWinMetrics {
     if (!(bytes instanceof Uint8Array)) throw new FontFileError("expected the font file's bytes as a Uint8Array");
@@ -129,8 +142,28 @@ export function readFontWinMetrics(bytes: Uint8Array, faceIndex = 0): FontWinMet
         if (offset + 2 > entry.length) throw new FontFileError(`the ${table} table is ${entry.length} bytes, too short for ${what}`);
         return read(entry.offset + offset, 2, `${table} ${what}`);
     };
-    const metrics = { unitsPerEm: field("head", HEAD_UNITS_PER_EM, "unitsPerEm"), winAscent: field("OS/2", OS2_WIN_ASCENT, "usWinAscent"), winDescent: field("OS/2", OS2_WIN_DESCENT, "usWinDescent") };
+    const metrics = {
+        unitsPerEm: field("head", HEAD_UNITS_PER_EM, "unitsPerEm"),
+        winAscent: field("OS/2", OS2_WIN_ASCENT, "usWinAscent"),
+        winDescent: field("OS/2", OS2_WIN_DESCENT, "usWinDescent"),
+        pairKerning: tables.has("kern") ? hasMicrosoftPairKerning(field) : tables.has("GPOS"),
+    };
     if (metrics.unitsPerEm === 0) throw new FontFileError("head.unitsPerEm is 0");
     if (metrics.winAscent + metrics.winDescent === 0) throw new FontFileError("OS/2 usWinAscent and usWinDescent are both 0");
     return Object.freeze(metrics);
+}
+
+/** Whether the `kern` table `field` reads is version 0 with a horizontal format 0 subtable holding pairs; stops at the first. */
+function hasMicrosoftPairKerning(field: (table: string, offset: number, what: string) => number): boolean {
+    if (field("kern", 0, "its version") !== 0) return false; // Apple's version 1.0 format, which PowerPoint does not kern from.
+    const count = field("kern", KERN_TABLES, "nTables");
+    let subtable = KERN_SUBTABLES;
+    for (let index = 0; index < count; index++) {
+        const coverage = field("kern", subtable + KERN_SUBTABLE_COVERAGE, `subtable ${index} coverage`);
+        if (coverage >> 8 === 0 && (coverage & KERN_HORIZONTAL) !== 0 && field("kern", subtable + KERN_SUBTABLE_PAIRS, `subtable ${index} nPairs`) > 0) return true;
+        const length = field("kern", subtable + KERN_SUBTABLE_LENGTH, `subtable ${index} length`);
+        if (length < KERN_SUBTABLE_PAIRS) throw new FontFileError(`kern subtable ${index} is ${length} bytes long, shorter than its header`);
+        subtable += length;
+    }
+    return false;
 }

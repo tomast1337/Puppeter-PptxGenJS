@@ -6,16 +6,17 @@ import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
 import { resolveInstalledFontMetrics } from "../packages/pptxgenjs/src/node";
 
-/** A minimal sfnt: a head table with unitsPerEm and an OS/2 table with usWinAscent and usWinDescent (`os2Length` bytes). */
-function sfnt({ unitsPerEm = 1000, winAscent = 950, winDescent = 250, os2Length = 78, base = 0 } = {}): Uint8Array {
-    const tables = [
-        { tag: "OS/2", length: os2Length },
-        { tag: "head", length: 54 },
-    ];
+/**
+ * A minimal sfnt: a head table with unitsPerEm and an OS/2 table with usWinAscent and usWinDescent (`os2Length` bytes),
+ * `kern` as its kern table when given, an empty GPOS table with `gpos`, and `version` as its sfnt version (TrueType's
+ * 0x00010000, or OpenType CFF's OTTO).
+ */
+function sfnt({ unitsPerEm = 1000, winAscent = 950, winDescent = 250, os2Length = 78, base = 0, kern = undefined as Uint8Array | undefined, gpos = false, version = 0x00010000 } = {}): Uint8Array {
+    const tables = [{ tag: "OS/2", length: os2Length }, { tag: "head", length: 54 }, ...(kern ? [{ tag: "kern", length: kern.length }] : []), ...(gpos ? [{ tag: "GPOS", length: 10 }] : [])];
     const directory = 12 + 16 * tables.length;
     const bytes = new Uint8Array(directory + tables.reduce((sum, table) => sum + table.length, 0));
     const view = new DataView(bytes.buffer);
-    view.setUint32(0, 0x00010000);
+    view.setUint32(0, version);
     view.setUint16(4, tables.length);
     let offset = directory;
     tables.forEach((table, index) => {
@@ -27,7 +28,8 @@ function sfnt({ unitsPerEm = 1000, winAscent = 950, winDescent = 250, os2Length 
         view.setUint32(record + 8, base + offset);
         view.setUint32(record + 12, table.length);
         if (table.tag === "head") view.setUint16(offset + 18, unitsPerEm);
-        else if (os2Length >= 78) {
+        else if (table.tag === "kern" && kern) bytes.set(kern, offset);
+        else if (table.tag === "OS/2" && os2Length >= 78) {
             view.setUint16(offset + 74, winAscent);
             view.setUint16(offset + 76, winDescent);
         }
@@ -69,6 +71,22 @@ function installedFont(family: string): string | undefined {
     }
 }
 
+/** Big-endian 16-bit words, the units a kern table is made of. */
+function words(...values: number[]): Uint8Array {
+    const bytes = new Uint8Array(2 * values.length);
+    const view = new DataView(bytes.buffer);
+    values.forEach((value, index) => view.setUint16(2 * index, value));
+    return bytes;
+}
+/** A version 0 kern subtable: version, `length` bytes, `coverage`, then format 0's nPairs, search fields and pairs. */
+const subtable = (coverage: number, pairs: number, length = 14 + 6 * pairs) => [0, length, coverage, pairs, 0, 0, 0, ...Array<number>(3 * pairs).fill(0)];
+/** A Microsoft-format (version 0) kern table holding `subtables`. */
+const kernV0 = (...subtables: number[][]) => words(0, subtables.length, ...subtables.flat());
+const HORIZONTAL_FORMAT_0 = 0x0001;
+const OTTO = 0x4f54544f;
+/** An Apple-format (version 1.0) kern table: 32-bit version 0x00010000, nTables 1, then a horizontal format 0 subtable. */
+const KERN_APPLE = words(1, 0, 0, 1, 0, 20, 0x0001, 2, 0, 0, 0);
+
 const BRAND = { unitsPerEm: 1000, winAscent: 950, winDescent: 250 };
 
 describe("fontMetrics option", () => {
@@ -79,6 +97,7 @@ describe("fontMetrics option", () => {
             [{ "My Brand Sans": { ...BRAND, winDescent: 250.5 } }, '`fontMetrics["My Brand Sans"].winDescent` must be a non-negative integer (OS/2 usWinDescent)'],
             [{ "My Brand Sans": { unitsPerEm: 1000, winAscent: 950 } }, '`fontMetrics["My Brand Sans"].winDescent` must be a non-negative integer'],
             [{ "My Brand Sans": { ...BRAND, winAscent: 0, winDescent: 0 } }, '`fontMetrics["My Brand Sans"]` winAscent + winDescent must be greater than 0'],
+            [{ "My Brand Sans": { ...BRAND, pairKerning: "yes" } }, '`fontMetrics["My Brand Sans"].pairKerning` must be a boolean (whether PowerPoint pair-kerns the font)'],
             [{ "My Brand Sans": { ...BRAND, ascent: 900 } }, '`fontMetrics["My Brand Sans"]`'],
             ["My Brand Sans", "`fontMetrics` must be an object keyed by font face name"],
         ];
@@ -140,17 +159,58 @@ describe("readFontWinMetrics", () => {
     const liberationSans = installedFont("Liberation Sans");
     test.skipIf(liberationSans === undefined || !liberationSans.endsWith("LiberationSans-Regular.ttf"))("reads Liberation Sans, Arial's metric-compatible face, as FONT_WIN_METRICS.arial", () => {
         const metrics = readFontWinMetrics(readFileSync(liberationSans ?? ""));
-        expect(metrics).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 });
+        expect(metrics).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
         expect(metrics).toEqual(FONT_WIN_METRICS.arial!);
         expect(() => new PuppeteerGenPowerPoint(undefined, { fontMetrics: { "My Brand Sans": metrics } })).not.toThrow();
     });
 
     test("reads a TrueType font, a subarray of a larger buffer and a collection's first face", () => {
-        expect(readFontWinMetrics(sfnt())).toEqual(BRAND);
+        const unkerned = { ...BRAND, pairKerning: false };
+        expect(readFontWinMetrics(sfnt())).toEqual(unkerned);
         const padded = new Uint8Array(8 + sfnt().length);
         padded.set(sfnt(), 8);
-        expect(readFontWinMetrics(padded.subarray(8))).toEqual(BRAND);
-        expect(readFontWinMetrics(ttc(base => sfnt({ base })))).toEqual(BRAND);
+        expect(readFontWinMetrics(padded.subarray(8))).toEqual(unkerned);
+        expect(readFontWinMetrics(ttc(base => sfnt({ base })))).toEqual(unkerned);
+    });
+
+    test("reports pair kerning only for a version 0 kern table with a horizontal format 0 subtable holding pairs", () => {
+        const pairKerning = (kern?: Uint8Array) => readFontWinMetrics(sfnt({ kern })).pairKerning;
+        expect(pairKerning()).toBe(false);
+        expect(pairKerning(kernV0(subtable(HORIZONTAL_FORMAT_0, 2)))).toBe(true);
+        // Found after subtables that do not count: no pairs, not horizontal, format 2.
+        expect(pairKerning(kernV0(subtable(HORIZONTAL_FORMAT_0, 0), subtable(0x0000, 1), subtable(0x0201, 1), subtable(HORIZONTAL_FORMAT_0, 1)))).toBe(true);
+        expect(pairKerning(kernV0(subtable(HORIZONTAL_FORMAT_0, 0), subtable(0x0000, 3)))).toBe(false);
+        expect(pairKerning(kernV0())).toBe(false);
+        // Apple's format: a 32-bit version 1.0 and nTables, then a subtable that would read as horizontal format 0.
+        expect(pairKerning(KERN_APPLE)).toBe(false);
+        expect(readFontWinMetrics(ttc(base => sfnt({ base, kern: kernV0(subtable(HORIZONTAL_FORMAT_0, 1)) }))).pairKerning).toBe(true);
+    });
+
+    test("without a kern table, reports pair kerning when the font has a GPOS table, TrueType or OpenType CFF alike", () => {
+        expect(readFontWinMetrics(sfnt({ version: OTTO, gpos: true })).pairKerning).toBe(true);
+        expect(readFontWinMetrics(sfnt({ gpos: true })).pairKerning).toBe(true);
+        expect(readFontWinMetrics(sfnt({ version: OTTO })).pairKerning).toBe(false);
+        expect(readFontWinMetrics(sfnt())).toEqual({ ...BRAND, pairKerning: false });
+    });
+
+    test("a kern table decides alone: an Apple-format one gives false and a version 0 one true, GPOS or not", () => {
+        expect(readFontWinMetrics(sfnt({ kern: KERN_APPLE, gpos: true })).pairKerning).toBe(false);
+        expect(readFontWinMetrics(sfnt({ kern: kernV0(subtable(HORIZONTAL_FORMAT_0, 0)), gpos: true })).pairKerning).toBe(false);
+        expect(readFontWinMetrics(sfnt({ kern: kernV0(subtable(HORIZONTAL_FORMAT_0, 1)), gpos: true })).pairKerning).toBe(true);
+    });
+
+    test("throws FontFileError on a malformed version 0 kern table", () => {
+        const cases: [Uint8Array, string][] = [
+            [words(0), "the kern table is 2 bytes, too short for nTables"],
+            [words(0, 1, 0, 14), "the kern table is 8 bytes, too short for subtable 0 coverage"],
+            [words(0, 1, 0, 14, HORIZONTAL_FORMAT_0), "the kern table is 10 bytes, too short for subtable 0 nPairs"],
+            [kernV0(subtable(0x0000, 1, 0), subtable(HORIZONTAL_FORMAT_0, 1)), "kern subtable 0 is 0 bytes long, shorter than its header"],
+            [kernV0(subtable(0x0000, 1, 400), subtable(HORIZONTAL_FORMAT_0, 1)), "too short for subtable 1 coverage"],
+        ];
+        for (const [kern, message] of cases) {
+            expect(() => readFontWinMetrics(sfnt({ kern }))).toThrow(FontFileError);
+            expect(() => readFontWinMetrics(sfnt({ kern }))).toThrow(message);
+        }
     });
 
     test("reads a collection's face at faceIndex, and rejects a face it does not have", () => {
@@ -158,8 +218,8 @@ describe("readFontWinMetrics", () => {
             base => sfnt({ base }),
             base => sfnt({ base, unitsPerEm: 2048, winAscent: 1900, winDescent: 500 }),
         );
-        expect(readFontWinMetrics(collection, 0)).toEqual(BRAND);
-        expect(readFontWinMetrics(collection, 1)).toEqual({ unitsPerEm: 2048, winAscent: 1900, winDescent: 500 });
+        expect(readFontWinMetrics(collection, 0)).toEqual({ ...BRAND, pairKerning: false });
+        expect(readFontWinMetrics(collection, 1)).toEqual({ unitsPerEm: 2048, winAscent: 1900, winDescent: 500, pairKerning: false });
         expect(() => readFontWinMetrics(collection, 2)).toThrow("the collection has 2 faces, so no face 2");
         expect(() => readFontWinMetrics(sfnt(), 1)).toThrow("a single font has only face 0, not face 1");
         expect(() => readFontWinMetrics(sfnt(), -1)).toThrow(FontFileError);
@@ -228,8 +288,14 @@ describe("resolveFontMetrics option", () => {
 describe("resolveInstalledFontMetrics (the Node entry's default)", () => {
     const liberationSans = installedFont("Liberation Sans");
     test.skipIf(liberationSans === undefined || !liberationSans.endsWith("LiberationSans-Regular.ttf"))("reads the installed Liberation Sans through fontconfig, case-insensitively", () => {
-        expect(resolveInstalledFontMetrics("Liberation Sans")).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 });
-        expect(resolveInstalledFontMetrics("LIBERATION SANS")).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 });
+        // Liberation Sans carries a version 0 kern table, as Arial does.
+        expect(resolveInstalledFontMetrics("Liberation Sans")).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
+        expect(resolveInstalledFontMetrics("LIBERATION SANS")).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
+    });
+
+    const liberationMono = installedFont("Liberation Mono");
+    test.skipIf(liberationMono === undefined || !liberationMono.endsWith("LiberationMono-Regular.ttf"))("reports a font whose only pair kerning is GPOS (no kern table) as pair-kerned", () => {
+        expect(resolveInstalledFontMetrics("Liberation Mono")?.pairKerning).toBe(true);
     });
 
     test("does not take the substitute fontconfig answers with for a face that is not installed", () => {
@@ -237,5 +303,38 @@ describe("resolveInstalledFontMetrics (the Node entry's default)", () => {
         // fontconfig pattern syntax in a name stays part of the name.
         expect(resolveInstalledFontMetrics("Liberation Sans:weight=200")).toBeUndefined();
         expect(resolveInstalledFontMetrics("Liberation Sans-12")).toBeUndefined();
+    });
+});
+
+describe("pair kerning on the PowerPoint target", () => {
+    const UNKERNED = { ...BRAND, pairKerning: false };
+    const run = (fontSize: number, target: "libreoffice" | "powerpoint", metrics: FontWinMetrics | undefined) => normalizeText("AV", { fontFace: "My Brand Sans", fontSize }, target, () => metrics).paragraphs[0]?.runs[0];
+
+    test("kerns from 12pt only a face whose pairKerning is not false; LibreOffice kerns every run", () => {
+        for (const metrics of [undefined, BRAND, { ...BRAND, pairKerning: true }]) {
+            expect(run(12, "powerpoint", metrics)).not.toHaveProperty("kerning");
+            expect(run(11, "powerpoint", metrics)?.kerning).toBe(false);
+        }
+        for (const fontSize of [11, 12, 18, 40]) expect(run(fontSize, "powerpoint", UNKERNED)?.kerning).toBe(false);
+        for (const fontSize of [11, 18]) expect(run(fontSize, "libreoffice", UNKERNED)).not.toHaveProperty("kerning");
+    });
+
+    // Whether each "AVATAR" run is drawn unkerned: a text box, an Arial text box, a table cell and a shape's text.
+    const unkerned = async (presentation: PuppeteerGen) => {
+        const slide = presentation.addSlide();
+        slide.addText("AVATAR", { x: 1, y: 0.5, w: 3, h: 1, fontFace: "My Brand Sans", fontSize: 12 });
+        slide.addText("AVATAR", { x: 1, y: 1.5, w: 3, h: 1, fontFace: "Arial", fontSize: 12 });
+        slide.addTable([[{ text: "AVATAR", options: { fontFace: "My Brand Sans", fontSize: 12 } }]], { x: 1, y: 3, w: 3 });
+        slide.addText("AVATAR", { shape: "rect", x: 5, y: 0.5, w: 3, h: 1, fontFace: "My Brand Sans", fontSize: 18 });
+        const { html } = await presentation.toHtml();
+        return [...html.matchAll(/class="text-run"[^>]*>AVATAR</g)].map(match => match[0].includes("font-kerning: none;"));
+    };
+
+    test("a resolver reporting no pair kerning leaves the face unkerned in text boxes, table cells and shapes", async () => {
+        const resolveFontMetrics = (face: string) => (face === "My Brand Sans" ? UNKERNED : undefined);
+        expect(await unkerned(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics }))).toEqual([true, false, true, true]);
+        expect(await unkerned(new PuppeteerGenPowerPoint(undefined, { fontMetrics: { "My Brand Sans": { ...BRAND, pairKerning: true } }, resolveFontMetrics }))).toEqual([false, false, false, false]);
+        expect(await unkerned(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null }))).toEqual([false, false, false, false]);
+        expect(await unkerned(new PuppeteerGenLibreOffice(undefined, { resolveFontMetrics }))).toEqual([false, false, false, false]);
     });
 });
