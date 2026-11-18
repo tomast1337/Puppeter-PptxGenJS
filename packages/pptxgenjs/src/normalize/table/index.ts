@@ -106,7 +106,18 @@ function runOptions(run: PptxGenJS.TextPropsOptions, cell: PptxGenJS.TextPropsOp
         if (!own[name] && parent[name] !== undefined && name !== "bullet" && !(name === "color" && own.hyperlink)) own[name] = parent[name];
     }
     // `as`: the run's own option names, some with the cell's values for the same names.
-    return own as PptxGenJS.TextPropsOptions;
+    return tableTextOptions(own as PptxGenJS.TextPropsOptions);
+}
+
+/**
+ * Only addTextDefinition turns `underline: true` into `{ style: "sng" }`; in a table PptxGenJS 4.0.1 keeps the boolean,
+ * which genXmlTextRunProperties writes no `u` for. It becomes `false`, which normalizeText neither inherits over nor draws.
+ */
+function tableTextOptions(options: PptxGenJS.TextPropsOptions): PptxGenJS.TextPropsOptions {
+    // `unknown`: PptxGenJS's types declare only the object form of `underline`.
+    const underline: unknown = options.underline;
+    // `as`: `false` is how normalizeText reads "no underline written"; the declared type has no boolean.
+    return underline === true ? { ...options, underline: false as unknown as undefined } : options;
 }
 
 /** A cell option genXmlTable (step 2) fills from the table: falsy (`false`, `""`, `null`, unset) but not 0. */
@@ -182,7 +193,7 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                 const cell = tableCell(rawCell, rowIndex, column);
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
                 // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
-                const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
+                const textOptions = tableTextOptions({ ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions);
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
                 // PptxGenJS writes the cell's fontFace on <a:endParaRPr>, the paragraph mark's font in PowerPoint.
                 // shortcut: the theme font (soft breaks, a cell without fontFace) is the default Calibri whatever the

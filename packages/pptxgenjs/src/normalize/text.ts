@@ -45,6 +45,19 @@ function underlineStyle(style?: string): NormalizedTextRun["decoration"]["underl
     return "solid";
 }
 
+/**
+ * The `u` PptxGenJS 4.0.1 genXmlTextRunProperties writes for a run: `underline.style`, a string as given (deprecated
+ * since 3.5.0, still written), or `sng` for a hyperlink. addTextDefinition turns `underline: true` on a text box or its
+ * runs into `{ style: "sng" }`; a table cell's `true` stays a boolean (tableTextOptions) and writes no `u`.
+ */
+function underlineType(options: PptxGenJS.TextPropsOptions): string | undefined {
+    // `unknown`: PptxGenJS's types declare only the object form; the string and boolean forms work at runtime.
+    const underline: unknown = options.underline;
+    if (typeof underline === "string") return underline;
+    if (underline === true) return "sng";
+    return options.underline?.style || (options.hyperlink ? "sng" : undefined);
+}
+
 function textShadow(options: PptxGenJS.TextPropsOptions): NormalizedShadow | undefined {
     if (!options.glow) return undefined;
     return {
@@ -73,7 +86,7 @@ function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget): b
 }
 
 export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextRun {
-    const underline = typeof options.underline === "object" ? options.underline : undefined;
+    const underline = underlineType(options);
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const baseline = options.baseline ?? 0;
     const fontSize = pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt);
@@ -82,7 +95,6 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     const escapement = options.baseline ? undefined : options.subscript ? PPTX_DEFAULTS.text.subscriptBaseline : options.superscript ? PPTX_DEFAULTS.text.superscriptBaseline : undefined;
     const link = normalizeHyperlink(options.hyperlink);
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
-    const hasUnderline = Boolean(link) || Boolean(underline && underline.style !== "none");
 
     return {
         text,
@@ -92,9 +104,10 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         bold: options.bold ?? PPTX_DEFAULTS.text.bold,
         italic: options.italic ?? PPTX_DEFAULTS.text.italic,
         decoration: {
-            underline: hasUnderline,
-            underlineStyle: underlineStyle(underline?.style),
-            underlineColor: underline?.color ? normalizeColor(underline.color) : undefined,
+            // `u=""`, which only the string form writes, is no underline type: it draws none.
+            underline: Boolean(underline) && underline !== "none",
+            underlineStyle: underlineStyle(underline),
+            underlineColor: typeof options.underline === "object" && options.underline.color ? normalizeColor(options.underline.color) : undefined,
             strike,
             doubleStrike: options.strike === "dblStrike",
         },
