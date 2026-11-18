@@ -13,12 +13,19 @@ interface TextPiece {
     text: string;
     /** The run's options record, shared and mutated as in PptxGenJS (piecesFromInput). */
     options: PptxGenJS.TextPropsOptions;
-    /** A line feed PptxGenJS keeps inside the run's `<a:t>` ends this piece, which PowerPoint draws as a new paragraph. */
-    lineFeed?: boolean;
     /** PptxGenJS writes no `<a:r>` for this piece: an empty text of its own (genXmlTextRun skips it). */
     noRun?: boolean;
     /** The empty text after a run's last line feed: a paragraph of its own only when nothing else falls into it (paragraphFromPieces). */
     tail?: boolean;
+}
+
+/** One paragraph of the model: an `<a:p>`'s pieces up to a line feed kept inside `<a:t>`, or to the `<a:p>`'s end. */
+interface PieceGroup {
+    pieces: TextPiece[];
+    /** The options of the `<a:p>`'s first run, whose `<a:pPr>` PowerPoint reads for each of its paragraphs. */
+    paragraph: PptxGenJS.TextPropsOptions | undefined;
+    /** The group ends its `<a:p>`, so its last line holds the paragraph mark, not a line feed. */
+    endsParagraph: boolean;
 }
 
 // --- UTILITIES ---
@@ -213,23 +220,28 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces(group: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
+function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceGroup, parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
     // PowerPoint and LibreOffice give the empty text after a run's last line feed no size in a paragraph that holds
     // other text (measured against PowerPoint's PDF export); alone, it is an empty paragraph in the run's font. Without
     // it, the paragraph's properties come from its next run.
     const pieces = group.some(piece => !piece.tail) ? group.filter(piece => !piece.tail) : group;
-    const first = inheritedOptions(parent, pieces[0]?.options);
+    // PptxGenJS writes an <a:pPr> before every run of an <a:p>; PowerPoint reads the first for every paragraph its line
+    // feeds make, LibreOffice the one of the run starting each line (RENDERING_TARGETS.lineFeedParagraph).
+    const first = inheritedOptions(parent, RENDERING_TARGETS[target].lineFeedParagraph === "paragraph" ? paragraph : pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
     const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : multiple;
     const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options), target));
+    const lineBox = paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace);
+    // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
+    const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
 
     return {
         runs,
         align: first.align ?? PPTX_DEFAULTS.text.align,
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineHeight,
-        lineBox: paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace),
+        lineBox: endsParagraph ? lineBox : feedLineBox,
         spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
         spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
         tabStops: (first.tabStops ?? [])
@@ -260,21 +272,17 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): 
         if (Array.isArray(input)) delete options.shadow;
         records.set(item.options, options);
         const text = item.text.replace(/\r\n?/g, "\n");
-        const lines = text.split("\n");
         // STEP 4 C splits a text with a line feed that does not end with one, and sets `breakLine` on the shared record,
         // so every piece ends a paragraph, the last one too. A text ending with a line feed is written whole, its line
-        // feeds kept inside `<a:t>`.
-        if (lines.length > 1 && !text.endsWith("\n")) options.breakLine = true;
-        const lineFeeds = text.endsWith("\n");
-        lines.forEach((line, index) => {
-            const last = index === lines.length - 1;
-            pieces.push({ text: line, options, ...(lineFeeds && !last ? { lineFeed: true } : {}), ...(lineFeeds && last ? { tail: true } : {}), ...(!lineFeeds && !line ? { noRun: true } : {}) });
-        });
+        // feeds kept inside `<a:t>` (splitAtLineFeeds).
+        const lines = text.endsWith("\n") ? [text] : text.split("\n");
+        if (lines.length > 1) options.breakLine = true;
+        for (const line of lines) pieces.push({ text: line, options, ...(line ? {} : { noRun: true }) });
     }
     return pieces;
 }
 
-// PptxGenJS 4.0.1 genXmlTextBody (STEP 5): when the run or the box has `align`, only a change of the run's
+// PptxGenJS 4.0.1 genXmlTextBody (STEP 5) groups the runs into `<a:p>`s: when the run or the box has `align`, only a change of the run's
 // align starts a paragraph and `bullet` is not checked (the bullet test is an `else if`). Otherwise a bullet
 // run starts a paragraph and its `breakLine` is cleared on the shared record, so it does not also end one.
 function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextPiece[][] {
@@ -295,7 +303,7 @@ function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextP
 
         current.push(piece);
 
-        if ((piece.lineFeed || options.breakLine) && index + 1 < pieces.length) {
+        if (options.breakLine && index + 1 < pieces.length) {
             groups.push(current);
             current = [];
         }
@@ -303,6 +311,23 @@ function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextP
 
     if (current.length || groups.length === 0) groups.push(current);
     return groups;
+}
+
+/** An `<a:p>`'s pieces cut at each line feed inside a run's `<a:t>`, which PowerPoint draws as a new paragraph. */
+function splitAtLineFeeds(line: TextPiece[]): PieceGroup[] {
+    let current: TextPiece[] = [];
+    const groups = [current];
+    for (const piece of line) {
+        const lines = piece.text.split("\n");
+        lines.forEach((text, index) => {
+            if (index > 0) {
+                current = [];
+                groups.push(current);
+            }
+            current.push(lines.length === 1 ? piece : { ...piece, text, ...(index === lines.length - 1 ? { tail: true } : {}) });
+        });
+    }
+    return groups.map((pieces, index) => ({ pieces, paragraph: line[0]?.options, endsParagraph: index === groups.length - 1 }));
 }
 
 function getTextDirection(vert?: string): "vertical" | "vertical270" | "stacked" | "horizontal" {
@@ -326,15 +351,14 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
  * `markFontFace` names the one PptxGenJS writes on `<a:endParaRPr>` (a table cell's fontFace), of the paragraph mark.
  */
 export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace, markFontFace: string = themeFontFace): NormalizedTextBox {
-    const pieces = piecesFromInput(input, options);
-    const groups = groupPieces(pieces, options.align);
+    const groups = groupPieces(piecesFromInput(input, options), options.align).flatMap(splitAtLineFeeds);
 
     const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
     let numberIndex = 0;
     const paragraphs = groups.map((group, index) => {
         const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target, fontMetrics, themeFontFace, markFontFace);
         // A paragraph PptxGenJS writes without a run gets no marker in PowerPoint or LibreOffice.
-        const runless = group.every(piece => piece.noRun);
+        const runless = group.pieces.every(piece => piece.noRun);
         const empty = paragraph.runs.every(run => !run.text);
         if (bullet?.kind !== "number") numberIndex = 0;
         else if (emptyNumberedParagraph === "skipped") numberIndex += empty ? 0 : 1;

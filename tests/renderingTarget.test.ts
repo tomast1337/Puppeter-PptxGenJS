@@ -109,6 +109,39 @@ describe("rendering targets", () => {
         expect(await margins(new PuppeteerGenLibreOffice())).toEqual(["16px", "16px"]);
     });
 
+    // Runs ending with "\n" share one <a:p>, PptxGenJS writes an <a:pPr> before each and keeps the line feeds in <a:t>.
+    // Measured against PowerPoint's PDF export of synthetic decks (12pt Arial): paraSpaceAfter 12 on the first run puts
+    // 26.4pt between all four lines, on a middle or the last run none (14.4pt); paraSpaceBefore and lineSpacing 30 on a
+    // later run change nothing; only the last line sits 0.36pt higher, from the paragraph mark in the theme font.
+    test("the PowerPoint target gives each paragraph an <a:p>'s line feeds make the first run's properties; LibreOffice the line's first run's", async () => {
+        const runs = (): PptxGenJS.TextProps[] => [{ text: "One\n", options: { paraSpaceAfter: 9 } }, { text: "Two\n", options: { paraSpaceBefore: 6, lineSpacing: 30 } }, { text: "Three" }];
+        const text = (target: Parameters<typeof normalizeText>[2]) => normalizeText(runs(), { fontSize: 12, fontFace: "Arial", align: "left" }, target).paragraphs;
+        const props = (target: Parameters<typeof normalizeText>[2]) => text(target).map(({ spaceBefore, spaceAfter, lineHeight }) => [spaceBefore, spaceAfter, lineHeight]);
+        expect(props("powerpoint")).toEqual([
+            [0, 0, undefined],
+            [12, 0, undefined],
+            [12, 0, undefined],
+        ]);
+        expect(props("libreoffice")).toEqual([
+            [0, 12, undefined],
+            [8, 0, 40],
+            [0, 0, undefined],
+        ]);
+        // A line feed ends its line in the run's font: only the <a:p>'s last line holds the paragraph mark.
+        expect(text("powerpoint").map(paragraph => paragraph.lineBox.markBaseline !== undefined)).toEqual([false, false, true]);
+        // The bullet is in the first <a:pPr> too.
+        const bullets = normalizeText([{ text: "Item\n", options: { bullet: true } }, { text: "more" }], {}, "powerpoint").paragraphs.map(paragraph => paragraph.bullet?.marker);
+        expect(bullets).toEqual(["•", "•"]);
+
+        const html = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText(runs(), { x: 1, y: 1, w: 3, h: 2, fontSize: 12, fontFace: "Arial", align: "left" });
+            const page = (await presentation.toHtml()).html;
+            return [...page.matchAll(/class="text-paragraph"[^>]*margin-top: ([^;]*);/g)].map(match => match[1]).concat(String(page.match(/data-mark-baseline/g)?.length ?? 0));
+        };
+        expect(await html(new PuppeteerGenPowerPoint())).toEqual(["0px", "12px", "12px", "1"]);
+        expect(await html(new PuppeteerGenLibreOffice())).toEqual(["0px", "8px", "0px", "0"]);
+    });
+
     // Measured against PowerPoint's PDF export (baseline below the line top, pt): 18pt x0.8 13.0, x1.5 24.4, x2.0 32.4,
     // exact 30 22.6, exact 18 13.6, exact 12 9.0, 12pt x1.5 16.25; 0.75 H is 12.96, 24.3, 32.4, 22.5, 13.5, 9.0, 16.2.
     test("with explicit line spacing the PowerPoint target puts the baseline at 0.75 of the line height; LibreOffice at 0.2em above its bottom", async () => {
