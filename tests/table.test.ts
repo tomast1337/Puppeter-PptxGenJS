@@ -142,6 +142,26 @@ describe("table normalization", () => {
         expect(normalizeTable([rows[0]!, rows[0]!], { h: 2, rowH: [0.5] }, PAGE).rows.map(row => row.height)).toEqual([48, 96]);
     });
 
+    // PptxGenJS 4.0.1 genXmlTable writes `<a:tr h>` from rowH, else h / rows; h alone is only the frame's cy, which
+    // PowerPoint and LibreOffice ignore (#246): rowH 0.5 with h 3 draws 3 rows of 0.5 in, a 1.5 in table.
+    test("sizes the table from its rows, not from a larger h (#246)", () => {
+        const rows = [[{ text: "A" }], [{ text: "B" }], [{ text: "C" }]];
+        const withRowH = normalizeTable(rows, { h: 3, rowH: 0.5 }, PAGE);
+        expect(withRowH.rows.map(row => row.height)).toEqual([48, 48, 48]);
+        expect(withRowH.height).toBe(144);
+        const fromH = normalizeTable(rows, { h: 3 }, PAGE);
+        expect(fromH.rows.map(row => row.height)).toEqual([96, 96, 96]);
+        expect(fromH.height).toBe(288);
+        expect(normalizeTable([[{ text: "A" }], [{ text: "B" }]], { rowH: [0.5] }, PAGE).height).toBeUndefined();
+
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addTable(rows, { x: 0.5, y: 0.5, w: 8, h: 3, rowH: 0.5 });
+        const page = renderedPage(presentation);
+        expect(parseFloat(page.querySelector<HTMLElement>(".slide-table-container")?.style.height ?? "")).toBe(144);
+        expect(parseFloat(page.querySelector<HTMLElement>("table.slide-table")?.style.height ?? "")).toBe(144);
+        expect([...page.querySelectorAll<HTMLElement>("tr")].map(row => parseFloat(row.style.height))).toEqual([48, 48, 48]);
+    });
+
     // PptxGenJS 4.0.1 writes a bare <a:bodyPr/> in every cell (genXmlTextBody), so a cell has no autofit (#197).
     test("ignores fit, shrinkText and autoFit on a cell or the table, as PptxGenJS does", () => {
         // `as`: the types leave these options off cells and tables, but PptxGenJS accepts them at runtime.

@@ -129,12 +129,14 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
     const count = columnCount(tableRows);
     const { width, columns } = tableWidthAndColumns(count, options, pageSize);
     const heights = rowHeights(tableRows.length, options, pageSize);
-    const explicitHeight = options.h === undefined ? (heights.every(height => height !== undefined) ? heights.reduce<number>((sum, height) => sum + height!, 0) : undefined) : convertToPixels(options.h, inchesToPixels(pageSize.height));
+    // PptxGenJS 4.0.1 genXmlTable (step 4 A) writes `h` into the rows only without `rowH`; otherwise `h` is just the
+    // frame's `cy`, which PowerPoint and LibreOffice ignore: a table is as tall as its rows (#246).
+    const height = heights.reduce<number | undefined>((sum, row) => (sum === undefined || row === undefined ? undefined : sum + row), 0);
     const { contentRowSlackMm } = RENDERING_TARGETS[target];
 
     return {
         width,
-        height: explicitHeight,
+        height,
         columns,
         ...(contentRowSlackMm ? { contentRowSlack: millimetersToPixels(contentRowSlackMm) } : {}),
         rows: tableRows.map((row, rowIndex) => ({

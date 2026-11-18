@@ -477,6 +477,8 @@ const PARAGRAPH_CASES = [
     { name: "text-bullet-wrap-level-0", x: 0.5, y: 2.75, w: 4, h: 1 },
     { name: "text-bullet-wrap-level-1", x: 5.5, y: 2.75, w: 4, h: 1 },
     { name: "text-number-leading-line-feed", x: 0.5, y: 4.25, w: 4, h: 1 },
+    // Not a paragraph case: a free spot on the last parity slide, which no WASM deck takes.
+    { name: "table-rows-under-frame-height", x: 5.5, y: 4.25, w: 4, h: 1.2 },
 ] as const;
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
 
@@ -1768,7 +1770,7 @@ export function populateParityFixture(presentation: Presentation): void {
 function populateParagraphFixture(presentation: Presentation): void {
     const slide = presentation.addSlide();
     slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed] = PARAGRAPH_CASES;
+    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight] = PARAGRAPH_CASES;
     // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
     // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
     // paragraph after every piece, the last one too, whatever its own breakLine.
@@ -1805,6 +1807,16 @@ function populateParagraphFixture(presentation: Presentation): void {
             w: leadingLineFeed.w,
             h: leadingLineFeed.h,
         },
+    );
+    // PptxGenJS 4.0.1 writes rowH into `<a:tr h>` and `h` only into the frame's cy, which PowerPoint and LibreOffice
+    // ignore: three 0.3 in rows, not 1.2 in shared out (#246).
+    const fills = ["D9EAF7", "FFF2CC", "E2F0D9"];
+    slide.addTable(
+        fills.map((color, index) => [
+            { text: `Label ${index + 1}`, options: { fill: { color } } },
+            { text: `Value ${index + 1}`, options: { fill: { color } } },
+        ]),
+        { x: frameHeight.x, y: frameHeight.y, w: frameHeight.w, h: frameHeight.h, rowH: 0.3, fontFace: "Arial", fontSize: 8, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } },
     );
 }
 

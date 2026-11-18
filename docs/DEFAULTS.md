@@ -186,6 +186,12 @@ string `line` and the deprecated `lineSize`, `lineDash`, `lineHead` and
 Table margins retain a historical dual-unit rule: values below 1 are inches;
 values of 1 or greater are points.
 
+A table is as tall as its rows. PptxGenJS 4.0.1 writes each `<a:tr h>` from
+`rowH`, or from `h` divided by the row count when `rowH` is missing; with `rowH`,
+`h` only becomes the frame's `cy`, which PowerPoint and LibreOffice ignore, so
+`rowH: 0.3, h: 2` on three rows draws a 0.9in table. Every row height is a
+minimum that grows to the row's text.
+
 A row without a height (PptxGenJS writes `<a:tr h="0">`, as on autoPage and
 `tableToSlides` pages) sizes to its tallest cell. LibreOffice makes it 1/100 mm
 taller than that cell's text and margins (svx `Cell::getMinimumHeight` returns
