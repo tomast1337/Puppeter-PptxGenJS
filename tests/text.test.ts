@@ -254,7 +254,9 @@ describe("text DOM rendering", () => {
         expect(run(1)?.empty).toBe("");
         expect(run(0)?.empty).toBeUndefined();
         expect(run(2)).toMatchObject({ doubleStrike: "", underlineStyle: "wavy" });
-        expect(run(2, 1)).toMatchObject({ verticalAlign: "super", softBreakBefore: "", textShadow: "shadow" });
+        expect(run(2, 1)).toMatchObject({ verticalAlign: "super", softBreakBefore: "" });
+        // PptxGenJS writes no run shadow (see below), so the run has no text-shadow entry to name.
+        expect(run(2, 1)?.textShadow).toBeUndefined();
         expect(run(2)?.verticalAlign).toBeUndefined();
     });
 
@@ -390,6 +392,36 @@ describe("text DOM rendering", () => {
         };
         const ignored = deck({ text: { isTextBox: true, textDirection: "vert", data: PNG, path: "logo.png" }, shape: { align: "center" } });
         expect(ignored).toEqual(deck({}));
+    });
+
+    // PptxGenJS 4.0.1 genXmlTextRunProperties writes only `glow` into a run's <a:effectLst>: a run's shadow (outer or
+    // inner) is in no OOXML, so PowerPoint and LibreOffice draw none. The text box's own shadow is written and drawn.
+    test("draws no run shadow, as PptxGenJS writes none, and keeps the text box's", () => {
+        const runShadow = { type: "outer", color: "0000FF", blur: 3, offset: 3, angle: 45, opacity: 0.8 } as const;
+        const deck = (runOptions: object) => {
+            const presentation = new PuppeteerGen();
+            presentation.addSlide().addText(
+                [
+                    { text: "A", options: { ...runOptions } },
+                    { text: "B", options: { glow: { size: 4, opacity: 0.5, color: "FF0000" }, ...runOptions } },
+                ],
+                { x: 1, y: 1, w: 4, h: 1, shadow: { type: "outer", color: "000000", blur: 3, offset: 3, angle: 45, opacity: 0.4 } },
+            );
+            return presentation;
+        };
+        const shadowed = deck({ shadow: runShadow });
+        expect(shadowed.getModel()).toEqual(deck({}).getModel());
+        expect(deck({ shadow: { ...runShadow, type: "inner" } }).getModel()).toEqual(deck({}).getModel());
+
+        const [object] = shadowed.getModel().slides[0]?.objects ?? [];
+        expect(object?.kind === "text" && object.text.paragraphs[0]?.runs.map(run => run.shadow)).toEqual([undefined, undefined]);
+        expect(object?.style.shadow?.visible).toBe(true);
+
+        const page = renderedPage(shadowed);
+        const runs = [...page.querySelectorAll<HTMLElement>(".text-run")];
+        expect(runs.map(run => run.dataset.textShadow)).toEqual([undefined, "glow"]);
+        expect(runs.some(run => run.hasAttribute("data-shadow-inset"))).toBe(false);
+        expect(page.querySelector<HTMLElement>(".slide-text")?.style.boxShadow).not.toBe("");
     });
 
     test("creates internal slide links and rejects empty hyperlink objects", () => {

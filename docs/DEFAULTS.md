@@ -120,6 +120,7 @@ reads no other text option of a slide number.
 | Rotation/transparency |                                     0 | Mapped                         |
 | Outline without width |       Hairline (`<a:ln>` without `w`) | 0.75pt (one CSS px)            |
 | Kerning               |    From 12pt, none with `charSpacing` | PowerPoint target (see below)  |
+| Run `shadow`          |      Not written (only run `glow` is) | Ignored, as PptxGenJS          |
 
 Text `margin` values are points. A scalar applies to all sides. PptxGenJS
 4.0.1 emits a four-value text margin as `[left, right, bottom, top]`, although

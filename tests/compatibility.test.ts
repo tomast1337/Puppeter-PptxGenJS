@@ -119,7 +119,7 @@ describe("compatibility manifest", () => {
 
     test("records pinned PptxGenJS text quirks explicitly", () => {
         // Declared, but without effect on what PptxGenJS 4.0.1 draws (tests/text.test.ts checks the model is unchanged).
-        for (const option of ["textDirection", "bulletNumberType", "isTextBox", "data", "path"] as const) expect(COMPATIBILITY.text.options[option]).toBe("ignored");
+        for (const option of ["textDirection", "bulletNumberType", "isTextBox", "data", "path", "runShadow"] as const) expect(COMPATIBILITY.text.options[option]).toBe("ignored");
         expect(COMPATIBILITY.shape.options.align).toBe("ignored");
         expect(COMPATIBILITY.table.options.verbose).toBe("ignored");
         expect(COMPATIBILITY.text.options.bulletDeprecatedStyle).toBe("implemented");
