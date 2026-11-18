@@ -4,7 +4,7 @@ import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
 import { pixelsToInches, pointsToInches } from "#src/units";
 import { slideMarginInches } from "#src/normalize/margin";
-import { normalizeTable, tableCell } from "./index";
+import { normalizeTable, tableCell, tableRow } from "./index";
 
 export interface PaginatedTablePage {
     rows: PptxGenJS.TableRow[];
@@ -30,85 +30,62 @@ function verticalInches(value: number | `${number}%` | undefined, fallback: numb
     return fallback;
 }
 
-function cellValue(cell: PptxGenJS.TableCell): string | PptxGenJS.TableCell[] {
-    return cell.text ?? "";
-}
-
 function cloneRows(rows: PptxGenJS.TableRow[]): PptxGenJS.TableRow[] {
     return rows.map(row => row.map(cell => ({ ...cell, options: cell.options ? { ...cell.options } : undefined })));
 }
 
 // --- TEXT PARSING & WRAPPING ---
 
-function inputPieces(cell: PptxGenJS.TableCell): TextPiece[] {
-    const value = cellValue(cell);
-    if (!Array.isArray(value)) return [{ text: String(value).trim(), options: cell.options }];
-
-    return value.flatMap(part => {
-        const nested = cellValue(part);
-        if (Array.isArray(nested)) return inputPieces(part);
-        return [{ text: String(nested), options: part.options }];
+/**
+ * PptxGenJS 4.0.1 parseTextToLines (steps 1 and 2): the cell's text as pieces that each start a line. A string or
+ * number is trimmed. In rich text each run starts a line of its own: a run whose `text` is not a string adds nothing,
+ * a run without a line feed is trimmed, and a run with line feeds is split, untrimmed, into pieces that each end
+ * with a break.
+ */
+function linePieces(cell: PptxGenJS.TableCell): TextPiece[] {
+    const text: unknown = cell.text;
+    const runs: ReadonlyArray<{ text?: unknown; options?: PptxGenJS.TableCellProps }> = text && String(text).trim().length === 0 ? [{ text: " " }] : typeof text === "string" || typeof text === "number" ? [{ text: String(text).trim() }] : Array.isArray(text) ? text : [];
+    return runs.flatMap(run => {
+        if (typeof run.text !== "string") return [];
+        const lines = run.text.split("\n");
+        return lines.length > 1 ? lines.map(line => ({ text: line, options: { ...run.options, breakLine: true } })) : [{ text: run.text.trim(), options: run.options }];
     });
 }
 
-function splitExplicitLines(pieces: TextPiece[]): TextPiece[][] {
-    const explicitLines: TextPiece[][] = [];
-    let current: TextPiece[] = [];
-
-    for (const piece of pieces) {
-        const hardLines = piece.text.replace(/\r\n?/g, "\n").split("\n");
-        hardLines.forEach((text, index) => {
-            current.push({ text, options: piece.options });
-            if (index < hardLines.length - 1 || piece.options?.breakLine) {
-                explicitLines.push(current);
-                current = [];
-            }
-        });
-        if (current.length) {
-            explicitLines.push(current);
-            current = [];
-        }
-    }
-
-    return explicitLines.length ? explicitLines : [[{ text: "", options: pieces[0]?.options }]];
-}
-
-function wrapLineToCapacity(line: TextPiece[], charactersPerLine: number): TextPiece[][] {
-    const result: TextPiece[][] = [];
-    let output: TextPiece[] = [];
+/**
+ * parseTextToLines (steps 3 and 4): a piece's words, starting a new line whenever the next word would pass
+ * `charactersPerLine`. The check runs before the first word too, so a first word longer than a line leaves an empty
+ * line in front of it. A piece that ends with a break keeps the break on its last word only.
+ */
+function wrapPiece(piece: TextPiece, charactersPerLine: number): TextPiece[][] {
+    const words = piece.text.split(" ");
+    const lines: TextPiece[][] = [];
+    let line: TextPiece[] = [];
     let length = 0;
-
-    for (const piece of line) {
-        const words = piece.text.split(" ");
-        words.forEach((word, index) => {
-            const text = word + (index + 1 < words.length ? " " : "");
-            if (output.length && length + text.length > charactersPerLine) {
-                result.push(output);
-                output = [];
-                length = 0;
-            }
-            output.push({ text, options: piece.options });
-            length += text.length;
-        });
-    }
-
-    if (output.length) result.push(output);
-    return result;
+    words.forEach((word, index) => {
+        const last = index + 1 === words.length;
+        const text = last ? word : `${word} `;
+        if (length + text.length > charactersPerLine) {
+            lines.push(line);
+            line = [];
+            length = 0;
+        }
+        line.push({ text, options: piece.options?.breakLine ? { ...piece.options, breakLine: last } : piece.options });
+        length += text.length;
+    });
+    if (line.length) lines.push(line);
+    return lines;
 }
 
-function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number, table: PptxGenJS.TableProps): TextPiece[][] {
+/** The lines getSlidesForTableRows counts for a cell; without a column width (a cell past the last column) it never wraps. */
+function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number | undefined, table: PptxGenJS.TableProps): TextPiece[][] {
     // PptxGenJS 4.0.1 parseTextToLines sizes characters per line from the cell's own fontSize or DEF_FONT_SIZE, never
     // the table fontSize (unlike the line height), and floors only the width in points: CPL = floor(w pt) / (size / FOCO).
     const fontSize = cell.options?.fontSize || PPTX_DEFAULTS.table.fontSizePt;
     const characterWeight = table.autoPageCharWeight ?? PPTX_DEFAULTS.table.autoPageCharWeight;
-    const widthPoints = Math.floor((columnWidth / PPTX_DEFAULTS.units.emuPerPoint) * PPTX_DEFAULTS.units.emuPerInch);
+    const widthPoints = columnWidth === undefined ? Number.NaN : Math.floor((columnWidth / PPTX_DEFAULTS.units.emuPerPoint) * PPTX_DEFAULTS.units.emuPerInch);
     const charactersPerLine = widthPoints / (fontSize / (PPTX_DEFAULTS.table.autoPageCharConstant + characterWeight));
-
-    const pieces = inputPieces(cell);
-    const explicitLines = splitExplicitLines(pieces);
-    const result = explicitLines.flatMap(line => wrapLineToCapacity(line, charactersPerLine));
-
-    return result.length ? result : [[{ text: "", options: cell.options }]];
+    return linePieces(cell).flatMap(piece => wrapPiece(piece, charactersPerLine));
 }
 
 function cellFromLines(cell: PptxGenJS.TableCell, lines: TextPiece[][]): PptxGenJS.TableCell {
@@ -167,23 +144,21 @@ function calculateLineHeight(row: PptxGenJS.TableRow, table: PptxGenJS.TableProp
     const weight = clamp(table.autoPageLineWeight ?? PPTX_DEFAULTS.table.autoPageLineWeight, -1, 1);
     return row.reduce((height, cell) => {
         if (cell.options?.rowspan) return height;
-        const fontSize = cell.options?.fontSize ?? table.fontSize ?? PPTX_DEFAULTS.table.fontSizePt;
+        // getSlidesForTableRows (D) skips a falsy cell or table fontSize.
+        const fontSize = cell.options?.fontSize || table.fontSize || PPTX_DEFAULTS.table.fontSizePt;
         return Math.max(height, (fontSize * (LINE_HEIGHT_MODIFIER + weight)) / 100);
     }, 0);
 }
 
 function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTable, options: PptxGenJS.TableProps): RowMetrics {
-    const widths: number[] = [];
-    let column = 0;
-
-    row.forEach(cell => {
-        const colspan = Math.max(1, Math.floor(cell.options?.colspan ?? 1));
-        const colWidth = normalized.columns.slice(column, column + colspan).reduce((sum, width) => sum + width, 0);
-        widths.push(pixelsToInches(colWidth));
-        column += colspan;
+    // getSlidesForTableRows (E-3) reads `colW` at the cell's index, not its column, and for any `colspan` adds every
+    // width from that index to the end (its `idx < idx + colspan` is always true).
+    const widths = row.map((cell, index) => {
+        const columns = normalized.columns.slice(index, cell.options?.colspan ? undefined : index + 1);
+        return columns.length ? pixelsToInches(columns.reduce((sum, width) => sum + width, 0)) : undefined;
     });
 
-    const lines = row.map((cell, index) => wrappedLines(cell, widths[index] ?? pixelsToInches(normalized.width), options));
+    const lines = row.map((cell, index) => wrappedLines(cell, widths[index], options));
 
     return {
         lines,
@@ -209,7 +184,7 @@ function firstRowTooTallError(margins: number, lineHeight: number, available: nu
 
 export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
     if (!inputRows.length) return [];
-    const rows = inputRows.map((row, rowIndex) => row.map((cell, column) => tableCell(cell, rowIndex, column)));
+    const rows = inputRows.map((row, rowIndex) => tableRow(row, rowIndex).map((cell, column) => tableCell(cell, rowIndex, column)));
 
     const normalized = normalizeTable(rows, options, pageSize);
     const extendedOptions = options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin };

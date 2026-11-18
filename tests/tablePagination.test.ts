@@ -189,3 +189,42 @@ describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: eac
         expect(ours).toEqual(round(pptxGenJsRowHeights(structuredClone(input), structuredClone(options))));
     });
 });
+
+/** PptxGenJS 4.0.1 autoPage pages: per slide, the text of each row's first cell, from its parsed word runs. */
+function pptxGenJsPages(input: unknown[], options: PptxGenJS.TableProps): string[][] {
+    const pptx = new PptxGenJSRuntime();
+    pptx.layout = "LAYOUT_16x9";
+    pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
+    // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
+    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: PptxGenJS.TableCell[][] }> }> })._slides;
+    return slides.map(slide => (slide._slideObjects[0]?.arrTabRows ?? []).map(row => firstCellText(row)));
+}
+
+function firstCellText(row: PptxGenJS.TableRow): string {
+    const text: unknown = row[0]?.text;
+    return Array.isArray(text) ? text.map(run => (typeof run.text === "string" ? run.text : "")).join("") : String(text ?? "");
+}
+
+function ourPages(input: unknown[], options: PptxGenJS.TableProps): string[][] {
+    return paginateTableRows(structuredClone(input) as PptxGenJS.TableRow[], options, PAGE).map(page => page.rows.map(row => firstCellText(row)));
+}
+
+describe("autoPage line counting (PptxGenJS 4.0.1 parseTextToLines and getSlidesForTableRows E-3)", () => {
+    const filler = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor";
+    test.each<[string, unknown[], PptxGenJS.TableProps]>([
+        // A first word longer than the line adds an empty line in front of it (parseTextToLines step 4 A).
+        ["an over-long first word", Array.from({ length: 24 }, (_, index) => [{ text: `Abcdefghijklmnopqrstuvwxyz${index} end` }, { text: "x" }]), { autoPage: true, colW: [1, 8] }],
+        // colW is read at the cell index, and a colspan adds every width from there to the end.
+        ["a colspan cell", Array.from({ length: 16 }, (_, index) => [{ text: `${index} ${filler}`, options: { colspan: 2 } }, { text: "x" }]), { autoPage: true, colW: [1, 1, 7] }],
+        ["a cell after a colspan", Array.from({ length: 16 }, (_, index) => [{ text: `${index}`, options: { colspan: 2 } }, { text: filler }]), { autoPage: true, colW: [1, 7, 1] }],
+        // Each run starts a line, a run that is not a string adds none, and a run without a line feed is trimmed.
+        ["rich-text runs", Array.from({ length: 20 }, (_, index) => [{ text: [{ text: `${index} ` }, { text: "b" }, { text: 7 }, { text: "c\nd" }] }, { text: "x" }]), { autoPage: true, colW: [4, 4] }],
+        ["runs trimmed before counting", Array.from({ length: 30 }, (_, index) => [{ text: [{ text: `${index}${"m".repeat(20)}${" ".repeat(40)}` }] }, { text: "x" }]), { autoPage: true, colW: [2, 6] }],
+        // A falsy cell or table fontSize is skipped for the line height.
+        ["a zero cell fontSize", Array.from({ length: 30 }, (_, index) => [{ text: `${index}`, options: { fontSize: 0 } }, { text: "x" }]), { autoPage: true, fontSize: 20 }],
+    ])("splits rows as PptxGenJS does with %s", (_, input, options) => {
+        const theirs = pptxGenJsPages(input, options);
+        expect(theirs.length).toBeGreaterThan(1);
+        expect(ourPages(input, options).map(page => page.length)).toEqual(theirs.map(page => page.length));
+    });
+});

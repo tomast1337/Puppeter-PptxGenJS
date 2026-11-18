@@ -90,20 +90,41 @@ function richText(input: PptxGenJS.TableCell[], cellOptions: PptxGenJS.TextProps
         const value = cell.text ?? "";
         if (Array.isArray(value)) return richText(value, cellOptions);
         // `as`: a run in a cell takes the same text options as an addText() run.
-        return [{ text: String(value), options: (cell.options as PptxGenJS.TextPropsOptions | undefined) ?? cellOptions }];
+        const own = cell.options as PptxGenJS.TextPropsOptions | undefined;
+        return [{ text: String(value), options: own ? runOptions(own, cellOptions) : cellOptions }];
     });
+}
+
+/**
+ * PptxGenJS 4.0.1 genXmlTextBody (step 6 C) fills every falsy run option from the cell, not only a missing one (which
+ * normalizeText inherits), except `bullet` and a linked run's `color`: `bold: false` in a bold cell is bold.
+ */
+function runOptions(run: PptxGenJS.TextPropsOptions, cell: PptxGenJS.TextPropsOptions): PptxGenJS.TextPropsOptions {
+    const own: Record<string, unknown> = { ...run };
+    const parent: Record<string, unknown> = { ...cell };
+    for (const name of Object.keys(own)) {
+        if (!own[name] && parent[name] !== undefined && name !== "bullet" && !(name === "color" && own.hyperlink)) own[name] = parent[name];
+    }
+    // `as`: the run's own option names, some with the cell's values for the same names.
+    return own as PptxGenJS.TextPropsOptions;
+}
+
+/** A cell option genXmlTable (step 2) fills from the table: falsy (`false`, `""`, `null`, unset) but not 0. */
+function missing(value: unknown): boolean {
+    return !value && value !== 0;
 }
 
 function inheritedCellOptions(table: PptxGenJS.TableProps, cell: PptxGenJS.TableCellProps): PptxGenJS.TableCellProps {
     const inherited: Record<string, unknown> = { ...cell };
     for (const name of INHERITED_CELL_OPTIONS) {
-        if (inherited[name] === undefined && table[name] !== undefined) inherited[name] = table[name];
+        // `bold: false` in a bold table is bold.
+        if (missing(inherited[name]) && table[name] !== undefined) inherited[name] = table[name];
     }
-    if (inherited.fontSize === undefined) inherited.fontSize = PPTX_DEFAULTS.table.fontSizePt;
-    if (inherited.valign === undefined) inherited.valign = PPTX_DEFAULTS.table.valign;
-    if (inherited.margin === undefined) inherited.margin = PPTX_DEFAULTS.table.marginIn;
+    if (missing(inherited.fontSize)) inherited.fontSize = PPTX_DEFAULTS.table.fontSizePt;
+    if (missing(inherited.valign)) inherited.valign = PPTX_DEFAULTS.table.valign;
+    if (missing(inherited.margin)) inherited.margin = PPTX_DEFAULTS.table.marginIn;
     // PptxGenJS writes no color for an uncolored linked cell, so it takes the theme's hyperlink color (LibreOffice).
-    if (inherited.color === undefined && !inherited.hyperlink) inherited.color = PPTX_DEFAULTS.table.color;
+    if (missing(inherited.color) && !inherited.hyperlink) inherited.color = PPTX_DEFAULTS.table.color;
     return inherited as PptxGenJS.TableCellProps;
 }
 
@@ -113,12 +134,27 @@ function inheritedCellOptions(table: PptxGenJS.TableProps, cell: PptxGenJS.Table
  * own, before rendering and before getSlidesForTableRows paginates it, so it inherits the table options like an
  * object cell does. A `null` or `undefined` cell makes that step throw (it reads `cell.options` or `cell.text`), so it is
  * rejected here, at `rows[row][column]`, instead of being drawn as the text "null".
+ *
+ * That step keeps an object cell's text only when it is truthy, and genXmlTextBody writes nothing for `true`, so
+ * `{ text: 0 }`, `{ text: false }` and `{ text: true }` are empty cells, as is a plain boolean cell.
  */
-export function tableCell(cell: PptxGenJS.TableCell | string | number | null | undefined, row: number, column: number): PptxGenJS.TableCell {
+export function tableCell(cell: PptxGenJS.TableCell | string | number | boolean | null | undefined, row: number, column: number): PptxGenJS.TableCell {
     if (cell === null || cell === undefined) {
         throw new Error(`addTable: rows[${row}][${column}] is ${cell}. PptxGenJS 4.0.1 fails on a missing cell; pass "" or { text: "" } for an empty cell.`);
     }
-    return typeof cell === "object" ? cell : { text: String(cell) };
+    if (typeof cell === "string" || typeof cell === "number") return { text: String(cell) };
+    if (typeof cell !== "object") return { text: "" };
+    const text: unknown = cell.text;
+    return text === "" || (text && text !== true) ? cell : { ...cell, text: "" };
+}
+
+/**
+ * PptxGenJS 4.0.1 checks only the first row; a later row that is not an array it logs and writes as a row without
+ * cells (addTableDefinition step 2), and autoPage then fails on it with a TypeError. That row is rejected here instead.
+ */
+export function tableRow(row: unknown, index: number): PptxGenJS.TableRow {
+    if (!Array.isArray(row)) throw new Error(`addTable: rows[${index}] is ${row === null ? "null" : `of type ${typeof row}`}, not an array of cells. Wrap the cells of each row in an array: [[{ text: "A" }], [{ text: "B" }]].`);
+    return row;
 }
 
 export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTable {
@@ -142,7 +178,7 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
         ...(contentRowSlackMm ? { contentRowSlack: millimetersToPixels(contentRowSlackMm) } : {}),
         rows: tableRows.map((row, rowIndex) => ({
             height: heights[rowIndex],
-            cells: row.map((rawCell, column) => {
+            cells: tableRow(row, rowIndex).map((rawCell, column) => {
                 const cell = tableCell(rawCell, rowIndex, column);
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
                 // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
