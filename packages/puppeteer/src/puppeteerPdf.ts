@@ -72,7 +72,9 @@ async function prepareForPrint(): Promise<string[]> {
     // The frozen GIFs decode again from their new PNG source.
     await Promise.all((await freezeGifs()).map(settled));
     scaleImagesToBox();
+    const marked = markedParagraphs();
     shrinkTextToFit();
+    raiseMarkedLines(marked);
     return failedImages();
 
     /** Resolves once `image` has loaded or failed. */
@@ -156,6 +158,108 @@ async function prepareForPrint(): Promise<string[]> {
                 });
             }
         });
+    }
+
+    /**
+     * The horizontal paragraphs whose last line (data-mark-baseline) or lines ending in a soft break
+     * (data-break-baseline) sit higher in their line box than data-line-baseline, where the print step put every line,
+     * with those raises as fractions of the line height: read before shrinkTextToFit scales the line height.
+     */
+    function markedParagraphs(): { paragraph: HTMLElement; mark: number; soft: number }[] {
+        return Array.from(document.querySelectorAll<HTMLElement>(".text-paragraph[data-mark-baseline], .text-paragraph[data-break-baseline]")).flatMap(paragraph => {
+            const content = paragraph.parentElement;
+            if (!content?.classList.contains("text-content") || content.parentElement?.dataset.textDirection !== "horizontal") return [];
+            const { lineBaseline = "", markBaseline = lineBaseline, breakBaseline = lineBaseline } = paragraph.dataset;
+            const [baseline, mark, soft, height] = [parseFloat(lineBaseline), parseFloat(markBaseline), parseFloat(breakBaseline), parseFloat(paragraph.style.lineHeight)] as const;
+            if (!Number.isFinite(baseline) || !Number.isFinite(mark) || !Number.isFinite(soft) || !height) {
+                const name = paragraph.closest<HTMLElement>("[data-object-name]")?.dataset.objectName ?? "unnamed text box";
+                throw new Error(`Cannot print '${name}': a .text-paragraph with data-mark-baseline or data-break-baseline needs numeric data-line-baseline, data-mark-baseline and data-break-baseline (px) and a px line-height (PdfLapas HTML profile)`);
+            }
+            return [{ paragraph, mark: (baseline - mark) / height, soft: (baseline - soft) / height }];
+        });
+    }
+
+    /**
+     * Raises the glyphs of each paragraph's last line by its mark raise and of each line ending in a soft break by its
+     * break raise. Which characters are on that line is known only after layout, so the text from the line's first
+     * character on is wrapped in relatively positioned spans, which move the glyphs and leave every line break as it is.
+     */
+    function raiseMarkedLines(paragraphs: { paragraph: HTMLElement; mark: number; soft: number }[]): void {
+        // Client rects are in zoomed px (the print zoom on <html>), line heights in CSS px.
+        const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+        const range = document.createRange();
+        const moves: { nodes: Text[]; offset: number; raise: number; bullet?: HTMLElement }[] = [];
+        // All reads first, so the wrapping below does not lay the document out again for each paragraph.
+        for (const { paragraph, mark, soft } of paragraphs) {
+            const height = parseFloat(paragraph.style.lineHeight);
+            const segments: Text[][] = [[]];
+            for (const child of Array.from(paragraph.children)) {
+                if (child.tagName === "BR") segments.push([]);
+                else if (child.classList.contains("text-run")) segments[segments.length - 1]?.push(...Array.from(child.childNodes).filter((node): node is Text => node instanceof Text && node.length > 0));
+            }
+            segments.forEach((nodes, index) => {
+                const raise = (index === segments.length - 1 ? mark : soft) * height;
+                const start = raise ? lastLineStart(nodes, (height * zoom) / 2) : undefined;
+                if (!start) return;
+                const onFirstLine = index === 0 && start.index === 0 && start.offset === 0;
+                const bullet = onFirstLine ? (paragraph.querySelector<HTMLElement>(":scope > .text-bullet") ?? undefined) : undefined;
+                moves.push({ nodes: nodes.slice(start.index), offset: start.offset, raise, bullet });
+            });
+        }
+        for (const { nodes, offset, raise, bullet } of moves) {
+            nodes.forEach((node, index) => {
+                const span = document.createElement("span");
+                span.style.position = "relative";
+                span.style.top = `${-raise}px`;
+                const moved = index === 0 && offset > 0 ? node.splitText(offset) : node;
+                moved.replaceWith(span);
+                span.append(moved);
+            });
+            if (bullet) {
+                bullet.style.position = "relative";
+                bullet.style.top = `${-raise}px`;
+            }
+        }
+
+        /** The vertical centre of the character at `offset` in `node`, in client px; undefined when it draws no box. */
+        function centre(node: Text, offset: number): number | undefined {
+            range.setStart(node, offset);
+            range.setEnd(node, offset + 1);
+            const rect = range.getClientRects()[0];
+            return rect && rect.top + rect.height / 2;
+        }
+
+        /**
+         * Where the line of the last character of `nodes` starts: the node index and offset of its first character. Each
+         * line is one line height tall, so a character is on that line when its centre is within `band` of the last one's.
+         */
+        function lastLineStart(nodes: Text[], band: number): { index: number; offset: number } | undefined {
+            const lastNode = nodes[nodes.length - 1];
+            const last = lastNode && centre(lastNode, lastNode.length - 1);
+            if (!lastNode || last === undefined) return undefined;
+            const onLine = (node: Text, offset: number) => {
+                const y = centre(node, offset);
+                return y === undefined || Math.abs(y - last) < band;
+            };
+            let start = { index: nodes.length - 1, offset: lastNode.length - 1 };
+            for (let index = nodes.length - 1; index >= 0; index--) {
+                const node = nodes[index];
+                if (!node || !onLine(node, node.length - 1)) break;
+                if (onLine(node, 0)) {
+                    start = { index, offset: 0 };
+                    continue;
+                }
+                // Lines only move down through the text: offset `low` is on an earlier line, `high` on this one.
+                let [low, high] = [0, node.length - 1];
+                while (high - low > 1) {
+                    const middle = Math.floor((low + high) / 2);
+                    if (onLine(node, middle)) high = middle;
+                    else low = middle;
+                }
+                return { index, offset: high };
+            }
+            return start;
+        }
     }
 
     /** The names of the images that did not decode. */

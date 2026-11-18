@@ -202,6 +202,65 @@ describe("rendering targets", () => {
         expect(await baselines(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(24, 6)]);
     });
 
+    // Measured against PowerPoint's PDF export (#234; baselines below the line top, pt): with the default theme (Calibri)
+    // 18pt Arial sits at 17.05 on a paragraph's last line and 17.5 on a wrapped one; at 32pt the pitch is 37.55 from a
+    // wrapped line to the last one and 39.25 across paragraphs. A 32pt paragraph whose <a:endParaRPr> says 12pt, and a
+    // line ending in a break after 28pt Times New Roman (26.42), still count a mark and a break of their runs' size.
+    test("the PowerPoint target counts the paragraph mark on the last line and a soft break on its line, in the theme font at the run's size", () => {
+        type Input = Parameters<typeof normalizeText>[0];
+        type Options = Parameters<typeof normalizeText>[1];
+        const pt = (px: number | undefined) => (px === undefined ? undefined : Math.round(px * 0.75 * 1000) / 1000);
+        const boxes = (input: Input, options: Options, target: "libreoffice" | "powerpoint" = "powerpoint", themeFontFace?: string) => normalizeText(input, options, target, undefined, themeFontFace).paragraphs.map(({ lineBox }) => [pt(lineBox.baseline), pt(lineBox.markBaseline), pt(lineBox.breakBaseline)]);
+
+        // 21.6 x 17.503 / (17.503 + 4.752): Arial's ascent and the Calibri mark's descent scaled back into the line.
+        expect(boxes("Line", { fontFace: "Arial", fontSize: 18 })).toEqual([[17.503, 16.988, undefined]]);
+        const [[baseline = 0, mark = 0]] = boxes("Line", { fontFace: "Arial", fontSize: 32 }) as [number[]];
+        expect([38.4 - baseline + mark, 38.4 - mark + baseline]).toEqual([expect.closeTo(37.485, 2), expect.closeTo(39.315, 2)]);
+        // The mark in the line's own font, or in a theme font of the same metrics, moves nothing.
+        expect(boxes("Line", { fontFace: "Arial", fontSize: 18 }, "powerpoint", "Arial")).toEqual([[17.503, undefined, undefined]]);
+        expect(boxes("Line", { fontSize: 18 })).toEqual([[16.848, undefined, undefined]]);
+        // The last run's size, not the 12pt PptxGenJS writes on the second paragraph's <a:endParaRPr>.
+        const paragraphs: PptxGenJS.TextProps[] = [
+            { text: "Small", options: { fontSize: 12, breakLine: true } },
+            { text: "Big", options: { fontSize: 32 } },
+        ];
+        expect(boxes(paragraphs, { fontFace: "Arial" })).toEqual([
+            [11.669, 11.325, undefined],
+            [31.116, 30.201, undefined],
+        ]);
+        // A break takes the size of the run before it: 28pt after Times New Roman, 12pt (no change) after Arial 12.
+        const times: PptxGenJS.TextProps[] = [
+            { text: "Times", options: { fontFace: "Times New Roman", fontSize: 28 } },
+            { text: "Arial", options: { fontFace: "Arial", fontSize: 12, softBreakBefore: true } },
+        ];
+        expect(boxes(times, {})).toEqual([[27.037, undefined, 26.386]]);
+        const rising: PptxGenJS.TextProps[] = [
+            { text: "small", options: { fontSize: 12 } },
+            { text: "Big", options: { fontSize: 28, softBreakBefore: true } },
+        ];
+        expect(boxes(rising, { fontFace: "Arial" })).toEqual([[27.227, 26.425, undefined]]);
+        // Explicit spacing keeps 0.75 H on every line, and LibreOffice one baseline.
+        expect(boxes("Line", { fontFace: "Arial", fontSize: 18, lineSpacingMultiple: 1.5 })).toEqual([[24.3, undefined, undefined]]);
+        expect(boxes(times, {}, "libreoffice")).toEqual([[28, undefined, undefined]]);
+    });
+
+    test("toHtml() writes data-mark-baseline and data-break-baseline only where they differ, and only for the PowerPoint target", async () => {
+        const attributes = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText(
+                [
+                    { text: "Times", options: { fontFace: "Times New Roman", fontSize: 28 } },
+                    { text: "Second", options: { fontFace: "Times New Roman", fontSize: 28, softBreakBefore: true } },
+                ],
+                { x: 1, y: 1, w: 3, h: 2 },
+            );
+            return (await presentation.toHtml()).html.match(/class="text-paragraph"( data-[a-z-]*="[^"]*")*/)?.[0];
+        };
+        // From FONT_WIN_METRICS (no installed-font lookup): a 44.8px line, Times New Roman at 36.049px; the break and the
+        // mark, Calibri at 28pt, pull both lines to 35.181px.
+        expect(await attributes(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null }))).toMatch(/^class="text-paragraph" data-line-baseline="36\.04\d*" data-mark-baseline="35\.18\d*" data-break-baseline="35\.18\d*"$/);
+        expect(await attributes(new PuppeteerGenLibreOffice())).toMatch(/^class="text-paragraph" data-line-baseline="37\.333\d*"$/);
+    });
+
     // Measured against PowerPoint's PDF export and LibreOffice's: neither draws a marker on a paragraph PptxGenJS writes
     // without a run. PowerPoint numbers only paragraphs with text; LibreOffice restarts after a run-less one.
     test("a run-less paragraph has no marker; PowerPoint numbers only paragraphs with text, LibreOffice restarts after a run-less one", async () => {

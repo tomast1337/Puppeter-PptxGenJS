@@ -49,7 +49,8 @@ root=$PWD
 # +306 B: the shrink-to-fit rule read from data-text-fit-step, -max-steps and -tolerance instead of renderer constants (#154: three attributes and their errors), 1,049,978 -> 1,050,284 B measured; budget = that size.
 # +60 B: a table cell's data-text-fit other than none is a profile error instead of a "shrink-to-fit not applied" warning (#197: the longer error message), 1,050,284 -> 1,050,344 B measured; budget = that size.
 # +821 B: every underline style drawn (#205: double, dotted and dashed bands, the wavy band, the text-decoration-style and data-underline-style keywords), 1,050,344 -> 1,051,165 B measured; budget = that size.
-GZIP_BUDGET=1051165
+# +181 B: the last line and a line ending in a soft break take their own baselines (#234: data-mark-baseline and data-break-baseline read, parley break reasons), 1,051,165 -> 1,051,346 B measured; budget = that size.
+GZIP_BUDGET=1051346
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

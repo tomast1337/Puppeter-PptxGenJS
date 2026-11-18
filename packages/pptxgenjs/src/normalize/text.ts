@@ -198,7 +198,7 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup): NormalizedTextParagraph {
+function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string): NormalizedTextParagraph {
     const first = inheritedOptions(parent, pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
@@ -210,7 +210,7 @@ function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOpt
         align: first.align ?? PPTX_DEFAULTS.text.align,
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineHeight,
-        lineBox: paragraphLineBox({ runs, lineHeight }, target, fontMetrics),
+        lineBox: paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace),
         spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
         spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
         tabStops: (first.tabStops ?? [])
@@ -299,16 +299,17 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
 
 /**
  * `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS); `fontMetrics` looks up
- * the metrics of the faces that place a single-spaced baseline where the target reads them (`fontLineBaseline`).
+ * the metrics of the faces that place a single-spaced baseline where the target reads them (`fontLineBaseline`), and
+ * `themeFontFace` is the theme's minor font (`pres.theme.bodyFontFace`), the font of the paragraph mark and soft breaks.
  */
-export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextBox {
+export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace): NormalizedTextBox {
     const pieces = piecesFromInput(input, options);
     const groups = groupPieces(pieces, options.align);
 
     const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
     let numberIndex = 0;
     const paragraphs = groups.map((group, index) => {
-        const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target, fontMetrics);
+        const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target, fontMetrics, themeFontFace);
         // A paragraph PptxGenJS writes without a run gets no marker in PowerPoint or LibreOffice.
         const runless = group.every(piece => piece.noRun);
         const empty = paragraph.runs.every(run => !run.text);
@@ -345,9 +346,10 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * `height` is each line's height and `baseline` its baseline's distance below the line top, both set
  * by the paragraph's largest run. Chromium's own line box depends on each font's ascent and descent.
  * `target` may place the baseline differently: with explicit spacing (RENDERING_TARGETS.spacedLineBaseline), and with
- * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline).
+ * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline), where the paragraph mark and soft breaks,
+ * set in `themeFontFace`, may move the last line and the lines ending in a break (`markBaseline`, `breakBaseline`).
  */
-export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextParagraph["lineBox"] {
+export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace): NormalizedTextParagraph["lineBox"] {
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
@@ -356,19 +358,34 @@ export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs"
     // lineSpacingMultiple 1 is the single line (singleLineEm), which PowerPoint lays out as single spacing.
     const spaced = lineHeight !== undefined && lineHeight !== PPTX_DEFAULTS.text.singleLineEm;
     if (spaced) return spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
-    if (!fontLineBaseline || paragraph.runs.length === 0) return box;
-    // Each run reaches 1.2x its size, split by its font's winAscent : winDescent; the largest ascent is the baseline,
-    // scaled down with the largest descent when the two overflow the line.
-    // shortcut: PowerPoint also counts a line's soft break and the last line's paragraph mark, set in the theme font;
-    // add them with #234's paragraph-mark part.
+    const { runs } = paragraph;
+    const last = runs.at(-1);
+    if (!fontLineBaseline || !last) return box;
+    // PowerPoint counts the paragraph mark on the last line and a soft break on the line it ends, in the theme font at
+    // the size of the last run and of the run before the break; it ignores the size PptxGenJS writes on <a:endParaRPr>.
+    // shortcut: one line box per paragraph, so every line holds all the paragraph's runs and every break the largest
+    // size before one; split it per line when the model gets a line box per line.
+    const baseline = fontBaseline(runs, box.height, fontMetrics);
+    const markBaseline = fontBaseline([...runs, { fontFace: themeFontFace, fontSize: last.fontSize }], box.height, fontMetrics);
+    const breakSize = Math.max(0, ...runs.map((run, index) => (index > 0 && run.softBreakBefore ? (runs[index - 1]?.fontSize ?? 0) : 0)));
+    const breakBaseline = breakSize ? fontBaseline([...runs, { fontFace: themeFontFace, fontSize: breakSize }], box.height, fontMetrics) : baseline;
+    return { ...box, baseline, ...(markBaseline !== baseline ? { markBaseline } : {}), ...(breakBaseline !== baseline ? { breakBaseline } : {}) };
+}
+
+/**
+ * The single-spaced baseline below the top of a `height` px line holding `runs`: each reaches 1.2x its size, split by
+ * its font's winAscent : winDescent; the largest ascent is the baseline, scaled down with the largest descent when the
+ * two overflow the line.
+ */
+function fontBaseline(runs: ReadonlyArray<Pick<NormalizedTextRun, "fontFace" | "fontSize">>, height: number, fontMetrics: FontMetricsLookup): number {
     let ascent = 0;
     let descent = 0;
-    for (const run of paragraph.runs) {
+    for (const run of runs) {
         const share = ascentShare(fontMetrics(run.fontFace));
         ascent = Math.max(ascent, share * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
         descent = Math.max(descent, (1 - share) * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
     }
-    return { ...box, baseline: ascent + descent > box.height ? (ascent * box.height) / (ascent + descent) : ascent };
+    return ascent + descent > height ? (ascent * height) / (ascent + descent) : ascent;
 }
 
 /** The part of a single-spaced line above the baseline in a font with `metrics`, else the font-independent 1em of 1.2em. */
