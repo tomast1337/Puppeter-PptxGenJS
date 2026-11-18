@@ -476,7 +476,9 @@ read installed fonts.
 - `fontFace`: string - Font family name
 - `bold`: boolean - Bold text
 - `italic`: boolean - Italic text
-- `underline`: boolean - Underlined text
+- `underline`: `{ style?, color? }` - Underlined text; `style` is an OOXML underline type (`"sng"`,
+  `"dbl"`, `"heavy"`, `"dash"`, ...). The deprecated string form (`underline: "heavy"`) and `true`
+  (`"sng"`) work as in PptxGenJS; in a table cell PptxGenJS writes nothing for `true`, so it draws none.
 - `color`: string - Text color
 - `fill`: { color: string } - Background color
 - `align`: "left" | "center" | "right" | "justify" - Horizontal alignment

@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import JSZip from "jszip";
+import type PptxGenJS from "pptxgenjs";
+import PptxGenJSRuntime from "pptxgenjs";
+import type { NormalizedTextRun } from "@pdflapas/model";
 import { renderedPage } from "./renderedPage";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/normalize/text";
@@ -433,5 +437,78 @@ describe("text DOM rendering", () => {
         expect(renderedPage(presentation).querySelectorAll(".slide-container")[1]?.id).toBe("slide-2");
         expect(renderedPage(presentation).querySelector<HTMLAnchorElement>("a")?.getAttribute("href")).toBe("#slide-2");
         expect(() => normalizeText([{ text: "bad", options: { hyperlink: {} } }])).toThrow("hyperlink requires either url or slide");
+    });
+});
+
+/** The underline forms PptxGenJS 4.0.1 accepts at runtime: the declared object, and the deprecated string and boolean. */
+const UNDERLINE_FORMS: [string, unknown][] = [
+    ["string heavy", "heavy"],
+    ["string sng", "sng"],
+    ["string dash", "dash"],
+    ["string dbl", "dbl"],
+    ["string none", "none"],
+    ["empty string", ""],
+    ["object sng", { style: "sng" }],
+    ["object without style", { color: "FF0000" }],
+    ["object none", { style: "none" }],
+    ["true", true],
+    ["false", false],
+];
+
+type UnderlinePlace = (slide: PptxGenJS.Slide, underline: unknown) => void;
+
+// `as`: the string and boolean forms are runtime-only; PptxGenJS's types declare only the object form.
+const UNDERLINE_PLACES: Record<string, UnderlinePlace> = {
+    box: (slide, underline) => slide.addText("Sample", { x: 1, y: 1, w: 3, h: 1, ...({ underline } as PptxGenJS.TextPropsOptions) }),
+    run: (slide, underline) => slide.addText([{ text: "Sample", options: { underline } as PptxGenJS.TextPropsOptions }], { x: 1, y: 1, w: 3, h: 1 }),
+    "run in an underlined box": (slide, underline) => slide.addText([{ text: "Sample" }], { x: 1, y: 1, w: 3, h: 1, ...({ underline } as PptxGenJS.TextPropsOptions) }),
+    shape: (slide, underline) => slide.addText("Sample", { shape: "rect", x: 1, y: 1, w: 3, h: 1, ...({ underline } as PptxGenJS.TextPropsOptions) }),
+    link: (slide, underline) => slide.addText([{ text: "Sample", options: { underline, hyperlink: { url: "https://example.com" } } as PptxGenJS.TextPropsOptions }], { x: 1, y: 1, w: 3, h: 1 }),
+    cell: (slide, underline) => slide.addTable([[{ text: "Sample", options: { underline } as PptxGenJS.TableCellProps }]], {}),
+    "cell in an underlined table": (slide, underline) => slide.addTable([[{ text: "Sample" }]], { underline } as PptxGenJS.TableProps),
+};
+
+/** The `u` attribute of the first run PptxGenJS 4.0.1 writes, or undefined when it writes none. */
+async function pptxGenJsUnderline(place: UnderlinePlace, underline: unknown): Promise<string | undefined> {
+    const pptx = new PptxGenJSRuntime();
+    place(pptx.addSlide(), structuredClone(underline));
+    // `as`: write() returns a Buffer for the nodebuffer output type.
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+    const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+    return xml.match(/<a:r><a:rPr[^>]*? u="([^"]*)"/)?.[1];
+}
+
+function ourUnderline(place: UnderlinePlace, underline: unknown): NormalizedTextRun["decoration"] | undefined {
+    const presentation = new PuppeteerGen();
+    place(presentation.addSlide(), structuredClone(underline));
+    const object = presentation.getModel().slides[0]?.objects[0];
+    const text = object?.kind === "table" ? object.table.rows[0]?.cells[0]?.text : object?.kind === "text" ? object.text : undefined;
+    return text?.paragraphs[0]?.runs[0]?.decoration;
+}
+
+const UNDERLINE_STYLES: Record<string, NormalizedTextRun["decoration"]["underlineStyle"]> = { sng: "solid", heavy: "solid", dash: "dashed", dbl: "double" };
+
+describe("underline forms (the `u` PptxGenJS 4.0.1 genXmlTextRunProperties writes)", () => {
+    const cases = UNDERLINE_FORMS.flatMap(([form, underline]) => Object.keys(UNDERLINE_PLACES).map(place => [form, place, underline] as const));
+    test.each(cases)("%s on a %s draws what PptxGenJS writes", async (_form, place, underline) => {
+        const build = UNDERLINE_PLACES[place];
+        if (!build) throw new Error(`no underline place ${place}`);
+        const u = await pptxGenJsUnderline(build, underline);
+        const decoration = ourUnderline(build, underline);
+        expect(decoration?.underline).toBe(Boolean(u) && u !== "none");
+        if (u && UNDERLINE_STYLES[u]) expect(decoration?.underlineStyle).toBe(UNDERLINE_STYLES[u]);
+    });
+
+    test("the HTML underlines a deprecated string underline in its style", () => {
+        const presentation = new PuppeteerGen();
+        // `as`: PptxGenJS's types declare only the object form; the deprecated string form is still written.
+        const run = (text: string, underline: string): PptxGenJS.TextProps => ({ text, options: { underline } as unknown as PptxGenJS.TextPropsOptions });
+        presentation.addSlide().addText([run("heavy", "heavy"), run("dash", "dash"), run("none", "none")], { x: 1, y: 1, w: 4, h: 1 });
+        const runs = [...renderedPage(presentation).querySelectorAll<HTMLElement>(".text-run")];
+        expect(runs.map(element => [element.textContent, element.style.textDecorationLine.includes("underline"), element.style.textDecorationStyle])).toEqual([
+            ["heavy", true, "solid"],
+            ["dash", true, "dashed"],
+            ["none", false, "solid"],
+        ]);
     });
 });

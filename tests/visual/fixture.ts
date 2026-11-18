@@ -480,6 +480,7 @@ const PARAGRAPH_CASES = [
     // Not paragraph cases: free spots on the last parity slide, which no WASM deck takes.
     { name: "table-rows-under-frame-height", x: 5.5, y: 4.25, w: 4, h: 1.2 },
     { name: "table-falsy-bold", x: 0.5, y: 2.1, w: 4, h: 0.35 },
+    { name: "text-underline-string-forms", x: 5.5, y: 2.3, w: 4, h: 0.3 },
 ] as const;
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
 
@@ -1775,7 +1776,7 @@ export function populateParityFixture(presentation: Presentation): void {
 function populateParagraphFixture(presentation: Presentation): void {
     const slide = presentation.addSlide();
     slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight, falsyBold] = PARAGRAPH_CASES;
+    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight, falsyBold, underlineForms] = PARAGRAPH_CASES;
     // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
     // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
     // paragraph after every piece, the last one too, whatever its own breakLine.
@@ -1833,6 +1834,17 @@ function populateParagraphFixture(presentation: Presentation): void {
             ],
         ],
         { x: falsyBold.x, y: falsyBold.y, w: falsyBold.w, bold: true, fontFace: "Arial", fontSize: 12, color: "363636" },
+    );
+    // PptxGenJS 4.0.1 writes a string `underline` (deprecated since 3.5.0) as u="heavy" / u="dash", and a text box's
+    // `underline: true` as u="sng" (addTextDefinition). `as`: its types declare only the object form.
+    const underline = (value: string | boolean) => ({ underline: value }) as unknown as PptxGenJS.TextPropsOptions;
+    slide.addText(
+        [
+            { text: "String heavy, ", options: underline("heavy") },
+            { text: "string dash, ", options: underline("dash") },
+            { text: "boolean true", options: underline(true) },
+        ],
+        { x: underlineForms.x, y: underlineForms.y, w: underlineForms.w, h: underlineForms.h, fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 },
     );
 }
 
