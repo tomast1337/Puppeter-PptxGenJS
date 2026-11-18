@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, FONT_WIN_METRICS, type FontMetricsTable, type FontWinMetrics, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
-import { fontWinMetrics } from "#src/fontMetrics";
+import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
+import { builtInFontMetrics } from "#src/fontMetrics";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "#src/units";
 import { normalizeHyperlink } from "./link";
@@ -198,7 +198,7 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsTable): NormalizedTextParagraph {
+function paragraphFromPieces(pieces: TextPiece[], parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup): NormalizedTextParagraph {
     const first = inheritedOptions(parent, pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
@@ -295,10 +295,10 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
 }
 
 /**
- * `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS); `fontMetrics` holds
- * the faces whose metrics place a single-spaced baseline where the target reads them (`fontLineBaseline`).
+ * `target` decides what PptxGenJS's file leaves to the application drawing it (RENDERING_TARGETS); `fontMetrics` looks up
+ * the metrics of the faces that place a single-spaced baseline where the target reads them (`fontLineBaseline`).
  */
-export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsTable = FONT_WIN_METRICS): NormalizedTextBox {
+export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextBox {
     const pieces = piecesFromInput(input, options);
     const groups = groupPieces(pieces, options.align);
 
@@ -344,7 +344,7 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * `target` may place the baseline differently: with explicit spacing (RENDERING_TARGETS.spacedLineBaseline), and with
  * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline).
  */
-export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsTable = FONT_WIN_METRICS): NormalizedTextParagraph["lineBox"] {
+export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextParagraph["lineBox"] {
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
@@ -361,7 +361,7 @@ export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs"
     let ascent = 0;
     let descent = 0;
     for (const run of paragraph.runs) {
-        const share = ascentShare(fontWinMetrics(fontMetrics, run.fontFace));
+        const share = ascentShare(fontMetrics(run.fontFace));
         ascent = Math.max(ascent, share * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
         descent = Math.max(descent, (1 - share) * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
     }

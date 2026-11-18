@@ -418,6 +418,8 @@ export interface FontWinMetrics {
 }
 /** Font metrics keyed by lower-case face name. */
 export type FontMetricsTable = Readonly<Record<string, FontWinMetrics>>;
+/** A face's metrics by face name, or undefined when they are not known. */
+export type FontMetricsLookup = (fontFace: string) => FontWinMetrics | undefined;
 
 /**
  * OS/2 usWinAscent and usWinDescent of common Office fonts, in units of `unitsPerEm`, keyed by lower-case face name:
@@ -428,8 +430,8 @@ export type FontMetricsTable = Readonly<Record<string, FontWinMetrics>>;
  * Checked against that export of synthetic decks: the first line of an 18pt paragraph broken by `softBreakBefore` (a
  * line break PowerPoint sets in the theme font, Calibri) has its baseline 16.92pt below the top in Times New Roman (16.96
  * predicted), 16.15 in Courier New (16.12) and 17.09 in Cambria (16.99). A face not listed keeps the font-independent
- * baseline, 1em below the line top (`text.singleLineEm` - `text.lineDescentEm`), unless the caller's `fontMetrics`
- * option lists it; the caller's entries also override these.
+ * baseline, 1em below the line top (`text.singleLineEm` - `text.lineDescentEm`). The caller's `fontMetrics` option and
+ * the face's installed font (`resolveFontMetrics`, on Node by default) come before these.
  */
 export const FONT_WIN_METRICS: FontMetricsTable = Object.freeze({
     arial: Object.freeze({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 }),

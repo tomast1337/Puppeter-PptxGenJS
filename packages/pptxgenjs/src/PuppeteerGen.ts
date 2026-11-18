@@ -2,10 +2,10 @@ import type PptxGenJS from "pptxgenjs";
 import type { NormalizedPresentation, PresentationMetadata } from "@pdflapas/model";
 import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentProps } from "./components/types";
-import { DEFAULT_RENDERING_TARGET, type FontMetricsTable, type FontWinMetrics, PPTX_DEFAULTS, PPTXGENJS_VERSION, RENDERING_TARGETS, type RenderingTarget } from "./defaults";
+import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, PPTX_DEFAULTS, PPTXGENJS_VERSION, RENDERING_TARGETS, type RenderingTarget } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import { type ImageSourceOptions, imageResolver, resolveRemoteImageSource } from "./normalize/image";
-import { fontMetricsTable } from "./fontMetrics";
+import { fontMetricsLookup } from "./fontMetrics";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
 import type { PageSize } from "./pageLayouts";
@@ -55,11 +55,19 @@ export interface PuppeteerGenOptions {
     target?: RenderingTarget;
     /**
      * head.unitsPerEm and OS/2 usWinAscent and usWinDescent of the faces a deck uses, keyed by face name
-     * (case-insensitive), which the PowerPoint target places a single-spaced line's baseline from. They override the
-     * built-in FONT_WIN_METRICS; a face in neither keeps the font-independent baseline. `readFontWinMetrics(bytes)`
-     * reads them from a font file. The LibreOffice target ignores them, as LibreOffice's line box ignores the font.
+     * (case-insensitive), which the PowerPoint target places a single-spaced line's baseline from. They override
+     * `resolveFontMetrics` and the built-in FONT_WIN_METRICS; a face in none keeps the font-independent baseline.
+     * `readFontWinMetrics(bytes)` reads them from a font file. The LibreOffice target ignores them, as LibreOffice's
+     * line box ignores the font.
      */
     fontMetrics?: Readonly<Record<string, FontWinMetrics>>;
+    /**
+     * Looks a face's metrics up for the PowerPoint target when `fontMetrics` does not list it: the metrics of the font
+     * the face resolves to, or undefined to use FONT_WIN_METRICS. Called at most once per face per presentation, and
+     * never for the LibreOffice target; its result is checked. The Node entry reads the installed font by default
+     * (fontconfig); `null` turns the lookup off, so the HTML does not depend on the machine's fonts.
+     */
+    resolveFontMetrics?: ((fontFace: string) => FontWinMetrics | undefined) | null;
 }
 
 /** The constructor's `target`, checked: a misspelled one would otherwise render silently for the default. */
@@ -99,7 +107,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     private readonly resolveImage: (source: string) => Promise<string>;
     private readonly createDocument: () => Document;
     private readonly target: RenderingTarget;
-    private readonly fontMetrics: FontMetricsTable;
+    private readonly fontMetrics: FontMetricsLookup;
     /** The `context.document` of components checked in addComponent(), created the first time one reads it. */
     private readonly componentDocument: () => Document;
 
@@ -110,7 +118,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.resolveImage = imageResolver(options, resolveRemoteImageSource);
         this.createDocument = options.createDocument ?? createBrowserDocument;
         this.target = renderingTarget(options.target);
-        this.fontMetrics = fontMetricsTable(options.fontMetrics);
+        this.fontMetrics = fontMetricsLookup(options.fontMetrics, options.resolveFontMetrics);
         this.componentDocument = lazyDocument(this.createDocument);
     }
 

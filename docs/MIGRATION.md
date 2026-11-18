@@ -85,9 +85,10 @@ const pres = new PuppeteerGenPowerPoint(); // or new pptxgen(undefined, { target
   text style and `kern="0"` on a run with `charSpacing`; PowerPoint reads them, so text under 12pt and
   text with `charSpacing` is drawn without the font's pair kerning, and a line that just fits kerned
   may wrap. LibreOffice kerns every run. A single-spaced line's baseline follows its fonts' ascent and
-  descent (`FONT_WIN_METRICS` in `defaults.ts`: Arial, Calibri, Cambria, Courier New, Times New Roman,
-  plus any face you pass in the `fontMetrics` option, see [USAGE.md](./USAGE.md)); LibreOffice puts it
-  1em below the line top whatever the font.
+  descent, read on Node from the installed font as PowerPoint does, else from the `fontMetrics` option or
+  `FONT_WIN_METRICS` in `defaults.ts` (Arial, Calibri, Cambria, Courier New, Times New Roman); see
+  [USAGE.md](./USAGE.md), which also shows how to keep the HTML independent of the installed fonts.
+  LibreOffice puts it 1em below the line top whatever the font.
 
 Both targets leave a text box's last paragraph's space after out of the height that middle and
 bottom anchoring centre, as PowerPoint and LibreOffice do. The target is written into the HTML
