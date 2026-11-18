@@ -179,8 +179,8 @@ describe("rendering targets", () => {
     // Measured against PowerPoint's PDF export (#234; baseline below the line top): Arial 0.972-0.975em, Calibri
     // 0.936-0.939em, Arial 12/32/18 on one line 31.1pt, an Arial and a Calibri 18pt run on one line 17.04pt.
     test("with single spacing the PowerPoint target puts the baseline at the fonts' winAscent share of the line; LibreOffice at 1em", async () => {
-        expect(FONT_WIN_METRICS.arial).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 });
-        expect(FONT_WIN_METRICS.calibri).toEqual({ unitsPerEm: 2048, winAscent: 1950, winDescent: 550 });
+        expect(FONT_WIN_METRICS.arial).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
+        expect(FONT_WIN_METRICS.calibri).toEqual({ unitsPerEm: 2048, winAscent: 1950, winDescent: 550, pairKerning: true });
         type Input = Parameters<typeof normalizeText>[0];
         type Options = Parameters<typeof normalizeText>[1];
         const box = (input: Input, options: Options, target: "libreoffice" | "powerpoint") => {
