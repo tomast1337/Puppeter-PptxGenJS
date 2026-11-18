@@ -240,7 +240,8 @@ with `data-underline-style`, and `data-empty` on an empty run (its text is U+200
 The rendering target (`PuppeteerGenPowerPoint`, `PuppeteerGenLibreOffice`, or the `target` option) is not
 written as a document-level value: each difference is on the element it changes, so a reader of the HTML
 and the WASM renderer follow it without knowing the target. Today that is `font-kerning: none` on a run
-the PowerPoint target draws unkerned (under 12pt, or with `charSpacing`).
+the PowerPoint target draws unkerned (under 12pt, or with `charSpacing`), and a paragraph's
+`data-line-baseline`, which the PowerPoint target sets from its fonts' ascent and descent.
 
 ### Shape
 
