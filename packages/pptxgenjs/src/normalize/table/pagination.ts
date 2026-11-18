@@ -88,21 +88,14 @@ function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number | undefined
     return linePieces(cell).flatMap(piece => wrapPiece(piece, charactersPerLine));
 }
 
+/**
+ * getSlidesForTableRows (step 6 E, 4) draws every row, split or not, from its parsed words: the lines are concatenated
+ * with no break between them (only a piece's own `breakLine` ends a paragraph), and a cell left without words gets one
+ * empty run. So `"Hello " + "world"` reads `Helloworld` and a non-string run is gone, as in the slide XML.
+ */
 function cellFromLines(cell: PptxGenJS.TableCell, lines: TextPiece[][]): PptxGenJS.TableCell {
-    const pieces: PptxGenJS.TableCell[] = [];
-    lines.forEach((line, lineIndex) => {
-        line.forEach((piece, pieceIndex) => {
-            const isLastPiece = pieceIndex === line.length - 1;
-            pieces.push({
-                text: piece.text,
-                options: {
-                    ...piece.options,
-                    breakLine: lineIndex + 1 < lines.length && isLastPiece ? true : piece.options?.breakLine,
-                },
-            });
-        });
-    });
-    return { text: pieces, options: cell.options };
+    const pieces = lines.flat();
+    return { text: pieces.length ? pieces : [{ text: "" }], options: cell.options };
 }
 
 // --- ROW METRICS ---
@@ -226,7 +219,7 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
         const uncounted = (lines.at(-1)?.length ?? 0) < cycles ? perLine : 0;
 
         if (used + rowHeight <= available()) {
-            pages.at(-1)!.rows.push(row);
+            pages.at(-1)!.rows.push(row.map((cell, index) => cellFromLines(cell, lines[index] ?? [])));
             used += rowHeight - uncounted;
             continue;
         }
