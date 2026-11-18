@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, FONT_WIN_METRICS, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "#src/units";
 import { normalizeHyperlink } from "./link";
@@ -337,17 +337,38 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * LibreOffice's font-independent line box for a paragraph (PPTX_DEFAULTS.text.singleLineEm), in px:
  * `height` is each line's height and `baseline` its baseline's distance below the line top, both set
  * by the paragraph's largest run. Chromium's own line box depends on each font's ascent and descent.
- * With explicit spacing, `target` may place the baseline differently (RENDERING_TARGETS.spacedLineBaseline).
+ * `target` may place the baseline differently: with explicit spacing (RENDERING_TARGETS.spacedLineBaseline), and with
+ * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline).
  */
 export function paragraphLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTextParagraph["lineBox"] {
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
     const box = lineBoxOf(fontSize, lineHeight === undefined ? undefined : lineHeight < 10 ? lineHeight * fontSize : lineHeight);
-    const { spacedLineBaseline } = RENDERING_TARGETS[target];
+    const { spacedLineBaseline, fontLineBaseline } = RENDERING_TARGETS[target];
     // lineSpacingMultiple 1 is the single line (singleLineEm), which PowerPoint lays out as single spacing.
     const spaced = lineHeight !== undefined && lineHeight !== PPTX_DEFAULTS.text.singleLineEm;
-    return spaced && spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
+    if (spaced) return spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
+    if (!fontLineBaseline || paragraph.runs.length === 0) return box;
+    // Each run reaches 1.2x its size, split by its font's winAscent : winDescent; the largest ascent is the baseline,
+    // scaled down with the largest descent when the two overflow the line.
+    // shortcut: PowerPoint also counts a line's soft break and the last line's paragraph mark, set in the theme font;
+    // add them with #234's paragraph-mark part.
+    let ascent = 0;
+    let descent = 0;
+    for (const run of paragraph.runs) {
+        const share = ascentShare(run.fontFace);
+        ascent = Math.max(ascent, share * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
+        descent = Math.max(descent, (1 - share) * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
+    }
+    return { ...box, baseline: ascent + descent > box.height ? (ascent * box.height) / (ascent + descent) : ascent };
+}
+
+/** The part of a single-spaced line above the baseline in `fontFace` (FONT_WIN_METRICS), else the font-independent 1em of 1.2em. */
+function ascentShare(fontFace: string): number {
+    const metrics = FONT_WIN_METRICS[fontFace.toLowerCase()];
+    const { singleLineEm, lineDescentEm } = PPTX_DEFAULTS.text;
+    return metrics ? metrics.winAscent / (metrics.winAscent + metrics.winDescent) : (singleLineEm - lineDescentEm) / singleLineEm;
 }
 
 /** The line box for a paragraph whose largest run is `fontSize` px: `height` px tall, or a single line. */

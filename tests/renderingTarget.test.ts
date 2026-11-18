@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import DefaultExport, { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/index";
+import { FONT_WIN_METRICS } from "../packages/pptxgenjs/src/defaults";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { KERNING_CASES } from "./visual/fixture";
 
@@ -130,8 +131,8 @@ describe("rendering targets", () => {
             expect(box(options, "libreoffice")).toEqual([height, libreOffice]);
             expect(box(options)).toEqual(box(options, "libreoffice"));
         }
-        // Single spacing, explicit x1.0 included, keeps the single line box with both targets (#234 is its own rule).
-        for (const options of [{ fontSize: 18 }, { fontSize: 18, lineSpacingMultiple: 1 }]) expect(box(options, "powerpoint")).toEqual([21.6, 18]);
+        // Single spacing, explicit x1.0 included, keeps the 1.2em line and the font's baseline (next test): Calibri.
+        for (const options of [{ fontSize: 18 }, { fontSize: 18, lineSpacingMultiple: 1 }]) expect(box(options, "powerpoint")).toEqual([21.6, 16.848]);
 
         const baselines = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText("Line", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, lineSpacingMultiple: 1.5 });
@@ -140,6 +141,65 @@ describe("rendering targets", () => {
         // 32.4pt = 43.2px line: 32.4px with PowerPoint, 43.2 - 4.8 = 38.4px with LibreOffice.
         expect(await baselines(new PuppeteerGenPowerPoint())).toEqual([expect.closeTo(32.4, 6)]);
         expect(await baselines(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(38.4, 6)]);
+    });
+
+    // Measured against PowerPoint's PDF export (#234; baseline below the line top): Arial 0.972-0.975em, Calibri
+    // 0.936-0.939em, Arial 12/32/18 on one line 31.1pt, an Arial and a Calibri 18pt run on one line 17.04pt.
+    test("with single spacing the PowerPoint target puts the baseline at the fonts' winAscent share of the line; LibreOffice at 1em", async () => {
+        expect(FONT_WIN_METRICS.arial).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 });
+        expect(FONT_WIN_METRICS.calibri).toEqual({ unitsPerEm: 2048, winAscent: 1950, winDescent: 550 });
+        type Input = Parameters<typeof normalizeText>[0];
+        type Options = Parameters<typeof normalizeText>[1];
+        const box = (input: Input, options: Options, target: "libreoffice" | "powerpoint") => {
+            const { height, baseline } = normalizeText(input, options, target).paragraphs[0]!.lineBox;
+            return [height, baseline].map(px => Math.round(px * 0.75 * 1000) / 1000);
+        };
+        const cases: [Input, Options, number, number][] = [
+            // input, options, H (pt), PowerPoint baseline (pt)
+            ["Line", { fontFace: "Arial", fontSize: 18 }, 21.6, 17.503], // 0.9724em
+            ["Line", { fontFace: "ARIAL", fontSize: 18 }, 21.6, 17.503],
+            ["Line", { fontSize: 18 }, 21.6, 16.848], // Calibri, 0.936em
+            ["Line", { fontFace: "Calibri", fontSize: 36 }, 43.2, 33.696],
+            ["Line", { fontFace: "Times New Roman", fontSize: 18 }, 21.6, 17.381],
+            ["Line", { fontFace: "Courier New", fontSize: 18 }, 21.6, 15.874],
+            ["Line", { fontFace: "Cambria", fontSize: 18 }, 21.6, 17.507],
+            // Not in the table: the font-independent 1em.
+            ["Line", { fontFace: "Verdana", fontSize: 18 }, 21.6, 18],
+            // Mixed sizes: the largest run's ascent and descent fill the line.
+            [
+                [
+                    { text: "a", options: { fontSize: 12 } },
+                    { text: "b", options: { fontSize: 32 } },
+                    { text: "c", options: { fontSize: 18 } },
+                ],
+                { fontFace: "Arial" },
+                38.4,
+                31.116,
+            ],
+            // Arial's ascent and Calibri's descent overflow the line: scaled back into it.
+            [
+                [
+                    { text: "a", options: { fontFace: "Arial" } },
+                    { text: "b", options: { fontFace: "Calibri" } },
+                ],
+                { fontSize: 18 },
+                21.6,
+                16.988,
+            ],
+        ];
+        for (const [input, options, height, powerPoint] of cases) {
+            expect(box(input, options, "powerpoint")).toEqual([height, powerPoint]);
+            // LibreOffice: 0.2em above the line bottom, whatever the font.
+            expect(box(input, options, "libreoffice")).toEqual([height, Math.round((height / 1.2) * 1000) / 1000]);
+        }
+
+        const baselines = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText("Line", { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 18 });
+            return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph" data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
+        };
+        // 18pt = 24px on a 28.8px line: 28.8 x 1854/2288 = 23.337px with PowerPoint, 24px with LibreOffice.
+        expect(await baselines(new PuppeteerGenPowerPoint())).toEqual([expect.closeTo(23.337, 3)]);
+        expect(await baselines(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(24, 6)]);
     });
 
     // Measured against PowerPoint's PDF export and LibreOffice's: neither draws a marker on a paragraph PptxGenJS writes

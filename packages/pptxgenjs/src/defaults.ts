@@ -380,6 +380,8 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * `spacesFirstParagraph`: whether a text box's first paragraph keeps its space before.
  * `spacedLineBaseline`: with explicit line spacing (`lineSpacing`, or a `lineSpacingMultiple` other than 1), each
  * line's baseline below its top as a fraction of the line height; undefined keeps `text.lineDescentEm` above its bottom.
+ * `fontLineBaseline`: whether a single-spaced line's baseline comes from its fonts' FONT_WIN_METRICS, or sits
+ * `text.lineDescentEm` above its bottom whatever the font.
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -388,7 +390,7 @@ export const RENDERING_TARGETS = Object.freeze({
      * Cell::getMinimumHeight, `GetTextHeight()+1`). A numbered paragraph PptxGenJS writes without a run (from a
      * run starting with "\n") restarts the numbering: three such items after an intro are all "I." in its PDF export.
      */
-    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined, emptyNumberedParagraph: "restarts" }),
+    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined, fontLineBaseline: false, emptyNumberedParagraph: "restarts" }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. It adds a
      * paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
@@ -396,12 +398,35 @@ export const RENDERING_TARGETS = Object.freeze({
      * first paragraph's space before: with `paraSpaceBefore: 12` the first baseline is 17.05pt below the top inset,
      * as without it. With explicit line spacing it puts each baseline at 0.75 of the line height H, whatever the font
      * and size: a least-squares fit of its PDF export (Arial and Calibri, 12 and 18pt, x0.8 to x2.0 and exact 12 to
-     * 30pt) gives 0.7524 H, every baseline within 0.1pt. An empty numbered paragraph keeps the current number and
+     * 30pt) gives 0.7524 H, every baseline within 0.1pt. With single spacing the line is 1.2x its largest size and each
+     * run reaches 1.2x its size split by its font's winAscent : winDescent (FONT_WIN_METRICS) above and below the
+     * baseline; the baseline is the largest ascent, scaled down with the largest descent when the two overflow the line.
+     * Measured: Arial 0.972-0.975em (predicted 0.9724), Calibri 0.936-0.939em (0.936), an Arial and a Calibri run of
+     * 18pt on one line 17.04pt (16.99; the largest ascent alone gives 17.50). An empty numbered paragraph keeps the current number and
      * does not advance it: three items each after a run-less paragraph are I., II., III.; "Item one\n" then
      * "Item two" are "1.", "2." (the empty line) and "2.".
      */
-    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75, emptyNumberedParagraph: "skipped" }),
+    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75, fontLineBaseline: true, emptyNumberedParagraph: "skipped" }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
+
+/**
+ * OS/2 usWinAscent and usWinDescent of common Office fonts, in units of `unitsPerEm`, keyed by lower-case face name:
+ * how a single-spaced line splits between ascent and descent with the PowerPoint target (`fontLineBaseline`). Bold and
+ * italic faces carry the same values. Arial, Times New Roman, Courier New and Calibri: read from the metric-compatible
+ * Liberation Sans, Serif and Mono 2.1 and Carlito 1.1, and the same in the fonts PowerPoint embeds in its PDF export.
+ * Cambria: Caladea's 1050/250 per 1000 differs, so these are the values of the Cambria in PowerPoint's PDF export.
+ * Checked against that export of synthetic decks: the first line of an 18pt paragraph broken by `softBreakBefore` (a
+ * line break PowerPoint sets in the theme font, Calibri) has its baseline 16.92pt below the top in Times New Roman (16.96
+ * predicted), 16.15 in Courier New (16.12) and 17.09 in Cambria (16.99). A face not listed keeps the font-independent
+ * baseline, 1em below the line top (`text.singleLineEm` - `text.lineDescentEm`).
+ */
+export const FONT_WIN_METRICS: Readonly<Record<string, { readonly unitsPerEm: number; readonly winAscent: number; readonly winDescent: number }>> = Object.freeze({
+    arial: Object.freeze({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434 }),
+    "times new roman": Object.freeze({ unitsPerEm: 2048, winAscent: 1825, winDescent: 443 }),
+    "courier new": Object.freeze({ unitsPerEm: 2048, winAscent: 1705, winDescent: 615 }),
+    calibri: Object.freeze({ unitsPerEm: 2048, winAscent: 1950, winDescent: 550 }),
+    cambria: Object.freeze({ unitsPerEm: 2048, winAscent: 1946, winDescent: 455 }),
+});
 /** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */
 export const DEFAULT_RENDERING_TARGET: RenderingTarget = "libreoffice";
