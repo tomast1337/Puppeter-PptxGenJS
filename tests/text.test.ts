@@ -196,6 +196,17 @@ describe("text DOM rendering", () => {
         expect(link?.title).toBe("Example");
     });
 
+    test("writes one paragraph element per paragraph PptxGenJS groups (genXmlTextBody STEP 4/5)", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText([{ text: "Intro", options: { breakLine: true } }, { text: "\nTITLE", options: { bold: true, breakLine: false } }, { text: "Description", options: { breakLine: true } }, { text: "Tail" }], { x: 1, y: 1, w: 4, h: 2, fontFace: "Arial", fontSize: 12 });
+        slide.addTable([[{ text: [{ text: "Heading", options: { bold: true } }, { text: "Body" }] }]], { x: 1, y: 3.5, w: 4, align: "left", fontFace: "Arial", fontSize: 12 });
+
+        const [box, cell] = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-text, td"), element => Array.from(element.querySelectorAll(".text-paragraph"), paragraph => paragraph.textContent?.replace("\u200b", "")));
+        expect(box).toEqual(["Intro", "", "TITLE", "Description", "Tail"]);
+        expect(cell).toEqual(["Heading", "Body"]);
+    });
+
     test("writes the bullet indent, start and number type that the marker only shows as a result", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

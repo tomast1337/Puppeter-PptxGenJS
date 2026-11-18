@@ -82,11 +82,14 @@ function normalizeBorders(border?: PptxGenJS.BorderProps | [PptxGenJS.BorderProp
     return sides.map(side => normalizeBorder(side)) as [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder];
 }
 
-function richText(input: PptxGenJS.TableCell[]): PptxGenJS.TextProps[] {
+// PptxGenJS 4.0.1 genXmlTextBody (STEP 4 A) gives a run without options the cell's own options object
+// (`itext.options || opts`), so those runs share one record that carries the cell's `align` (normalizeText).
+function richText(input: PptxGenJS.TableCell[], cellOptions: PptxGenJS.TextPropsOptions): PptxGenJS.TextProps[] {
     return input.flatMap(cell => {
         const value = cell.text ?? "";
-        if (Array.isArray(value)) return richText(value);
-        return [{ text: String(value), options: cell.options as PptxGenJS.TextPropsOptions }];
+        if (Array.isArray(value)) return richText(value, cellOptions);
+        // `as`: a run in a cell takes the same text options as an addText() run.
+        return [{ text: String(value), options: (cell.options as PptxGenJS.TextPropsOptions | undefined) ?? cellOptions }];
     });
 }
 
@@ -139,9 +142,9 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
             cells: row.map((rawCell, column) => {
                 const cell = tableCell(rawCell, rowIndex, column);
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
-                const input: TextInput = Array.isArray(cell.text) ? richText(cell.text) : String(cell.text ?? "");
                 // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
+                const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
                 const text = normalizeText(input, textOptions, target);
                 text.margin = tableMarginPixels(cellOptions.margin);
                 // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
