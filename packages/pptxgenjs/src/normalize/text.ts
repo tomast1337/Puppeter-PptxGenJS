@@ -14,6 +14,8 @@ interface TextPiece {
     options: PptxGenJS.TextPropsOptions;
     /** A line feed PptxGenJS keeps inside the run's `<a:t>` ends this piece, which PowerPoint draws as a new paragraph. */
     lineFeed?: boolean;
+    /** PptxGenJS writes no `<a:r>` for this piece: an empty text of its own (genXmlTextRun skips it). */
+    noRun?: boolean;
 }
 
 // --- UTILITIES ---
@@ -241,7 +243,7 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): 
         // feeds kept inside `<a:t>`.
         if (lines.length > 1 && !text.endsWith("\n")) options.breakLine = true;
         const lineFeeds = text.endsWith("\n");
-        lines.forEach((line, index) => pieces.push({ text: line, options, ...(lineFeeds && index < lines.length - 1 ? { lineFeed: true } : {}) }));
+        lines.forEach((line, index) => pieces.push({ text: line, options, ...(lineFeeds && index < lines.length - 1 ? { lineFeed: true } : {}), ...(!lineFeeds && !line ? { noRun: true } : {}) }));
     }
     return pieces;
 }
@@ -296,18 +298,23 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
     const pieces = piecesFromInput(input, options);
     const groups = groupPieces(pieces, options.align);
 
-    const { addsParagraphSpacing, spacesFirstParagraph } = RENDERING_TARGETS[target];
+    const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
     let numberIndex = 0;
     const paragraphs = groups.map((group, index) => {
-        const paragraph = paragraphFromPieces(group, options, numberIndex, target);
-        numberIndex = paragraph.bullet?.kind === "number" ? numberIndex + 1 : 0;
+        const { bullet, ...paragraph } = paragraphFromPieces(group, options, numberIndex, target);
+        // A paragraph PptxGenJS writes without a run gets no marker in PowerPoint or LibreOffice.
+        const runless = group.every(piece => piece.noRun);
+        const empty = paragraph.runs.every(run => !run.text);
+        if (bullet?.kind !== "number") numberIndex = 0;
+        else if (emptyNumberedParagraph === "skipped") numberIndex += empty ? 0 : 1;
+        else numberIndex = runless ? 0 : numberIndex + 1;
         // shortcut: PowerPoint's dropped first space before was measured on top-anchored text boxes only; middle and
         // bottom anchors and table cells follow the same rule until a measurement says otherwise.
         const first = index === 0 && !spacesFirstParagraph ? { spaceBefore: 0 } : {};
         // PowerPoint and LibreOffice leave the last paragraph's space after out of the text height, so it does not
         // lift middle- or bottom-anchored text (or grow a table row).
         const last = index === groups.length - 1 ? { spaceAfter: 0 } : {};
-        return { ...paragraph, ...first, ...last };
+        return { ...paragraph, ...(bullet && !runless ? { bullet } : {}), ...first, ...last };
     });
     // CSS keeps only the larger of two adjacent margins; a target that adds them gets each space after moved onto
     // the next paragraph's space before, so the gap is their sum in every renderer.
