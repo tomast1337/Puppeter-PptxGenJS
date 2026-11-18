@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, FONT_WIN_METRICS, type FontMetricsTable, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
 import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
 import { convertToPixels, inchesToPixels, millimetersToPixels, pointsToPixels } from "#src/units";
@@ -120,7 +120,7 @@ export function tableCell(cell: PptxGenJS.TableCell | string | number | null | u
     return typeof cell === "object" ? cell : { text: String(cell) };
 }
 
-export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedTable {
+export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsTable = FONT_WIN_METRICS): NormalizedTable {
     if (!Array.isArray(tableRows) || tableRows.length === 0) {
         throw new Error("addTable: tableRows must be a non-empty array");
     }
@@ -147,7 +147,7 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                 // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
                 const textOptions = { ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions;
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
-                const text = normalizeText(input, textOptions, target);
+                const text = normalizeText(input, textOptions, target, fontMetrics);
                 text.margin = tableMarginPixels(cellOptions.margin);
                 // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
                 // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.

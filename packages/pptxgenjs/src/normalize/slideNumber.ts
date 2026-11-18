@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedSlideObject } from "@pdflapas/model";
-import { DEFAULT_RENDERING_TARGET, PPTX_DEFAULTS, type RenderingTarget } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, FONT_WIN_METRICS, type FontMetricsTable, PPTX_DEFAULTS, type RenderingTarget } from "#src/defaults";
 import type { FourSideMargin } from "#src/defaults";
 import type { PageSize } from "#src/pageLayouts";
 import { normalizeObjectStyle } from "./object";
@@ -29,7 +29,7 @@ function slideNumberMargin(margin: unknown): number | FourSideMargin | undefined
  * and the default layout, so the slide's placeholder inherits from it what its own props leave out: size, color and
  * font, vertical alignment and insets. Alignment and bold are the slide's own; PptxGenJS reads no other text option.
  */
-export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: PptxGenJS.SlideNumberProps, slideNumber: number, pageSize: PageSize, bodyFontFace: string, target: RenderingTarget = DEFAULT_RENDERING_TARGET): NormalizedSlideObject {
+export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: PptxGenJS.SlideNumberProps, slideNumber: number, pageSize: PageSize, bodyFontFace: string, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsTable = FONT_WIN_METRICS): NormalizedSlideObject {
     const defaults = PPTX_DEFAULTS.slideNumber;
     const emuPerInch = PPTX_DEFAULTS.units.emuPerInch;
     const style = normalizeObjectStyle({ x: own.x, y: own.y, w: own.w || defaults.wEmu / emuPerInch, h: own.h || defaults.hEmu / emuPerInch }, PPTX_DEFAULTS.text, pageSize, defaults.objectName);
@@ -48,6 +48,7 @@ export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: Pptx
             margin: slideNumberMargin(own.margin) ?? slideNumberMargin(last.margin),
         },
         target,
+        fontMetrics,
     );
     return { kind: "text", style, text };
 }

@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import type { ComponentRegistry } from "./components/registry";
-import type { RenderingTarget } from "./defaults";
+import type { FontMetricsTable, RenderingTarget } from "./defaults";
 import type { PageSize } from "./pageLayouts";
 import type { PuppeteerSlide } from "./PuppeteerSlide";
 
@@ -16,6 +16,8 @@ export interface SlideContext {
     readonly bodyFontFace: () => string;
     /** The presentation's rendering target, which text is normalized for. */
     readonly target: RenderingTarget;
+    /** The presentation's `fontMetrics` option merged over FONT_WIN_METRICS, which the target may place baselines from. */
+    readonly fontMetrics: FontMetricsTable;
     /** The `context.document` of components rendered to check them when they are added; toHtml() does not use it. */
     readonly getDocument: () => Document;
     /** The slide `offset` places after this one, added when it does not exist yet: where autoPage tables continue. */
