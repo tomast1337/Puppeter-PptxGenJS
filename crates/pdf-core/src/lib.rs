@@ -1070,6 +1070,22 @@ mod tests {
     }
 
     #[test]
+    fn raises_the_last_line_and_a_line_ending_in_a_soft_break_to_their_baselines() {
+        // A wrapped line keeps the line baseline, the line before the soft break and the last line take theirs; every
+        // line stays 36px tall, so only the baselines inside it move.
+        let mut text = text_box(&[(&[&"word ".repeat(15), "End"], 36.0, 30.0)]);
+        if let Some(p) = text.paragraphs.first_mut() {
+            (p.line_box.mark_baseline, p.line_box.break_baseline) = (28.0, 29.0);
+        }
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: mark and break baselines not checked");
+        };
+        let para = &layout.paras[0];
+        assert_eq!(layout.baselines.get(para.baselines.clone()), Some(&[30.0, 65.0, 100.0][..]));
+        assert_eq!(layout.height, 108.0);
+    }
+
+    #[test]
     fn tabs_end_at_their_stops() {
         use crate::model::{TabAlign, TabStop};
         let mut text = text_box(&[(&["a\tLeft\tEnd\t12.50\tMid\tx"], 36.0, 30.0)]);

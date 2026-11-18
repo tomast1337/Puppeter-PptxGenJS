@@ -50,6 +50,7 @@ export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: Pptx
         },
         target,
         fontMetrics,
+        bodyFontFace,
     );
     return { kind: "text", style, text };
 }

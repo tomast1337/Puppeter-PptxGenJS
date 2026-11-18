@@ -266,7 +266,7 @@ export class PuppeteerSlide implements PptxSlide {
             shadow: true,
         });
         textStyle.line = normalizeTextLine(textOptions, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0));
-        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.context.bodyFontFace() }, this.context.target, this.context.fontMetrics);
+        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.context.bodyFontFace() }, this.context.target, this.context.fontMetrics, this.context.bodyFontFace());
         const height = textStyle.geometry.height ?? 0;
         if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizedText, height) });
         // `as`: PptxGenJS writes a text box's shape from its own options object, so normalizeShape reads them as ShapeProps.

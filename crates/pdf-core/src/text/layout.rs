@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use parley::setting::{FontFeature, Tag};
 use parley::{
-    Alignment, AlignmentOptions, BaseDirection, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem, StyleProperty, TextWrapMode,
+    Alignment, AlignmentOptions, BaseDirection, BreakReason, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem, StyleProperty, TextWrapMode,
     WhiteSpaceCollapse,
 };
 
@@ -178,9 +178,20 @@ impl Renderer {
             }
 
             // LibreOffice's font-independent line box, not parley's font metrics, places the lines (draw_layout).
+            let LineBox {
+                height,
+                baseline,
+                mark_baseline,
+                break_baseline,
+            } = paragraph.line_box;
+            // shortcut: vertical text keeps one baseline on every line, as in the Puppeteer print step (stacked text
+            // breaks after every character); give it the mark and break baselines once vertical text is measured.
+            let horizontal = text.direction == TextDirection::Horizontal;
             let line_box = LineBox {
-                height: paragraph.line_box.height * scale,
-                baseline: paragraph.line_box.baseline * scale,
+                height: height * scale,
+                baseline: baseline * scale,
+                mark_baseline: if horizontal { mark_baseline } else { baseline } * scale,
+                break_baseline: if horizontal { break_baseline } else { baseline } * scale,
             };
             let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, &s, 1.0, false);
             builder.set_base_direction(if paragraph.rtl { BaseDirection::Rtl } else { BaseDirection::Ltr });
@@ -366,11 +377,19 @@ fn stack_break(s: &mut String, stacked: bool) {
 /// baseline (below the paragraph top) onto `baselines`; returns the paragraph height. `line_box` is
 /// sized for the paragraph's largest font, `max_size`. A run raised or lowered off the baseline
 /// (super/subscript) carries its own box, `line_box` scaled to its font size, and grows its line where
-/// that box sticks out, as LibreOffice's escapement does (a 13pt subscript under 20pt text adds ~5 px).
+/// that box sticks out, as LibreOffice's escapement does (a 13pt subscript under 20pt text adds ~5 px). The last line
+/// takes `line_box.mark_baseline` and a line ending in a soft break `line_box.break_baseline`.
 fn stack_lines(layout: &Layout<Brush>, line_box: LineBox, max_size: f32, paints: &[RunPaint], baselines: &mut Vec<f32>) -> f32 {
-    let (ascent, descent) = (line_box.baseline, line_box.height - line_box.baseline);
     let mut top = 0.0;
-    for line in layout.lines() {
+    for (index, line) in layout.lines().enumerate() {
+        let baseline = if index + 1 == layout.len() {
+            line_box.mark_baseline
+        } else if line.break_reason() == BreakReason::Explicit {
+            line_box.break_baseline
+        } else {
+            line_box.baseline
+        };
+        let (ascent, descent) = (baseline, line_box.height - baseline);
         let (mut above, mut below) = (ascent, descent);
         for item in line.items() {
             let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };

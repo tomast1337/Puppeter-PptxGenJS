@@ -31,6 +31,8 @@ pub(crate) const BOX_CSS: &[&str] = &[
 const CONTENT_CSS: &[&str] = &["width", "writing-mode", "text-orientation", "height"];
 const PARAGRAPH_ATTRS: &[&str] = &[
     "data-line-baseline",
+    "data-mark-baseline",
+    "data-break-baseline",
     "data-tab-stops",
     "data-bullet-level",
     "data-bullet-type",
@@ -196,6 +198,11 @@ fn paragraph(dom: &Dom<'_>, element: &Element<'_>) -> Result<Paragraph, String> 
         Some(stops) => stops.split(',').map(tab_stop).collect::<Result<_, _>>()?,
         None => Vec::new(),
     };
+    let baseline = number_attr(element, "data-line-baseline")?;
+    let line_baseline = |name: &str| match element.attr(name)? {
+        Some(value) => number(&value).map_err(|e| format!("attribute '{name}': {e}")),
+        None => Ok(baseline),
+    };
     Ok(Paragraph {
         runs,
         align: keyword(
@@ -211,7 +218,9 @@ fn paragraph(dom: &Dom<'_>, element: &Element<'_>) -> Result<Paragraph, String> 
         rtl: one_of("CSS property 'direction'", style.require("direction")?, &["ltr", "rtl"])? == "rtl",
         line_box: LineBox {
             height: style.require_px("line-height")?,
-            baseline: number_attr(element, "data-line-baseline")?,
+            baseline,
+            mark_baseline: line_baseline("data-mark-baseline")?,
+            break_baseline: line_baseline("data-break-baseline")?,
         },
         space_before: style.require_px("margin-top")?,
         space_after: style.require_px("margin-bottom")?,
@@ -431,6 +440,21 @@ mod tests {
             ("https://x.test/?a=1&b=2", Some("Tip"), Some(2))
         );
         assert_eq!(empty.text, "");
+    }
+
+    #[test]
+    fn reads_the_mark_and_break_baselines_or_falls_back_to_the_line_baseline() {
+        let line_box = |attrs: &str| {
+            let html = format!(r#"<div class="text-paragraph" data-line-baseline="16"{attrs} style="{PARAGRAPH_STYLE}"></div>"#);
+            text_object(&html).map(|o| {
+                o.text
+                    .and_then(|t| t.paragraphs.first().map(|p| (p.line_box.mark_baseline, p.line_box.break_baseline)))
+            })
+        };
+        assert_eq!(line_box(r#" data-mark-baseline="15.5" data-break-baseline="15.75""#), Ok(Some((15.5, 15.75))));
+        assert_eq!(line_box(""), Ok(Some((16.0, 16.0))));
+        let error = line_box(r#" data-mark-baseline="high""#).err().unwrap_or_default();
+        assert!(error.contains("attribute 'data-mark-baseline'"), "{error}");
     }
 
     #[test]

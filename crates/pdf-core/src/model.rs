@@ -318,11 +318,15 @@ pub(crate) enum TabAlign {
     Decimal,
 }
 
-/// `NormalizedTextParagraph.lineBox`: every line is `height` px tall with its baseline `baseline` px below its top.
+/// `NormalizedTextParagraph.lineBox`: every line is `height` px tall with its baseline `baseline` px below its top,
+/// except the last line, whose baseline is `mark_baseline`, and a line ending in a soft break, `break_baseline`
+/// (`baseline` when the HTML gives none).
 #[derive(Clone, Copy)]
 pub(crate) struct LineBox {
     pub(crate) height: f32,
     pub(crate) baseline: f32,
+    pub(crate) mark_baseline: f32,
+    pub(crate) break_baseline: f32,
 }
 
 pub(crate) struct Bullet {
@@ -535,7 +539,12 @@ pub(crate) mod build {
             runs,
             align: ParagraphAlign::Left,
             rtl: false,
-            line_box: LineBox { height, baseline },
+            line_box: LineBox {
+                height,
+                baseline,
+                mark_baseline: baseline,
+                break_baseline: baseline,
+            },
             space_before: 0.0,
             space_after: 0.0,
             tab_stops: Vec::new(),

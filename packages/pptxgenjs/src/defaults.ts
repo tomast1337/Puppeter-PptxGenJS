@@ -407,7 +407,12 @@ export const RENDERING_TARGETS = Object.freeze({
      * run reaches 1.2x its size split by its font's winAscent : winDescent (FONT_WIN_METRICS) above and below the
      * baseline; the baseline is the largest ascent, scaled down with the largest descent when the two overflow the line.
      * Measured: Arial 0.972-0.975em (predicted 0.9724), Calibri 0.936-0.939em (0.936), an Arial and a Calibri run of
-     * 18pt on one line 17.04pt (16.99; the largest ascent alone gives 17.50). An empty numbered paragraph keeps the current number and
+     * 18pt on one line 17.04pt (16.99; the largest ascent alone gives 17.50). The paragraph mark counts on the
+     * paragraph's last line and a soft break on the line it ends, both in the theme font at the size of the last run and
+     * of the run before the break, whatever size PptxGenJS writes on `<a:endParaRPr>`: 18pt Arial with Calibri, the
+     * default theme font, sits 17.05pt below the top on its last line (16.99) and 17.5 on a wrapped line, and a 32pt
+     * Arial paragraph whose `<a:endParaRPr>` says 12pt has its last line 0.8pt above a wrapped line's place (0.91 for a
+     * 32pt mark, 0 for a 12pt one). An empty numbered paragraph keeps the current number and
      * does not advance it: three items each after a run-less paragraph are I., II., III.; "Item one\n" then
      * "Item two" are "1.", "2." (the empty line) and "2.".
      */

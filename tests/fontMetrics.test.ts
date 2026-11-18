@@ -208,7 +208,8 @@ describe("resolveFontMetrics option", () => {
         const calls: string[] = [];
         const resolveFontMetrics = (face: string) => (calls.push(face), INSTALLED);
         await baselines(new PuppeteerGenPowerPoint(undefined, { fontMetrics: { "My Brand Sans": BRAND }, resolveFontMetrics }), ["My Brand Serif", "my brand serif", "My Brand Sans", "My Brand Serif"]);
-        expect(calls).toEqual(["My Brand Serif"]);
+        // The paragraph mark is set in the theme font, Calibri, which is looked up as well.
+        expect(calls).toEqual(["My Brand Serif", "Calibri"]);
         calls.length = 0;
         expect(await baselines(new PuppeteerGenLibreOffice(undefined, { resolveFontMetrics }), ["My Brand Serif"])).toEqual([expect.closeTo(24, 6)]);
         expect(await baselines(new PuppeteerGen(undefined, { resolveFontMetrics }), ["My Brand Serif"])).toEqual([expect.closeTo(24, 6)]);

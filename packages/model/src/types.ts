@@ -120,8 +120,12 @@ export interface NormalizedTextParagraph {
     align: "left" | "center" | "right" | "justify";
     rtl: boolean;
     lineHeight?: number;
-    /** Each line's height and its baseline's distance below the line top, in px (a font-independent line box, as the target draws it). */
-    lineBox: { height: number; baseline: number };
+    /**
+     * Each line's height and its baseline's distance below the line top, in px (a font-independent line box, as the
+     * target draws it). `markBaseline` replaces `baseline` on the paragraph's last line and `breakBaseline` on a line
+     * that ends in a soft break (`softBreakBefore` on the next run); absent, those lines use `baseline` too.
+     */
+    lineBox: { height: number; baseline: number; markBaseline?: number; breakBaseline?: number };
     /** Adjacent spaces collapse to the larger (CSS margins); a producer that wants them added moves the space after here. */
     spaceBefore: number;
     /** 0 on a text box's last paragraph: PowerPoint and LibreOffice leave its space after out of the text height. */

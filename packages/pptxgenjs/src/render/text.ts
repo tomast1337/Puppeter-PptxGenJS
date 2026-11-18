@@ -99,6 +99,8 @@ function paragraphAttributes(paragraph: NormalizedTextParagraph): Attribute[] {
     return [
         ["class", "text-paragraph"],
         ["data-line-baseline", String(lineBox.baseline)],
+        ["data-mark-baseline", lineBox.markBaseline === undefined ? undefined : String(lineBox.markBaseline)],
+        ["data-break-baseline", lineBox.breakBaseline === undefined ? undefined : String(lineBox.breakBaseline)],
         ["data-tab-stops", paragraph.tabStops.length ? paragraph.tabStops.map(stop => `${stop.position}:${stop.alignment}`).join(",") : undefined],
         ["data-bullet-level", bullet ? String(bullet.level) : undefined],
         ["data-bullet-type", bullet?.kind],
