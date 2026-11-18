@@ -1,6 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, FONT_WIN_METRICS, type FontMetricsTable, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
 import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
+import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";
 import { convertToPixels, inchesToPixels, millimetersToPixels, pointsToPixels } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
@@ -120,7 +121,7 @@ export function tableCell(cell: PptxGenJS.TableCell | string | number | null | u
     return typeof cell === "object" ? cell : { text: String(cell) };
 }
 
-export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsTable = FONT_WIN_METRICS): NormalizedTable {
+export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTable {
     if (!Array.isArray(tableRows) || tableRows.length === 0) {
         throw new Error("addTable: tableRows must be a non-empty array");
     }

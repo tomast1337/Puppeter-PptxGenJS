@@ -354,10 +354,22 @@ taking the same arguments: use them to match LibreOffice or PowerPoint rendering
 and wrapped like `PuppeteerGen`. See "Choosing a rendering target" in [MIGRATION.md](./MIGRATION.md).
 
 **Font metrics for the PowerPoint target.** PowerPoint places a single-spaced line's baseline from its
-font's `head.unitsPerEm` and `OS/2` `usWinAscent` and `usWinDescent`. PdfLapas knows them for Arial,
-Calibri, Cambria, Courier New and Times New Roman (`FONT_WIN_METRICS` in `defaults.ts`); text in any
-other face sits about 0.03 to 0.05em low against PowerPoint. Pass the metrics of the faces your decks use
-with `options.fontMetrics`, keyed by face name (case-insensitive); an entry also overrides a built-in one:
+font's `head.unitsPerEm` and `OS/2` `usWinAscent` and `usWinDescent`, read from the installed font the
+face name resolves to. The Node entry does the same by default: for each face a deck's text uses, it asks
+fontconfig (`fc-match`) for the face's regular font, as Chromium does on Linux, and reads the three values
+from that file. A face fontconfig answers with a different family for (a substitute) is not installed and
+does not count. PdfLapas also knows the values for Arial, Calibri, Cambria, Courier New and Times New Roman
+(`FONT_WIN_METRICS` in `defaults.ts`); text in a face that is neither installed nor listed keeps the
+font-independent baseline and sits about 0.03 to 0.05em low against PowerPoint. A face's metrics come from,
+in order:
+
+1. `options.fontMetrics`, keyed by face name (case-insensitive);
+2. `options.resolveFontMetrics(face)`, by default the installed font on Node;
+3. `FONT_WIN_METRICS`;
+4. the font-independent baseline, 1em below the line top.
+
+Pass the metrics of faces that are not installed where you render, or to override what is installed, with
+`options.fontMetrics`:
 
 ```typescript
 import { readFileSync } from "node:fs";
@@ -366,7 +378,7 @@ import { PuppeteerGenPowerPoint, readFontWinMetrics } from "@pdflapas/pptxgenjs"
 const pres = new PuppeteerGenPowerPoint(undefined, {
     fontMetrics: {
         "My Brand Sans": { unitsPerEm: 1000, winAscent: 950, winDescent: 250 },
-        // or read them from the font file (TrueType, OpenType or the first face of a .ttc; not WOFF):
+        // or read them from the font file (TrueType, OpenType or a .ttc's face, the first by default; not WOFF):
         "My Brand Serif": readFontWinMetrics(readFileSync("fonts/MyBrandSerif-Regular.ttf")),
     },
 });
@@ -374,9 +386,32 @@ const pres = new PuppeteerGenPowerPoint(undefined, {
 
 The constructor checks each entry: `unitsPerEm` a positive integer, `winAscent` and `winDescent`
 non-negative integers with a positive sum, and no other field. An invalid entry throws a `TypeError`
-naming the face and field. `readFontWinMetrics(bytes)` is browser-safe (it takes bytes, not a path) and
-throws `FontFileError` on bytes that are not a readable TrueType or OpenType font. The LibreOffice target
-ignores `fontMetrics`, as LibreOffice's line box does not depend on the font.
+naming the face and field. `readFontWinMetrics(bytes, faceIndex = 0)` is browser-safe (it takes bytes,
+not a path) and throws `FontFileError` on bytes that are not a readable TrueType or OpenType font. The
+LibreOffice target ignores `fontMetrics` and `resolveFontMetrics`, as LibreOffice's line box does not
+depend on the font; it never calls the resolver.
+
+`resolveFontMetrics` takes a face name and returns its metrics, or `undefined` to fall through to
+`FONT_WIN_METRICS`. It is called at most once per face per presentation, only for the PowerPoint target and
+only for faces `fontMetrics` does not list; a result that is not valid metrics throws a `TypeError` naming
+the face. Pass your own to look fonts up elsewhere, or `null` to turn the lookup off:
+
+```typescript
+// The same HTML on every machine: no installed font is read.
+const pres = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null });
+```
+
+The default resolver caches each face's result for the life of the process (a font installed later is seen
+by a new process). It needs fontconfig's `fc-match` on the `PATH`: Linux has it; on macOS and Windows
+without fontconfig every face falls through to `FONT_WIN_METRICS`. A font file it cannot read (truncated,
+WOFF) is skipped with a `console.warn` naming the face and file, and the face falls through the same way.
+The `@pdflapas/pptxgenjs/html` entry has no default resolver.
+
+**Determinism.** With the default resolver, the PowerPoint target's `toHtml()` and `getModel()` depend on
+the fonts installed where they run, as the PDF already does: the same deck gives the same bytes on machines
+with the same fonts. Pass `resolveFontMetrics: null` (with `fontMetrics` for the faces you need) when the
+HTML must be identical across machines, for example in snapshot tests. The LibreOffice target does not
+read installed fonts.
 
 #### Methods
 
