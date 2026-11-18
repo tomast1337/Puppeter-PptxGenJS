@@ -206,6 +206,11 @@ body {
     line-height: 0;
 }
 
+/* The marker is an inline-block, which would indent its own text by the paragraph's hanging text-indent. */
+.text-bullet {
+    text-indent: 0;
+}
+
 .slide-shape {
     border-style: none;
 }

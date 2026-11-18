@@ -219,6 +219,21 @@ describe("text DOM rendering", () => {
         expect(custom).toMatchObject({ bulletType: "bullet", bulletIndent: "48", bulletLevel: "1", bulletStart: "1", bulletNumberType: "arabicPeriod" });
     });
 
+    test("hangs a bullet paragraph's wrapped lines under its first line's text, as PptxGenJS's marL and indent", () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        slide.addText("Level zero", { x: 1, y: 1, w: 4, h: 1, bullet: true });
+        slide.addText("Level one", { x: 1, y: 2, w: 4, h: 1, bullet: { type: "number" }, indentLevel: 1 });
+
+        const page = renderedPage(presentation);
+        const [zero, one] = Array.from(page.querySelectorAll<HTMLElement>(".text-paragraph"), paragraph => paragraph.style);
+        // 27pt (36px) per level: marL 36px / 72px, indent -36px at both levels.
+        expect([zero?.paddingLeft, zero?.textIndent]).toEqual(["36px", "-36px"]);
+        expect([one?.paddingLeft, one?.textIndent]).toEqual(["72px", "-36px"]);
+        expect(page.querySelector<HTMLElement>(".text-bullet")?.style.width).toBe("36px");
+        expect(presentationCSS(PAGE_SIZES.SCREEN_16X9.landscape)).toMatch(/\.text-bullet \{\s*text-indent: 0;/);
+    });
+
     test("writes the run and line-box values CSS cannot state exactly as data attributes", () => {
         const presentation = new PuppeteerGen();
         presentation.addSlide().addText(
