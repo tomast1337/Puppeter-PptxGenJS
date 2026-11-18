@@ -122,6 +122,7 @@ export interface NormalizedTextParagraph {
     lineHeight?: number;
     /** Each line's height and its baseline's distance below the line top, in px (LibreOffice's font-independent line box). */
     lineBox: { height: number; baseline: number };
+    /** Adjacent spaces collapse to the larger (CSS margins); a producer that wants them added moves the space after here. */
     spaceBefore: number;
     /** 0 on a text box's last paragraph: PowerPoint and LibreOffice leave its space after out of the text height. */
     spaceAfter: number;

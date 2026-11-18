@@ -132,6 +132,10 @@ run with `charSpacing`. PowerPoint reads both, so the PowerPoint target draws
 text under 12pt, and text with `charSpacing`, without the font's pair
 kerning; LibreOffice kerns every run, and so does the LibreOffice target.
 
+Two paragraphs are `paraSpaceAfter` of the first plus `paraSpaceBefore` of the
+second apart in PowerPoint, and the PowerPoint target adds them the same way.
+The LibreOffice target keeps only the larger of the two, as CSS margins collapse.
+
 Text is never clipped to its box: what does not fit is drawn past it from the
 anchor, as in PowerPoint and LibreOffice. A box shorter than its top and bottom
 insets, such as one without `h`, has its text area collapsed onto the box's
