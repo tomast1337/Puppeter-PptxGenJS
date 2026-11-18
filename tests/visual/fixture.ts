@@ -476,6 +476,7 @@ const PARAGRAPH_CASES = [
     { name: "text-inner-line-feed", x: 5.5, y: 1.25, w: 4, h: 0.9 },
     { name: "text-bullet-wrap-level-0", x: 0.5, y: 2.75, w: 4, h: 1 },
     { name: "text-bullet-wrap-level-1", x: 5.5, y: 2.75, w: 4, h: 1 },
+    { name: "text-number-leading-line-feed", x: 0.5, y: 4.25, w: 4, h: 1 },
 ] as const;
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
 
@@ -1767,7 +1768,7 @@ export function populateParityFixture(presentation: Presentation): void {
 function populateParagraphFixture(presentation: Presentation): void {
     const slide = presentation.addSlide();
     slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [cell, lineFeed, levelZero, levelOne] = PARAGRAPH_CASES;
+    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed] = PARAGRAPH_CASES;
     // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
     // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
     // paragraph after every piece, the last one too, whatever its own breakLine.
@@ -1788,6 +1789,23 @@ function populateParagraphFixture(presentation: Presentation): void {
     const wrapBox = { fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 } as const;
     slide.addText([{ text: WRAPPING_TEXT, options: { bullet: true } }], { ...wrapBox, x: levelZero.x, y: levelZero.y, w: levelZero.w, h: levelZero.h });
     slide.addText([{ text: WRAPPING_TEXT, options: { bullet: { type: "number" }, indentLevel: 1 } }], { ...wrapBox, x: levelOne.x, y: levelOne.y, w: levelOne.w, h: levelOne.h });
+    // A numbered run starting with "\n" makes PptxGenJS write an empty paragraph without a run before it: no marker in
+    // LibreOffice or PowerPoint; LibreOffice restarts the numbering after it (RENDERING_TARGETS).
+    const numbered = { bullet: { type: "number", style: "romanUcPeriod" } } as const;
+    slide.addText(
+        [
+            { text: "Intro", options: { breakLine: true } },
+            { text: "\nItem one", options: numbered },
+            { text: "\nItem two", options: numbered },
+        ],
+        {
+            ...wrapBox,
+            x: leadingLineFeed.x,
+            y: leadingLineFeed.y,
+            w: leadingLineFeed.w,
+            h: leadingLineFeed.h,
+        },
+    );
 }
 
 function populatePresetAspectFixture(presentation: Presentation): void {

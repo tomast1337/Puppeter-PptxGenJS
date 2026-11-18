@@ -385,9 +385,10 @@ export const RENDERING_TARGETS = Object.freeze({
     /**
      * LibreOffice Impress, the visual reference (tests/visual): it kerns every run whatever its `kern`. A cell's
      * minimum height is its text height plus one unit of its 1/100 mm model, then the margins (svx table
-     * Cell::getMinimumHeight, `GetTextHeight()+1`).
+     * Cell::getMinimumHeight, `GetTextHeight()+1`). A numbered paragraph PptxGenJS writes without a run (from a
+     * run starting with "\n") restarts the numbering: three such items after an intro are all "I." in its PDF export.
      */
-    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined }),
+    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined, emptyNumberedParagraph: "restarts" }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`. It adds a
      * paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
@@ -395,9 +396,11 @@ export const RENDERING_TARGETS = Object.freeze({
      * first paragraph's space before: with `paraSpaceBefore: 12` the first baseline is 17.05pt below the top inset,
      * as without it. With explicit line spacing it puts each baseline at 0.75 of the line height H, whatever the font
      * and size: a least-squares fit of its PDF export (Arial and Calibri, 12 and 18pt, x0.8 to x2.0 and exact 12 to
-     * 30pt) gives 0.7524 H, every baseline within 0.1pt.
+     * 30pt) gives 0.7524 H, every baseline within 0.1pt. An empty numbered paragraph keeps the current number and
+     * does not advance it: three items each after a run-less paragraph are I., II., III.; "Item one\n" then
+     * "Item two" are "1.", "2." (the empty line) and "2.".
      */
-    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75 }),
+    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75, emptyNumberedParagraph: "skipped" }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 /** `PuppeteerGen` without a `target`: the LibreOffice rendering that existing decks and the visual reference use. */

@@ -144,6 +144,13 @@ than 1), PowerPoint puts each line's baseline at 0.75 of the line height,
 whatever the font and size, and so does the PowerPoint target. The LibreOffice
 target keeps LibreOffice's baseline, 0.2em above the line's bottom.
 
+A run that starts with "\n" makes PptxGenJS write an empty paragraph without
+a run before it. PowerPoint and LibreOffice draw no bullet or number on such a
+paragraph, and neither target does. PowerPoint numbers only paragraphs with
+text: an empty numbered paragraph keeps the current number without advancing
+it, and so does the PowerPoint target. LibreOffice restarts the numbering
+after a numbered paragraph without a run, and so does the LibreOffice target.
+
 Text is never clipped to its box: what does not fit is drawn past it from the
 anchor, as in PowerPoint and LibreOffice. A box shorter than its top and bottom
 insets, such as one without `h`, has its text area collapsed onto the box's

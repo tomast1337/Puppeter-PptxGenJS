@@ -142,6 +142,28 @@ describe("rendering targets", () => {
         expect(await baselines(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(38.4, 6)]);
     });
 
+    // Measured against PowerPoint's PDF export and LibreOffice's: neither draws a marker on a paragraph PptxGenJS writes
+    // without a run. PowerPoint numbers only paragraphs with text; LibreOffice restarts after a run-less one.
+    test("a run-less paragraph has no marker; PowerPoint numbers only paragraphs with text, LibreOffice restarts after a run-less one", async () => {
+        const numbered = { bullet: { type: "number" as const, style: "romanUcPeriod" as const } };
+        const leading: PptxGenJS.TextProps[] = [{ text: "Intro", options: { breakLine: true } }, ...["One", "Two", "Three"].map(item => ({ text: `\nItem ${item}`, options: numbered }))];
+        const trailing: PptxGenJS.TextProps[] = [
+            { text: "Item one\n", options: { bullet: { type: "number" } } },
+            { text: "Item two", options: { bullet: { type: "number" } } },
+        ];
+        const markers = (input: PptxGenJS.TextProps[], target: "libreoffice" | "powerpoint") => normalizeText(input, {}, target).paragraphs.map(paragraph => paragraph.bullet?.marker ?? "");
+        expect(markers(leading, "powerpoint")).toEqual(["", "", "I.", "", "II.", "", "III."]);
+        expect(markers(leading, "libreoffice")).toEqual(["", "", "I.", "", "I.", "", "I."]);
+        // A line feed kept inside <a:t> makes an empty paragraph with a run: PowerPoint draws its number without advancing.
+        expect(markers(trailing, "powerpoint")).toEqual(["1.", "2.", "2."]);
+        expect(markers(trailing, "libreoffice")).toEqual(["1.", "2.", "3."]);
+
+        const presentation = new PuppeteerGenPowerPoint();
+        presentation.addSlide().addTable([[{ text: leading }]], { x: 1, y: 1, w: 4 });
+        const paragraphs = [...(await presentation.toHtml()).html.matchAll(/<div class="text-paragraph"[^>]*>(.*?)<\/div>/g)].map(([, body = ""]) => body.match(/class="text-bullet"[^>]*>([^&<]*)/)?.[1] ?? "");
+        expect(paragraphs).toEqual(["", "", "I.", "", "II.", "", "III."]);
+    });
+
     test("the target classes keep the other constructor options and stay subclassable and proxyable", async () => {
         const rendered: string[] = [];
         const renderer = { render: async ({ html }: { html: string }) => (rendered.push(html), new Uint8Array([1])) };
