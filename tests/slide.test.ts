@@ -3,7 +3,7 @@ import pptxgen from "pptxgenjs";
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedSlide, NormalizedSlideObject } from "../packages/model/src/index";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
-import { inchesToPixels, pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 const pt = pointsToPixels;

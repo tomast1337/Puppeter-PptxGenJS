@@ -1,5 +1,5 @@
 import type { PageSize } from "./pageLayouts";
-import { inchesToPixels } from "./units";
+import { inchesToPixels } from "@pdflapas/model";
 
 /**
  * Generates CSS for a slide page with specific dimensions

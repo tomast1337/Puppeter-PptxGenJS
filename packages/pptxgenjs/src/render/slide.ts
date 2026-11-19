@@ -1,10 +1,9 @@
 import type { ComponentRegistry } from "#src/components/registry";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { tableMarginToCSS, textMarginToCSS } from "#src/normalize/margin";
-import { HTML_PROFILE_VERSION, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, type PresentationMetadata } from "@pdflapas/model";
+import { HTML_PROFILE_VERSION, inchesToPixels, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, pointsToPixels, type PresentationMetadata } from "@pdflapas/model";
 import { normalizeColor } from "#src/normalize/style";
 import type { PageSize } from "#src/pageLayouts";
-import { inchesToPixels, pointsToPixels } from "#src/units";
 import { renderChart, renderChartExtension } from "./chart";
 import { componentHtml, type RenderedComponent, renderComponent } from "./component";
 import { type InlineStyle, styleAttribute } from "./css";

@@ -1,6 +1,7 @@
 import type { Coord, NormalizedGeometry, NormalizedTransform } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
-import { convertToPixels, inchesToPixels } from "#src/units";
+import { inchesToPixels } from "@pdflapas/model";
+import { convertToPixels } from "#src/units";
 
 export interface PositionOptions {
     x?: Coord;

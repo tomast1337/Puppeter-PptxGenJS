@@ -3,7 +3,8 @@ import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, PPTX_DEFAULTS, RENDER
 import type { NormalizedTable, NormalizedTableBorder, NormalizedTableRow } from "@pdflapas/model";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";
-import { convertToPixels, emuToPixels, inch2EmuToPixels, inchesToPixels, millimetersToPixels, pointsToPixels, smartParseEmu } from "#src/units";
+import { inchesToPixels, millimetersToPixels, pointsToPixels } from "@pdflapas/model";
+import { convertToPixels, emuToPixels, inch2EmuToPixels, smartParseEmu } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
 import { TRANSPARENT } from "#src/color";
 import { normalizeColor, normalizeFill } from "#src/normalize/style";

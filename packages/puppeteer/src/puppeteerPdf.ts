@@ -1,13 +1,10 @@
-import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
+import { type HtmlPresentationDocument, inchesToPixels, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOptions";
 import { type DocumentInfo, withDocumentInfo } from "./pdfInfo";
 import { LINK_PLACEHOLDER, withLinkUris } from "./pdfLinks";
 import { metricSubstitute, PRINT_ZOOM, printHtml } from "./printWorkarounds";
-
-// Model page sizes are in inches.
-const inchesToPixels = (inches: number): number => inches * CSS_PX_PER_INCH;
 
 /** Options for `PuppeteerPdfRenderer`. */
 export interface PuppeteerPdfRendererOptions {

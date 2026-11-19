@@ -17,16 +17,16 @@ Created comprehensive page size definitions with:
 
 ### 2. Utility Functions (`units.ts`, `color.ts`, `alignment.ts`, `pageCss.ts` in `packages/pptxgenjs/src/`)
 
-Implemented conversion and styling utilities:
+Implemented conversion and styling utilities. The pure unit conversions (`inchesToPixels()`, `pointsToPixels()`,
+`percentageToPixels()` and the like, with the `Px`, `Pt` and `Inches` brands and `cssPx()`) live in
+`packages/model/src/units.ts`, so renderers can use them too; `units.ts` in `packages/pptxgenjs/src/` keeps the
+PptxGenJS length rules:
 
-- `inchesToPixels()` - Converts inches to pixels at 96 DPI
-- `percentageToPixels()` - Converts percentages to pixels
 - `convertToPixels()` - Handles both inches and percentage values
 - `generatePageCSS()` - Generates CSS for specific page sizes
 - `colorToCSS()` - Converts various color formats to CSS
 - `alignToCSS()` - Converts PptxGenJS alignment to CSS text-align
 - `valignToCSS()` - Converts PptxGenJS valign to CSS flex alignment
-- `pointsToPixels()` - Converts font points to pixels
 
 ### 3. Enhanced PuppeteerGen Class (`packages/pptxgenjs/src/PuppeteerGen.ts`)
 

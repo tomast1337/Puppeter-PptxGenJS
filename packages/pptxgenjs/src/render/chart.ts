@@ -6,7 +6,7 @@ import { formatChartNumber } from "#src/chart/format";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { ChartExtensionInput } from "#src/chart/types";
 import type { NormalizedChart, NormalizedObjectStyle } from "@pdflapas/model";
-import { pointsToPixels } from "#src/units";
+import { pointsToPixels } from "@pdflapas/model";
 import { renderBar3DSvg } from "./chart3d";
 import { type InlineStyle, styleAttribute } from "./css";
 import { attributeName, descendants, firstElementChild, getAttribute, parseMarkup, SVG_NAMESPACE, serializeOuter, setAttribute } from "./fragment";

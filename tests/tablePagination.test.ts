@@ -8,7 +8,7 @@ import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
-import { pixelsToInches, pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { pixelsToInches, pointsToPixels } from "@pdflapas/model";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const rows = (count: number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: `Value ${index + 1}` }]);

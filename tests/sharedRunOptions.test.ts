@@ -3,7 +3,7 @@ import PptxGenJSRuntime from "pptxgenjs";
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedTextBox } from "@pdflapas/model";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
-import { pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { pointsToPixels } from "@pdflapas/model";
 
 /** The calls a deck makes, run on PptxGenJS and on PuppeteerGen alike. */
 type Deck = (pres: PptxGenJS | PuppeteerGen) => void;

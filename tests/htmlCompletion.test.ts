@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "parse5";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { completeProfileHtml } from "../packages/pptxgenjs/src/render/completion";
-import { pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { pointsToPixels } from "@pdflapas/model";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
 
 /** The `style` and attributes of the first element matching `selector` (a class name or a tag), from a parse. */

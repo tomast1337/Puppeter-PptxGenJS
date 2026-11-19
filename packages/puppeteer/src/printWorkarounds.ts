@@ -6,7 +6,7 @@
  * finds the elements, and each change is spliced into the original string at its source offsets, so every
  * byte the print step does not change stays as it was. HTML outside the profile comes back unchanged.
  */
-import { applySourceEdits, type SourceEdit } from "@pdflapas/model";
+import { applySourceEdits, degreesToRadians, type SourceEdit } from "@pdflapas/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 
 type Element = DefaultTreeAdapterTypes.Element;
@@ -292,7 +292,7 @@ function shapeEdits(svg: Element): SourceEdit[] {
     if (dx || dy) {
         // Undo the object's `rotate() scaleX() scaleY()` on the page-space offset.
         const box = attribute(object, "style") ?? "";
-        const angle = (Number(box.match(ROTATE)?.[1] ?? 0) * Math.PI) / 180;
+        const angle = degreesToRadians(Number(box.match(ROTATE)?.[1] ?? 0));
         const x = local((dx * Math.cos(angle) + dy * Math.sin(angle)) * (box.includes("scaleX(-1)") ? -1 : 1));
         const y = local((dy * Math.cos(angle) - dx * Math.sin(angle)) * (box.includes("scaleY(-1)") ? -1 : 1));
         edits.push(addStyle(svg, `transform: translate(${x}px, ${y}px);`));

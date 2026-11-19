@@ -7,7 +7,7 @@ import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
 import { advanceGridSpacing } from "../packages/pptxgenjs/src/normalize/advanceGrid";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
-import { pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { pointsToPixels } from "@pdflapas/model";
 
 afterAll(closeBrowser);
 

@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import type { NormalizedShape, NormalizedTextBox } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
 import { UnsupportedFeatureError } from "#src/UnsupportedFeatureError";
-import { inchesToPixels } from "#src/units";
+import { inchesToPixels } from "@pdflapas/model";
 import { GENERATED_PRESET_NAMES, type GeneratedPresetName, generatedPresetGeometry, isGeneratedPreset, presetTextInsets } from "#src/normalize/generatedPreset";
 import { normalizeHyperlink } from "#src/normalize/link";
 import { ACTION_BUTTON_GEOMETRY } from "./actionButton";

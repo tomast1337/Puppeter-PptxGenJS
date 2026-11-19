@@ -5,7 +5,7 @@ import type PptxGenJS from "pptxgenjs";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
-import { inchesToPixels, inchesToPoints, pixelsToInches } from "../packages/pptxgenjs/src/units";
+import { inchesToPixels, inchesToPoints, pixelsToInches } from "@pdflapas/model";
 
 const printedHtml = async (presentation: PuppeteerGen) => printHtml((await presentation.toHtml()).html);
 

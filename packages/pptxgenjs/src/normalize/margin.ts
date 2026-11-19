@@ -1,5 +1,6 @@
 import { type FourSideMargin, PPTX_DEFAULTS } from "#src/defaults";
-import { inch2EmuToPixels, inchesToPixels, pointsToInches, pointsToPixels } from "#src/units";
+import { inchesToPixels, pointsToInches, pointsToPixels } from "@pdflapas/model";
+import { inch2EmuToPixels } from "#src/units";
 
 type Sides<T> = readonly [T, T, T, T];
 

@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import type { NormalizedShape } from "@pdflapas/model";
+import { degreesToRadians, type NormalizedShape } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
 
 /** DrawingML percentage guides (ST_Percentage, ECMA-376 20.1.10.40) are in 1/1000ths of a percent. */
@@ -14,7 +14,7 @@ export function cleanNumber(value: number): number {
 }
 
 function drawingAngleParameter(degrees: number, rx: number, ry: number): number {
-    const radians = (degrees * Math.PI) / 180;
+    const radians = degreesToRadians(degrees);
     return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
 }
 
