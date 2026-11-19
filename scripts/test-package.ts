@@ -171,7 +171,8 @@ if (Buffer.from(await presentation.toPdf()).subarray(0, 4).toString() !== "%PDF"
     throw new Error("Packed package toPdf() did not return PDF bytes under Node.js");
 }
 // The PowerPoint target reads an installed face's metrics through fontconfig: Liberation Sans 18pt puts the
-// baseline 28.8 x 1854/2288 px below the line top, a face that is not installed 24 px.
+// baseline 28.8 x 1854/2288 px below the line top, a face that is not installed 24 px, each rounded to PowerPoint's
+// 1/600 in baseline grid (0.16 px).
 let liberationSans = false;
 try {
     liberationSans = execFileSync("fc-match", ["-f", "%{family}", "Liberation Sans"], { encoding: "utf8" }).split(",").includes("Liberation Sans");
@@ -179,7 +180,9 @@ try {
 const powerPoint = new PuppeteerGenPowerPoint();
 powerPoint.addSlide().addText("Installed font", { x: 1, y: 1, w: 3, h: 1, fontFace: "Liberation Sans", fontSize: 18 });
 const baseline = Number((await powerPoint.toHtml()).html.match(/data-line-baseline="([^"]*)"/)?.[1]);
-if (Math.abs(baseline - (liberationSans ? (28.8 * 1854) / 2288 : 24)) > 1e-3) {
+const grid = 96 / 600; // CSS px per inch over PowerPoint baseline grid steps per inch
+const onGrid = (px) => Math.round(px / grid) * grid;
+if (Math.abs(baseline - onGrid(liberationSans ? (28.8 * 1854) / 2288 : 24)) > 1e-3) {
     throw new Error(\`Packed package PowerPoint target placed the Liberation Sans baseline at \${baseline} (installed: \${liberationSans}) under Node.js\`);
 }
 console.log("Node.js package consumer generated a PDF");

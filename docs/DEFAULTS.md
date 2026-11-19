@@ -166,6 +166,19 @@ can be off the grid by up to 0.2 to 0.5pt (the run's end is exact), and the
 1/600 in word-start grid and PowerPoint's hinted glyph widths inside a word are
 not reproduced.
 
+PowerPoint puts each baseline on a 1/600 in (0.12pt) grid. Measured against its
+PDF export of synthetic decks (one line of Arial, 6 to 18pt, in text boxes and
+one-cell tables, top anchored), the first baseline below the top inset is the
+line box's rounded to the nearest 0.12pt, all 20 sizes and places within
+0.012pt: 12pt in a text box 11.325pt becomes 11.28, 18pt 16.988 becomes 17.04.
+The PowerPoint target rounds every baseline it writes (`data-line-baseline`,
+`data-mark-baseline`, `data-break-baseline`) the same way
+(`RENDERING_TARGETS.powerpoint.baselineGridPerInch`); the LibreOffice target
+does not. The grid is the page's, and the target rounds the baseline below its
+line's top, so the two agree while the line top is on the grid: a box `y` and
+inset in whole hundredths of an inch, sizes in whole tenths of a point, and
+paragraph spacing in multiples of 0.72pt keep it there.
+
 Two paragraphs are `paraSpaceAfter` of the first plus `paraSpaceBefore` of the
 second apart in PowerPoint, and the PowerPoint target adds them the same way.
 The LibreOffice target keeps only the larger of the two, as CSS margins collapse.

@@ -27,6 +27,8 @@ export const PPTX_DEFAULTS = Object.freeze({
         spacingPointsPerPoint: 100,
         // PowerPoint's grid for each glyph's advance width: 1/576 in, 0.125pt (RENDERING_TARGETS.powerpoint.advanceGridPt).
         powerPointAdvanceGridPerInch: 576,
+        // PowerPoint's grid for each line's baseline: 1/600 in, 0.12pt (RENDERING_TARGETS.powerpoint.baselineGridPerInch).
+        powerPointBaselineGridPerInch: 600,
     }),
     presentation: Object.freeze({
         layout: "LAYOUT_16x9",
@@ -395,6 +397,8 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * half-up to whole points, each value on its own.
  * `advanceGridPt`: the grid each glyph's advance width (hmtx advance x size / unitsPerEm) is rounded to, to the nearest
  * step, before it lays text out; undefined lays it out with the natural advances.
+ * `baselineGridPerInch`: the steps per inch of the grid each line's baseline is rounded to, to the nearest step;
+ * undefined keeps it where the line box puts it.
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -420,6 +424,7 @@ export const RENDERING_TARGETS = Object.freeze({
         escapementSizeRatio: 0.58,
         fullSizeMark: false,
         advanceGridPt: undefined,
+        baselineGridPerInch: undefined,
     }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
@@ -470,6 +475,16 @@ export const RENDERING_TARGETS = Object.freeze({
      * 2.25pt. Pair kerning still applies from 12pt (`readsKern`); whether it rounds kerning values too was not measured,
      * so they stay unrounded. Inside a word it draws glyphs at hinted 600 dpi widths, which never moves a word start or a
      * line break, so the PDF does not copy them. Wrapping tests the line without its trailing space against the box.
+     * It puts each baseline on a 1/600 in grid, 0.12pt (`baselineGridPerInch`): measured against its PDF export of
+     * synthetic decks (one line "Hxg" in Arial at 6, 7, 8, 9, 9.5, 10, 12, 14, 16 and 18pt, in text boxes and one-cell
+     * tables, margin 0 and default margins, top anchored), the first baseline below the top inset is the single-spaced
+     * line box's above rounded to the nearest 0.12pt, all 40 within 0.012pt: 12pt in a box 11.325 -> 11.28, 18pt
+     * 16.988 -> 17.04, in a cell 11.669 -> 11.64 and 17.503 -> 17.52. The grid is the page's (on real decks baselines
+     * and word starts land on whole 600 dpi px of the page); those boxes sat at 0.2, 1.0, 1.8 and 2.8 in, on the grid,
+     * so rounding the page y and rounding the offset below the line top agree there.
+     * shortcut: the baseline is rounded below its line's top, on the page's grid only while that top is: box y and
+     * insets in 1/600 in (any whole 0.01 in), sizes in whole 0.1pt (a 1.2 x size pitch) and paragraph spacing in
+     * multiples of 0.72pt; round the page y when a renderer lays text out from the model's page positions.
      */
     powerpoint: Object.freeze({
         readsKern: true,
@@ -484,6 +499,7 @@ export const RENDERING_TARGETS = Object.freeze({
         escapementSizeRatio: 2 / 3,
         fullSizeMark: true,
         advanceGridPt: PPTX_DEFAULTS.units.pointsPerInch / PPTX_DEFAULTS.units.powerPointAdvanceGridPerInch,
+        baselineGridPerInch: PPTX_DEFAULTS.units.powerPointBaselineGridPerInch,
     }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
