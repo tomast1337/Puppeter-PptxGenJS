@@ -64,6 +64,16 @@ describe("Puppeteer print workarounds", () => {
         expect(offsets).toEqual(["", "translate(0.05px, -0.025px)", "translate(0.05px, -0.025px)", "translate(-0.025px, -0.05px)", "translate(-0.05px, -0.025px)", "translate(0.05px, -0.025px)"]);
     });
 
+    // PptxGenJS writes <a:ext cx="0"> and PowerPoint and LibreOffice draw the stroke; Chromium paints no SVG root 0px wide.
+    test("prints a zero-width line as a stroke at its x, from its y over its height", async () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addShape("line", { x: 3.13, y: 1.07, w: 0, h: 2, line: { color: "2CA8E2", width: 1 } });
+        const content = pdfContentStreams(await presentation.toPdf()).join("\n");
+        // The SVG's `scale 0 0 scale x y cm`, then (no nested q) its stroked path in CSS px.
+        const [, scale, x, y, length] = content.match(/\n([\d.]+) 0 0 \1 ([\d.]+) ([\d.]+) cm\n[^q]*?\n0 0 m\n0 ([\d.]+) l\nS\n/) ?? [];
+        expect([Number(x) / Number(scale), Number(y) / Number(scale), Number(length)].map(value => value.toFixed(3))).toEqual([inchesToPixels(3.13), inchesToPixels(1.07), inchesToPixels(2)].map(value => value.toFixed(3)));
+    }, 60_000);
+
     // A cell has no autofit (PptxGenJS writes a bare <a:bodyPr/>), so hand-written cell shrink fails, as in WASM (#197).
     test("fails on a table cell with a text fit other than none", async () => {
         const presentation = new PuppeteerGen();

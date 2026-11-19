@@ -120,11 +120,11 @@ export function renderShapeSvg(shape: NormalizedShape, style: NormalizedObjectSt
         "svg",
         [
             ["class", "shape-svg"],
-            // A near-zero viewBox height gives horizontal lines an extreme vertical
-            // transform. Chromium still paints their non-scaling stroke, but drops
-            // its SVG markers. The unit-high box keeps the line on its top edge, at the object's y.
-            ["viewBox", `0 0 ${Math.max(shape.width, 0.001)} ${shape.height || 1}`],
-            ["width", "100%"],
+            // A near-zero viewBox side gives a horizontal or vertical line an extreme transform, and Chromium
+            // then drops its SVG markers; an SVG root whose used width is 0 it does not paint at all. The unit
+            // box keeps the line on its top or left edge, at the object's y or x.
+            ["viewBox", `0 0 ${shape.width < 0.001 ? 1 : shape.width} ${shape.height || 1}`],
+            ["width", shape.width < 0.001 ? "1" : "100%"],
             ["height", shape.height === 0 ? "1" : "100%"],
             ["preserveAspectRatio", "none"],
             // The viewBox clamps these; keep the model values when it does.

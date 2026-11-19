@@ -389,7 +389,7 @@ of this profile never sees either.
 | Cell inset     | each `td` side's collapsed width: its or the facing `border-*`     | Print step: on its `.table-cell-text`, `inset: -<top / 2>px …` (absolute) or `margin: -<top / 2>px …; width: calc(100% + <(left + right) / 2>px)` (in flow), since DrawingML measures cell margins from the grid line and Chromium from the inner half of the collapsed border, the wider of the two, which else grows a full row                                                                                                                                                                                                                                                                                   |
 
 Other Chromium-specific details that stay in the markup or stylesheet: `z-index: 0` stacking contexts
-(stylesheet), the clamped `viewBox` and `height="1"` for zero-height lines (`render/shape.ts`), U+200B for
+(stylesheet), the clamped `viewBox` with `height="1"` for zero-height lines and `width="1"` for zero-width ones (`render/shape.ts`), U+200B for
 empty runs (`render/text.ts`). Each also states a profile value or is plain CSS layout, so none is a
 second spelling.
 
@@ -708,7 +708,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | Field                                                | Status       | HTML                                                                                          |
 | ---------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
 | `NormalizedShape.name`                               | profile      | `data-shape`.                                                                                 |
-| `NormalizedShape.width`                              | profile      | SVG `viewBox` width; `data-shape-width` on the `svg` when the viewBox clamps it to 0.001.     |
+| `NormalizedShape.width`                              | profile      | SVG `viewBox` width; `data-shape-width` on the `svg` when it is below 0.001 (viewBox uses 1). |
 | `NormalizedShape.height`                             | profile      | SVG `viewBox` height; `data-shape-height` on the `svg` when it is 0 (the viewBox uses 1).     |
 | `NormalizedShape.geometry`                           | profile      | `.shape-geometry` element.                                                                    |
 | `NormalizedShapeGeometry<rect>.kind`                 | profile      | `rect.shape-geometry`.                                                                        |
