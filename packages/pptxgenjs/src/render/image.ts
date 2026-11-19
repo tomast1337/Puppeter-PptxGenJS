@@ -1,4 +1,5 @@
 import type { NormalizedImage, NormalizedObjectStyle } from "@pdflapas/model";
+import { cssPx, px } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, type Html, voidElement } from "./markup";
 import { applyObjectStyle } from "./style";
@@ -32,17 +33,17 @@ export function renderImage(image: NormalizedImage, style: NormalizedObjectStyle
     ]);
     if (image.sizing.type === "crop") {
         css.set("position", "absolute");
-        css.set("left", `${-image.sizing.offsetX}px`);
-        css.set("top", `${-image.sizing.offsetY}px`);
-        css.set("width", `${image.sizing.width}px`);
-        css.set("height", `${image.sizing.height}px`);
+        css.set("left", cssPx(px(-image.sizing.offsetX)));
+        css.set("top", cssPx(px(-image.sizing.offsetY)));
+        css.set("width", cssPx(image.sizing.width));
+        css.set("height", cssPx(image.sizing.height));
         css.set("object-fit", "fill");
     } else if (image.sizing.type === "contain" || image.sizing.type === "cover") {
         css.set("position", "absolute");
-        css.set("left", `${image.sizing.x}px`);
-        css.set("top", `${image.sizing.y}px`);
-        css.set("width", `${image.sizing.width}px`);
-        css.set("height", `${image.sizing.height}px`);
+        css.set("left", cssPx(image.sizing.x));
+        css.set("top", cssPx(image.sizing.y));
+        css.set("width", cssPx(image.sizing.width));
+        css.set("height", cssPx(image.sizing.height));
         css.set("object-fit", "fill");
     } else {
         css.set("width", "100%");

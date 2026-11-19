@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import type { NormalizedShape, NormalizedTextBox } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
 import { UnsupportedFeatureError } from "#src/UnsupportedFeatureError";
-import { inchesToPixels } from "@pdflapas/model";
+import { inchesToPixels, px } from "@pdflapas/model";
 import { GENERATED_PRESET_NAMES, type GeneratedPresetName, generatedPresetGeometry, isGeneratedPreset, presetTextInsets } from "#src/normalize/generatedPreset";
 import { normalizeHyperlink } from "#src/normalize/link";
 import { ACTION_BUTTON_GEOMETRY } from "./actionButton";
@@ -14,11 +14,11 @@ import { RIBBON_SCROLL_GEOMETRY } from "./ribbonScroll";
 type CustomShapeName = PptxGenJS.SHAPE_NAME | "custGeom";
 
 const BASIC_GEOMETRY = {
-    rect: () => ({ kind: "rect", radius: 0 }),
+    rect: () => ({ kind: "rect", radius: px(0) }),
     roundRect: (width, height, options) => {
         // PptxGenJS 4.0.1 writes the `adj` guide only for a truthy rectRadius; 0 keeps the preset's 1/6 corner.
         const radius = !options.rectRadius ? Math.min(width, height) / 6 : Math.min(Math.min(width, height) / 2, inchesToPixels(Math.max(0, options.rectRadius)));
-        return { kind: "rect", radius };
+        return { kind: "rect", radius: px(radius) };
     },
     ellipse: () => ({ kind: "ellipse" }),
     // Kept as an ellipse (#153): the generated flowChartConnector, four quarter arcs, draws the same in Chromium but
@@ -74,7 +74,7 @@ export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.Sh
     if (!geometry) throw new Error(`Unsupported shape geometry: ${shapeName}`);
     if (options.shadow?.type === "inner") throw innerShadowError(shapeName);
     const link = normalizeHyperlink(options.hyperlink);
-    return { name: shapeName, width, height, geometry: geometry(width, height, options, pageSize), textInsets: shapeTextInsets(shapeName, options, width, height), link };
+    return { name: shapeName, width: px(width), height: px(height), geometry: geometry(width, height, options, pageSize), textInsets: shapeTextInsets(shapeName, options, width, height), link };
 }
 
 export function normalizeShapeTextBox(text: NormalizedTextBox, shape: NormalizedShape): NormalizedTextBox {

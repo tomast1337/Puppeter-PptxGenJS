@@ -1,3 +1,5 @@
+import type { Inches, Px } from "./units";
+
 declare const color: unique symbol;
 
 /**
@@ -8,8 +10,8 @@ declare const color: unique symbol;
 export type CssColor = string & { readonly [color]: "css-color" };
 
 export interface PageSize {
-    width: number; // in inches
-    height: number; // in inches
+    width: Inches;
+    height: Inches;
     name: string;
 }
 
@@ -25,11 +27,12 @@ export interface ComponentInput {
 
 export type Coord = number | `${number}%`;
 
+/** The object's frame on the slide, from the slide's top left corner. */
 export interface NormalizedGeometry {
-    x: number;
-    y: number;
-    width?: number;
-    height?: number;
+    x: Px;
+    y: Px;
+    width?: Px;
+    height?: Px;
 }
 
 export interface NormalizedFill {
@@ -174,23 +177,24 @@ export interface NormalizedTableCell {
 }
 
 export interface NormalizedTableRow {
-    height?: number;
+    height?: Px;
     cells: NormalizedTableCell[];
 }
 
 export interface NormalizedTable {
-    width: number;
-    height?: number;
-    columns: number[];
+    width: Px;
+    height?: Px;
+    columns: Px[];
     rows: NormalizedTableRow[];
     /**
      * Px a row without a height (when the table has none either) is taller than its tallest cell's text and
      * margins, as free space of each cell's text area, where the cell's vertical anchor places the text.
      */
-    contentRowSlack?: number;
+    contentRowSlack?: Px;
 }
 
-export type NormalizedImageSizing = { type: "stretch" } | { type: "contain" | "cover"; x: number; y: number; width: number; height: number } | { type: "crop"; offsetX: number; offsetY: number; width: number; height: number };
+/** `contain`/`cover`: the image's box inside the object's frame; `crop`: the whole image's size and the offset of the part the frame shows. */
+export type NormalizedImageSizing = { type: "stretch" } | { type: "contain" | "cover"; x: Px; y: Px; width: Px; height: Px } | { type: "crop"; offsetX: Px; offsetY: Px; width: Px; height: Px };
 
 export interface NormalizedImageLink {
     href: string;
@@ -215,7 +219,7 @@ export interface NormalizedShapeLink {
 }
 
 export type NormalizedShapeGeometry =
-    | { kind: "rect"; radius: number }
+    | { kind: "rect"; radius: Px }
     | { kind: "ellipse" }
     | { kind: "line"; inverse: boolean }
     | {
@@ -228,8 +232,8 @@ export type NormalizedShapeGeometry =
 
 export interface NormalizedShape {
     name: string;
-    width: number;
-    height: number;
+    width: Px;
+    height: Px;
     geometry: NormalizedShapeGeometry;
     textInsets?: [number, number, number, number];
     link?: NormalizedShapeLink;

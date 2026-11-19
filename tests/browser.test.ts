@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { DEFAULT_LAUNCH_OPTIONS } from "../packages/puppeteer/src/launchOptions";
 import { PuppeteerPdfRenderer } from "../packages/puppeteer/src/puppeteerPdf";
@@ -40,7 +41,7 @@ test("each distinct set of launch options gets its own shared browser", async ()
 test("PuppeteerPdfRenderer launches Chromium with its launch options", async () => {
     // A missing executable proves the options reached puppeteer.launch.
     const renderer = new PuppeteerPdfRenderer({ launchOptions: { executablePath: "/nonexistent/chromium" } });
-    const document = { html: "<!DOCTYPE html><html></html>", pageSize: { width: 10, height: 5.625, name: "Custom" } };
+    const document = { html: "<!DOCTYPE html><html></html>", pageSize: { ...PAGE_SIZES.SCREEN_16X9.landscape, name: "Custom" } };
     await expect(renderer.render(document)).rejects.toThrow("/nonexistent/chromium");
 });
 

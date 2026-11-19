@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { px } from "@pdflapas/model";
 import { renderedPage } from "./renderedPage";
 import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -64,7 +65,7 @@ describe("image normalization", () => {
                 },
                 PAGE,
             ).sizing,
-        ).toEqual({ type: "contain", x: 0, y: 48, width: 192, height: 96 });
+        ).toEqual({ type: "contain", x: px(0), y: px(48), width: px(192), height: px(96) });
         expect(
             normalizeImage(
                 {
@@ -75,7 +76,7 @@ describe("image normalization", () => {
                 },
                 PAGE,
             ).sizing,
-        ).toEqual({ type: "cover", x: -96, y: 0, width: 384, height: 192 });
+        ).toEqual({ type: "cover", x: px(-96), y: px(0), width: px(384), height: px(192) });
     });
 
     test("supports file URLs", async () => {

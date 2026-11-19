@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { px } from "@pdflapas/model";
 import type PptxGenJS from "pptxgenjs";
 import PptxGenJSRuntime from "pptxgenjs";
 import JSZip from "jszip";
@@ -57,21 +58,21 @@ function geometry(object: NormalizedSlideObject | undefined): number[] {
     return [x, y, width ?? Number.NaN, height ?? Number.NaN];
 }
 
-const close = (values: number[]): number[] => values.map(value => expect.closeTo(value, 3));
+const close = <T>(values: number[]): T[] => values.map(value => expect.closeTo(value, 3));
 
 describe("getSmartParseNumber lengths (PptxGenJS 4.0.1): a number of 100 or more is EMU (#280)", () => {
     test("convertToPixels reads numbers, numeric strings, percentages and other strings as PptxGenJS does", () => {
-        expect(convertToPixels(1, 960)).toBe(96);
+        expect(convertToPixels(1, 960)).toBe(px(96));
         expect(convertToPixels(99.9, 960)).toBeCloseTo(9590.4, 6);
         expect(convertToPixels(100, 960)).toBeCloseTo(100 / 9525, 9);
-        expect(convertToPixels(914400, 960)).toBe(96);
-        expect(convertToPixels("50%", 960)).toBe(480);
+        expect(convertToPixels(914400, 960)).toBe(px(96));
+        expect(convertToPixels("50%", 960)).toBe(px(480));
         // `as`: PptxGenJS accepts a numeric string at runtime (getSmartParseNumber, "FIRST"), although Coord omits it.
-        expect(convertToPixels("2" as `${number}%`, 960)).toBe(192);
-        expect(convertToPixels("914400" as `${number}%`, 960)).toBe(96);
+        expect(convertToPixels("2" as `${number}%`, 960)).toBe(px(192));
+        expect(convertToPixels("914400" as `${number}%`, 960)).toBe(px(96));
         // Neither a number nor a percentage: getSmartParseNumber's "LAST" default.
-        expect(convertToPixels("2in" as `${number}%`, 960)).toBe(0);
-        expect(convertToPixels(Number.NaN, 960)).toBe(0);
+        expect(convertToPixels("2in" as `${number}%`, 960)).toBe(px(0));
+        expect(convertToPixels(Number.NaN, 960)).toBe(px(0));
     });
 
     test.each([...SMART_VALUES])("places text, shapes, images and the slide number at x, y, w, h = %p as PptxGenJS does", async value => {
@@ -128,11 +129,11 @@ describe("getSmartParseNumber lengths (PptxGenJS 4.0.1): a number of 100 or more
 
 describe("inch2Emu lengths (PptxGenJS 4.0.1): a number above 100 is EMU (#280)", () => {
     test("inch2EmuToPixels reads 100 as inches and strings as inches", () => {
-        expect(inch2EmuToPixels(100)).toBe(9600);
+        expect(inch2EmuToPixels(100)).toBe(px(9600));
         expect(inch2EmuToPixels(100.5)).toBeCloseTo(100.5 / 9525, 9);
-        expect(inch2EmuToPixels(914400)).toBe(96);
-        expect(inch2EmuToPixels("2in")).toBe(192);
-        expect(inch2EmuToPixels("914400")).toBe(87782400);
+        expect(inch2EmuToPixels(914400)).toBe(px(96));
+        expect(inch2EmuToPixels("2in")).toBe(px(192));
+        expect(inch2EmuToPixels("914400")).toBe(px(87782400));
     });
 
     test.each([...INCH_VALUES])("sizes table columns, rows and cell margins of %p as PptxGenJS does", async value => {
@@ -141,7 +142,7 @@ describe("inch2Emu lengths (PptxGenJS 4.0.1): a number above 100 is EMU (#280)",
             const xml = await slideXml(slide => slide.addTable(structuredClone(rows), structuredClone(options)));
             const table = normalizeTable(rows, options, PAGE);
             expect({ options, columns: table.columns }).toEqual({ options, columns: close(pixels(xml, /<a:gridCol w="(\d+)"/g)) });
-            expect({ options, rows: table.rows.map(row => row.height ?? 0) }).toEqual({ options, rows: close(pixels(xml, /<a:tr h="(\d+)"/g)) });
+            expect({ options, rows: table.rows.map(row => row.height ?? px(0)) }).toEqual({ options, rows: close(pixels(xml, /<a:tr h="(\d+)"/g)) });
             const [marL = "", marR = "", marT = "", marB = ""] = /<a:tcPr marL="(\d+)" marR="(\d+)" marT="(\d+)" marB="(\d+)"/.exec(xml)?.slice(1) ?? [];
             expect({ options, margin: [...(table.rows[0]?.cells[0]?.text.margin ?? [])] }).toEqual({ options, margin: close([marT, marR, marB, marL].map(emu => emuToPixels(Number(emu)))) });
         }
@@ -171,6 +172,6 @@ describe("addTableDefinition (PptxGenJS 4.0.1, step 4) reads a table size below 
         const xml = await slideXml(slide => slide.addTable(structuredClone(rows), structuredClone(options)));
         const table = normalizeTable(rows, options, PAGE);
         expect(table.columns).toEqual(close(pixels(xml, /<a:gridCol w="(\d+)"/g)));
-        expect(table.rows.map(row => row.height ?? 0)).toEqual(close(pixels(xml, /<a:tr h="(\d+)"/g)));
+        expect(table.rows.map(row => row.height ?? px(0))).toEqual(close(pixels(xml, /<a:tr h="(\d+)"/g)));
     });
 });

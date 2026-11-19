@@ -1,5 +1,5 @@
 import type { PageSize } from "./pageLayouts";
-import { inchesToPixels } from "@pdflapas/model";
+import { cssPx, inchesToPixels } from "@pdflapas/model";
 
 /**
  * Generates CSS for a slide page with specific dimensions
@@ -21,8 +21,8 @@ body {
 }
 
 .slide-container {
-    width: ${widthPx}px;
-    height: ${heightPx}px;
+    width: ${cssPx(widthPx)};
+    height: ${cssPx(heightPx)};
     position: relative;
     page-break-after: always;
     background: white;

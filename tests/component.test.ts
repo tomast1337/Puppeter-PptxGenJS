@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { px } from "@pdflapas/model";
 import { renderedPage, renderedSlide } from "./renderedPage";
 import { z } from "zod";
 import { normalizeComponent } from "../packages/pptxgenjs/src/components/normalize";
@@ -46,7 +47,7 @@ test("Zod transforms run once for each render and must produce JSON-compatible p
 
 test("normalizes inches and snapshots props without materializing renderer code", () => {
     const normalized = normalizeComponent(input, options, PAGE_SIZES.SCREEN_16X9.landscape, "Metric");
-    expect(normalized.style.geometry).toEqual({ x: 96, y: 192, width: 288, height: 96 });
+    expect(normalized.style.geometry).toEqual({ x: px(96), y: px(192), width: px(288), height: px(96) });
     normalized.input.props.value = 99;
     expect(input.props.value).toBe(42);
     expect(normalized.style.transform).toMatchObject({ rotation: 0, opacity: 1 });

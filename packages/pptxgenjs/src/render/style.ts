@@ -1,12 +1,13 @@
 import type { NormalizedGeometry, NormalizedLine, NormalizedObjectStyle, NormalizedShadow, NormalizedTransform } from "@pdflapas/model";
+import { cssPx } from "@pdflapas/model";
 import type { InlineStyle } from "./css";
 import type { Attribute } from "./markup";
 
 export function applyGeometry(css: InlineStyle, geometry: NormalizedGeometry): void {
-    css.set("left", `${geometry.x}px`);
-    css.set("top", `${geometry.y}px`);
-    if (geometry.width !== undefined) css.set("width", `${geometry.width}px`);
-    if (geometry.height !== undefined) css.set("height", `${geometry.height}px`);
+    css.set("left", cssPx(geometry.x));
+    css.set("top", cssPx(geometry.y));
+    if (geometry.width !== undefined) css.set("width", cssPx(geometry.width));
+    if (geometry.height !== undefined) css.set("height", cssPx(geometry.height));
 }
 
 export function applyTransform(css: InlineStyle, transform: NormalizedTransform): void {

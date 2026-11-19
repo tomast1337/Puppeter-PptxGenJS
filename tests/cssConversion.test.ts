@@ -13,8 +13,8 @@ describe("measurement conversion", () => {
 
     test("converts percentage coordinates relative to the slide", () => {
         expect(percentageToPixels(25, 960)).toBe(px(240));
-        expect(convertToPixels("25%", 960)).toBe(240);
-        expect(convertToPixels(2.5, 960)).toBe(240);
+        expect(convertToPixels("25%", 960)).toBe(px(240));
+        expect(convertToPixels(2.5, 960)).toBe(px(240));
     });
 });
 

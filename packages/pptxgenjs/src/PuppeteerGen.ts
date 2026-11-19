@@ -11,7 +11,7 @@ import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { paginateTableRows } from "./normalize/table/pagination";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
 import type { PageSize } from "./pageLayouts";
-import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES } from "./pageLayouts";
+import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES, pageSize } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { PuppeteerSlide } from "./PuppeteerSlide";
 import { type HtmlPresentationDocument, lazyDocument, modelToHtml, type PresentationRenderer } from "./render/document";
@@ -400,7 +400,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
             throw new Error(`defineLayout() needs { name, width, height } with width and height in inches greater than zero, got ${JSON.stringify(layout)}`);
         }
-        this.pageSize = { width, height, name: layout.name || CUSTOM_PAGE_SIZE_NAME };
+        this.pageSize = pageSize(width, height, layout.name || CUSTOM_PAGE_SIZE_NAME);
         this.presLayoutName = this.pageSize.name;
         if (layout.name) this.definedLayouts.set(layout.name, this.pageSize);
     }

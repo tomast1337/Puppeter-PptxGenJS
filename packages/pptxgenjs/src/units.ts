@@ -1,8 +1,8 @@
-import { inchesToPixels, percentageToPixels } from "@pdflapas/model";
+import { type Px, inchesToPixels, percentageToPixels } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "#src/defaults";
 
 /** Converts EMU (914400 per inch) to CSS pixels. */
-export function emuToPixels(emu: number): number {
+export function emuToPixels(emu: number): Px {
     return inchesToPixels(emu / PPTX_DEFAULTS.units.emuPerInch);
 }
 
@@ -27,7 +27,7 @@ export function smartParseEmu(value: unknown, containerEmu: number): number {
  * Converts a PptxGenJS position or size (`x`, `y`, `w`, `h` and the like) to CSS pixels as getSmartParseNumber reads it:
  * a number below 100 is inches, any other number EMU, `"50%"` that share of `containerSize` (pixels).
  */
-export function convertToPixels(value: number | `${number}%` | undefined, containerSize: number): number {
+export function convertToPixels(value: number | `${number}%` | undefined, containerSize: number): Px {
     const { unit, amount } = smartParse(value);
     return unit === "in" ? inchesToPixels(amount) : unit === "emu" ? emuToPixels(amount) : percentageToPixels(amount, containerSize);
 }
@@ -42,7 +42,7 @@ export function convertToInches(value: number | `${number}%` | undefined, contai
  * Converts a length to CSS pixels as PptxGenJS 4.0.1 inch2Emu reads it: a number above 100 is EMU, 100 itself and below
  * inches; a string is inches once every "i" and "n" is taken out ("2in" is 2), so it never reads as EMU.
  */
-export function inch2EmuToPixels(value: number | string): number {
+export function inch2EmuToPixels(value: number | string): Px {
     if (typeof value === "number" && value > PPTX_DEFAULTS.units.inchesBelow) return emuToPixels(value);
     return inchesToPixels(typeof value === "string" ? Number(value.replace(/in*/gi, "")) : value);
 }

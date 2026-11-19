@@ -1,5 +1,6 @@
 // Common page sizes and layouts for presentation/document generation
 import type { PageSize } from "@pdflapas/model";
+import { inches } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "./defaults";
 
 export type { PageSize } from "@pdflapas/model";
@@ -9,50 +10,55 @@ export interface PageLayout {
     portrait: PageSize;
 }
 
+/** A page size from its width and height in inches. */
+export function pageSize(width: number, height: number, name: string): PageSize {
+    return { width: inches(width), height: inches(height), name };
+}
+
 // Common page sizes (dimensions in inches)
 export const PAGE_SIZES = {
     // Standard presentation sizes
     SCREEN_4X3: {
-        landscape: { width: 10, height: 7.5, name: "Screen 4:3 Landscape" },
-        portrait: { width: 7.5, height: 10, name: "Screen 4:3 Portrait" },
+        landscape: pageSize(10, 7.5, "Screen 4:3 Landscape"),
+        portrait: pageSize(7.5, 10, "Screen 4:3 Portrait"),
     },
     SCREEN_16X9: {
-        landscape: { width: 10, height: 5.625, name: "Screen 16:9 Landscape" },
-        portrait: { width: 5.625, height: 10, name: "Screen 16:9 Portrait" },
+        landscape: pageSize(10, 5.625, "Screen 16:9 Landscape"),
+        portrait: pageSize(5.625, 10, "Screen 16:9 Portrait"),
     },
     SCREEN_16X10: {
-        landscape: { width: 10, height: 6.25, name: "Screen 16:10 Landscape" },
-        portrait: { width: 6.25, height: 10, name: "Screen 16:10 Portrait" },
+        landscape: pageSize(10, 6.25, "Screen 16:10 Landscape"),
+        portrait: pageSize(6.25, 10, "Screen 16:10 Portrait"),
     },
 
     // Letter size
     LETTER: {
-        landscape: { width: 11, height: 8.5, name: "Letter Landscape" },
-        portrait: { width: 8.5, height: 11, name: "Letter Portrait" },
+        landscape: pageSize(11, 8.5, "Letter Landscape"),
+        portrait: pageSize(8.5, 11, "Letter Portrait"),
     },
 
     // Legal size
     LEGAL: {
-        landscape: { width: 14, height: 8.5, name: "Legal Landscape" },
-        portrait: { width: 8.5, height: 14, name: "Legal Portrait" },
+        landscape: pageSize(14, 8.5, "Legal Landscape"),
+        portrait: pageSize(8.5, 14, "Legal Portrait"),
     },
 
     // A4 size
     A4: {
-        landscape: { width: 11.69, height: 8.27, name: "A4 Landscape" },
-        portrait: { width: 8.27, height: 11.69, name: "A4 Portrait" },
+        landscape: pageSize(11.69, 8.27, "A4 Landscape"),
+        portrait: pageSize(8.27, 11.69, "A4 Portrait"),
     },
 
     // A3 size
     A3: {
-        landscape: { width: 16.54, height: 11.69, name: "A3 Landscape" },
-        portrait: { width: 11.69, height: 16.54, name: "A3 Portrait" },
+        landscape: pageSize(16.54, 11.69, "A3 Landscape"),
+        portrait: pageSize(11.69, 16.54, "A3 Portrait"),
     },
 
     // Tabloid/Ledger
     TABLOID: {
-        landscape: { width: 17, height: 11, name: "Tabloid Landscape" },
-        portrait: { width: 11, height: 17, name: "Tabloid Portrait" },
+        landscape: pageSize(17, 11, "Tabloid Landscape"),
+        portrait: pageSize(11, 17, "Tabloid Portrait"),
     },
 } as const;
 
@@ -68,7 +74,7 @@ export const PPTX_LAYOUT_PAGE_SIZES: Readonly<Record<keyof typeof PPTX_DEFAULTS.
     LAYOUT_4x3: PAGE_SIZES.SCREEN_4X3.landscape,
     LAYOUT_16x9: PAGE_SIZES.SCREEN_16X9.landscape,
     LAYOUT_16x10: PAGE_SIZES.SCREEN_16X10.landscape,
-    LAYOUT_WIDE: Object.freeze({ width: LAYOUT_WIDE.width, height: LAYOUT_WIDE.height, name: "Screen Wide Landscape" }),
+    LAYOUT_WIDE: Object.freeze(pageSize(LAYOUT_WIDE.width, LAYOUT_WIDE.height, "Screen Wide Landscape")),
 });
 
 // The name of a page size given only by its dimensions (`defineLayout()` without a name, an `@page` rule).
