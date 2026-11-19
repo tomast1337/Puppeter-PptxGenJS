@@ -50,3 +50,6 @@ packages/wasm/src/*.wasm
 
 # Claude Code agent worktrees (full repo copies with their own node_modules and build output)
 .claude/worktrees/
+
+# Tarballs packed by bun run publish:npm (scripts/publish.ts) and the Release workflow
+/release/
