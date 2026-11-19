@@ -1,6 +1,7 @@
 {
   "name": "puppeteer-pptxgenjs",
   "version": "0.2.0",
+  "private": true,
   "description": "Deprecated: moved to @pdflapas/pptxgenjs. Re-exports it (and /html, /react, /wasm) so existing imports keep working",
   "license": "MIT",
   "type": "module",
@@ -59,10 +60,6 @@
     "presentation",
     "puppeteer"
   ],
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
   "scripts": {
     "prepack": "bun ../../scripts/build.ts"
   },

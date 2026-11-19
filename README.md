@@ -19,14 +19,14 @@ returns it, you can read, diff or edit it, and you can write your own slide cont
 
 ## Packages
 
-| Package               | What it is                                                                                                     | Entries                                |
-| --------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `@pdflapas/pptxgenjs` | The PptxGenJS-compatible API (class `PuppeteerGen`), defaults, normalization, HTML renderers                   | `.` (Node), `./html` (browser-safe)    |
-| `@pdflapas/model`     | The normalized presentation model and the renderer interface (`PresentationRenderer`)                          | `.` (types only)                       |
-| `@pdflapas/puppeteer` | `PuppeteerPdfRenderer`, the default backend, and the shared Chromium (`closeBrowser`)                          | `.` (Node)                             |
-| `@pdflapas/wasm`      | `createWasmRenderer`, the opt-in WebAssembly backend                                                           | `.` (browser, Node and Bun conditions) |
-| `@pdflapas/react`     | `registerReactComponent`, for React components on slides                                                       | `.`                                    |
-| `puppeteer-pptxgenjs` | Deprecation shim: re-exports `@pdflapas/pptxgenjs` and its `/html`, `/react` and `/wasm` subpaths at old names | `.`, `./html`, `./react`, `./wasm`     |
+| Package               | What it is                                                                                                                                  | Entries                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `@pdflapas/pptxgenjs` | The PptxGenJS-compatible API (class `PuppeteerGen`), defaults, normalization, HTML renderers                                                | `.` (Node), `./html` (browser-safe)    |
+| `@pdflapas/model`     | The normalized presentation model and the renderer interface (`PresentationRenderer`)                                                       | `.` (types only)                       |
+| `@pdflapas/puppeteer` | `PuppeteerPdfRenderer`, the default backend, and the shared Chromium (`closeBrowser`)                                                       | `.` (Node)                             |
+| `@pdflapas/wasm`      | `createWasmRenderer`, the opt-in WebAssembly backend                                                                                        | `.` (browser, Node and Bun conditions) |
+| `@pdflapas/react`     | `registerReactComponent`, for React components on slides                                                                                    | `.`                                    |
+| `puppeteer-pptxgenjs` | Deprecated on npm, no longer published (private): re-exports `@pdflapas/pptxgenjs`, `/react` and `/wasm`, kept to test the old import names | `.`, `./html`, `./react`, `./wasm`     |
 
 Every package in this repository is at 0.2.0 and unpublished. `@pdflapas/pptxgenjs` depends on
 `@pdflapas/model`, and its Node entry on `@pdflapas/puppeteer`; the renderers depend only on
