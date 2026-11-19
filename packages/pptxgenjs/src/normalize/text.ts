@@ -8,6 +8,7 @@ import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { recordSharedRun, type SharedRunOptions, sharedRunOptions } from "./sharedRunOptions";
 import { normalizeColor, normalizeShadow } from "./style";
+import { OOXML_PERCENT } from "./shape/path";
 
 export type TextInput = string | number | PptxGenJS.TextProps[];
 
@@ -134,11 +135,12 @@ function runFontSize(options: PptxGenJS.TextPropsOptions): number {
 export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextRun {
     const underline = underlineType(options);
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
-    const baseline = options.baseline ?? 0;
     const fontSize = runFontSize(options);
-    // A custom baseline wins over super/subscript, as in PptxGenJS's run XML.
-    // shortcut: custom baselines keep their full size and the point-based offset; check them against the targets' escapementSizeRatio when a fixture uses one.
-    const escapement = options.baseline ? undefined : options.subscript ? PPTX_DEFAULTS.text.subscriptBaseline : options.superscript ? PPTX_DEFAULTS.text.superscriptBaseline : undefined;
+    // The fraction of the font size the baseline moves, from the <a:rPr baseline> PptxGenJS writes; a custom baseline
+    // wins over super/subscript. LibreOffice draws a custom one as a superscript or subscript: measured in its PDF
+    // export, baseline 600, -600, 200 and -1000 move the run 30%, -30%, 10% and -50% of its full size at 20pt and 40pt,
+    // drawn at 58% of it (escapementSizeRatio); one that rounds to baseline="0" keeps the full size and the baseline.
+    const escapement = options.baseline ? Math.round(options.baseline * PPTX_DEFAULTS.text.customBaselineScale) / OOXML_PERCENT || undefined : options.subscript ? PPTX_DEFAULTS.text.subscriptBaseline : options.superscript ? PPTX_DEFAULTS.text.superscriptBaseline : undefined;
     const link = normalizeHyperlink(options.hyperlink);
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
 
@@ -158,7 +160,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
             doubleStrike: options.strike === "dblStrike",
         },
         verticalAlign: getVerticalAlign(options),
-        baselineOffset: escapement === undefined ? pointsToPixels(baseline / 100) : escapement * fontSize,
+        baselineOffset: escapement === undefined ? 0 : escapement * fontSize,
         characterSpacing: pointsToPixels((options.charSpacing ?? 0) + gridSpacing(text, options, escapement !== undefined, target, fontMetrics)),
         ...(kerned(options, target, fontMetrics) ? {} : { kerning: false as const }),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,

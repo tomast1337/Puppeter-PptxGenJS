@@ -493,6 +493,11 @@ const LINE_FEED_TAIL_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-line-feed-ta
 const EMPTY_PARAGRAPH_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-empty-paragraph-mark", x: 5.5, y: 1, w: 4, h: 2.5 } as const;
 // populateLineFeedTailFixture() too: run options two text boxes, and two tables, share.
 const SHARED_RUN_OPTIONS_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-shared-run-options", x: 0.5, y: 3.9, w: 9, h: 1.2 } as const;
+// populateCustomBaselineFixture(): runs with a custom `baseline` at two sizes, on the slide after; no WASM deck takes it.
+const CUSTOM_BASELINE_CASES = [
+    { page: PARAGRAPH_PAGE + 2, name: "text-custom-baseline-20pt", fontSize: 20, x: 0.5, y: 1.25, w: 9, h: 1 },
+    { page: PARAGRAPH_PAGE + 2, name: "text-custom-baseline-40pt", fontSize: 40, x: 0.5, y: 3, w: 9, h: 1.6 },
+] as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
@@ -530,6 +535,7 @@ export const PARITY_REGIONS = [
     { ...LINE_FEED_TAIL_CASE, x: LINE_FEED_TAIL_CASE.x - 0.15, y: LINE_FEED_TAIL_CASE.y - 0.15, w: LINE_FEED_TAIL_CASE.w + 0.3, h: LINE_FEED_TAIL_CASE.h + 0.3 },
     { ...EMPTY_PARAGRAPH_CASE, x: EMPTY_PARAGRAPH_CASE.x - 0.15, y: EMPTY_PARAGRAPH_CASE.y - 0.15, w: EMPTY_PARAGRAPH_CASE.w + 0.3, h: EMPTY_PARAGRAPH_CASE.h + 0.3 },
     { ...SHARED_RUN_OPTIONS_CASE, x: SHARED_RUN_OPTIONS_CASE.x - 0.15, y: SHARED_RUN_OPTIONS_CASE.y - 0.15, w: SHARED_RUN_OPTIONS_CASE.w + 0.3, h: SHARED_RUN_OPTIONS_CASE.h + 0.3 },
+    ...CUSTOM_BASELINE_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1783,6 +1789,30 @@ export function populateParityFixture(presentation: Presentation): void {
     populatePresetAspectFixture(presentation);
     populateParagraphFixture(presentation);
     populateLineFeedTailFixture(presentation);
+    populateCustomBaselineFixture(presentation);
+}
+
+// PptxGenJS writes a custom baseline as baseline="Math.round(baseline * 50)", thousandths of a percent of the run's size
+// (#279): 600 moves "up" 30% of it, -600 "down" 30%, 200 "+10%" 10% and -1000 "-50%" 50%, each drawn at a
+// superscript's size. The same runs at 20pt and 40pt show that the shift scales with the size. Top-anchored, with no
+// raise above 42%: LibreOffice grows a line by what an escaped run sticks out of it (#298), which would move the text.
+function populateCustomBaselineFixture(presentation: Presentation): void {
+    const slide = presentation.addSlide();
+    slide.addText("Custom baselines", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+    for (const { fontSize, x, y, w, h } of CUSTOM_BASELINE_CASES) {
+        slide.addText([{ text: "Base " }, { text: "up", options: { baseline: 600 } }, { text: " mid " }, { text: "down", options: { baseline: -600 } }, { text: " H" }, { text: "+10%", options: { baseline: 200 } }, { text: " H" }, { text: "-50%", options: { baseline: -1000 } }], {
+            x,
+            y,
+            w,
+            h,
+            fontFace: "Arial",
+            fontSize,
+            color: "363636",
+            valign: "top",
+            margin: 0,
+            fill: { color: "F2F2F2" },
+        });
+    }
 }
 
 // A run ending with "\n" keeps its line feeds inside its <a:t>. The empty text after the last one takes no room in the

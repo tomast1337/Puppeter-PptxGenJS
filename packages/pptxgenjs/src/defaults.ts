@@ -153,6 +153,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         // baseline="-40000": the baseline moves by that fraction of the run's font size.
         superscriptBaseline: 0.3,
         subscriptBaseline: -0.4,
+        // A custom `baseline` is written ahead of both as baseline="Math.round(baseline * 50)", in thousandths of a
+        // percent (OOXML_PERCENT) of the run's font size: `baseline: 600` moves it by 30%.
+        customBaselineScale: 50,
         // defTabSz="914400" (1in) on every level of PptxGenJS's master text styles: default tab stops
         // after the last explicit one.
         defaultTabStopIn: 1,

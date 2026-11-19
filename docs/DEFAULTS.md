@@ -202,6 +202,11 @@ LibreOffice draws it at 58%, and so does the LibreOffice target. On the
 PowerPoint target the paragraph mark keeps the last run's full size: a
 paragraph whose only run is a 24pt superscript is a 28.8pt line, and the empty
 paragraph after a superscript run ending in "\n" a full line of its size.
+A custom `baseline` wins over both and is written as
+`baseline="Math.round(baseline * 50)"`, in thousandths of a percent of the font
+size: `baseline: 600` moves the run 30% of its size, so 6pt at 20pt and 12pt at
+40pt. It is drawn as a superscript or subscript, at the same reduced size;
+LibreOffice's PDF export shows both at 20pt and 40pt.
 
 A text option set to `null` is unset, as in PptxGenJS, which reads options by
 truthiness: a run's `null` takes the box's value, and a box's the default.
