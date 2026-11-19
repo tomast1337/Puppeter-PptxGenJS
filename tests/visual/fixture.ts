@@ -6,6 +6,7 @@ import { createElement } from "react";
 import { z } from "zod";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
+import { PPTX_DEFAULTS } from "../../packages/pptxgenjs/src/defaults";
 import { registerReactComponent } from "../../packages/react/src/index";
 import { CROP_TARGET, TEXT_LINE_SNAP_CROP_THRESHOLDS, UNDERLINE_DOUBLE_CROP_THRESHOLDS } from "./thresholds";
 
@@ -485,6 +486,8 @@ const PARAGRAPH_CASES = [
     { name: "table-rows-under-frame-height", x: 5.5, y: 4.25, w: 4, h: 1.2 },
     { name: "table-falsy-bold", x: 0.5, y: 2.1, w: 4, h: 0.35 },
     { name: "text-underline-string-forms", x: 5.5, y: 2.3, w: 4, h: 0.3 },
+    // Beside the title, clear of the 0.15in crop padding of the cases below.
+    { name: "emu-lengths", x: 5.5, y: 0.3, w: 4, h: 0.35 },
 ] as const;
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
 // populateLineFeedTailFixture(): runs ending with line feeds, on the slide after the paragraph slide; no WASM deck takes it.
@@ -1883,7 +1886,7 @@ function populateLineFeedTailFixture(presentation: Presentation): void {
 function populateParagraphFixture(presentation: Presentation): void {
     const slide = presentation.addSlide();
     slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight, falsyBold, underlineForms] = PARAGRAPH_CASES;
+    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight, falsyBold, underlineForms, emuLengths] = PARAGRAPH_CASES;
     // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
     // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
     // paragraph after every piece, the last one too, whatever its own breakLine.
@@ -1953,6 +1956,11 @@ function populateParagraphFixture(presentation: Presentation): void {
         ],
         { x: underlineForms.x, y: underlineForms.y, w: underlineForms.w, h: underlineForms.h, fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 },
     );
+    // PptxGenJS 4.0.1 reads a length number of 100 or more as EMU (getSmartParseNumber) and colW and rowH above 100 as
+    // EMU (inch2Emu), so this text box and table sit in the crop as if given in inches (#280).
+    const emu = (inches: number) => Math.round(inches * PPTX_DEFAULTS.units.emuPerInch);
+    slide.addText("Placed in EMU", { x: emu(emuLengths.x), y: emu(emuLengths.y), w: emu(1.9), h: emu(emuLengths.h), fill: { color: "D9EAF7" }, fontFace: "Arial", fontSize: 12, color: "363636", margin: 0 });
+    slide.addTable([[{ text: "colW" }, { text: "EMU" }]], { x: emu(emuLengths.x + 2), y: emu(emuLengths.y), colW: [emu(1), emu(1)], rowH: emu(emuLengths.h), fill: { color: "FFF2CC" }, fontFace: "Arial", fontSize: 12, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } });
 }
 
 function populatePresetAspectFixture(presentation: Presentation): void {

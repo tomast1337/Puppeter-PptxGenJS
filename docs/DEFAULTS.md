@@ -41,6 +41,15 @@ LAYOUT_WIDE (13⅓in × 7.5in) or a `defineLayout()` name, and an unknown name t
 as in PptxGenJS. The page size is the one set last; a slide's percentage positions use the size it
 was added under, as PptxGenJS resolves them against that slide's layout.
 
+A length number below 100 is inches and any other number is EMU (914400 per inch), as PptxGenJS 4.0.1
+reads it, so `x: 914400` is one inch. Positions and sizes (`x`, `y`, `w`, `h`, image `sizing`, custGeom
+points, `slideNumber`) go through its getSmartParseNumber, which reads 100 itself as EMU, a numeric string
+as its number, `"50%"` as a share of the slide and any other string as 0. Table `colW` and `rowH`, tab stop
+positions, the deprecated `inset` and inch cell margins go through its inch2Emu, which reads 100 as inches
+and only a number above it as EMU. Two table quirks follow: `h: 100` is a 100 EMU frame whose rows share
+100 inches, and a scalar `colW` whose floored total reaches 20 is EMU (`colW: 7` over 3 columns is three
+7 EMU columns). Points options (text `margin`, line widths, shadows, borders) have no such rule.
+
 `pres.theme.bodyFontFace` replaces Calibri as the font of text boxes, shape text, table cells and
 chart legends that set no `fontFace`: PptxGenJS writes it as the theme's minor font, which their
 runs inherit. `headFontFace` only reaches title placeholders, which need `defineSlideMaster()`.
@@ -126,7 +135,7 @@ reads no other text option of a slide number.
 Text `margin` values are points. A scalar applies to all sides. PptxGenJS
 4.0.1 emits a four-value text margin as `[left, right, bottom, top]`, although
 its type documentation says `[top, right, bottom, left]`. PuppeteerGen mirrors
-the emitted behavior for compatibility. The deprecated `inset` is in inches
+the emitted behavior for compatibility. The deprecated `inset` is in inches (EMU above 100)
 and sets all four sides; any `margin`, `0` included, replaces it.
 
 PptxGenJS writes `kern="1200"` on the default text style and `kern="0"` on a

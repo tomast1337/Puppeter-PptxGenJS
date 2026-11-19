@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
-import { inchesToPixels, pointsToPixels } from "#src/units";
+import { inch2EmuToPixels, inchesToPixels, pointsToPixels } from "#src/units";
 import { advanceGridSpacing } from "./advanceGrid";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
@@ -296,7 +296,7 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFont
         tabStops: (first.tabStops ?? [])
             .map(stop => ({
                 // PptxGenJS writes `stop.position || 1` and `stop.alignment || "l"`.
-                position: inchesToPixels(stop.position || 1),
+                position: inch2EmuToPixels(stop.position || 1),
                 alignment: TAB_ALIGNMENT_MAP[stop.alignment ?? "l"] ?? "left",
             }))
             .toSorted((a, b) => a.position - b.position),

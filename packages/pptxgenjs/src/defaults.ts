@@ -23,6 +23,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         pointsPerInch: POINTS_PER_INCH,
         emuPerInch: 914400,
         emuPerPoint: 12700,
+        // PptxGenJS 4.0.1 reads a length number below this as inches and any other as EMU: getSmartParseNumber keeps
+        // 100 itself as EMU, inch2Emu reads 100 as inches and only a number above it as EMU.
+        inchesBelow: 100,
         // `<a:spcPts val>`, which PptxGenJS writes as Math.round(points * 100) for paragraph and line spacing.
         spacingPointsPerPoint: 100,
         // PowerPoint's grid for each glyph's advance width: 1/576 in, 0.125pt (RENDERING_TARGETS.powerpoint.advanceGridPt).
@@ -187,6 +190,9 @@ export const PPTX_DEFAULTS = Object.freeze({
         equalRowHeightsWhenHeightProvided: true,
         verbose: false,
         tableToSlidesAutoPage: true,
+        // addTableDefinition (step 4) converts a table x, y, w or h below 20 to EMU once more, after getSmartParseNumber
+        // has already done it: `w: 0.00001` is 9 EMU, then 9 inches.
+        emuReadAsInchesBelow: 20,
     }),
     shape: Object.freeze({
         x: 1,

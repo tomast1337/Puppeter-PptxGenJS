@@ -21,7 +21,6 @@ import { renderComponent } from "./render/component";
 import { objectIdScope } from "./render/slide";
 import type { SlideContext } from "./slideContext";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
-import { pixelsToInches } from "./units";
 
 /** A `placeholder` names one on the slide's layout, which only defineSlideMaster() can define. */
 function placeholderError(method: "addText" | "addImage"): UnsupportedFeatureError {
@@ -242,20 +241,12 @@ export class PuppeteerSlide implements PptxSlide {
             table: tableOptions,
             shared: this.context.sharedRunOptions,
         });
-        const tableStyle = normalizeObjectStyle(
-            {
-                ...tableOptions,
-                w: pixelsToInches(table.width),
-                h: table.height === undefined ? undefined : pixelsToInches(table.height),
-            },
-            {
-                x: PPTX_DEFAULTS.table.x,
-                y: PPTX_DEFAULTS.table.y,
-                w: pixelsToInches(table.width),
-            },
-            this.pageSize,
-            this.nextObjectName("Table", tableOptions.objectName),
-        );
+        const style = normalizeObjectStyle(tableOptions, { x: PPTX_DEFAULTS.table.x, y: PPTX_DEFAULTS.table.y }, this.pageSize, this.nextObjectName("Table", tableOptions.objectName));
+        // A table is as wide and tall as its grid, whatever its frame (`w`, `h`) says; set in pixels, as an inch value of
+        // 100 or more would read as EMU.
+        // shortcut: addTableDefinition (step 4) reads an `x` or `y` below 20 EMU (under 0.00003in) as inches again, which
+        // this does not; reproduce it with the table's `w` (addTableSize) if a deck relies on it.
+        const tableStyle = { ...style, geometry: { ...style.geometry, width: table.width, height: table.height } };
         return this.addObject({ kind: "table", style: tableStyle, table });
     }
 

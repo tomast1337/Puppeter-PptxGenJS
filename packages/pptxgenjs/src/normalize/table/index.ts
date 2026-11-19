@@ -3,7 +3,7 @@ import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, PPTX_DEFAULTS, RENDER
 import type { NormalizedTable, NormalizedTableBorder, NormalizedTableRow } from "@pdflapas/model";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";
-import { convertToPixels, inchesToPixels, millimetersToPixels, pointsToPixels } from "#src/units";
+import { convertToPixels, emuToPixels, inch2EmuToPixels, inchesToPixels, millimetersToPixels, pointsToPixels, smartParseEmu } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
 import { normalizeColor, normalizeFill } from "#src/normalize/style";
 import type { SharedRunOptions } from "#src/normalize/sharedRunOptions";
@@ -26,36 +26,59 @@ function columnCount(rows: PptxGenJS.TableRow[]): number {
     );
 }
 
+/**
+ * A table `w` or `h` as PptxGenJS 4.0.1 addTableDefinition leaves it for genXmlTable: getSmartParseNumber (step 3), then
+ * an EMU result below 20 read as inches once more (step 4), so `w: 0.00001` (9 EMU) is 9 inches. `emu` is the step 3
+ * value, `pixels` the step 4 one.
+ */
+function addTableSize(value: PptxGenJS.Coord, pageInches: number): { emu: number; pixels: number } {
+    const emu = smartParseEmu(value, pageInches * PPTX_DEFAULTS.units.emuPerInch);
+    const pixels = emu && emu < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(emu) : convertToPixels(value, inchesToPixels(pageInches));
+    return { emu, pixels };
+}
+
 function tableWidthAndColumns(count: number, options: PptxGenJS.TableProps, pageSize: PageSize): { width: number; columns: number[] } {
     const defaultWidth = inchesToPixels(Math.floor(pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2));
     const widths = Array.isArray(options.colW) ? options.colW : undefined;
     const repeatedWidth = typeof options.colW === "number" ? options.colW : widths?.length === 1 && count > 1 ? widths[0] : undefined;
 
-    // PptxGenJS 4.0.1 floors the total inch width for scalar/single-item colW.
+    // PptxGenJS 4.0.1 sets `w` to the floored total for scalar/single-item colW, which addTableDefinition (step 4) reads
+    // as inches below 20 and as EMU from 20 on: colW 7 over 3 columns is a 21 EMU table, colW 914400 an inch a column.
     if (repeatedWidth !== undefined) {
-        const width = inchesToPixels(Math.floor(repeatedWidth * count));
+        const total = Math.floor(repeatedWidth * count);
+        const width = total < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(total) : emuToPixels(total);
         return { width, columns: Array(count).fill(width / count) };
     }
     if (widths?.length === count) {
-        const columns = widths.map(inchesToPixels);
+        // genXmlTable (step 2) writes each width through inch2Emu: 100 is inches, 914400 EMU.
+        const columns = widths.map(inch2EmuToPixels);
         return { width: columns.reduce((sum, width) => sum + width, 0), columns };
     }
 
-    const width = options.w === undefined ? defaultWidth : convertToPixels(options.w, inchesToPixels(pageSize.width));
+    const width = options.w === undefined ? defaultWidth : addTableSize(options.w, pageSize.width).pixels;
     return { width, columns: Array(count).fill(width / count) };
 }
 
+/**
+ * The height genXmlTable (step 4 A) shares among the rows: `h` as addTableDefinition leaves it, through inch2Emu, which
+ * reads 100 EMU or less as inches. So `h: 100` is a 100 EMU frame but 100 inches of rows.
+ */
+function rowsHeight(h: PptxGenJS.Coord, pageSize: PageSize): number {
+    const { emu, pixels } = addTableSize(h, pageSize.height);
+    return emu >= PPTX_DEFAULTS.table.emuReadAsInchesBelow && emu <= PPTX_DEFAULTS.units.inchesBelow ? inchesToPixels(emu) : pixels;
+}
+
 function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: PageSize): Array<number | undefined> {
-    const heightFromTable = options.h === undefined ? undefined : convertToPixels(options.h, inchesToPixels(pageSize.height)) / Math.max(1, rowCount);
+    const heightFromTable = options.h === undefined ? undefined : rowsHeight(options.h, pageSize) / Math.max(1, rowCount);
     if (Array.isArray(options.rowH)) {
         const rowHeights = options.rowH;
         return Array.from({ length: rowCount }, (_, index) => {
             const height = rowHeights[index];
-            return typeof height === "number" && height > 0 ? inchesToPixels(height) : heightFromTable;
+            return typeof height === "number" && height > 0 ? inch2EmuToPixels(height) : heightFromTable;
         });
     }
     if (typeof options.rowH === "number" && options.rowH > 0) {
-        return Array(rowCount).fill(inchesToPixels(options.rowH));
+        return Array(rowCount).fill(inch2EmuToPixels(options.rowH));
     }
     if (options.h !== undefined) {
         return Array(rowCount).fill(heightFromTable);

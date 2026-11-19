@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
-import { pixelsToInches, pointsToInches } from "#src/units";
+import { convertToInches, pixelsToInches, pointsToInches } from "#src/units";
 import { slideMarginInches } from "#src/normalize/margin";
 import { normalizeTable, tableCell, tableRow } from "./index";
 
@@ -24,10 +24,9 @@ function clamp(value: number, minimum: number, maximum: number): number {
     return Math.min(maximum, Math.max(minimum, value));
 }
 
+/** getSlidesForTableRows reads the table `y` and `h` through getSmartParseNumber: a number of 100 or more is EMU. */
 function verticalInches(value: number | `${number}%` | undefined, fallback: number, pageHeight: number): number {
-    if (typeof value === "number") return value;
-    if (typeof value === "string" && value.endsWith("%")) return (parseFloat(value) / 100) * pageHeight;
-    return fallback;
+    return value === undefined ? fallback : convertToInches(value, pageHeight);
 }
 
 function cloneRows(rows: PptxGenJS.TableRow[]): PptxGenJS.TableRow[] {
