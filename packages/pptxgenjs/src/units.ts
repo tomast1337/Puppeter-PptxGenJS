@@ -1,40 +1,5 @@
-import { CSS_PX_PER_INCH, POINTS_PER_INCH } from "@pdflapas/model";
+import { inchesToPixels, percentageToPixels } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "#src/defaults";
-
-/**
- * Converts inches to CSS pixels
- */
-export function inchesToPixels(inches: number): number {
-    return inches * CSS_PX_PER_INCH;
-}
-
-/**
- * Converts CSS pixels to inches
- */
-export function pixelsToInches(pixels: number): number {
-    return pixels / CSS_PX_PER_INCH;
-}
-
-/**
- * Converts inches to points
- */
-export function inchesToPoints(inches: number): number {
-    return inches * POINTS_PER_INCH;
-}
-
-/**
- * Converts points to inches
- */
-export function pointsToInches(points: number): number {
-    return points / POINTS_PER_INCH;
-}
-
-/**
- * Converts percentage to pixels based on container size
- */
-export function percentageToPixels(percentage: number, containerSize: number): number {
-    return (percentage / 100) * containerSize;
-}
 
 /** Converts EMU (914400 per inch) to CSS pixels. */
 export function emuToPixels(emu: number): number {
@@ -80,18 +45,4 @@ export function convertToInches(value: number | `${number}%` | undefined, contai
 export function inch2EmuToPixels(value: number | string): number {
     if (typeof value === "number" && value > PPTX_DEFAULTS.units.inchesBelow) return emuToPixels(value);
     return inchesToPixels(typeof value === "string" ? Number(value.replace(/in*/gi, "")) : value);
-}
-
-/**
- * Converts point size to pixels
- */
-export function pointsToPixels(points: number): number {
-    return points * (CSS_PX_PER_INCH / POINTS_PER_INCH);
-}
-
-/**
- * Converts millimetres to CSS pixels
- */
-export function millimetersToPixels(millimeters: number): number {
-    return inchesToPixels(millimeters / 25.4);
 }

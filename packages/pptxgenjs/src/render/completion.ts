@@ -6,13 +6,12 @@
  * Pure and browser-safe: parse5 finds what is missing, and each missing value is spliced into the original
  * string, so a document that already states everything (every `toHtml()` result) comes back byte-identical.
  */
-import { applySourceEdits, type HtmlPresentationDocument, htmlDocument, profileMetaPrefix, type SourceEdit } from "@pdflapas/model";
+import { applySourceEdits, htmlDocument, type HtmlPresentationDocument, inchesToPixels, pointsToPixels, profileMetaPrefix, type SourceEdit } from "@pdflapas/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { normalizeColor } from "#src/normalize/style";
 import { lineBoxOf } from "#src/normalize/text";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "#src/pageLayouts";
-import { inchesToPixels, pointsToPixels } from "#src/units";
 import { attributeName, getAttribute } from "./fragment";
 import { escapeAttribute } from "./markup";
 import { presentationCSS } from "./slide";

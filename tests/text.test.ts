@@ -10,7 +10,7 @@ import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/norma
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { presentationCSS } from "../packages/pptxgenjs/src/render/slide";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
-import { pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { pointsToPixels } from "@pdflapas/model";
 
 describe("text normalization", () => {
     test("accepts numbers and preserves empty hard-line paragraphs", () => {

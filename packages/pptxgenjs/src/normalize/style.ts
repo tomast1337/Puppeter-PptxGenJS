@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { CssColor, NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdflapas/model";
 import { colorToCSS, TRANSPARENT } from "#src/color";
-import { millimetersToPixels, pointsToPixels } from "#src/units";
+import { degreesToRadians, millimetersToPixels, pointsToPixels } from "@pdflapas/model";
 
 type ColorValue = string | { color?: string; transparency?: number; alpha?: number; type?: string };
 
@@ -178,7 +178,7 @@ export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow
     }
     // `||`, not `??`: PptxGenJS replaces 0 with the default too (see the defaults).
     const defaults = PPTX_DEFAULTS.shadow.objectWhenEnabled;
-    const angle = ((value.angle || defaults.angle) * Math.PI) / 180;
+    const angle = degreesToRadians(value.angle || defaults.angle);
     const offset = pointsToPixels(value.offset || defaults.offsetPt);
     const opacity = value.opacity || defaults.opacity;
     const color = normalizeColor({ color: value.color || defaults.color, transparency: (1 - opacity) * 100 });

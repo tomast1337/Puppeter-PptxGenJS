@@ -1,6 +1,6 @@
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedChart } from "@pdflapas/model";
-import { pointsToPixels } from "#src/units";
+import { pointsToPixels } from "@pdflapas/model";
 
 interface Point {
     x: number;

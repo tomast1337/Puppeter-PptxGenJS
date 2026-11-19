@@ -14,7 +14,8 @@ import { generatePageCSS } from "./pageCss";
 import { completeProfileHtml, pptxHtmlDocument } from "./render/completion";
 import { modelToHtml } from "./render/document";
 import { IMAGE_SOURCE_LIMITS } from "./normalize/image";
-import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "./units";
+import { inchesToPixels, percentageToPixels, pointsToPixels } from "@pdflapas/model";
+import { convertToPixels } from "./units";
 
 export {
     alignToCSS,

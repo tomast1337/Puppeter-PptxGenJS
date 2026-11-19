@@ -5,7 +5,7 @@ import type PptxGenJS from "pptxgenjs";
 import { createElement } from "react";
 import { z } from "zod";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
-import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
+import { inchesToPixels } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "../../packages/pptxgenjs/src/defaults";
 import { registerReactComponent } from "../../packages/react/src/index";
 import { CROP_TARGET, TEXT_LINE_SNAP_CROP_THRESHOLDS, UNDERLINE_DOUBLE_CROP_THRESHOLDS } from "./thresholds";

@@ -1,5 +1,5 @@
 import { GENERATED_PRESET_SHAPES, GENERATED_TEXT_RECTS, type GeneratedPresetDefinition, type GeneratedPresetName } from "#src/generatedPresetShapes";
-import type { NormalizedShape } from "@pdflapas/model";
+import { degreesToRadians, type NormalizedShape } from "@pdflapas/model";
 
 export { GENERATED_PRESET_NAMES, type GeneratedPresetName } from "#src/generatedPresetShapes";
 
@@ -7,7 +7,7 @@ type Point = readonly [number, number];
 
 const ANGLE = 60000;
 const clean = (value: number) => (Math.abs(value) < 1e-9 ? 0 : Number(value.toFixed(6)));
-const angleRadians = (value: number) => ((value / ANGLE) * Math.PI) / 180;
+const angleRadians = (value: number) => degreesToRadians(value / ANGLE);
 
 function variables(width: number, height: number): Record<string, number> {
     const values: Record<string, number> = {

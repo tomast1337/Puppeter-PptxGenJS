@@ -2,7 +2,8 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
-import { convertToInches, pixelsToInches, pointsToInches } from "#src/units";
+import { pixelsToInches, pointsToInches } from "@pdflapas/model";
+import { convertToInches } from "#src/units";
 import { slideMarginInches } from "#src/normalize/margin";
 import { addTableLeavesNoWidth, columnCount, normalizeTable, tableCell, tableRow } from "./index";
 

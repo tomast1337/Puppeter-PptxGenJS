@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import type { FourSideMargin } from "#src/defaults";
 import type { PageSize } from "#src/pageLayouts";
 import { HEX_COLOR } from "#src/color";
-import { inchesToPixels, pointsToPixels } from "#src/units";
+import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { mapSides, slideMarginInches } from "#src/normalize/margin";
 
 export interface NormalizedHtmlTable {

@@ -7,7 +7,7 @@ import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/table/ht
 import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
-import { pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { pointsToPixels } from "@pdflapas/model";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 

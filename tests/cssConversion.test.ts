@@ -2,16 +2,17 @@ import { describe, expect, test } from "bun:test";
 import type { NormalizedFill } from "../packages/model/src/types";
 import { alignToCSS, valignToCSS } from "../packages/pptxgenjs/src/alignment";
 import { colorToCSS } from "../packages/pptxgenjs/src/color";
-import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "../packages/pptxgenjs/src/units";
+import { inchesToPixels, percentageToPixels, pointsToPixels, px } from "@pdflapas/model";
+import { convertToPixels } from "../packages/pptxgenjs/src/units";
 
 describe("measurement conversion", () => {
     test("converts inches and points at 96 DPI", () => {
-        expect(inchesToPixels(1)).toBe(96);
-        expect(pointsToPixels(72)).toBe(96);
+        expect(inchesToPixels(1)).toBe(px(96));
+        expect(pointsToPixels(72)).toBe(px(96));
     });
 
     test("converts percentage coordinates relative to the slide", () => {
-        expect(percentageToPixels(25, 960)).toBe(240);
+        expect(percentageToPixels(25, 960)).toBe(px(240));
         expect(convertToPixels("25%", 960)).toBe(240);
         expect(convertToPixels(2.5, 960)).toBe(240);
     });
