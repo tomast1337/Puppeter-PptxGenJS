@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
+import { PDF_PRODUCER } from "../packages/model/src/index";
 import { withDocumentInfo } from "../packages/puppeteer/src/pdfInfo";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 
@@ -40,10 +41,10 @@ async function documentInfo(pdf: Uint8Array): Promise<Record<string, string>> {
     }
 }
 
-/** A one-slide deck with every document property set, non-ASCII and PDF string delimiters included. */
+/** A one-slide deck with every document property set, non-ASCII (Latin and CJK) and PDF string delimiters included. */
 function fullDeck(renderer?: ConstructorParameters<typeof PuppeteerGen>[1]): PuppeteerGen {
     const pres = new PuppeteerGen(undefined, renderer);
-    pres.title = "Q3 plan – ü";
+    pres.title = "Q3 plan – é 漢";
     pres.author = "Ana (A)";
     pres.subject = "Sales";
     pres.company = "Acme <Labs>";
@@ -52,10 +53,9 @@ function fullDeck(renderer?: ConstructorParameters<typeof PuppeteerGen>[1]): Pup
     return pres;
 }
 
-const FULL_INFO = { Title: "Q3 plan – ü", Author: "Ana (A)", Subject: "Sales", Company: "Acme <Labs>", Revision: "7" };
-// Entries Chromium writes on its own; the WASM renderer writes none.
-const CHROMIUM_KEYS = ["CreationDate", "Creator", "ModDate", "Producer"];
-const userEntries = (info: Record<string, string>) => Object.fromEntries(Object.entries(info).filter(([key]) => !CHROMIUM_KEYS.includes(key)));
+// Both renderers name PdfLapas as Creator and Producer, as PowerPoint's export names itself, and write no dates.
+const PRODUCER_INFO = { Creator: PDF_PRODUCER, Producer: PDF_PRODUCER };
+const FULL_INFO = { Title: "Q3 plan – é 漢", Author: "Ana (A)", Subject: "Sales", Company: "Acme <Labs>", Revision: "7", ...PRODUCER_INFO };
 
 describe("presentation metadata", () => {
     test("nothing is set by default, unlike PptxGenJS's branding defaults; setters read back", () => {
@@ -97,41 +97,44 @@ describe("presentation metadata", () => {
     });
 });
 
+test("the Rust renderer's PRODUCER is PDF_PRODUCER", async () => {
+    const source = await Bun.file(resolve(import.meta.dir, "../crates/pdf-core/src/document_info.rs")).text();
+    expect(/const PRODUCER: &str = "([^"]*)";/.exec(source)?.[1]).toBe(PDF_PRODUCER);
+});
+
 describe("Puppeteer PDF document information", () => {
-    test("without entries the PDF is returned as is; a PDF Chromium did not write throws naming the problem", () => {
+    test("a PDF Chromium did not write throws naming the problem", () => {
         const bytes = new TextEncoder().encode("not a pdf");
-        expect(withDocumentInfo(bytes, { Title: "" })).toBe(bytes);
         expect(() => withDocumentInfo(bytes, { Title: "T" })).toThrow("Chromium's PDF is not in the shape expected (its startxref does not point at a cross-reference table)");
     });
 
     test.skipIf(!hasPdfinfo)(
-        "every property reaches the Info dictionary, Company and Revision as custom keys; Chromium's own entries stay",
+        "every property reaches the Info dictionary, Company and Revision as custom keys; Chromium's own entries are replaced",
         async () => {
-            const info = await documentInfo(await fullDeck().toPdf());
-            expect(userEntries(info)).toEqual(FULL_INFO);
-            expect(info.Creator).toBe("Chromium");
-            expect(info.Producer).toStartWith("Skia/PDF");
+            expect(await documentInfo(await fullDeck().toPdf())).toEqual(FULL_INFO);
         },
         60_000,
     );
 
     test.skipIf(!hasPdfinfo)(
-        "a deck that sets none gets no Title, Author, Subject, Company or Revision",
+        "a deck that sets none, or sets an empty title, gets only the Creator and Producer",
         async () => {
             const pres = new PuppeteerGen();
+            pres.title = "";
             pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1 });
-            expect(userEntries(await documentInfo(await pres.toPdf()))).toEqual({});
+            expect(await documentInfo(await pres.toPdf())).toEqual(PRODUCER_INFO);
         },
         60_000,
     );
 });
 
 describe.skipIf(!hasPdfinfo || systemFonts.length === 0)("WASM PDF document information", () => {
-    test("the same entries as the Puppeteer renderer, and none for a deck that sets none", async () => {
+    test("the same entries as the Puppeteer renderer, and only the Creator and Producer for a deck that sets none", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         expect(await documentInfo(await fullDeck({ renderer }).toPdf())).toEqual(FULL_INFO);
         const pres = new PuppeteerGen(undefined, { renderer });
+        pres.title = "";
         pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1 });
-        expect(await documentInfo(await pres.toPdf())).toEqual({});
+        expect(await documentInfo(await pres.toPdf())).toEqual(PRODUCER_INFO);
     });
 });

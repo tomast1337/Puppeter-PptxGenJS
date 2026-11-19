@@ -172,9 +172,7 @@ impl Renderer {
 
     fn draw_presentation(&mut self, model: &Presentation) -> Result<Vec<u8>, String> {
         let mut document = Document::new();
-        if let Some(metadata) = document_info::krilla_metadata(&model.metadata) {
-            document.set_metadata(metadata);
-        }
+        document.set_metadata(document_info::krilla_metadata(&model.metadata));
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
         let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
         self.find_missing_fonts(model);
@@ -347,22 +345,25 @@ mod tests {
     }
 
     #[test]
-    fn writes_the_metadata_to_the_info_dictionary_and_none_without_it() {
+    fn writes_the_metadata_and_producer_to_the_info_dictionary_without_a_date() {
         let mut r = Renderer::new();
         let plain = profile::tests::document("");
         let with = plain.replace("<style", r#"<title>Deck</title><meta name="author" content="Ana"><style"#);
         let contains = |pdf: &[u8], needle: &[u8]| pdf.windows(needle.len()).any(|w| w == needle);
         let pdf = r.render_html(&with).unwrap();
-        assert!(contains(&pdf, b"<</Title(Deck)/Author(Ana)>>"));
+        assert!(contains(&pdf, b"<</Title(Deck)/Author(Ana)/Creator(PdfLapas)/Producer(PdfLapas)>>"));
         assert!(!contains(&pdf, b"/Company"));
-        assert!(!contains(&r.render_html(&plain).unwrap(), b"/Title"));
+        let bare = r.render_html(&plain).unwrap();
+        assert!(contains(&bare, b"<</Creator(PdfLapas)/Producer(PdfLapas)>>"));
+        assert!(!contains(&bare, b"/CreationDate"));
+        assert_eq!(bare, r.render_html(&plain).unwrap());
 
         let company = r
             .render_html(&with.replace("<style", r#"<meta name="pdflapas-company" content="Acme"><style"#))
             .unwrap();
         assert!(contains(
             &company,
-            b"<</Title<FEFF004400650063006B>/Author<FEFF0041006E0061>/Company<FEFF00410063006D0065>>>"
+            b"<</Title<FEFF004400650063006B>/Author<FEFF0041006E0061>/Company<FEFF00410063006D0065>/Creator<FEFF005000640066004C0061007000610073>/Producer<FEFF005000640066004C0061007000610073>>>"
         ));
         assert!(company.ends_with(b"%%EOF"));
     }

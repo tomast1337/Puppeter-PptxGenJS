@@ -398,7 +398,7 @@ async function prepareForPrint(): Promise<string[]> {
     }
 }
 
-/** Chromium writes only the Title (from <title>); the meta tags become Author, Subject, Company and Revision. */
+/** The Title (from <title>) and the meta tags' Author, Subject, Company and Revision, as the WASM reader reads them. */
 function documentInfo(): DocumentInfo {
     const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
     return { Title: document.title, Author: meta("author"), Subject: meta("description"), Company: meta("pdflapas-company"), Revision: meta("pdflapas-revision") };
