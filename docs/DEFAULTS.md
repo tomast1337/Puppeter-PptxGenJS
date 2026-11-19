@@ -155,6 +155,14 @@ PowerPoint also leaves out the first paragraph's `paraSpaceBefore`, and so does
 the PowerPoint target, in every anchor and in table cells (measured on
 top-anchored text boxes only); the LibreOffice target keeps it.
 
+PptxGenJS writes `paraSpaceBefore`, `paraSpaceAfter` and `lineSpacing` as
+`<a:spcPts>` in hundredths of a point. PowerPoint rounds each of them half-up
+to whole points, and so does the PowerPoint target, in text boxes, shapes and
+table cells: `paraSpaceAfter: 0.49` adds nothing, `0.5` adds 1pt, `2.5` 3pt,
+a space after of 0.5 followed by a space before of 0.5 adds 2pt, and
+`lineSpacing: 12.5` gives a 13pt line. `lineSpacingMultiple` is not rounded.
+The LibreOffice target keeps the values as given.
+
 A text option set to `null` is unset, as in PptxGenJS, which reads options by
 truthiness: a run's `null` takes the box's value, and a box's the default.
 PptxGenJS's `addText` itself writes `lineSpacing: null` and

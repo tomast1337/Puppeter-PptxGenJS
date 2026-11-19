@@ -23,6 +23,8 @@ export const PPTX_DEFAULTS = Object.freeze({
         pointsPerInch: POINTS_PER_INCH,
         emuPerInch: 914400,
         emuPerPoint: 12700,
+        // `<a:spcPts val>`, which PptxGenJS writes as Math.round(points * 100) for paragraph and line spacing.
+        spacingPointsPerPoint: 100,
     }),
     presentation: Object.freeze({
         layout: "LAYOUT_16x9",
@@ -387,6 +389,8 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * line's baseline below its top as a fraction of the line height; undefined keeps `text.lineDescentEm` above its bottom.
  * `fontLineBaseline`: whether a single-spaced line's baseline comes from its fonts' FONT_WIN_METRICS, or sits
  * `text.lineDescentEm` above its bottom whatever the font.
+ * `spacingWholePoints`: whether `paraSpaceBefore`, `paraSpaceAfter` and point `lineSpacing` (`<a:spcPts>`) are rounded
+ * half-up to whole points, each value on its own.
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -397,7 +401,7 @@ export const RENDERING_TARGETS = Object.freeze({
      * Each line feed PptxGenJS keeps inside `<a:t>` (a run ending with "\n") starts a line that takes its paragraph
      * properties from the run that starts it (`lineFeedParagraph`).
      */
-    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined, fontLineBaseline: false, emptyNumberedParagraph: "restarts", lineFeedParagraph: "run" }),
+    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined, fontLineBaseline: false, emptyNumberedParagraph: "restarts", lineFeedParagraph: "run", spacingWholePoints: false }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
      * pair kerning it reads (FontWinMetrics `pairKerning`): a font whose only pair kerning is an Apple-format `kern`
@@ -428,8 +432,12 @@ export const RENDERING_TARGETS = Object.freeze({
      * `paraSpaceAfter: 12` are 26.4pt apart at every line feed, and the same space, `paraSpaceBefore` or `lineSpacing: 30`
      * on a later run leaves them 14.4pt apart; the bullet and the space after repeat on each such paragraph, empty ones
      * too. A line feed ends its line in the run's font, so only the `<a:p>`'s last line holds the paragraph mark.
+     * It rounds each `<a:spcPts>` half-up to whole points (`spacingWholePoints`): measured against its PDF export of
+     * synthetic decks (12pt Arial), `paraSpaceAfter` 0.25 and 0.49 add 0pt, 0.5 and 1.25 1pt, 1.5 and 2.4 2pt, 2.5 and
+     * 2.6 3pt, 5.5 6pt, `paraSpaceBefore` the same; a space after of 0.5 then a space before of 0.5 add 2pt (1 + 1), and
+     * `lineSpacing: 12.5` gives a 13pt pitch. `lineSpacingMultiple` (`<a:spcPct>`) is not rounded.
      */
-    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75, fontLineBaseline: true, emptyNumberedParagraph: "skipped", lineFeedParagraph: "paragraph" }),
+    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75, fontLineBaseline: true, emptyNumberedParagraph: "skipped", lineFeedParagraph: "paragraph", spacingWholePoints: true }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 
