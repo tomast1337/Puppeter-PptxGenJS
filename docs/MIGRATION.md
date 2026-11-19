@@ -80,7 +80,10 @@ returns a `.pptx`:
 alternative, and so do the options that need a slide master: `placeholder` on `addText()` and
 `addImage()`, `masterName` on `addSlide()` and `masterSlideName` on `tableToSlides()` (except PptxGenJS's built-in `"DEFAULT"`). An inner shadow on a shape (`addShape`, or `addText` with `shape`) throws `UnsupportedFeatureError`
 where it is added (PptxGenJS writes it as XML that LibreOffice drops); a chart type or option it cannot draw throws `UnsupportedChartError`. An unknown `outputType`
-throws before rendering. `API_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs`, lists what PdfLapas
+throws before rendering. A `resolveImage` option must return the image as a
+`data:image/<type>;base64,<data>` URI: `toHtml()` throws `UnresolvedImageError` for anything else, such
+as a URL or a file path, since the PDF must not depend on the network or the filesystem (an `https:`
+URL used to be passed through to Chromium, which fetched it). `API_COMPATIBILITY`, exported by `@pdflapas/pptxgenjs`, lists what PdfLapas
 does with each PptxGenJS presentation and slide member; `COMPATIBILITY` does the same per option.
 
 **Choosing a rendering target.** PowerPoint and LibreOffice draw the same `.pptx` differently. Pick

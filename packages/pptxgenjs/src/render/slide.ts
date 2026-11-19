@@ -1,7 +1,7 @@
 import type { ComponentRegistry } from "#src/components/registry";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { tableMarginToCSS, textMarginToCSS } from "#src/normalize/margin";
-import { cssPx, HTML_PROFILE_VERSION, inchesToPixels, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, pointsToPixels, type PresentationMetadata } from "@pdflapas/model";
+import { cssPx, type DataUri, HTML_PROFILE_VERSION, inchesToPixels, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, pointsToPixels, type PresentationMetadata } from "@pdflapas/model";
 import { normalizeColor } from "#src/normalize/style";
 import type { PageSize } from "#src/pageLayouts";
 import { renderChart, renderChartExtension } from "./chart";
@@ -27,7 +27,7 @@ export interface RenderPass {
     /** Each `component` object of the model, rendered (`renderComponents`). */
     components: ReadonlyMap<NormalizedSlideObject, RenderedComponent>;
     /** Data URIs of path and URL image sources; without one an image keeps `data-source-path` or `data-source-url`. */
-    images?: ReadonlyMap<string, string>;
+    images?: ReadonlyMap<string, DataUri>;
 }
 
 function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass: RenderPass): Html {

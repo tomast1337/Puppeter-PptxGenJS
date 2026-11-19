@@ -128,7 +128,8 @@ From the maintainer's decisions on #69:
   missing); the size itself is in the stylesheet.
 - The [document properties](#document-properties) follow the page size. There is no `<script>` or
   external resource. Every image is a `data:` URI by the time `toHtml()` returns (`modelToHtml`,
-  `render/document.ts`).
+  `render/document.ts`); a `resolveImage` result that is not `data:image/…;base64,…` throws
+  `UnresolvedImageError`.
 
 ### Document properties
 

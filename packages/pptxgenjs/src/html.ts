@@ -13,7 +13,7 @@ import { colorToCSS } from "./color";
 import { generatePageCSS } from "./pageCss";
 import { completeProfileHtml, pptxHtmlDocument } from "./render/completion";
 import { modelToHtml } from "./render/document";
-import { IMAGE_SOURCE_LIMITS } from "./normalize/image";
+import { IMAGE_SOURCE_LIMITS, UnresolvedImageError } from "./normalize/image";
 import { inchesToPixels, percentageToPixels, pointsToPixels } from "@pdflapas/model";
 import { convertToPixels } from "./units";
 
@@ -51,6 +51,8 @@ export {
     SHAPE_GEOMETRY_COMPATIBILITY,
     tableMarginToCSS,
     textMarginToCSS,
+    // What toHtml() throws when a resolveImage result is not a data URI (#284).
+    UnresolvedImageError,
     UnsupportedChartError,
     UnsupportedFeatureError,
     valignToCSS,
