@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { inches, px } from "@pdflapas/model";
 import type { NormalizedSlideObject } from "@pdflapas/model";
 import pptxgen from "pptxgenjs";
-import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { PAGE_SIZES, pageSize } from "../packages/pptxgenjs/src/pageLayouts";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
 const LAYOUT_NAMES = ["LAYOUT_4x3", "LAYOUT_16x9", "LAYOUT_16x10", "LAYOUT_WIDE"];
@@ -61,7 +62,7 @@ describe("presentation properties read like PptxGenJS 4.0.1", () => {
         }
         const { name, width, height } = reference.presLayout;
         expect(pres.presLayout).toEqual({ name, width, height });
-        expect(pres.getModel().pageSize).toEqual({ name: "A3", width: 16.5, height: 11.7 });
+        expect(pres.getModel().pageSize).toEqual(pageSize(16.5, 11.7, "A3"));
     });
 
     test("an unknown layout throws like PptxGenJS, with the names to use instead", () => {
@@ -84,9 +85,9 @@ describe("presentation properties read like PptxGenJS 4.0.1", () => {
         pres.layout = "LAYOUT_WIDE";
         pres.addSlide().addText("after", { x: "50%", y: 0, w: 1, h: 1 });
         const model = pres.getModel();
-        expect(model.pageSize.width).toBe(40 / 3);
+        expect(model.pageSize.width).toBe(inches(40 / 3));
         // Slide 1 was added under 16:9 (10 in wide), slide 2 under LAYOUT_WIDE.
-        expect(model.slides.map(slide => slide.objects[0]?.style.geometry.x)).toEqual([480, 640]);
+        expect(model.slides.map(slide => slide.objects[0]?.style.geometry.x)).toEqual([480, 640].map(px));
     });
 
     test("defineLayout() rejects a size PptxGenJS would write as NaN", () => {

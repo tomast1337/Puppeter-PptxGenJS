@@ -1,4 +1,5 @@
 import type { NormalizedTable, NormalizedTableBorder, NormalizedTableCell, NormalizedTextBox } from "@pdflapas/model";
+import { cssPx } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, type Html, voidElement } from "./markup";
 import { renderText } from "./text";
@@ -63,8 +64,8 @@ function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: numb
 }
 
 export function renderTable(table: NormalizedTable): Html {
-    const css: InlineStyle = new Map([["width", `${table.width}px`]]);
-    if (table.height !== undefined) css.set("height", `${table.height}px`);
+    const css: InlineStyle = new Map([["width", cssPx(table.width)]]);
+    if (table.height !== undefined) css.set("height", cssPx(table.height));
     css.set("table-layout", "fixed");
     css.set("border-collapse", "collapse");
     css.set("border-spacing", "0");
@@ -72,12 +73,12 @@ export function renderTable(table: NormalizedTable): Html {
     const columns = element(
         "colgroup",
         [],
-        table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", `${width}px`]]))])),
+        table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", cssPx(width)]]))])),
     );
     const rows = table.rows.map(row => {
         const rowHeight: RowHeight = row.height !== undefined ? "fixed" : "auto";
         const cells = row.cells.map(cell => renderCell(cell, rowHeight, table.contentRowSlack ?? 0));
-        return element("tr", [styleAttribute(new Map(row.height !== undefined ? [["height", `${row.height}px`]] : []))], cells);
+        return element("tr", [styleAttribute(new Map(row.height !== undefined ? [["height", cssPx(row.height)]] : []))], cells);
     });
     return element("table", [["class", "slide-table"], styleAttribute(css)], [columns, ...rows]);
 }

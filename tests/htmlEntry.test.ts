@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { htmlDocument } from "../packages/model/src/index";
 import { pptxHtmlDocument } from "../packages/pptxgenjs/src/html";
 import { PuppeteerGen, PuppeteerPdfRenderer, printHtml } from "../packages/pptxgenjs/src/index";
-import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { PAGE_SIZES, pageSize } from "../packages/pptxgenjs/src/pageLayouts";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
 
@@ -16,10 +16,10 @@ describe("htmlDocument() from @pdflapas/model", () => {
 
     test("returns the document unchanged with the page size of its @page rule and its pdfdeck-page-size name (version 1)", () => {
         const named = head(`<meta content='Wide' name=pdfdeck-page-size><style>@page { size: 13.333in 7.5in; margin: 0 }</style>`);
-        expect(htmlDocument(named)).toEqual({ html: named, pageSize: { width: 13.333, height: 7.5, name: "Wide" } });
-        expect(htmlDocument(head(`<style>@page{size:4in 3in}</style>`)).pageSize).toEqual({ width: 4, height: 3, name: "Custom" });
+        expect(htmlDocument(named)).toEqual({ html: named, pageSize: pageSize(13.333, 7.5, "Wide") });
+        expect(htmlDocument(head(`<style>@page{size:4in 3in}</style>`)).pageSize).toEqual(pageSize(4, 3, "Custom"));
         const v2 = `<meta name="pdflapas-profile" content="2"><meta name="pdflapas-page-size" content="Wide"><meta name="pdfdeck-page-size" content="Old"><style>@page { size: 4in 3in }</style>`;
-        expect(htmlDocument(v2).pageSize).toEqual({ width: 4, height: 3, name: "Wide" });
+        expect(htmlDocument(v2).pageSize).toEqual(pageSize(4, 3, "Wide"));
     });
 
     test("reads each version under its own meta name: pdfdeck- in version 1, pdflapas- in version 2", () => {
@@ -42,15 +42,15 @@ describe("htmlDocument() from @pdflapas/model", () => {
         const hidden = `<meta name="pdflapas-page-size" content="Hidden"><style>@page { size: 9in 9in }</style>`;
         const read = (html: string) => htmlDocument(html).pageSize;
         for (const wrap of [(x: string) => `<!-- ${x} -->`, (x: string) => `<!-- ${x} --!>`, (x: string) => `<script>const s = '${x}';</script>`, (x: string) => `<textarea>${x}</textarea>`, (x: string) => `<title>${x}</title>`, (x: string) => `<svg><![CDATA[${x}]]></svg>`]) {
-            expect(read(`${wrap(hidden)}${profile}${page}`)).toEqual({ width: 4, height: 3, name: "Custom" });
+            expect(read(`${wrap(hidden)}${profile}${page}`)).toEqual(pageSize(4, 3, "Custom"));
         }
         // "<!-->" is an empty comment: what follows it is read.
-        expect(read(`<!-->${profile}${page}`)).toEqual({ width: 4, height: 3, name: "Custom" });
+        expect(read(`<!-->${profile}${page}`)).toEqual(pageSize(4, 3, "Custom"));
         // A comment that hides the profile meta leaves a document without one.
         expect(() => htmlDocument(`<!-- ${profile} -->${page}`)).toThrow("not a PdfLapas profile document");
         // A "<script>" inside an attribute value or a <script>'s text is not a tag either.
-        expect(read(`<p title="<script>">${profile}<script>"</script>"</script>${page}`)).toEqual({ width: 4, height: 3, name: "Custom" });
-        expect(read(`${profile}<style>/* @page { size: 9in 9in } */ @page { size: 4in 3in }</style>`)).toEqual({ width: 4, height: 3, name: "Custom" });
+        expect(read(`<p title="<script>">${profile}<script>"</script>"</script>${page}`)).toEqual(pageSize(4, 3, "Custom"));
+        expect(read(`${profile}<style>/* @page { size: 9in 9in } */ @page { size: 4in 3in }</style>`)).toEqual(pageSize(4, 3, "Custom"));
         // Attribute values are decoded; the first of repeated attributes wins, as in HTML.
         expect(read(`${profile}<meta name="pdflapas-page-size" content="A&amp;B &#8211; &#x41;" content="no">${page}`).name).toBe("A&B \u2013 A");
     });
@@ -69,7 +69,7 @@ describe("pptxHtmlDocument()", () => {
         expect(named.pageSize).toEqual({ ...PAGE_SIZES.A4.landscape });
         expect(pptxHtmlDocument(handWrittenDocument("")).pageSize).toEqual({ ...PAGE_SIZES.SCREEN_16X9.landscape });
         const own = pptxHtmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><style>@page { size: 4in 3in; margin: 0; }</style>`));
-        expect(own.pageSize).toEqual({ width: 4, height: 3, name: "Custom" });
+        expect(own.pageSize).toEqual(pageSize(4, 3, "Custom"));
         expect(() => pptxHtmlDocument(handWrittenDocument("", `<meta name="pdfdeck-profile" content="1"><style>@page { size: A4; }</style>`))).toThrow("the stylesheet's @page rule has no 'size: <width>in <height>in'");
     });
 });
@@ -90,7 +90,7 @@ describe("printHtml()", () => {
 describe("Puppeteer renderer", () => {
     test("prints any HTML, including documents outside the profile", async () => {
         const html = `<!DOCTYPE html><html><head><style>@page { size: 4in 3in; margin: 0 } h1 { font: bold 40px serif; color: rebeccapurple }</style></head><body><h1>Custom HTML</h1><p style="display: grid">Anything Chromium prints.</p></body></html>`;
-        const pdf = await new PuppeteerPdfRenderer().render({ html, pageSize: { width: 4, height: 3, name: "Custom" } });
+        const pdf = await new PuppeteerPdfRenderer().render({ html, pageSize: pageSize(4, 3, "Custom") });
         expect(ascii(pdf.subarray(0, 5))).toBe("%PDF-");
         expect(ascii(pdf)).toContain("/MediaBox [0 0 288 216]");
     }, 60_000);
@@ -99,7 +99,7 @@ describe("Puppeteer renderer", () => {
     // at a whole CSS px, so everything moved 0.75pt right and down.
     test("prints on the document's @page size, not a paper centred around it", async () => {
         const html = `<!DOCTYPE html><html><head><style>@page { size: 8.2646in 11.695in; margin: 0 }</style></head><body></body></html>`;
-        const pdf = await new PuppeteerPdfRenderer().render({ html, pageSize: { width: 8.2646, height: 11.695, name: "Custom" } });
+        const pdf = await new PuppeteerPdfRenderer().render({ html, pageSize: pageSize(8.2646, 11.695, "Custom") });
         // 594.96 x 841.92pt: Chromium's paper no longer rounds up past the 595.05 x 842.04pt page.
         expect(ascii(pdf)).toContain("/MediaBox [0 0 594.95996 841.91998]");
     }, 60_000);

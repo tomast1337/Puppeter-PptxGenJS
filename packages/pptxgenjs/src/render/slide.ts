@@ -1,7 +1,7 @@
 import type { ComponentRegistry } from "#src/components/registry";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { tableMarginToCSS, textMarginToCSS } from "#src/normalize/margin";
-import { HTML_PROFILE_VERSION, inchesToPixels, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, pointsToPixels, type PresentationMetadata } from "@pdflapas/model";
+import { cssPx, HTML_PROFILE_VERSION, inchesToPixels, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, pointsToPixels, type PresentationMetadata } from "@pdflapas/model";
 import { normalizeColor } from "#src/normalize/style";
 import type { PageSize } from "#src/pageLayouts";
 import { renderChart, renderChartExtension } from "./chart";
@@ -146,8 +146,8 @@ body {
 }
 
 .slide-container {
-    width: ${widthPx}px;
-    height: ${heightPx}px;
+    width: ${cssPx(widthPx)};
+    height: ${cssPx(heightPx)};
     position: relative;
     page-break-after: always;
     background: ${normalizeColor(PPTX_DEFAULTS.slide.backgroundColor)};

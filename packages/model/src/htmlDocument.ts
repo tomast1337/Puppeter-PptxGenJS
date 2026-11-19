@@ -1,6 +1,7 @@
 import { type HtmlScan, scanHtml } from "./htmlScan";
 import type { HtmlPresentationDocument } from "./renderer";
 import type { PageSize } from "./types";
+import { inches } from "./units";
 
 /** The PdfLapas HTML profile version (docs/HTML_PROFILE.md) a document follows, in `<meta name="pdflapas-profile">`. */
 export const HTML_PROFILE_VERSION = 2;
@@ -65,5 +66,5 @@ function pageSizeOf(scan: HtmlScan, prefix: string): PageSize {
     if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
         throw new Error("invalid PdfLapas HTML: the stylesheet's @page rule has no 'size: <width>in <height>in'; write the page size in inches, as <style>@page { size: 10in 5.625in; margin: 0 }</style> in <head>");
     }
-    return { width, height, name: metaContent(scan, `${prefix}page-size`) ?? CUSTOM_PAGE_SIZE_NAME };
+    return { width: inches(width), height: inches(height), name: metaContent(scan, `${prefix}page-size`) ?? CUSTOM_PAGE_SIZE_NAME };
 }

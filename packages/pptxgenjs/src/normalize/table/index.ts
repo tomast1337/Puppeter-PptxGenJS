@@ -3,7 +3,7 @@ import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, PPTX_DEFAULTS, RENDER
 import type { NormalizedTable, NormalizedTableBorder, NormalizedTableRow } from "@pdflapas/model";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";
-import { inchesToPixels, millimetersToPixels, pointsToPixels } from "@pdflapas/model";
+import { type Px, inchesToPixels, millimetersToPixels, pointsToPixels, px } from "@pdflapas/model";
 import { convertToPixels, emuToPixels, inch2EmuToPixels, smartParseEmu } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
 import { TRANSPARENT } from "#src/color";
@@ -102,8 +102,8 @@ function rowsHeight(h: PptxGenJS.Coord, pageSize: PageSize): number {
     return emu >= PPTX_DEFAULTS.table.emuReadAsInchesBelow && emu <= PPTX_DEFAULTS.units.inchesBelow ? inchesToPixels(emu) : pixels;
 }
 
-function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: PageSize): Array<number | undefined> {
-    const heightFromTable = options.h === undefined ? undefined : rowsHeight(options.h, pageSize) / Math.max(1, rowCount);
+function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: PageSize): Array<Px | undefined> {
+    const heightFromTable = options.h === undefined ? undefined : px(rowsHeight(options.h, pageSize) / Math.max(1, rowCount));
     if (Array.isArray(options.rowH)) {
         const rowHeights = options.rowH;
         return Array.from({ length: rowCount }, (_, index) => {
@@ -258,9 +258,9 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
     const { contentRowSlackMm } = RENDERING_TARGETS[target];
 
     return {
-        width,
-        height,
-        columns,
+        width: px(width),
+        height: height === undefined ? undefined : px(height),
+        columns: columns.map(px),
         ...(contentRowSlackMm ? { contentRowSlack: millimetersToPixels(contentRowSlackMm) } : {}),
         rows: fitRowsToGrid(
             tableRows.map((row, rowIndex) => ({

@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { px } from "@pdflapas/model";
 import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,11 +11,11 @@ import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("shared object normalization", () => {
     test("normalizes inches and percentages against page dimensions", () => {
-        expect(normalizeGeometry({ x: "10%", y: "20%", w: 2, h: 1 }, {}, PAGE_SIZES.SCREEN_16X9.landscape)).toEqual({ x: 96, y: 108, width: 192, height: 96 });
+        expect(normalizeGeometry({ x: "10%", y: "20%", w: 2, h: 1 }, {}, PAGE_SIZES.SCREEN_16X9.landscape)).toEqual({ x: px(96), y: px(108), width: px(192), height: px(96) });
     });
 
     test("uses family defaults only when values are absent", () => {
-        expect(normalizeGeometry({ x: 0, y: 0 }, { x: 1, y: 1, w: 1, h: 1 }, PAGE_SIZES.SCREEN_16X9.landscape)).toEqual({ x: 0, y: 0, width: 96, height: 96 });
+        expect(normalizeGeometry({ x: 0, y: 0 }, { x: 1, y: 1, w: 1, h: 1 }, PAGE_SIZES.SCREEN_16X9.landscape)).toEqual({ x: px(0), y: px(0), width: px(96), height: px(96) });
     });
 
     test("normalizes rotation, flips, and clamped transparency", () => {

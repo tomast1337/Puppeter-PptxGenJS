@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedImage, NormalizedImageSizing } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
-import { inchesToPixels } from "@pdflapas/model";
+import { inchesToPixels, px } from "@pdflapas/model";
 import { convertToPixels } from "#src/units";
 import { normalizeHyperlink } from "./link";
 
@@ -173,14 +173,14 @@ function normalizeSizing(sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | u
             type: "crop",
             offsetX: convertToPixels(sizing.x ?? 0, pageWidth),
             offsetY: convertToPixels(sizing.y ?? 0, pageHeight),
-            width: sourceWidth,
-            height: sourceHeight,
+            width: px(sourceWidth),
+            height: px(sourceHeight),
         };
     }
     const scale = sizing.type === "contain" ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight) : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
     const width = sourceWidth * scale;
     const height = sourceHeight * scale;
-    return { type: sizing.type, x: (boxWidth - width) / 2, y: (boxHeight - height) / 2, width, height };
+    return { type: sizing.type, x: px((boxWidth - width) / 2), y: px((boxHeight - height) / 2), width: px(width), height: px(height) };
 }
 
 export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize): NormalizedImage {

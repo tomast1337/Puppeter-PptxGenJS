@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { NormalizedGeometry, PageSize } from "@pdflapas/model";
 import { cssPx, degreesToRadians, inches, inchesToPixels, inchesToPoints, millimetersToPixels, type Px, pixelsToInches, pixelsToPoints, pointsToInches, pointsToPixels, pt, px } from "@pdflapas/model";
 
 describe("model unit helpers", () => {
@@ -27,5 +28,18 @@ describe("model unit helpers", () => {
         // @ts-expect-error an Inches value is not a Px
         cssPx(pixelsToInches(96));
         expect(takesPx(px(12))).toBe(px(12));
+    });
+
+    test("model geometry takes Px and page sizes Inches, not a Pt or a plain number (checked by typecheck)", () => {
+        // @ts-expect-error a Pt is not a Px
+        const fromPoints: NormalizedGeometry = { x: pt(12), y: px(0) };
+        // @ts-expect-error a plain number is not a Px
+        const fromNumber: NormalizedGeometry = { x: 12, y: px(0) };
+        // @ts-expect-error pixels are not inches
+        const pageInPixels: PageSize = { width: px(960), height: inches(5.625), name: "Custom" };
+        // @ts-expect-error a plain number is not Inches
+        const pageInNumbers: PageSize = { width: 10, height: inches(5.625), name: "Custom" };
+        const geometry: NormalizedGeometry = { x: inchesToPixels(1), y: px(0), width: px(96) };
+        expect<number[]>([fromPoints.x, fromNumber.x, pageInPixels.width, pageInNumbers.width, geometry.x]).toEqual([12, 12, 960, 10, 96]);
     });
 });

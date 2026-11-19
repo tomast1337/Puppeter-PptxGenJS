@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { px } from "@pdflapas/model";
 import type PptxGenJS from "pptxgenjs";
 import pptxgen from "pptxgenjs";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
@@ -70,11 +71,11 @@ describe("shape normalization", () => {
     });
 
     test("normalizes core preset geometry and rounded radius", () => {
-        expect(normalizeShape("rect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 0 });
-        expect(normalizeShape("roundRect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 16 });
-        expect(normalizeShape("roundRect", { rectRadius: 0.1 }, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 9.600000000000001 });
+        expect(normalizeShape("rect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: px(0) });
+        expect(normalizeShape("roundRect", {}, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: px(16) });
+        expect(normalizeShape("roundRect", { rectRadius: 0.1 }, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: px(9.600000000000001) });
         // PptxGenJS writes no `adj` for rectRadius 0, so the preset's 1/6 corner stays.
-        expect(normalizeShape("roundRect", { rectRadius: 0 }, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: 16 });
+        expect(normalizeShape("roundRect", { rectRadius: 0 }, 192, 96, PAGE).geometry).toEqual({ kind: "rect", radius: px(16) });
         expect(normalizeShape("ellipse", {}, 192, 96, PAGE).geometry).toEqual({ kind: "ellipse" });
         expect(normalizeShape("lineInv", {}, 192, 96, PAGE).geometry).toEqual({ kind: "line", inverse: true });
     });

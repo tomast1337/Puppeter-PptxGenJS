@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { px } from "@pdflapas/model";
 import { inflateSync } from "node:zlib";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { renderedPage } from "./renderedPage";
@@ -39,10 +40,10 @@ describe("table normalization", () => {
             PAGE,
         );
 
-        expect(table.width).toBe(576);
-        expect(table.height).toBe(120);
-        expect(table.columns).toEqual([96, 192, 288]);
-        expect(table.rows.map(row => row.height)).toEqual([48, 72]);
+        expect(table.width).toBe(px(576));
+        expect(table.height).toBe(px(120));
+        expect(table.columns).toEqual([96, 192, 288].map(px));
+        expect(table.rows.map(row => row.height)).toEqual([48, 72].map(px));
         expect(table.rows[0]!.cells[0]!.colspan).toBe(2);
         expect(table.rows[0]!.cells[0]!.rowspan).toBe(2);
         expect(table.rows[0]!.cells[0]!.text.margin).toEqual([9.600000000000001, 19.200000000000003, 28.799999999999997, 38.400000000000006]);
@@ -112,7 +113,7 @@ describe("table normalization", () => {
         );
 
         const cell = table.rows[0]!.cells[0]!;
-        expect(table.columns).toEqual([384]);
+        expect(table.columns).toEqual([384].map(px));
         expect<string | undefined>(cell.fill?.color).toBe("#D9EAF7");
         expect(cell.text.margin).toEqual([8, 8, 8, 8]);
         expect(cell.text.verticalAlign).toBe("bottom");
@@ -143,10 +144,10 @@ describe("table normalization", () => {
 
     test("matches default, scalar, and mismatched column width behavior", () => {
         const rows = [[{ text: "A" }, { text: "B" }, { text: "C" }]];
-        expect(normalizeTable(rows, {}, PAGE).columns).toEqual([288, 288, 288]);
-        expect(normalizeTable(rows, { colW: 0.75 }, PAGE).columns).toEqual([64, 64, 64]);
-        expect(normalizeTable(rows, { w: 6, colW: [1, 2] }, PAGE).columns).toEqual([192, 192, 192]);
-        expect(normalizeTable([rows[0]!, rows[0]!], { h: 2, rowH: [0.5] }, PAGE).rows.map(row => row.height)).toEqual([48, 96]);
+        expect(normalizeTable(rows, {}, PAGE).columns).toEqual([288, 288, 288].map(px));
+        expect(normalizeTable(rows, { colW: 0.75 }, PAGE).columns).toEqual([64, 64, 64].map(px));
+        expect(normalizeTable(rows, { w: 6, colW: [1, 2] }, PAGE).columns).toEqual([192, 192, 192].map(px));
+        expect(normalizeTable([rows[0]!, rows[0]!], { h: 2, rowH: [0.5] }, PAGE).rows.map(row => row.height)).toEqual([48, 96].map(px));
     });
 
     // PptxGenJS 4.0.1 genXmlTable writes `<a:tr h>` from rowH, else h / rows; h alone is only the frame's cy, which
@@ -154,11 +155,11 @@ describe("table normalization", () => {
     test("sizes the table from its rows, not from a larger h (#246)", () => {
         const rows = [[{ text: "A" }], [{ text: "B" }], [{ text: "C" }]];
         const withRowH = normalizeTable(rows, { h: 3, rowH: 0.5 }, PAGE);
-        expect(withRowH.rows.map(row => row.height)).toEqual([48, 48, 48]);
-        expect(withRowH.height).toBe(144);
+        expect(withRowH.rows.map(row => row.height)).toEqual([48, 48, 48].map(px));
+        expect(withRowH.height).toBe(px(144));
         const fromH = normalizeTable(rows, { h: 3 }, PAGE);
-        expect(fromH.rows.map(row => row.height)).toEqual([96, 96, 96]);
-        expect(fromH.height).toBe(288);
+        expect(fromH.rows.map(row => row.height)).toEqual([96, 96, 96].map(px));
+        expect(fromH.height).toBe(px(288));
         expect(normalizeTable([[{ text: "A" }], [{ text: "B" }]], { rowH: [0.5] }, PAGE).height).toBeUndefined();
 
         const presentation = new PuppeteerGen();
@@ -183,9 +184,9 @@ describe("table normalization", () => {
         for (const size of [{ colW: [1, 1, 1] }, { w: 3 }]) {
             const { rows, options } = extraCellTable(size);
             const table = normalizeTable(rows, options, PAGE);
-            expect(table.columns).toEqual([96, 96, 96]);
+            expect(table.columns).toEqual([96, 96, 96].map(px));
             expect(table.rows.map(row => row.cells.length)).toEqual([3, 3, 3, 3]);
-            expect(table.rows.map(row => row.height)).toEqual([17.28, 17.28, 17.28, 17.28]);
+            expect(table.rows.map(row => row.height)).toEqual([17.28, 17.28, 17.28, 17.28].map(px));
             expect(table.rows[1]?.cells.map(cell => cell.text.paragraphs[0]?.runs[0]?.text)).toEqual(["Alpha", "Beta", "Gamma"]);
         }
     });
