@@ -2,7 +2,7 @@
 
 use super::allow;
 use super::dom::{Dom, Element};
-use super::style::{Style, integer};
+use super::style::{Style, integer, px};
 use super::text::{self, text_box};
 use crate::color::{Rgba, parse_color};
 use crate::model::{FillModel, Table, TableBorder, TableCell, TableRow, TextFit};
@@ -96,6 +96,14 @@ fn read_cell(dom: &Dom<'_>, cell: &Element<'_>) -> Result<TableCell, String> {
     }
     let style = Style::of(cell)?;
     allow(cell, &style, &[CELL_ATTRS], &[CELL_CSS])?;
+    // The margins are the cell text's padding. Without its own `padding: 0px` the td takes the shared
+    // stylesheet's `.slide-table td` padding in Chromium, which this renderer would not draw (#291).
+    let padding = style.require("padding")?;
+    if padding.trim().is_empty() || padding.split_ascii_whitespace().any(|side| px(side) != Ok(0.0)) {
+        return Err(format!(
+            "CSS property 'padding': '{padding}' must be '0px' (the cell margin is the padding of div.table-cell-text; complete hand-written HTML with completeProfileHtml())"
+        ));
+    }
     let span = |name: &str| -> Result<u32, String> {
         let value = cell.attr(name)?.ok_or_else(|| format!("attribute '{name}' is missing"))?;
         integer(&value).map_err(|e| format!("attribute '{name}': {e}"))
@@ -241,5 +249,18 @@ mod tests {
             let error = table(&rows).err().unwrap_or_default();
             assert!(error.starts_with("slide 1: object 'Tb': "), "{rows}: {error}");
         }
+    }
+
+    // Chromium pads a td without `padding: 0px` with the stylesheet's table margin, which would draw a taller row (#291).
+    #[test]
+    fn requires_a_cell_without_padding_of_its_own() {
+        let row = |padding: &str| format!("<tr>{}</tr>", cell(r#"colspan="1" rowspan="1""#, BORDERS).replace("padding: 0px; ", padding));
+        for zero in ["padding: 0px; ", "padding: 0px 0px; ", "padding: 0px 0px 0px 0px; "] {
+            assert!(table(&row(zero)).is_ok(), "{zero}");
+        }
+        assert!(table(&row("")).err().unwrap_or_default().contains("'padding'"));
+        let error = table(&row("padding: 1px; ")).err().unwrap_or_default();
+        assert!(error.contains("CSS property 'padding': '1px' must be '0px'"), "{error}");
+        assert!(table(&row("padding: 0px 2px; ")).is_err());
     }
 }

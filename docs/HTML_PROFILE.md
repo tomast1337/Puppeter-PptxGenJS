@@ -344,7 +344,8 @@ with the full scaled size, and the frame clips.
 (`width: 100%`), so a row's `height` is a minimum and the row grows to its text as in PowerPoint and
 LibreOffice; only vertical text in a row with a height fills the cell (`position: absolute; inset: 0px`). Its
 `data-text-fit` is always `none`: PptxGenJS writes a bare `<a:bodyPr/>` in a cell, whatever `fit`, `shrinkText` or
-`autoFit` say, and both renderers refuse another value. In a row sized to its content (no row or table
+`autoFit` say, and both renderers refuse another value. The `td` itself has `padding: 0px`, since the
+margins are the `.table-cell-text` padding; the WASM renderer refuses another value. In a row sized to its content (no row or table
 height), the cell's `padding` also holds the table's `contentRowSlack`: on the bottom for top text, half on
 each side for middle, on the top for bottom, so the row is that much taller than its text and margins and the
 text sits where the anchor puts it. Borders are
@@ -544,7 +545,8 @@ or a `font-size` or `line-height` it needs for a line box that is not in px.
 |                           | `font-weight`, `font-style`                          | `normal`                                                                                              | `text.bold`, `text.italic`                            |
 | `img.slide-image-content` | `data-image-sizing`                                  | `stretch`                                                                                             | (no `sizing` option)                                  |
 |                           | `opacity`                                            | `1`                                                                                                   | `image.transparency`                                  |
-| `td`                      | `colspan`, `rowspan`                                 | `1`                                                                                                   | (no `colspan`/`rowspan`)                              |
+| `td`                      | `padding`                                            | `0px` (the cell margin is the `.table-cell-text` padding)                                             | `table.marginIn` (on `.table-cell-text`)              |
+|                           | `colspan`, `rowspan`                                 | `1`                                                                                                   | (no `colspan`/`rowspan`)                              |
 |                           | `border-top`, `-right`, `-bottom`, `-left`           | `0px none transparent`                                                                                | `table.border.type` (`none`)                          |
 
 **Required**: everything else the reader requires stays required, because it is the deck's content
@@ -555,8 +557,11 @@ rather than a default: `<meta name="pdflapas-profile" content="2">` (or `<meta n
 `crop`; column widths; bullets (`data-bullet-*` and the marker); and every optional value the profile
 already omits at its default (`opacity` 1, no `transform`, …). The completion step adds only profile
 values: layout CSS that `toHtml()` writes for Chromium (`.text-content { width: 100% }`, the image's
-`width`/`height`, the cell's `padding: 0px`) is not filled, so a document that leaves it out can look
-different in Puppeteer, which prints what the HTML says.
+`width`/`height`) is not filled, so a document that leaves it out can look different in Puppeteer, which
+prints what the HTML says. The cell's `padding: 0px` is filled: without it Chromium pads the cell with the
+shared stylesheet's `.slide-table td` rule (the table margin, 4.8px 9.6px) on top of the `.table-cell-text`
+padding, a row 9.6px taller than the table's own (#291), and the WASM renderer rejects a `td` whose `padding` is
+not zero.
 
 ## Field mapping
 
