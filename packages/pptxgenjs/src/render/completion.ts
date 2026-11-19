@@ -76,6 +76,9 @@ const DEFAULTS = {
     cellLink: run(PPTX_DEFAULTS.table.fontSizePt, PPTX_DEFAULTS.theme.colors.hyperlink),
     cell: {
         css: [
+            // The margin is the cell text's padding (cellText); the td's own would add the stylesheet's
+            // `.slide-table td` padding in Chromium, which the WASM renderer does not draw (#291).
+            ["padding", "0px"],
             ["border-top", HIDDEN_BORDER_CSS],
             ["border-right", HIDDEN_BORDER_CSS],
             ["border-bottom", HIDDEN_BORDER_CSS],

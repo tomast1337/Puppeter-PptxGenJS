@@ -50,7 +50,8 @@ describe("completeProfileHtml()", () => {
     test("uses the table defaults inside a cell, and the hyperlink color on a linked run", () => {
         const cellSize = `${pointsToPixels(PPTX_DEFAULTS.table.fontSizePt)}px`;
         expect(find(completed, "td")).toMatchObject({
-            style: "border-bottom: 1px solid #000000; border-top: 0px none transparent; border-right: 0px none transparent; border-left: 0px none transparent;",
+            // padding: 0px keeps the stylesheet's `.slide-table td` padding off the cell (#291).
+            style: "border-bottom: 1px solid #000000; padding: 0px; border-top: 0px none transparent; border-right: 0px none transparent; border-left: 0px none transparent;",
             attributes: { colspan: "1", rowspan: "1" },
         });
         expect(find(completed, "table-cell-text").style).toContain("align-items: flex-start;");

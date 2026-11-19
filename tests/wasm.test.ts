@@ -8,6 +8,7 @@ import { z } from "zod";
 import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
+import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
 import { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
@@ -202,6 +203,38 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         // The horizontal grid lines, in CSS px from the slide top: each row's top, then the table's bottom.
         const lines = [...content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)].filter(([, from, to]) => from === to).map(([, y]) => Number(y) / 96);
         expect(lines.slice(0, -1)).toEqual(EXTRA_CELL_ROW_TOPS_IN.map(inches => expect.closeTo(inches, 3)));
+    });
+
+    // A hand-written td without padding took the stylesheet's table margin in Chromium on top of the cell text's
+    // padding: 32px rows against WASM's 22.4px (#291). Completion writes padding: 0px, so both lay out the same rows.
+    test("gives a completed hand-written table the row heights Chromium gives it", async () => {
+        const cell = (text: string) => `<td style="border-top: 1px solid #000000; border-bottom: 1px solid #000000;"><div class="table-cell-text"><div class="text-content"><div class="text-paragraph"><span class="text-run">${text}</span></div></div></div></td>`;
+        const table = `<div class="slide-element slide-table-container" data-object-name="Grid" style="left: 96px; top: 96px; width: 288px;">
+          <table class="slide-table" style="width: 288px; table-layout: fixed; border-collapse: collapse;">
+            <colgroup><col style="width: 144px;"><col style="width: 144px;"></colgroup>
+            <tr>${cell("A")}${cell("B")}</tr><tr>${cell("C")}${cell("D")}</tr>
+          </table></div>`;
+        const html = completeProfileHtml(handWrittenDocument(table));
+        const chromium = await withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                // As the Puppeteer renderer prints it: zoomed, with the collapsed borders kept out of the row heights.
+                await page.setContent(printHtml(html));
+                return await page.evaluate(zoom => [...document.querySelectorAll("tr")].map(row => row.getBoundingClientRect().height / zoom), PRINT_ZOOM);
+            } finally {
+                await page.close();
+            }
+        });
+        const pdf = Buffer.from(await (await createWasmRenderer({ fonts: systemFonts })).render({ html, pageSize: PAGE }));
+        const contents = ascii(pdf).match(/\/Contents (\d+) 0 R/)?.[1];
+        const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
+        const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
+        // The horizontal grid lines, in CSS px: each row's top, then the table's bottom.
+        const lines = [...content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)].filter(([, from, to]) => from === to).map(([, y]) => Number(y));
+        const wasm = lines.slice(1).map((y, i) => y - (lines[i] ?? 0));
+        // The cell text's 4.8px margins around a 19.2px line; the stylesheet's td padding made Chromium's 38.4px.
+        expect(chromium).toEqual([expect.closeTo(28.8, 1), expect.closeTo(28.8, 1)]);
+        expect(wasm).toEqual(chromium.map(height => expect.closeTo(height, 1)));
     });
 
     test("follows the PowerPoint target's font-kerning: none, so the unkerned runs move", async () => {
