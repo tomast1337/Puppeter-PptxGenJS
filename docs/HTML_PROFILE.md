@@ -158,14 +158,23 @@ and appears at most once.
   custom XMP, so neither renderer writes them to XMP. LibreOffice's PDF export of the PptxGenJS `.pptx`
   writes neither, so the visual reference has none.
 - **The title is read as `document.title`:** ASCII whitespace stripped and collapsed.
-- **Each renderer writes them.** WASM sets krilla's metadata (Info dictionary and XMP packet) from a
-  version 2 document; when it has a company or revision, `crates/pdf-core/src/document_info.rs` appends an
-  incremental update (ISO 32000-1 7.5.6) whose Info dictionary holds all five. Chromium writes only
-  `/Title`, from `<title>`; the Puppeteer renderer then appends an incremental update
-  (`packages/puppeteer/src/pdfInfo.ts`) whose Info dictionary adds `/Author`, `/Subject`, `/Company` and
-  `/Revision` from the meta tags of any HTML it prints, and keeps Chromium's Creator, Producer and dates.
-  It writes no XMP packet, as Chromium writes none.
-- **Completion adds none of them**: a hand-written document without them gives a PDF without them.
+- **Creator and Producer are `PdfLapas`.** PowerPoint's Save as PDF names itself in both (`Microsoft®
+PowerPoint® for Microsoft 365`), so both renderers write `PDF_PRODUCER` (`@pdflapas/model`; the Rust
+  `PRODUCER` in `crates/pdf-core/src/document_info.rs` is checked against it) as `/Creator` and `/Producer`
+  of every PDF, with or without document properties. It carries no version, so a release does not change
+  every PDF's bytes.
+- **No dates.** PowerPoint writes `/CreationDate` and `/ModDate`; neither renderer does, so the same deck
+  gives the same Info dictionary on every run (and the same bytes from WASM). Chromium's own dates are in
+  the superseded dictionary only.
+- **Each renderer writes the same Info dictionary.** WASM sets krilla's metadata (Info dictionary and XMP
+  packet) from a version 2 document; when it has a company or revision, `crates/pdf-core/src/document_info.rs`
+  appends an incremental update (ISO 32000-1 7.5.6) whose Info dictionary holds all seven entries.
+  Chromium writes `/Title` from `<title>` and its own Creator, Producer and dates; the Puppeteer renderer
+  appends an incremental update (`packages/puppeteer/src/pdfInfo.ts`) whose Info dictionary replaces
+  Chromium's with the title, the meta tags of any HTML it prints and the Creator and Producer. It writes no
+  XMP packet, as Chromium writes none.
+- **Completion adds none of them**: a hand-written document without them gives a PDF whose Info holds
+  only the Creator and Producer.
 
 ## Slide
 

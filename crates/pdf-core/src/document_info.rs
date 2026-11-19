@@ -1,21 +1,24 @@
-//! The document properties of the PDF. krilla writes Title, Author and Subject to the Info
-//! dictionary and the XMP packet; its metadata has no field for Company or Revision, so when the
-//! deck sets either, `with_custom_entries` appends an incremental update (ISO 32000-1 7.5.6) whose
-//! Info dictionary holds all five, as the Puppeteer renderer does (`packages/puppeteer/src/pdfInfo.ts`).
+//! The document properties of the PDF. krilla writes Title, Author, Subject, Creator and Producer
+//! to the Info dictionary and the XMP packet; its metadata has no field for Company or Revision, so
+//! when the deck sets either, `with_custom_entries` appends an incremental update (ISO 32000-1
+//! 7.5.6) whose Info dictionary holds all seven, as the Puppeteer renderer does
+//! (`packages/puppeteer/src/pdfInfo.ts`).
 
 use std::fmt::Write;
 
 use crate::model::Metadata;
 
+/// The /Creator and /Producer of every PDF, as PowerPoint's Save as PDF names itself in both.
+/// `PDF_PRODUCER` in `packages/model/src/renderer.ts` is the same string; tests/pdfMetadata.test.ts
+/// checks that the PDFs of both renderers carry it.
+pub(crate) const PRODUCER: &str = "PdfLapas";
+
 /// krilla's metadata for `metadata`: Title, Author and Subject (krilla's `description`, written as
-/// /Subject and dc:description). None without any, so a document without them has no Info
-/// dictionary or XMP packet.
-pub(crate) fn krilla_metadata(metadata: &Metadata) -> Option<krilla::metadata::Metadata> {
+/// /Subject and dc:description) when set, and `PRODUCER` as Creator and Producer. No creation
+/// date, so the same deck gives the same bytes.
+pub(crate) fn krilla_metadata(metadata: &Metadata) -> krilla::metadata::Metadata {
     let Metadata { title, author, subject, .. } = metadata;
-    if title.is_none() && author.is_none() && subject.is_none() {
-        return None;
-    }
-    let mut pdf = krilla::metadata::Metadata::new();
+    let mut pdf = krilla::metadata::Metadata::new().creator(PRODUCER.to_string()).producer(PRODUCER.to_string());
     if let Some(title) = title {
         pdf = pdf.title(title.clone());
     }
@@ -25,11 +28,11 @@ pub(crate) fn krilla_metadata(metadata: &Metadata) -> Option<krilla::metadata::M
     if let Some(subject) = subject {
         pdf = pdf.description(subject.clone());
     }
-    Some(pdf)
+    pdf
 }
 
 /// `pdf` (krilla's output) with an incremental update whose Info dictionary holds every property of
-/// `metadata`, including the non-standard /Company and /Revision (14.3.3 allows other keys). XMP has
+/// `metadata` and `PRODUCER`, including the non-standard /Company and /Revision (14.3.3 allows other keys). XMP has
 /// no standard property for either and krilla writes no custom ones, so they are in the Info
 /// dictionary only. Without a company or revision, returns `pdf` unchanged.
 pub(crate) fn with_custom_entries(mut pdf: Vec<u8>, metadata: &Metadata) -> Result<Vec<u8>, String> {
@@ -65,11 +68,13 @@ pub(crate) fn with_custom_entries(mut pdf: Vec<u8>, metadata: &Metadata) -> Resu
 
     let mut info = String::new();
     for (key, value) in [
-        ("Title", title),
-        ("Author", author),
-        ("Subject", subject),
-        ("Company", company),
-        ("Revision", revision),
+        ("Title", title.as_deref()),
+        ("Author", author.as_deref()),
+        ("Subject", subject.as_deref()),
+        ("Company", company.as_deref()),
+        ("Revision", revision.as_deref()),
+        ("Creator", Some(PRODUCER)),
+        ("Producer", Some(PRODUCER)),
     ] {
         if let Some(value) = value {
             let _ = write!(info, "/{key}{}", text_string(value)); // writing to a String cannot fail
@@ -135,7 +140,7 @@ mod tests {
         )
         .unwrap();
         let update = String::from_utf8(out.get(pdf.len()..).unwrap().to_vec()).unwrap();
-        let object = "\n2 0 obj\n<</Title<FEFF00510033002000FC>/Company<FEFF00410063006D0065>/Revision<FEFF0037>>>\nendobj\n";
+        let object = "\n2 0 obj\n<</Title<FEFF00510033002000FC>/Company<FEFF00410063006D0065>/Revision<FEFF0037>/Creator<FEFF005000640066004C0061007000610073>/Producer<FEFF005000640066004C0061007000610073>>>\nendobj\n";
         let (object_offset, xref_offset) = (pdf.len() + 1, pdf.len() + object.len());
         assert_eq!(
             update,

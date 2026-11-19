@@ -435,7 +435,7 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
         );
     });
 
-    test("writes title, author and subject to the PDF Info dictionary; a version 1 document gets none", async () => {
+    test("writes title, author, subject, creator and producer to the PDF Info dictionary; a version 1 document gets no title", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE, { renderer });
         pres.title = "Q3 plan";
@@ -443,7 +443,7 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
         pres.subject = "Sales";
         pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1 });
         const text = (pdf: Uint8Array) => Buffer.from(pdf).toString("latin1");
-        expect(text(await pres.toPdf())).toContain("<</Title(Q3 plan)/Subject(Sales)/Author(Ana)>>");
+        expect(text(await pres.toPdf())).toContain("<</Title(Q3 plan)/Subject(Sales)/Author(Ana)/Creator(PdfLapas)/Producer(PdfLapas)>>");
         const { html, pageSize } = await pres.toHtml();
         const v1 = await renderer.render({ html: html.replace('<meta name="pdflapas-profile" content="2">', '<meta name="pdfdeck-profile" content="1">'), pageSize });
         expect(text(v1)).not.toContain("/Title");
