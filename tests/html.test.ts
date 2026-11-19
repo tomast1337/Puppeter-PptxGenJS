@@ -91,7 +91,7 @@ describe("browser-safe html entry", () => {
 
     test("encodes base64 without Buffer, including inputs larger than one chunk", () => {
         const bytes = Uint8Array.from({ length: 0x8000 * 2 + 17 }, (_, index) => (index * 31) % 256);
-        expect(dataUri(bytes, "image/png")).toBe(`data:image/png;base64,${Buffer.from(bytes).toString("base64")}`);
+        expect<string>(dataUri(bytes, "image/png")).toBe(`data:image/png;base64,${Buffer.from(bytes).toString("base64")}`);
         expect(dataUri(bytes.buffer, "image/png")).toBe(dataUri(bytes, "image/png"));
     });
 });

@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
-import type { NormalizedImage, NormalizedImageSizing } from "@pdflapas/model";
+import type { DataUri, NormalizedImage, NormalizedImageSizing, NormalizedImageSource } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
 import { inchesToPixels, px } from "@pdflapas/model";
 import { convertToPixels } from "#src/units";
@@ -21,15 +21,15 @@ export const MIME_TYPES: Readonly<Record<string, string>> = Object.freeze({
 const IMAGE_DATA = /^(data:)?(?:(image\/[\w.+-]+)?;)?base64,([a-z\d+/=\s]+)$/i;
 
 /** Checks image `data` and returns it as the data URI the HTML profile carries. */
-function imageDataUri(data: string, path?: string): string {
+function imageDataUri(data: string, path?: string): DataUri {
     const match = data.match(IMAGE_DATA);
     if (!match?.[3]?.replace(/\s/g, "")) {
         throw new Error(`Image data must be base64-encoded image data, like "image/png;base64,iVBORw0KGgo…" or "data:image/png;base64,iVBORw0KGgo…"; got "${data.slice(0, 40)}"`);
     }
-    if (match[1] && match[2]) return data;
+    if (match[1] && match[2]) return data as DataUri; // `as`: IMAGE_DATA matched "data:image/…;base64," and a payload
     const fallback = MIME_TYPES[`.${PPTX_DEFAULTS.image.fallbackExtension}`];
     const mime = match[2] ?? MIME_TYPES[path?.match(/\.\w+$/)?.[0]?.toLowerCase() ?? ""] ?? fallback;
-    return `data:${mime};base64,${match[3]}`;
+    return `data:${mime};base64,${match[3]}` as DataUri; // `as`: mime is image/… from IMAGE_DATA or MIME_TYPES
 }
 
 /** One latin1 char per byte, without Buffer. Chunked so large inputs stay under the argument limit. */
@@ -40,8 +40,9 @@ export function binaryString(bytes: ArrayBuffer | Uint8Array): string {
     return binary;
 }
 
-export function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): string {
-    return `data:${mime};base64,${btoa(binaryString(bytes))}`;
+/** `mime` is an `image/…` type the caller checked (a file extension in MIME_TYPES, a fetched content-type). */
+export function dataUri(bytes: ArrayBuffer | Uint8Array, mime: string): DataUri {
+    return `data:${mime};base64,${btoa(binaryString(bytes))}` as DataUri; // `as`: see above
 }
 
 /**
@@ -187,8 +188,7 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     const raw = options.data ?? options.path;
     if (!raw) throw new Error("addImage() requires either 'data' or 'path'");
     if (typeof raw !== "string") throw new Error("Image source must be a string");
-    const sourceKind = options.data !== undefined ? "data" : /^https?:\/\//i.test(raw) ? "remote" : "path";
-    const source = sourceKind === "data" ? imageDataUri(raw, options.path) : raw;
+    const source: NormalizedImageSource = options.data !== undefined ? { source: imageDataUri(raw, options.path), sourceKind: "data" } : { source: raw, sourceKind: /^https?:\/\//i.test(raw) ? "remote" : "path" };
     const sizing = options.sizing;
     const pageWidth = inchesToPixels(pageSize.width);
     const pageHeight = inchesToPixels(pageSize.height);
@@ -200,8 +200,7 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     const transparency = Math.max(0, Math.min(100, options.transparency ?? PPTX_DEFAULTS.image.transparency));
     const link = normalizeHyperlink(options.hyperlink);
     return {
-        source,
-        sourceKind,
+        ...source,
         sizing: normalizedSizing,
         rounding: options.rounding ?? PPTX_DEFAULTS.image.rounding,
         opacity: 1 - transparency / 100,

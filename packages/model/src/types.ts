@@ -9,6 +9,15 @@ declare const color: unique symbol;
  */
 export type CssColor = string & { readonly [color]: "css-color" };
 
+declare const dataUri: unique symbol;
+
+/**
+ * A resolved image source, `data:image/…;base64,…`: the only image source the HTML profile writes as `src`. Only the
+ * PptxGenJS image normalizer (`imageDataUri`, `dataUri`) makes one.
+ * Type-only: the JSON holds a plain string.
+ */
+export type DataUri = string & { readonly [dataUri]: "data-uri" };
+
 export interface PageSize {
     width: Inches;
     height: Inches;
@@ -202,15 +211,16 @@ export interface NormalizedImageLink {
     slide?: number;
 }
 
-export interface NormalizedImage {
-    source: string;
-    sourceKind: "data" | "path" | "remote";
+/** A `data` image is inlined at normalization; a `path` or `remote` one keeps the caller's string until `toHtml()` resolves it. */
+export type NormalizedImageSource = { source: DataUri; sourceKind: "data" } | { source: string; sourceKind: "path" | "remote" };
+
+export type NormalizedImage = NormalizedImageSource & {
     sizing: NormalizedImageSizing;
     rounding: boolean;
     opacity: number;
     altText: string;
     link?: NormalizedImageLink;
-}
+};
 
 export interface NormalizedShapeLink {
     href: string;
