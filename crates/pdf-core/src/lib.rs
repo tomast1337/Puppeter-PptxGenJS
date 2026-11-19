@@ -1145,6 +1145,23 @@ mod tests {
     }
 
     #[test]
+    fn a_superscript_grows_its_line_unless_its_paragraph_is_empty() {
+        // Two paragraphs on a 36px line box (baseline 30), each with one 30px run raised 4px: "x", then an empty run.
+        let mut text = text_box(&[(&["x"], 36.0, 30.0), (&[""], 36.0, 30.0)]);
+        for p in &mut text.paragraphs {
+            p.runs[0].baseline_offset = 4.0;
+        }
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: superscript line growth not checked");
+        };
+        // "x" lifts its line 4px above the box (LibreOffice's escapement); the empty paragraph has no glyph to lift,
+        // so its line stays the mark's 36px, as Chromium lays out an empty relatively positioned run.
+        // Baselines are below their paragraph's top.
+        assert_eq!(layout.baselines, [34.0, 30.0]);
+        assert_eq!(layout.height, 76.0);
+    }
+
+    #[test]
     fn asks_for_synthetic_bold_and_italic_when_only_the_regular_face_is_loaded() {
         let mut text = text_box(&[(&["Ag"], 36.0, 30.0)]);
         let run = &mut text.paragraphs[0].runs[0];

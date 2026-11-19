@@ -171,7 +171,8 @@ impl Renderer {
                 spans.push(start..s.len());
             }
             let first = paragraph.runs.first();
-            if s.is_empty() {
+            let empty = s.is_empty();
+            if empty {
                 s.push('\u{200B}');
                 spans.clear();
                 spans.push(0..s.len());
@@ -344,7 +345,8 @@ impl Renderer {
                 &layout,
                 line_box,
                 paragraph.runs.iter().fold(0.0, |m, r| r.font_size.max(m)) * scale,
-                paints,
+                // An empty paragraph's line is its mark's alone: no glyph to raise, as in Chromium and the profile.
+                if empty { &[] } else { paints },
                 &mut out.baselines,
             );
             out.paras.push(ParaLayout {
@@ -378,7 +380,8 @@ fn stack_break(s: &mut String, stacked: bool) {
 /// sized for the paragraph's largest font, `max_size`. A run raised or lowered off the baseline
 /// (super/subscript) carries its own box, `line_box` scaled to its font size, and grows its line where
 /// that box sticks out, as LibreOffice's escapement does (a 13pt subscript under 20pt text adds ~5 px). The last line
-/// takes `line_box.mark_baseline` and a line ending in a soft break `line_box.break_baseline`.
+/// takes `line_box.mark_baseline` and a line ending in a soft break `line_box.break_baseline`. A run with
+/// no paint in `paints` keeps its `baseline_offset` out of the line box.
 fn stack_lines(layout: &Layout<Brush>, line_box: LineBox, max_size: f32, paints: &[RunPaint], baselines: &mut Vec<f32>) -> f32 {
     let mut top = 0.0;
     for (index, line) in layout.lines().enumerate() {
