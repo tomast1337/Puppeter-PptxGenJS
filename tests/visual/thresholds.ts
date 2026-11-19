@@ -19,20 +19,6 @@ export const BASELINE_EPSILON = 0.002;
 // least BASELINE_EPSILON, capped at PAGE_THRESHOLD.
 
 /**
- * Table crops still off LibreOffice's (#44, #49). Grid geometry (column widths, row heights, pagination
- * breaks) matches the reference, and since the print zoom and cell inset (printWorkarounds.ts) cell text
- * lands within 0.1 px of LibreOffice's in the pagination and tableToSlides tables (all under CROP_TARGET).
- *
- * table-inheritance, 0.0957: its text sits 0.6-0.8 px above LibreOffice's and its row lines one pixel row
- * higher at 96 dpi. Likely cause: the table offset moves the whole grid up by half the table's widest
- * stroke (2pt), more than half of the thinner borders around these cells. The border between the second
- * and third rows that LibreOffice draws is missing.
- */
-export const TABLE_TEXT_OFFSET_CROP_THRESHOLDS: Readonly<Record<string, number>> = {
-    "table-inheritance": 0.098,
-};
-
-/**
  * text-line-hairline, 0.0856: a text box line without width, which PptxGenJS writes without `w` (a
  * hairline). Its box spans px [528, 912) x [120, 192). LibreOffice draws the 1 px hairline inside the box
  * on rows 120 and 191; ours is centred on the edges, which pdftoppm rounds to rows 119 and 191, so the

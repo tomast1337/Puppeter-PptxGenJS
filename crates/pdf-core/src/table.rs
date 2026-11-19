@@ -47,7 +47,14 @@ pub(crate) struct TableLayout {
     /// Grid line offsets from the table origin (px): `columns.len() + 1` and `rows.len() + 1` entries.
     col_x: Vec<f32>,
     row_y: Vec<f32>,
+    /// The cell side drawn on each grid edge: horizontal edges line by line (`rows + 1` lines of
+    /// `columns` edges), then vertical edges line by line (`columns + 1` lines of `rows` edges).
+    h_edges: Vec<Option<Edge>>,
+    v_edges: Vec<Option<Edge>>,
 }
+
+/// A cell side: an index into `TableLayout.cells` and the side's index in `TableCell.borders`.
+type Edge = (usize, usize);
 
 impl TableLayout {
     /// The table's laid-out height (px).
@@ -150,6 +157,7 @@ impl Renderer {
         if place_cells(table, &mut out.busy_until, &mut out.cells) > 0 {
             self.warn("table cells beyond the column grid not rendered");
         }
+        resolve_edges(table, out);
         if out.texts.len() < out.cells.len() {
             out.texts.resize_with(out.cells.len(), BoxLayout::default);
         }
@@ -210,14 +218,14 @@ impl Renderer {
             let (cx, cy, w, h) = rect(placed);
             self.draw_text(surface, &cell_of(table, placed).text, text_layout, cx, cy, w, h)?;
         }
-        for placed in &layout.cells {
-            let (x0, y0, w, h) = rect(placed);
-            let (x1, y1) = (x0 + w, y0 + h);
-            let [top, right, bottom, left] = &cell_of(table, placed).borders;
-            stroke_border(surface, top, (x0, y0), (x1, y0));
-            stroke_border(surface, right, (x1, y0), (x1, y1));
-            stroke_border(surface, bottom, (x0, y1), (x1, y1));
-            stroke_border(surface, left, (x0, y0), (x0, y1));
+        let (rows, cols) = (table.rows.len(), table.columns.len());
+        for (line, edges) in layout.h_edges.chunks_exact(cols.max(1)).enumerate() {
+            let at = y + offset(&layout.row_y, line);
+            stroke_grid_line(surface, table, &layout.cells, edges, &layout.col_x, |along| (x + along, at));
+        }
+        for (line, edges) in layout.v_edges.chunks_exact(rows.max(1)).enumerate() {
+            let at = x + offset(&layout.col_x, line);
+            stroke_grid_line(surface, table, &layout.cells, edges, &layout.row_y, |along| (at, y + along));
         }
         Ok(())
     }
@@ -237,16 +245,70 @@ fn span_sum(heights: &[f32], index: usize, count: usize) -> f32 {
     heights.get(index..index + count).map_or(0.0, |hs| hs.iter().sum())
 }
 
-/// Strokes one cell side centred on the grid line, as DrawingML table borders are (`algn="ctr"`).
-/// Solid sides get square caps so they close the corners they share with the sides beside them.
+/// Which cell side draws each grid edge. An edge is drawn once, however many cells share it: the
+/// wider line wins, as in CSS's collapsing border model, and on a tie the first cell in document
+/// order keeps it. A hidden side never takes an edge from a visible one.
+fn resolve_edges(table: &Table, out: &mut TableLayout) {
+    let (rows, cols) = (table.rows.len(), table.columns.len());
+    let TableLayout { cells, h_edges, v_edges, .. } = out;
+    h_edges.clear();
+    h_edges.resize((rows + 1) * cols, None);
+    v_edges.clear();
+    v_edges.resize((cols + 1) * rows, None);
+    for (index, placed) in cells.iter().enumerate() {
+        for col in placed.col..placed.col + placed.cols {
+            claim(table, cells, h_edges, placed.row * cols + col, (index, 0));
+            claim(table, cells, h_edges, (placed.row + placed.rows) * cols + col, (index, 2));
+        }
+        for row in placed.row..placed.row + placed.rows {
+            claim(table, cells, v_edges, placed.col * rows + row, (index, 3));
+            claim(table, cells, v_edges, (placed.col + placed.cols) * rows + row, (index, 1));
+        }
+    }
+}
+
+fn claim(table: &Table, cells: &[PlacedCell], edges: &mut [Option<Edge>], slot: usize, side: Edge) {
+    let Some(border) = edge_border(table, cells, side).filter(|b| drawable(b)) else {
+        return;
+    };
+    let Some(edge) = edges.get_mut(slot) else { return };
+    if edge
+        .and_then(|held| edge_border(table, cells, held))
+        .is_none_or(|held| border.width > held.width)
+    {
+        *edge = Some(side);
+    }
+}
+
+fn edge_border<'t>(table: &'t Table, cells: &[PlacedCell], (cell, side): Edge) -> Option<&'t TableBorder> {
+    cells.get(cell).and_then(|placed| cell_of(table, placed).borders.get(side))
+}
+
+fn drawable(border: &TableBorder) -> bool {
+    border.visible && border.width > 0.0 && border.width.is_finite() && border.color.3 > 0.0
+}
+
+/// Strokes one grid line: each run of neighbouring edges with the same border is one line, from
+/// grid offset `along[start]` to `along[end]`, which `point` places on the page. PowerPoint and
+/// LibreOffice also draw a run of cell sides as one line.
+fn stroke_grid_line(surface: &mut Surface, table: &Table, cells: &[PlacedCell], edges: &[Option<Edge>], along: &[f32], point: impl Fn(f32) -> (f32, f32)) {
+    let mut run: Option<(usize, &TableBorder)> = None;
+    for i in 0..=edges.len() {
+        let border = edges.get(i).copied().flatten().and_then(|edge| edge_border(table, cells, edge));
+        if let Some((start, current)) = run {
+            if border.is_some_and(|b| b.width == current.width && b.color == current.color && b.dash_array == current.dash_array) {
+                continue;
+            }
+            stroke_border(surface, current, point(offset(along, start)), point(offset(along, i)));
+        }
+        run = border.map(|b| (i, b));
+    }
+}
+
+/// Strokes a border line centred on the grid line, as DrawingML table borders are (`algn="ctr"`).
+/// Solid lines get square caps so they close the corners they share with the lines across them.
 fn stroke_border(surface: &mut Surface, border: &TableBorder, from: (f32, f32), to: (f32, f32)) {
-    if !border.visible || border.width <= 0.0 || !border.width.is_finite() {
-        return;
-    }
     let color = border.color;
-    if color.3 <= 0.0 {
-        return;
-    }
     let dash = border.dash_array.as_deref().and_then(dash_of);
     let mut pb = PathBuilder::new();
     pb.move_to(from.0, from.1);
@@ -346,6 +408,23 @@ mod tests {
         // Row 0 keeps its 20 px minimum; row 1 has no text and no minimum.
         assert_eq!(layout.row_y, [0.0, 20.0, 20.0]);
         assert_eq!(layout.height(), 20.0);
+    }
+
+    #[test]
+    fn draws_each_shared_edge_once_and_the_wider_side_wins() {
+        // Two rows; the second row's first cell spans both columns.
+        let mut t = table(&[10.0, 10.0], &[(None, &[(1, 1), (1, 1)]), (None, &[(2, 1)])]);
+        t.rows[1].cells[0].borders[0].width = 2.0;
+        t.rows[0].cells[1].borders[1].visible = false;
+        let mut layout = TableLayout::default();
+        Renderer::new().layout_table(&t, &mut layout).unwrap();
+        // Row line 1 (cells 0 and 1 above, cell 2 below): the spanning cell's wider top wins both edges.
+        assert_eq!(
+            layout.h_edges,
+            [Some((0, 0)), Some((1, 0)), Some((2, 0)), Some((2, 0)), Some((2, 2)), Some((2, 2))]
+        );
+        // Column line 1 is shared by cells 0 and 1: the first keeps it. Cell 1's hidden right side leaves line 2's row 0 to nobody.
+        assert_eq!(layout.v_edges, [Some((0, 3)), Some((2, 3)), Some((0, 1)), None, None, Some((2, 1))]);
     }
 
     #[test]
