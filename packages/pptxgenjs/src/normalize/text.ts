@@ -265,9 +265,9 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFont
     // PptxGenJS writes an <a:pPr> before every run of an <a:p>; PowerPoint reads the first for every paragraph its line
     // feeds make, LibreOffice the one of the run starting each line (RENDERING_TARGETS.lineFeedParagraph).
     const first = inheritedOptions(parent, RENDERING_TARGETS[target].lineFeedParagraph === "paragraph" ? paragraph : pieces[0]?.options);
-    // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
-    const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
-    const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(spacingPoints(first.lineSpacing, target)) : multiple;
+    // PptxGenJS writes lineSpacing as <a:spcPts> (exact points) and else lineSpacingMultiple as <a:spcPct> (of the single
+    // line, 1.2x the font size); a 0 writes neither.
+    const spacing: LineSpacing | undefined = first.lineSpacing ? { exact: pointsToPixels(spacingPoints(first.lineSpacing, target)) } : first.lineSpacingMultiple ? { em: PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple } : undefined;
     // An <a:p> PptxGenJS writes without a run holds only its <a:endParaRPr>, and PowerPoint and LibreOffice draw it one
     // line at the size written there, not the size of the empty run it came from: measured against PowerPoint's PDF
     // export of synthetic decks and LibreOffice's, "A\n\nZ" at 12pt in an 8pt text box or table cell puts Z 24pt below
@@ -280,7 +280,7 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFont
     // (RENDERING_TARGETS.fullSizeMark); a line feed ends its line in the run's own font.
     const lastPiece = pieces.at(-1);
     const markFontSize = endsParagraph && lastPiece && RENDERING_TARGETS[target].fullSizeMark ? runFontSize(pieceOptions(lastPiece)) : undefined;
-    const lineBox = paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace, markFontSize);
+    const lineBox = paragraphLineBox({ runs, spacing }, target, fontMetrics, themeFontFace, markFontFace, markFontSize);
     // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
     const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
 
@@ -288,7 +288,6 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFont
         runs,
         align: first.align ?? PPTX_DEFAULTS.text.align,
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
-        lineHeight,
         lineBox: endsParagraph ? lineBox : feedLineBox,
         spaceBefore: pointsToPixels(spacingPoints(first.paraSpaceBefore ?? 0, target)),
         spaceAfter: pointsToPixels(spacingPoints(first.paraSpaceAfter ?? 0, target)),
@@ -557,6 +556,12 @@ export function normalizeText(
     };
 }
 
+/** A paragraph's explicit line spacing: `exact` px (lineSpacing), or `em`, a multiple of its largest font size (lineSpacingMultiple). */
+export type LineSpacing = { readonly exact: number } | { readonly em: number };
+
+/** The runs that set a paragraph's line box, and its explicit spacing, if any. */
+type LineBoxInput = Pick<NormalizedTextParagraph, "runs"> & { readonly spacing?: LineSpacing };
+
 /**
  * LibreOffice's font-independent line box for a paragraph (PPTX_DEFAULTS.text.singleLineEm), in px:
  * `height` is each line's height and `baseline` its baseline's distance below the line top, both set
@@ -568,14 +573,7 @@ export function normalizeText(
  * it counts in the line's height as well. Each baseline then goes on the target's grid
  * (RENDERING_TARGETS.baselineGridPerInch).
  */
-export function paragraphLineBox(
-    paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">,
-    target: RenderingTarget = DEFAULT_RENDERING_TARGET,
-    fontMetrics: FontMetricsLookup = builtInFontMetrics,
-    themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace,
-    markFontFace: string = themeFontFace,
-    markFontSize?: number,
-): NormalizedTextParagraph["lineBox"] {
+export function paragraphLineBox(paragraph: LineBoxInput, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace, markFontFace: string = themeFontFace, markFontSize?: number): NormalizedTextParagraph["lineBox"] {
     return baselinesOnGrid(fontLineBox(paragraph, target, fontMetrics, themeFontFace, markFontFace, markFontSize), target);
 }
 
@@ -592,16 +590,15 @@ function baselinesOnGrid(lineBox: NormalizedTextParagraph["lineBox"], target: Re
 }
 
 /** The line box before the baseline grid (`paragraphLineBox`). */
-function fontLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string, markFontSize: number | undefined): NormalizedTextParagraph["lineBox"] {
+function fontLineBox(paragraph: LineBoxInput, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string, markFontSize: number | undefined): NormalizedTextParagraph["lineBox"] {
     // shortcut: one line box per paragraph, so a full-size mark sets the height of every line, not only the last; split
     // it per line when the model gets a line box per line.
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), markFontSize ?? 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
-    const { lineHeight } = paragraph;
-    // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
-    const box = lineBoxOf(fontSize, lineHeight === undefined ? undefined : lineHeight < 10 ? lineHeight * fontSize : lineHeight);
+    const { spacing } = paragraph;
+    const box = lineBoxOf(fontSize, spacing === undefined ? undefined : "exact" in spacing ? spacing.exact : spacing.em * fontSize);
     const { spacedLineBaseline, fontLineBaseline } = RENDERING_TARGETS[target];
     // lineSpacingMultiple 1 is the single line (singleLineEm), which PowerPoint lays out as single spacing.
-    const spaced = lineHeight !== undefined && lineHeight !== PPTX_DEFAULTS.text.singleLineEm;
+    const spaced = spacing !== undefined && !("em" in spacing && spacing.em === PPTX_DEFAULTS.text.singleLineEm);
     if (spaced) return spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
     const { runs } = paragraph;
     const last = runs.at(-1);

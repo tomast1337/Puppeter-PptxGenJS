@@ -644,65 +644,64 @@ object-valued field covers the field's presence; its own fields have their own r
 
 ### Text
 
-| Field                                           | Status       | HTML                                                                                                                       |
-| ----------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `NormalizedTextBox.paragraphs`                  | profile      | `div.text-paragraph` children of `.text-content`.                                                                          |
-| `NormalizedTextBox.margin`                      | profile      | `padding: <top>px <right>px <bottom>px <left>px` on the box.                                                               |
-| `NormalizedTextBox.verticalAlign`               | profile      | `align-items: flex-start\|center\|flex-end`; also `vertical-align` on a table cell's `td`.                                 |
-| `NormalizedTextBox.wrap`                        | profile      | `white-space: pre-wrap\|pre` (and `overflow-wrap`).                                                                        |
-| `NormalizedTextBox.fit`                         | profile      | `data-text-fit`; a `shrink` box adds its rule, `data-text-fit-step`, `-max-steps` and `-tolerance`.                        |
-| `NormalizedTextBox.direction`                   | profile      | `data-text-direction` (plus `writing-mode`/`text-orientation` on `.text-content`).                                         |
-| `NormalizedTextBox.rtl`                         | profile      | `direction: rtl\|ltr` on the box.                                                                                          |
-| `NormalizedTextParagraph.runs`                  | profile      | `.text-run` children (`span`, or `a` when linked).                                                                         |
-| `NormalizedTextParagraph.align`                 | profile      | `text-align`.                                                                                                              |
-| `NormalizedTextParagraph.rtl`                   | profile      | `direction: rtl\|ltr` on the paragraph.                                                                                    |
-| `NormalizedTextParagraph.lineHeight`            | not drawable | Input of `lineBox` (`normalize/text.ts:314-318`); the line box is what is drawn.                                           |
-| `NormalizedTextParagraph.lineBox`               | profile      | `line-height` and `data-line-baseline` on the paragraph; the strut and the shift are [workarounds](#renderer-workarounds). |
-| `NormalizedTextParagraph.lineBox.height`        | profile      | `line-height: <height>px` on the paragraph.                                                                                |
-| `NormalizedTextParagraph.lineBox.baseline`      | profile      | `data-line-baseline` on the paragraph (px from the line top), verbatim; the target decides it (`spacedLineBaseline`).      |
-| `NormalizedTextParagraph.lineBox.markBaseline`  | profile      | `data-mark-baseline` on the paragraph (px from the last line's top), verbatim; omitted when absent.                        |
-| `NormalizedTextParagraph.lineBox.breakBaseline` | profile      | `data-break-baseline` on the paragraph (px from the top of a line ending in a soft break), verbatim; omitted when absent.  |
-| `NormalizedTextParagraph.spaceBefore`           | profile      | `margin-top`; the PowerPoint target adds the previous paragraph's space after, and has `0px` on the first paragraph.       |
-| `NormalizedTextParagraph.spaceAfter`            | profile      | `margin-bottom`; `0px` on a box's last paragraph, and on every paragraph with the PowerPoint target, which adds the two.   |
-| `NormalizedTextParagraph.tabStops`              | profile      | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                           |
-| `NormalizedTextParagraph.tabStops[].position`   | profile      | `<position>` in `data-tab-stops`, px.                                                                                      |
-| `NormalizedTextParagraph.tabStops[].alignment`  | profile      | `<alignment>` in `data-tab-stops`.                                                                                         |
-| `NormalizedTextParagraph.defaultTabStop`        | profile      | `tab-size: <n>px`.                                                                                                         |
-| `NormalizedTextParagraph.bullet`                | profile      | `span.text-bullet` first child and `data-bullet-*`.                                                                        |
-| `NormalizedTextBullet.kind`                     | profile      | `data-bullet-type="bullet\|number"`.                                                                                       |
-| `NormalizedTextBullet.marker`                   | profile      | `.text-bullet` text, minus the trailing U+00A0.                                                                            |
-| `NormalizedTextBullet.indent`                   | profile      | `data-bullet-indent` (px); `padding-left` is it, the marker `width` and minus `text-indent` are `indent / (level + 1)`.    |
-| `NormalizedTextBullet.level`                    | profile      | `data-bullet-level`.                                                                                                       |
-| `NormalizedTextBullet.start`                    | profile      | `data-bullet-start`; the marker text is already numbered from it.                                                          |
-| `NormalizedTextBullet.numberType`               | profile      | `data-bullet-number-type`, the PptxGenJS name (`arabicPeriod`, `romanLcParenR`, …), omitted when unset.                    |
-| `NormalizedTextRun.text`                        | profile      | Run text content. An empty run holds U+200B and has `data-empty`; the PowerPoint target's U+2060 is in the model text.     |
-| `NormalizedTextRun.fontFace`                    | profile      | `font-family`: only the face, a CSS string (unescape `\\` and `\"`); fallbacks are a [workaround](#renderer-workarounds).  |
-| `NormalizedTextRun.fontSize`                    | profile      | `font-size: <n>px` (already the sub/superscript size).                                                                     |
-| `NormalizedTextRun.color`                       | profile      | `color`.                                                                                                                   |
-| `NormalizedTextRun.bold`                        | profile      | `font-weight: bold\|normal`.                                                                                               |
-| `NormalizedTextRun.italic`                      | profile      | `font-style: italic\|normal`.                                                                                              |
-| `NormalizedTextRun.decoration`                  | profile      | `text-decoration-*`.                                                                                                       |
-| `NormalizedTextDecoration.underline`            | profile      | `underline` in `text-decoration-line`.                                                                                     |
-| `NormalizedTextDecoration.underlineStyle`       | profile      | `text-decoration-style`; `data-underline-style` when `data-double-strike` replaced it with `double`.                       |
-| `NormalizedTextDecoration.underlineColor`       | profile      | `text-decoration-color`.                                                                                                   |
-| `NormalizedTextDecoration.strike`               | profile      | `line-through` in `text-decoration-line`.                                                                                  |
-| `NormalizedTextDecoration.doubleStrike`         | profile      | `data-double-strike` on the run (`text-decoration-style: double` draws it).                                                |
-| `NormalizedTextRun.verticalAlign`               | profile      | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |
-| `NormalizedTextRun.baselineOffset`              | profile      | `position: relative; top: <-offset>px`, omitted at 0.                                                                      |
-| `NormalizedTextRun.characterSpacing`            | profile      | `letter-spacing`, omitted at 0.                                                                                            |
-| `NormalizedTextRun.kerning`                     | profile      | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
-| `NormalizedTextRun.highlight`                   | profile      | `background-color` on the run.                                                                                             |
-| `NormalizedTextRun.outline`                     | profile      | `-webkit-text-stroke: <width>px <color>`.                                                                                  |
-| `NormalizedTextRun.outline.color`               | profile      | Color of `-webkit-text-stroke`.                                                                                            |
-| `NormalizedTextRun.outline.width`               | profile      | Width of `-webkit-text-stroke`, px.                                                                                        |
-| `NormalizedTextRun.glow`                        | profile      | The `text-shadow` entry that `data-text-shadow` names `glow`.                                                              |
-| `NormalizedTextRun.shadow`                      | profile      | The `text-shadow` entry that `data-text-shadow` names `shadow`. A run's own `shadow` option (ignored) never sets it.       |
-| `NormalizedTextRun.language`                    | profile      | `lang`.                                                                                                                    |
-| `NormalizedTextRun.link`                        | profile      | The run is an `a`.                                                                                                         |
-| `NormalizedTextLink.href`                       | profile      | `href`.                                                                                                                    |
-| `NormalizedTextLink.tooltip`                    | profile      | `title`.                                                                                                                   |
-| `NormalizedTextLink.slide`                      | profile      | `data-slide`.                                                                                                              |
-| `NormalizedTextRun.softBreakBefore`             | profile      | `data-soft-break-before` on the run; a `<br>` before it unless it is the first run.                                        |
+| Field                                           | Status  | HTML                                                                                                                       |
+| ----------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `NormalizedTextBox.paragraphs`                  | profile | `div.text-paragraph` children of `.text-content`.                                                                          |
+| `NormalizedTextBox.margin`                      | profile | `padding: <top>px <right>px <bottom>px <left>px` on the box.                                                               |
+| `NormalizedTextBox.verticalAlign`               | profile | `align-items: flex-start\|center\|flex-end`; also `vertical-align` on a table cell's `td`.                                 |
+| `NormalizedTextBox.wrap`                        | profile | `white-space: pre-wrap\|pre` (and `overflow-wrap`).                                                                        |
+| `NormalizedTextBox.fit`                         | profile | `data-text-fit`; a `shrink` box adds its rule, `data-text-fit-step`, `-max-steps` and `-tolerance`.                        |
+| `NormalizedTextBox.direction`                   | profile | `data-text-direction` (plus `writing-mode`/`text-orientation` on `.text-content`).                                         |
+| `NormalizedTextBox.rtl`                         | profile | `direction: rtl\|ltr` on the box.                                                                                          |
+| `NormalizedTextParagraph.runs`                  | profile | `.text-run` children (`span`, or `a` when linked).                                                                         |
+| `NormalizedTextParagraph.align`                 | profile | `text-align`.                                                                                                              |
+| `NormalizedTextParagraph.rtl`                   | profile | `direction: rtl\|ltr` on the paragraph.                                                                                    |
+| `NormalizedTextParagraph.lineBox`               | profile | `line-height` and `data-line-baseline` on the paragraph; the strut and the shift are [workarounds](#renderer-workarounds). |
+| `NormalizedTextParagraph.lineBox.height`        | profile | `line-height: <height>px` on the paragraph.                                                                                |
+| `NormalizedTextParagraph.lineBox.baseline`      | profile | `data-line-baseline` on the paragraph (px from the line top), verbatim; the target decides it (`spacedLineBaseline`).      |
+| `NormalizedTextParagraph.lineBox.markBaseline`  | profile | `data-mark-baseline` on the paragraph (px from the last line's top), verbatim; omitted when absent.                        |
+| `NormalizedTextParagraph.lineBox.breakBaseline` | profile | `data-break-baseline` on the paragraph (px from the top of a line ending in a soft break), verbatim; omitted when absent.  |
+| `NormalizedTextParagraph.spaceBefore`           | profile | `margin-top`; the PowerPoint target adds the previous paragraph's space after, and has `0px` on the first paragraph.       |
+| `NormalizedTextParagraph.spaceAfter`            | profile | `margin-bottom`; `0px` on a box's last paragraph, and on every paragraph with the PowerPoint target, which adds the two.   |
+| `NormalizedTextParagraph.tabStops`              | profile | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                           |
+| `NormalizedTextParagraph.tabStops[].position`   | profile | `<position>` in `data-tab-stops`, px.                                                                                      |
+| `NormalizedTextParagraph.tabStops[].alignment`  | profile | `<alignment>` in `data-tab-stops`.                                                                                         |
+| `NormalizedTextParagraph.defaultTabStop`        | profile | `tab-size: <n>px`.                                                                                                         |
+| `NormalizedTextParagraph.bullet`                | profile | `span.text-bullet` first child and `data-bullet-*`.                                                                        |
+| `NormalizedTextBullet.kind`                     | profile | `data-bullet-type="bullet\|number"`.                                                                                       |
+| `NormalizedTextBullet.marker`                   | profile | `.text-bullet` text, minus the trailing U+00A0.                                                                            |
+| `NormalizedTextBullet.indent`                   | profile | `data-bullet-indent` (px); `padding-left` is it, the marker `width` and minus `text-indent` are `indent / (level + 1)`.    |
+| `NormalizedTextBullet.level`                    | profile | `data-bullet-level`.                                                                                                       |
+| `NormalizedTextBullet.start`                    | profile | `data-bullet-start`; the marker text is already numbered from it.                                                          |
+| `NormalizedTextBullet.numberType`               | profile | `data-bullet-number-type`, the PptxGenJS name (`arabicPeriod`, `romanLcParenR`, …), omitted when unset.                    |
+| `NormalizedTextRun.text`                        | profile | Run text content. An empty run holds U+200B and has `data-empty`; the PowerPoint target's U+2060 is in the model text.     |
+| `NormalizedTextRun.fontFace`                    | profile | `font-family`: only the face, a CSS string (unescape `\\` and `\"`); fallbacks are a [workaround](#renderer-workarounds).  |
+| `NormalizedTextRun.fontSize`                    | profile | `font-size: <n>px` (already the sub/superscript size).                                                                     |
+| `NormalizedTextRun.color`                       | profile | `color`.                                                                                                                   |
+| `NormalizedTextRun.bold`                        | profile | `font-weight: bold\|normal`.                                                                                               |
+| `NormalizedTextRun.italic`                      | profile | `font-style: italic\|normal`.                                                                                              |
+| `NormalizedTextRun.decoration`                  | profile | `text-decoration-*`.                                                                                                       |
+| `NormalizedTextDecoration.underline`            | profile | `underline` in `text-decoration-line`.                                                                                     |
+| `NormalizedTextDecoration.underlineStyle`       | profile | `text-decoration-style`; `data-underline-style` when `data-double-strike` replaced it with `double`.                       |
+| `NormalizedTextDecoration.underlineColor`       | profile | `text-decoration-color`.                                                                                                   |
+| `NormalizedTextDecoration.strike`               | profile | `line-through` in `text-decoration-line`.                                                                                  |
+| `NormalizedTextDecoration.doubleStrike`         | profile | `data-double-strike` on the run (`text-decoration-style: double` draws it).                                                |
+| `NormalizedTextRun.verticalAlign`               | profile | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |
+| `NormalizedTextRun.baselineOffset`              | profile | `position: relative; top: <-offset>px`, omitted at 0.                                                                      |
+| `NormalizedTextRun.characterSpacing`            | profile | `letter-spacing`, omitted at 0.                                                                                            |
+| `NormalizedTextRun.kerning`                     | profile | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
+| `NormalizedTextRun.highlight`                   | profile | `background-color` on the run.                                                                                             |
+| `NormalizedTextRun.outline`                     | profile | `-webkit-text-stroke: <width>px <color>`.                                                                                  |
+| `NormalizedTextRun.outline.color`               | profile | Color of `-webkit-text-stroke`.                                                                                            |
+| `NormalizedTextRun.outline.width`               | profile | Width of `-webkit-text-stroke`, px.                                                                                        |
+| `NormalizedTextRun.glow`                        | profile | The `text-shadow` entry that `data-text-shadow` names `glow`.                                                              |
+| `NormalizedTextRun.shadow`                      | profile | The `text-shadow` entry that `data-text-shadow` names `shadow`. A run's own `shadow` option (ignored) never sets it.       |
+| `NormalizedTextRun.language`                    | profile | `lang`.                                                                                                                    |
+| `NormalizedTextRun.link`                        | profile | The run is an `a`.                                                                                                         |
+| `NormalizedTextLink.href`                       | profile | `href`.                                                                                                                    |
+| `NormalizedTextLink.tooltip`                    | profile | `title`.                                                                                                                   |
+| `NormalizedTextLink.slide`                      | profile | `data-slide`.                                                                                                              |
+| `NormalizedTextRun.softBreakBefore`             | profile | `data-soft-break-before` on the run; a `<br>` before it unless it is the first run.                                        |
 
 ### Shapes
 

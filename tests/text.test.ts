@@ -24,7 +24,7 @@ describe("text normalization", () => {
     // LibreOffice's PPTX line box is font-independent: 1.2em per line, baseline 0.2em above the line
     // bottom, measured for Arial, Carlito and Liberation Serif at 10/18/40pt (defaults.ts).
     test("places lines and baselines on LibreOffice's font-independent line box", () => {
-        const box = (options: Parameters<typeof normalizeText>[1], input: Parameters<typeof normalizeText>[0] = "Text") => paragraphLineBox(normalizeText(input, options).paragraphs[0]!);
+        const box = (options: Parameters<typeof normalizeText>[1], input: Parameters<typeof normalizeText>[0] = "Text") => normalizeText(input, options).paragraphs[0]!.lineBox;
         const close = (actual: { height: number; baseline: number }, height: number, baseline: number) => {
             expect(actual.height).toBeCloseTo(height);
             expect(actual.baseline).toBeCloseTo(baseline);
@@ -32,15 +32,50 @@ describe("text normalization", () => {
         // 18pt default = 24px: 28.8px line, baseline 1.0em below its top.
         close(box({}), 28.8, 24);
         // lineSpacingMultiple scales the 1.2em line; the extra height goes above the baseline.
-        expect(normalizeText("Text", { lineSpacingMultiple: 1.5 }).paragraphs[0]?.lineHeight).toBeCloseTo(1.8);
+        close(box({ lineSpacingMultiple: 1.5 }), 1.8 * 24, 1.8 * 24 - 4.8);
         close(box({ fontSize: 30, lineSpacingMultiple: 1.5 }), 72, 64);
-        // The model carries the box, so every renderer stacks lines the same way.
-        close(normalizeText("Text", { fontSize: 30, lineSpacingMultiple: 1.5 }).paragraphs[0]!.lineBox, 72, 64);
+        // The box without its paragraph: the runs and the spacing, a multiple of the largest font size.
+        close(paragraphLineBox({ runs: normalizeText("Text", { fontSize: 30 }).paragraphs[0]!.runs, spacing: { em: 1.8 } }), 72, 64);
         close(box({ fontSize: 30, lineSpacingMultiple: 0.8 }), 38.4, 30.4);
         // lineSpacing is the exact line height (36pt = 48px); the baseline stays 0.2em above its bottom.
         close(box({ fontSize: 30, lineSpacing: 36 }), 48, 40);
         // Mixed sizes: the largest run sets the line box.
         close(box({ fontSize: 12 }, [{ text: "small" }, { text: "LARGE", options: { fontSize: 24 } }]), 38.4, 32);
+    });
+
+    // #278: lineSpacing and lineSpacingMultiple once shared one number, read as a multiple below 10 and px above, so
+    // small exact spacings and large multiples swapped units. The oracle is the <a:lnSpc> PptxGenJS 4.0.1 writes:
+    // <a:spcPts> in hundredths of a point, or <a:spcPct> in thousandths of a percent of the single line (1.2em).
+    test("keeps lineSpacing in points and lineSpacingMultiple a multiple, whatever their size", async () => {
+        const written = async (options: PptxGenJS.TextPropsOptions): Promise<string> => {
+            const pptx = new PptxGenJSRuntime();
+            pptx.addSlide().addText("Text", { x: 1, y: 1, w: 4, h: 2, ...options });
+            // `as`: write() returns a Buffer for the nodebuffer output type.
+            const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+            return (await zip.file("ppt/slides/slide1.xml")?.async("string"))?.match(/<a:lnSpc>(.*?)<\/a:lnSpc>/)?.[1] ?? "";
+        };
+        // The line height in points, as LibreOffice and PowerPoint (which rounds spcPts to whole points) read it.
+        const single = 18 * PPTX_DEFAULTS.text.singleLineEm;
+        const cases: ReadonlyArray<[PptxGenJS.TextPropsOptions, string, { libreoffice: number; powerpoint: number }]> = [
+            [{ lineSpacing: 6 }, '<a:spcPts val="600"/>', { libreoffice: 6, powerpoint: 6 }],
+            [{ lineSpacing: 0.9 }, '<a:spcPts val="90"/>', { libreoffice: 0.9, powerpoint: 1 }],
+            [{ lineSpacing: 36 }, '<a:spcPts val="3600"/>', { libreoffice: 36, powerpoint: 36 }],
+            [{ lineSpacingMultiple: 9 }, '<a:spcPct val="900000"/>', { libreoffice: 9 * single, powerpoint: 9 * single }],
+            [{ lineSpacingMultiple: 8.34 }, '<a:spcPct val="834000"/>', { libreoffice: 8.34 * single, powerpoint: 8.34 * single }],
+            [{ lineSpacingMultiple: 1.5 }, '<a:spcPct val="150000"/>', { libreoffice: 1.5 * single, powerpoint: 1.5 * single }],
+        ];
+        for (const [options, xml, heights] of cases) {
+            expect({ options, xml: await written({ fontSize: 18, ...options }) }).toEqual({ options, xml });
+            for (const target of ["libreoffice", "powerpoint"] as const) {
+                const lineBox = normalizeText("Text", { fontSize: 18, ...options }, target).paragraphs[0]?.lineBox;
+                expect({ options, target, height: lineBox?.height }).toEqual({ options, target, height: expect.closeTo(pointsToPixels(heights[target]), 9) });
+                // Explicit spacing puts the baseline 0.2em above the line bottom (or the target's spacedLineBaseline).
+                expect(lineBox?.markBaseline).toBeUndefined();
+            }
+        }
+        // A 0 writes no <a:lnSpc>: single spacing.
+        expect(await written({ fontSize: 18, lineSpacing: 0, lineSpacingMultiple: 0 })).toBe("");
+        expect(normalizeText("Text", { fontSize: 18, lineSpacing: 0, lineSpacingMultiple: 0 }).paragraphs[0]?.lineBox).toEqual(normalizeText("Text", { fontSize: 18 }).paragraphs[0]!.lineBox);
     });
 
     // A run ending with line feeds keeps them inside its <a:t>; measured against PowerPoint's PDF export of synthetic decks
@@ -163,7 +198,7 @@ describe("text normalization", () => {
         expect(text.margin).toEqual([(4 * 96) / 72, (2 * 96) / 72, (3 * 96) / 72, (1 * 96) / 72]);
         expect(text.direction).toBe("stacked");
         expect(text.rtl).toBe(true);
-        expect(text.paragraphs[0]?.lineHeight).toBe(32);
+        expect(text.paragraphs[0]?.lineBox.height).toBe(32);
         expect(text.paragraphs[0]?.spaceBefore).toBe(8);
         // The last paragraph's space after is left out of the text height (PowerPoint, LibreOffice).
         expect(text.paragraphs[0]?.spaceAfter).toBe(0);
@@ -621,7 +656,7 @@ describe("options PptxGenJS 4.0.1 has written once", () => {
         expect(normalizeText("Text", { fontSize: 12, ...unset }).paragraphs[0]).toEqual(single!);
         expect(normalizeText([{ text: "Text", options: unset }], { fontSize: 12 }).paragraphs[0]).toEqual(single!);
         // A null run value inherits the box's, as PptxGenJS's `run.lineSpacing || box.lineSpacing` does.
-        expect(normalizeText([{ text: "Text", options: unset }], { fontSize: 12, lineSpacing: 20 }).paragraphs[0]?.lineHeight).toBeCloseTo(pointsToPixels(20));
+        expect(normalizeText([{ text: "Text", options: unset }], { fontSize: 12, lineSpacing: 20 }).paragraphs[0]?.lineBox.height).toBeCloseTo(pointsToPixels(20));
         for (const target of ["libreoffice", "powerpoint"] as const) {
             expect(normalizeText("Text", { fontSize: 12, ...unset }, target).paragraphs[0]?.lineBox).toEqual(normalizeText("Text", { fontSize: 12 }, target).paragraphs[0]!.lineBox);
         }
