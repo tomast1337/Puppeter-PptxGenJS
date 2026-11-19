@@ -1,7 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
-import type { NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdflapas/model";
-import { colorToCSS } from "#src/color";
+import type { CssColor, NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdflapas/model";
+import { colorToCSS, TRANSPARENT } from "#src/color";
 import { millimetersToPixels, pointsToPixels } from "#src/units";
 
 type ColorValue = string | { color?: string; transparency?: number; alpha?: number; type?: string };
@@ -25,8 +25,8 @@ function resolveSchemeColor(color: string): string {
 }
 
 /** Throws on a color that is neither 6-digit hex nor a scheme color (see colorToCSS). */
-export function normalizeColor(value?: ColorValue, fallback = "transparent"): string {
-    if (!value) return fallback;
+export function normalizeColor(value?: ColorValue): CssColor {
+    if (!value) return TRANSPARENT;
     if (typeof value === "string") {
         return colorToCSS(resolveSchemeColor(value));
     }
@@ -36,7 +36,7 @@ export function normalizeColor(value?: ColorValue, fallback = "transparent"): st
 
 export function normalizeFill(value?: ColorValue): NormalizedFill {
     if (!value || (typeof value === "object" && value.type === "none")) {
-        return { visible: false, color: "transparent" };
+        return { visible: false, color: TRANSPARENT };
     }
     return { visible: true, color: normalizeColor(value) };
 }
@@ -150,7 +150,7 @@ export function shaftDashes(pattern: readonly number[], start: number, end: numb
  */
 export function normalizeLine(value?: PptxGenJS.ShapeLineProps, straightLength?: number): NormalizedLine {
     if (!value || value.type === "none") {
-        return { visible: false, color: "transparent", width: 0, style: "solid" };
+        return { visible: false, color: TRANSPARENT, width: 0, style: "solid" };
     }
     const dash = value.dashType ?? "solid";
     const width = pointsToPixels(value.width ?? PPTX_DEFAULTS.shape.line.widthPt);
@@ -174,7 +174,7 @@ export function normalizeLine(value?: PptxGenJS.ShapeLineProps, straightLength?:
 
 export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow {
     if (!value || value.type === "none") {
-        return { visible: false, color: "transparent", blur: 0, offsetX: 0, offsetY: 0, inset: false };
+        return { visible: false, color: TRANSPARENT, blur: 0, offsetX: 0, offsetY: 0, inset: false };
     }
     // `||`, not `??`: PptxGenJS replaces 0 with the default too (see the defaults).
     const defaults = PPTX_DEFAULTS.shadow.objectWhenEnabled;

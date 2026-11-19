@@ -1,3 +1,12 @@
+declare const color: unique symbol;
+
+/**
+ * A color that is safe to write into CSS or SVG as is. Only the PptxGenJS color normalizer (`colorToCSS`) makes one,
+ * in exactly these forms: `#RRGGBB` (the caller's six hex digits, case kept), `rgba(r, g, b, a)` (channels 0 to 255,
+ * alpha in 0 to 1, below 1) for a color with transparency, or `transparent`. Type-only: the JSON holds a plain string.
+ */
+export type CssColor = string & { readonly [color]: "css-color" };
+
 export interface PageSize {
     width: number; // in inches
     height: number; // in inches
@@ -25,12 +34,12 @@ export interface NormalizedGeometry {
 
 export interface NormalizedFill {
     visible: boolean;
-    color: string;
+    color: CssColor;
 }
 
 export interface NormalizedLine {
     visible: boolean;
-    color: string;
+    color: CssColor;
     width: number;
     style: "solid" | "dashed" | "dotted";
     dashArray?: string;
@@ -43,7 +52,7 @@ export interface NormalizedLine {
 
 export interface NormalizedShadow {
     visible: boolean;
-    color: string;
+    color: CssColor;
     blur: number;
     offsetX: number;
     offsetY: number;
@@ -71,7 +80,7 @@ export type NormalizedTextDirection = "horizontal" | "vertical" | "vertical270" 
 export interface NormalizedTextDecoration {
     underline: boolean;
     underlineStyle: "solid" | "double" | "dashed" | "dotted" | "wavy";
-    underlineColor?: string;
+    underlineColor?: CssColor;
     strike: boolean;
     doubleStrike: boolean;
 }
@@ -86,7 +95,7 @@ export interface NormalizedTextRun {
     text: string;
     fontFace: string;
     fontSize: number;
-    color: string;
+    color: CssColor;
     bold: boolean;
     italic: boolean;
     decoration: NormalizedTextDecoration;
@@ -98,8 +107,8 @@ export interface NormalizedTextRun {
     characterSpacing: number;
     /** `false`: drawn without the font's pair kerning (PowerPoint, below the run's `kern` size); omitted: kerned. */
     kerning?: false;
-    highlight?: string;
-    outline?: { color: string; width: number };
+    highlight?: CssColor;
+    outline?: { color: CssColor; width: number };
     glow?: NormalizedShadow;
     shadow?: NormalizedShadow;
     language: string;
@@ -149,7 +158,7 @@ export interface NormalizedTextBox {
 
 export interface NormalizedTableBorder {
     visible: boolean;
-    color: string;
+    color: CssColor;
     width: number;
     style: "solid" | "dashed";
     /** SVG stroke-dasharray in px for a dashed border, resolved from the DrawingML preset dash. */
@@ -245,11 +254,11 @@ export interface NormalizedChartValueAxis {
     hidden: boolean;
     showTitle: boolean;
     title: string;
-    titleColor: string;
+    titleColor: CssColor;
     titleFontFace: string;
     titleFontSize: number;
     titleRotate?: number;
-    labelColor: string;
+    labelColor: CssColor;
     labelFontFace: string;
     labelFontSize: number;
     labelBold: boolean;
@@ -257,7 +266,7 @@ export interface NormalizedChartValueAxis {
     labelRotate: number;
     labelPosition: "none" | "low" | "high" | "nextTo";
     labelFormatCode: string;
-    lineColor: string;
+    lineColor: CssColor;
     lineWidth: number;
     lineStyle: "solid" | "dash" | "dot";
     lineVisible: boolean;
@@ -265,7 +274,7 @@ export interface NormalizedChartValueAxis {
     minorTickMark: "none" | "inside" | "outside" | "cross";
     majorUnit?: number;
     logScaleBase?: number;
-    gridLineColor: string;
+    gridLineColor: CssColor;
     gridLineWidth: number;
     gridLineStyle: "solid" | "dash" | "dot" | "none";
     gridLineCap: "flat" | "round" | "square";
@@ -274,7 +283,7 @@ export interface NormalizedChartValueAxis {
 export interface NormalizedChart {
     type: NormalizedChartType;
     series: NormalizedChartSeries[];
-    colors: string[];
+    colors: CssColor[];
     colorOpacity: number;
     showLegend: boolean;
     legendPosition: "b" | "l" | "r" | "t" | "tr";
@@ -285,10 +294,10 @@ export interface NormalizedChart {
     titleFontFace: string;
     titleFontSize: number;
     titleBold: boolean;
-    titleColor: string;
+    titleColor: CssColor;
     legendFontFace: string;
     legendFontSize: number;
-    legendColor: string;
+    legendColor: CssColor;
     barDirection: "bar" | "col";
     grouping: "clustered" | "stacked" | "percentStacked" | "standard";
     barGapWidthPercent: number;
@@ -298,7 +307,7 @@ export interface NormalizedChart {
     rightAngleAxes3D: boolean;
     rotationX3D: number;
     rotationY3D: number;
-    gridLineColor: string;
+    gridLineColor: CssColor;
     gridLineWidth: number;
     axisLineVisible: boolean;
     categoryMajorTickMark: "none" | "inside" | "outside" | "cross";
@@ -333,8 +342,8 @@ export type NormalizedSlideObject =
 
 export interface NormalizedSlide {
     /** CSS colors, as applied to the slide container. */
-    background: string;
-    color: string;
+    background: CssColor;
+    color: CssColor;
     /** Left out of the HTML and the PDF; the other slides keep their number. */
     hidden: boolean;
     /**

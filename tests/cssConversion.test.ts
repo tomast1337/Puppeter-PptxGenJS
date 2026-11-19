@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { NormalizedFill } from "../packages/model/src/types";
 import { alignToCSS, valignToCSS } from "../packages/pptxgenjs/src/alignment";
 import { colorToCSS } from "../packages/pptxgenjs/src/color";
 import { convertToPixels, inchesToPixels, percentageToPixels, pointsToPixels } from "../packages/pptxgenjs/src/units";
@@ -18,12 +19,12 @@ describe("measurement conversion", () => {
 
 describe("style conversion", () => {
     test("supports PptxGenJS hex and fill objects", () => {
-        expect(colorToCSS("4472C4")).toBe("#4472C4");
-        expect(colorToCSS("FFFFFF")).toBe("#FFFFFF");
-        expect(colorToCSS("#4472c4")).toBe("#4472c4");
-        expect(colorToCSS({ color: "4472C4" })).toBe("#4472C4");
-        expect(colorToCSS({ color: "FF0000", transparency: 25 })).toBe("rgba(255, 0, 0, 0.75)");
-        expect(colorToCSS({ color: "#FF0000", transparency: 25 })).toBe("rgba(255, 0, 0, 0.75)");
+        expect<string>(colorToCSS("4472C4")).toBe("#4472C4");
+        expect<string>(colorToCSS("FFFFFF")).toBe("#FFFFFF");
+        expect<string>(colorToCSS("#4472c4")).toBe("#4472c4");
+        expect<string>(colorToCSS({ color: "4472C4" })).toBe("#4472C4");
+        expect<string>(colorToCSS({ color: "FF0000", transparency: 25 })).toBe("rgba(255, 0, 0, 0.75)");
+        expect<string>(colorToCSS({ color: "#FF0000", transparency: 25 })).toBe("rgba(255, 0, 0, 0.75)");
     });
 
     // The result is written into inline CSS and SVG attributes (#148); PptxGenJS 4.0.1 accepts only 6-digit hex here.
@@ -32,6 +33,15 @@ describe("style conversion", () => {
             expect(() => colorToCSS(color)).toThrow(`color ${JSON.stringify(color)} is not a valid color: use a 6-digit hex RGB value`);
             expect(() => colorToCSS({ color })).toThrow("is not a valid color");
         }
+    });
+
+    // A model color is written into CSS and SVG unchecked, so only colorToCSS may make one; typecheck enforces it.
+    test("types a model color as a CssColor", () => {
+        const fill: NormalizedFill = { visible: true, color: colorToCSS("FF0000") };
+        // @ts-expect-error a plain string is not a CssColor: it has not been through colorToCSS.
+        const raw: NormalizedFill = { visible: true, color: "red; background: url(http://x)" };
+        expect<string>(fill.color).toBe("#FF0000");
+        expect(raw.visible).toBe(true);
     });
 
     test("maps text alignment", () => {

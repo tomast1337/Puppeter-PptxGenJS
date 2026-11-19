@@ -1,4 +1,5 @@
-import type { NormalizedObjectStyle, NormalizedShape } from "@pdflapas/model";
+import type { CssColor, NormalizedObjectStyle, NormalizedShape } from "@pdflapas/model";
+import { HEX_COLOR } from "#src/color";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element } from "./markup";
@@ -6,13 +7,12 @@ import { applyGeometry, applyTransform, lineArrowAttributes, shadowInsetAttribut
 
 type ColorModifier = "darken" | "darkenLess" | "lighten" | "lightenLess";
 
-const HEX_COLOR = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i;
 const RGB_COLOR = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i;
 const MARKER_ID_DOTS = /\./g;
 const MARKER_ID_MINUS = /-/g;
 const MARKER_ID_OTHER = /\W/g;
 
-function modifyColor(color: string, modifier: ColorModifier): string {
+function modifyColor(color: CssColor | "none", modifier: ColorModifier): string {
     const factor = PPTX_DEFAULTS.shape.faceShading[modifier];
     const transform = (value: number) => Math.floor(modifier === "lighten" || modifier === "lightenLess" ? value + (255 - value) * factor : value * (1 - factor));
     const hex = color.match(HEX_COLOR);
@@ -77,7 +77,7 @@ function strokeAttributes(style: NormalizedObjectStyle): { attributes: Attribute
 }
 
 /** The drawn geometry; `stroke` goes on the element that draws the outline. */
-function geometryElement(shape: NormalizedShape, fill: string, stroke: readonly Attribute[]): string {
+function geometryElement(shape: NormalizedShape, fill: CssColor | "none", stroke: readonly Attribute[]): string {
     const geometry = shape.geometry;
     const painted: Attribute[] = [["class", "shape-geometry"], ["fill", fill], ...stroke];
     if (geometry.kind === "rect") {

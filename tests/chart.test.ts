@@ -21,7 +21,7 @@ describe("chart normalization and rendering", () => {
         });
 
         expect(chart.type).toBe("bar");
-        expect(chart.colors).toEqual(["#4472C4", "#ED7D31"]);
+        expect<string[]>(chart.colors).toEqual(["#4472C4", "#ED7D31"]);
         expect(chart.grouping).toBe("stacked");
         expect(chart.legendPosition).toBe("b");
         expect(chart.series.map(series => series.name)).toEqual(["First", "Second"]);
