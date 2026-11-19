@@ -1,5 +1,5 @@
 import type { CssColor, NormalizedObjectStyle, NormalizedShape } from "@pdflapas/model";
-import { HEX_COLOR } from "#src/color";
+import { cssColorParts } from "#src/color";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, type Html } from "./markup";
@@ -7,23 +7,26 @@ import { applyGeometry, applyTransform, lineArrowAttributes, shadowInsetAttribut
 
 type ColorModifier = "darken" | "darkenLess" | "lighten" | "lightenLess";
 
-const RGB_COLOR = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i;
 const MARKER_ID_DOTS = /\./g;
 const MARKER_ID_MINUS = /-/g;
 const MARKER_ID_OTHER = /\W/g;
 
 function modifyColor(color: CssColor | "none", modifier: ColorModifier): string {
+    // No fill and a transparent one have no color to shade.
+    if (color === "none") return color;
     const factor = PPTX_DEFAULTS.shape.faceShading[modifier];
     const transform = (value: number) => Math.floor(modifier === "lighten" || modifier === "lightenLess" ? value + (255 - value) * factor : value * (1 - factor));
-    const hex = color.match(HEX_COLOR);
-    if (hex) {
-        const channel = (value: string) => transform(parseInt(value, 16)).toString(16).padStart(2, "0");
-        return `#${hex.slice(1, 4).map(channel).join("")}`;
+    const parts = cssColorParts(color);
+    switch (parts.form) {
+        case "transparent":
+            return color;
+        case "hex":
+            return `#${parts.channels.map(value => transform(value).toString(16).padStart(2, "0")).join("")}`;
+        case "rgba":
+            return `rgba(${parts.channels.map(transform).join(", ")}, ${parts.alpha})`;
+        default:
+            return parts satisfies never;
     }
-    const rgb = color.match(RGB_COLOR);
-    if (!rgb) return color;
-    const channels = [rgb[1], rgb[2], rgb[3]].map(value => transform(Number(value)));
-    return rgb[4] === undefined ? `rgb(${channels.join(", ")})` : `rgba(${channels.join(", ")}, ${rgb[4]})`;
 }
 
 /**

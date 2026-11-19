@@ -37,3 +37,22 @@ export function colorToCSS(value?: string | ColorProps): CssColor {
     const alpha = Math.max(0, Math.min(1, 1 - transparency / 100));
     return cssColor(`rgba(${parseInt(red, 16)}, ${parseInt(green, 16)}, ${parseInt(blue, 16)}, ${alpha})`);
 }
+
+// The rgba() colorToCSS writes; the alpha is a JavaScript number string, which can take an exponent (1e-7).
+const RGBA_COLOR = /^rgba\((\d+), (\d+), (\d+), ([^)]+)\)$/;
+
+/** A CssColor split back into the form colorToCSS made: a `switch` over `form` with a `never` default is exhaustive. */
+export type CssColorParts = { readonly form: "hex"; readonly channels: readonly number[] } | { readonly form: "rgba"; readonly channels: readonly number[]; readonly alpha: string } | { readonly form: "transparent" };
+
+/**
+ * Parses a CssColor in each form colorToCSS makes. Anything else can only come from model JSON another producer
+ * built without colorToCSS, so it throws rather than draw the color unchanged (#285).
+ */
+export function cssColorParts(color: CssColor): CssColorParts {
+    if (color === TRANSPARENT) return { form: "transparent" };
+    const hex = HEX_COLOR.exec(color);
+    if (hex) return { form: "hex", channels: hex.slice(1, 4).map(channel => parseInt(channel, 16)) };
+    const rgba = RGBA_COLOR.exec(color);
+    if (rgba) return { form: "rgba", channels: rgba.slice(1, 4).map(Number), alpha: rgba[4] ?? "" };
+    throw new Error(`color ${JSON.stringify(color)} is not a CssColor: colorToCSS makes only #RRGGBB, rgba(r, g, b, a) and transparent, so build model colors with it`);
+}
