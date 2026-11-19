@@ -3,6 +3,7 @@ import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, 
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "#src/units";
+import { advanceGridSpacing } from "./advanceGrid";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { normalizeColor, normalizeShadow } from "./style";
@@ -105,6 +106,18 @@ function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fo
     return fontMetrics(options.fontFace ?? PPTX_DEFAULTS.text.fontFace)?.pairKerning !== false;
 }
 
+/**
+ * The letter-spacing in points that puts a run's advances on the target's grid (advanceGridSpacing) at the size it is
+ * drawn at, reduced when `escaped`; 0 when the target has none or the run's face, weight and style have no advances.
+ */
+function gridSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: boolean, target: RenderingTarget, fontMetrics: FontMetricsLookup): number {
+    const { advanceGridPt, escapementSizeRatio } = RENDERING_TARGETS[target];
+    if (advanceGridPt === undefined) return 0;
+    const sizePt = (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) * (escaped ? escapementSizeRatio : 1);
+    const font = fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
+    return advanceGridSpacing(text, sizePt, font, advanceGridPt);
+}
+
 /** A run's font size in px, before any superscript or subscript reduction. */
 function runFontSize(options: PptxGenJS.TextPropsOptions): number {
     return pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt);
@@ -138,7 +151,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         },
         verticalAlign: getVerticalAlign(options),
         baselineOffset: escapement === undefined ? pointsToPixels(baseline / 100) : escapement * fontSize,
-        characterSpacing: pointsToPixels(options.charSpacing ?? 0),
+        characterSpacing: pointsToPixels((options.charSpacing ?? 0) + gridSpacing(text, options, escapement !== undefined, target, fontMetrics)),
         ...(kerned(options, target, fontMetrics) ? {} : { kerning: false as const }),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
         outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(options.outline.size) } : undefined,

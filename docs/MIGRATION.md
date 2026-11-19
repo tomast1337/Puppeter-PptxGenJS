@@ -93,7 +93,9 @@ const pres = new PuppeteerGenPowerPoint(); // or new pptxgen(undefined, { target
   descent, read on Node from the installed font as PowerPoint does, else from the `fontMetrics` option or
   `FONT_WIN_METRICS` in `defaults.ts` (Arial, Calibri, Cambria, Courier New, Times New Roman); see
   [USAGE.md](./USAGE.md), which also shows how to keep the HTML independent of the installed fonts.
-  LibreOffice puts it 1em below the line top whatever the font.
+  LibreOffice puts it 1em below the line top whatever the font. PowerPoint lays text out with each glyph's
+  advance rounded to 0.125pt; the PowerPoint target does too, from the advances of the installed font on
+  Node (`resolveGlyphAdvances` in USAGE.md), as a run's `letter-spacing`.
 
 Both targets leave a text box's last paragraph's space after out of the height that middle and
 bottom anchoring centre, as PowerPoint and LibreOffice do. The target is written into the HTML

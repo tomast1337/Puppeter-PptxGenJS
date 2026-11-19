@@ -3,7 +3,7 @@ import { UnsupportedChartError } from "./chart/errors";
 import { API_COMPATIBILITY, CHART_TYPE_COMPATIBILITY, COMPATIBILITY, SHAPE_GEOMETRY_COMPATIBILITY } from "./compatibility";
 import { parseComponentProps } from "./components/schema";
 import { PPTX_DEFAULTS, PPTX_DEFAULTS_VERSION } from "./defaults";
-import { FontFileError, readFontWinMetrics } from "./fontMetrics";
+import { FontFileError, readFontWinMetrics, readGlyphAdvances } from "./fontMetrics";
 import { tableMarginToCSS, textMarginToCSS } from "./normalize/margin";
 import { PuppeteerGen } from "./PuppeteerGen";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
@@ -44,6 +44,8 @@ export {
     percentageToPixels,
     // Reads a font file's metrics for the `fontMetrics` option (#249).
     readFontWinMetrics,
+    // Reads a font file's advance widths for the `resolveGlyphAdvances` option (the PowerPoint advance grid).
+    readGlyphAdvances,
     pointsToPixels,
     SHAPE_GEOMETRY_COMPATIBILITY,
     tableMarginToCSS,
@@ -58,7 +60,7 @@ export type { UnsupportedChartDetails, UnsupportedChartReason } from "./chart/er
 export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 export type { ApiEntry, ApiStatus, CompatibilityEntry, CompatibilityStatus } from "./compatibility";
 export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
-export type { FontWinMetrics, FourSideMargin, RenderingTarget } from "./defaults";
+export type { FontWinMetrics, FourSideMargin, GlyphAdvances, RenderingTarget } from "./defaults";
 export type { NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdflapas/model";
 export type { ImageSourceOptions } from "./normalize/image";
 export type { PuppeteerGenOptions } from "./PuppeteerGen";

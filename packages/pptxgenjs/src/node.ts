@@ -1,4 +1,4 @@
-// Node runtime adapters: jsdom, filesystem image paths, installed font metrics, Puppeteer PDF output and file writes.
+// Node runtime adapters: jsdom, filesystem image paths, installed font metrics and advances, Puppeteer PDF output and file writes.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { type FileHandle, open, realpath, writeFile } from "node:fs/promises";
@@ -6,8 +6,8 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PuppeteerPdfRenderer } from "@pdflapas/puppeteer";
 import { JSDOM } from "jsdom";
-import type { FontWinMetrics } from "./defaults";
-import { readFontWinMetrics } from "./fontMetrics";
+import type { FontWinMetrics, GlyphAdvances } from "./defaults";
+import { readFontWinMetrics, readGlyphAdvances } from "./fontMetrics";
 import { dataUri, IMAGE_SOURCE_LIMITS, type ImageSourceOptions, imageResolver, imageTooLargeError, MIME_TYPES, resolveRemoteImageSource } from "./normalize/image";
 import { resolveFileName } from "./output";
 import type { PageSize } from "./pageLayouts";
@@ -83,11 +83,21 @@ const FC_PATTERN_SPECIAL = /[\\\-:,]/g;
  */
 const installedFontMetrics = new Map<string, FontWinMetrics | undefined>();
 
-/** The font fontconfig resolves `fontFace` to, when its family is `fontFace` itself (not a substitute); undefined otherwise. */
-function installedFontFile(fontFace: string): { file: string; index: number } | undefined {
+/**
+ * Installed fonts' advances by weight, style and lower-case face name, undefined when the face is not installed. Global
+ * for the reasons installedFontMetrics is, owned by resolveInstalledGlyphAdvances(); never released (one entry of a few
+ * thousand advances per face, weight and style the process has used).
+ */
+const installedGlyphAdvances = new Map<string, GlyphAdvances | undefined>();
+
+/**
+ * The font fontconfig resolves `fontFace` to, in the weight and style `properties` asks for (`:bold:italic`), when its
+ * family is `fontFace` itself (not a substitute); undefined otherwise.
+ */
+function installedFontFile(fontFace: string, properties = ""): { file: string; index: number } | undefined {
     let output: string;
     try {
-        output = execFileSync("fc-match", ["-f", FC_MATCH_FORMAT, fontFace.replace(FC_PATTERN_SPECIAL, "\\$&")], { encoding: "utf8", timeout: FC_MATCH_TIMEOUT_MS, stdio: ["ignore", "pipe", "ignore"] });
+        output = execFileSync("fc-match", ["-f", FC_MATCH_FORMAT, `${fontFace.replace(FC_PATTERN_SPECIAL, "\\$&")}${properties}`], { encoding: "utf8", timeout: FC_MATCH_TIMEOUT_MS, stdio: ["ignore", "pipe", "ignore"] });
     } catch {
         return undefined; // No fontconfig (macOS and Windows without it) or it failed: FONT_WIN_METRICS applies.
     }
@@ -119,6 +129,28 @@ export function resolveInstalledFontMetrics(fontFace: string): FontWinMetrics | 
     return metrics;
 }
 
+/**
+ * The default `resolveGlyphAdvances` of the Node entry: the advances of the font fontconfig resolves `fontFace` to in
+ * that weight and style, the font Chromium draws it with on Linux. Undefined when fontconfig is missing or has no font
+ * of that family, or the font file cannot be read (with a warning). Cached per process.
+ */
+export function resolveInstalledGlyphAdvances(fontFace: string, bold: boolean, italic: boolean): GlyphAdvances | undefined {
+    const properties = `${bold ? ":bold" : ""}${italic ? ":italic" : ""}`;
+    const key = `${properties}:${fontFace.toLowerCase()}`;
+    if (installedGlyphAdvances.has(key)) return installedGlyphAdvances.get(key);
+    const font = installedFontFile(fontFace, properties);
+    let advances: GlyphAdvances | undefined;
+    if (font) {
+        try {
+            advances = readGlyphAdvances(readFileSync(font.file), font.index);
+        } catch (error) {
+            console.warn(`PdfLapas: cannot read the advances of ${JSON.stringify(fontFace)}${properties} from ${font.file} (${error instanceof Error ? error.message : String(error)}); the PowerPoint target keeps its natural advances.`);
+        }
+    }
+    installedGlyphAdvances.set(key, advances);
+    return advances;
+}
+
 export class PuppeteerGen extends CorePuppeteerGen {
     constructor(pageSize?: PageSize, options: PuppeteerGenOptions = {}) {
         const { imageSources: _applied, ...rest } = options;
@@ -128,6 +160,7 @@ export class PuppeteerGen extends CorePuppeteerGen {
             resolveImage: imageResolver(options, resolveImageSource),
             createDocument: options.createDocument ?? createNodeDocument,
             resolveFontMetrics: options.resolveFontMetrics === undefined ? resolveInstalledFontMetrics : options.resolveFontMetrics,
+            resolveGlyphAdvances: options.resolveGlyphAdvances === undefined ? resolveInstalledGlyphAdvances : options.resolveGlyphAdvances,
         });
     }
 

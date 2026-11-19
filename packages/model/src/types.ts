@@ -94,6 +94,7 @@ export interface NormalizedTextRun {
     verticalAlign: "baseline" | "sub" | "super";
     /** Baseline shift in px, positive up. */
     baselineOffset: number;
+    /** Extra advance after each character in px: `charSpacing`, plus on the PowerPoint target its advance grid's rounding. */
     characterSpacing: number;
     /** `false`: drawn without the font's pair kerning (PowerPoint, below the run's `kern` size); omitted: kerned. */
     kerning?: false;

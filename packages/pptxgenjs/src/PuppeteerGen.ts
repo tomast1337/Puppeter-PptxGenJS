@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import type { NormalizedPresentation, PresentationMetadata } from "@pdflapas/model";
 import { ComponentRegistry } from "./components/registry";
 import type { ComponentDefinition, ComponentProps } from "./components/types";
-import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, PPTX_DEFAULTS, PPTXGENJS_VERSION, RENDERING_TARGETS, type RenderingTarget } from "./defaults";
+import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, type GlyphAdvances, PPTX_DEFAULTS, PPTXGENJS_VERSION, RENDERING_TARGETS, type RenderingTarget } from "./defaults";
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import { type ImageSourceOptions, imageResolver, resolveRemoteImageSource } from "./normalize/image";
 import { fontMetricsLookup } from "./fontMetrics";
@@ -71,6 +71,14 @@ export interface PuppeteerGenOptions {
      * (fontconfig); `null` turns the lookup off, so the HTML does not depend on the machine's fonts.
      */
     resolveFontMetrics?: ((fontFace: string) => FontWinMetrics | undefined) | null;
+    /**
+     * Looks up the advance widths of a face in a weight and style for the PowerPoint target, which lays text out with
+     * each advance rounded to 0.125pt (RENDERING_TARGETS.powerpoint.advanceGridPt): `readGlyphAdvances(bytes)` of the
+     * font, or undefined to keep the natural advances. Called at most once per face, weight and style per presentation,
+     * never for the LibreOffice target; its result is checked. The Node entry reads the installed font by default
+     * (fontconfig); `null`, or no resolver in the browser build, keeps every face's natural advances.
+     */
+    resolveGlyphAdvances?: ((fontFace: string, bold: boolean, italic: boolean) => GlyphAdvances | undefined) | null;
 }
 
 /** The constructor's `target`, checked: a misspelled one would otherwise render silently for the default. */
@@ -121,7 +129,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.resolveImage = imageResolver(options, resolveRemoteImageSource);
         this.createDocument = options.createDocument ?? createBrowserDocument;
         this.target = renderingTarget(options.target);
-        this.fontMetrics = fontMetricsLookup(options.fontMetrics, options.resolveFontMetrics);
+        this.fontMetrics = fontMetricsLookup(options.fontMetrics, options.resolveFontMetrics, options.resolveGlyphAdvances);
         this.componentDocument = lazyDocument(this.createDocument);
     }
 

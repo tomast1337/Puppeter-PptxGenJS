@@ -420,6 +420,31 @@ without fontconfig every face falls through to `FONT_WIN_METRICS`. A font file i
 WOFF) is skipped with a `console.warn` naming the face and file, and the face falls through the same way.
 The `@pdflapas/pptxgenjs/html` entry has no default resolver.
 
+**Glyph advances for the PowerPoint target.** PowerPoint lays text out with each glyph's advance rounded to
+0.125pt, so a long line can be up to about 0.5% wider or narrower than the font's natural advances and
+break elsewhere. The PowerPoint target adds that rounding to each run's `letter-spacing`, from the advance
+widths of the font the run's face, weight and style resolve to. `options.resolveGlyphAdvances(face, bold,
+italic)` finds them: by default on Node the installed font fontconfig matches (when its family is the face),
+read with `readGlyphAdvances(bytes, faceIndex = 0)`, which is browser-safe and throws `FontFileError` on a
+font it cannot read. It is called at most once per face, weight and style per presentation, never for the
+LibreOffice target; a result that is not `{ unitsPerEm, advances: Map<codePoint, fontUnits> }` throws a
+`TypeError` naming the face. A face it returns `undefined` for, every face with `resolveGlyphAdvances: null`,
+and every face in the `@pdflapas/pptxgenjs/html` entry without a resolver keep their natural advances:
+
+```typescript
+import { readFileSync } from "node:fs";
+import { PuppeteerGenPowerPoint, readGlyphAdvances } from "@pdflapas/pptxgenjs";
+
+const brand = readGlyphAdvances(readFileSync("fonts/MyBrandSans-Regular.ttf"));
+const pres = new PuppeteerGenPowerPoint(undefined, {
+    // Only the regular face here: bold and italic runs keep their natural advances.
+    resolveGlyphAdvances: (face, bold, italic) => (face === "My Brand Sans" && !bold && !italic ? brand : undefined),
+});
+```
+
+Like `resolveFontMetrics`, the default makes the PowerPoint target's HTML depend on the installed fonts;
+pass `resolveGlyphAdvances: null` too when it must be identical across machines.
+
 **Determinism.** With the default resolver, the PowerPoint target's `toHtml()` and `getModel()` depend on
 the fonts installed where they run, as the PDF already does: the same deck gives the same bytes on machines
 with the same fonts. Pass `resolveFontMetrics: null` (with `fontMetrics` for the faces you need) when the
