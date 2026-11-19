@@ -85,8 +85,43 @@ describe("text normalization", () => {
         expect(sup!.baselineOffset).toBeCloseTo(12);
         expect(sub!.fontSize).toBeCloseTo(40 * 0.58);
         expect(sub!.baselineOffset).toBeCloseTo(-16);
-        // A custom baseline wins and keeps the run's size.
-        expect(custom!.fontSize).toBe(40);
+        // A custom baseline wins: baseline="1000", 1% of 40px, at the escapement size.
+        expect(custom!.fontSize).toBeCloseTo(40 * 0.58);
+        expect(custom!.baselineOffset).toBeCloseTo(0.4);
+    });
+
+    // #279: PptxGenJS 4.0.1 writes a custom baseline as baseline="Math.round(baseline * 50)", thousandths of a percent of
+    // the run's font size. LibreOffice's PDF export (26.2, the visual image) of "HH" runs at 20pt and 40pt moves them
+    // 30%, -30%, 10% and -50% of the full size for 600, -600, 200 and -1000 (6.01, 6.00, 2.01, 10.01pt at 20pt; 12.01,
+    // 12.01, 4.01, 20.00pt at 40pt) and draws them at 58% (11.61pt, 23.2pt), as superscript (6.00, 12.00pt).
+    test("moves a custom baseline by a percent of the run's font size, as PptxGenJS writes it", async () => {
+        const written = async (baseline: number): Promise<string | undefined> => {
+            const pptx = new PptxGenJSRuntime();
+            pptx.addSlide().addText([{ text: "HH", options: { baseline } }], { x: 1, y: 1, w: 4, h: 1 });
+            // `as`: write() returns a Buffer for the nodebuffer output type.
+            const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+            return (await zip.file("ppt/slides/slide1.xml")?.async("string"))?.match(/<a:rPr[^>]* baseline="(-?\d+)"/)?.[1];
+        };
+        for (const [baseline, xml, fraction] of [
+            [600, "30000", 0.3],
+            [-600, "-30000", -0.3],
+            [200, "10000", 0.1],
+            [-1000, "-50000", -0.5],
+        ] as const) {
+            expect(await written(baseline)).toBe(xml);
+            for (const fontSize of [20, 40]) {
+                for (const target of ["libreoffice", "powerpoint"] as const) {
+                    const run = normalizeText([{ text: "HH", options: { baseline } }], { fontSize }, target).paragraphs[0]!.runs[0]!;
+                    expect({ baseline, fontSize, target, offset: run.baselineOffset }).toEqual({ baseline, fontSize, target, offset: expect.closeTo(fraction * pointsToPixels(fontSize), 9) });
+                    // The same size a superscript has on the target.
+                    expect(run.fontSize).toBe(normalizeText([{ text: "HH", options: { superscript: true } }], { fontSize }, target).paragraphs[0]!.runs[0]!.fontSize);
+                }
+            }
+        }
+        // baseline="0" moves nothing and keeps the full size.
+        expect(await written(0.004)).toBe("0");
+        const zero = normalizeText([{ text: "HH", options: { baseline: 0.004 } }], { fontSize: 20 }).paragraphs[0]!.runs[0]!;
+        expect([zero.baselineOffset, zero.fontSize]).toEqual([0, pointsToPixels(20)]);
     });
 
     // PptxGenJS writes <a:tab pos="inch2Emu(position || 1)" algn="alignment || l"/>; its master sets defTabSz 1in.
@@ -168,7 +203,9 @@ describe("text normalization", () => {
         // The last paragraph's space after is left out of the text height (PowerPoint, LibreOffice).
         expect(text.paragraphs[0]?.spaceAfter).toBe(0);
         expect(text.paragraphs[0]?.runs[0]).toMatchObject({
-            fontSize: 24,
+            // baseline 20 (baseline="1000") wins over superscript: 1% of 24px, drawn at LibreOffice's 58%.
+            fontSize: 24 * 0.58,
+            baselineOffset: 0.24,
             color: "rgba(0, 0, 0, 0.75)",
             verticalAlign: "super",
             characterSpacing: 2,
