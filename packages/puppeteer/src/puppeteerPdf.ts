@@ -3,6 +3,7 @@ import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOptions";
 import { type DocumentInfo, withDocumentInfo } from "./pdfInfo";
+import { LINK_PLACEHOLDER, withLinkUris } from "./pdfLinks";
 import { PRINT_ZOOM, printHtml } from "./printWorkarounds";
 
 // Model page sizes are in inches.
@@ -43,6 +44,7 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
     await page.setContent(printHtml(html), { waitUntil: "load" });
     const failed = await page.evaluate(prepareForPrint);
     if (failed.length) throw new Error(`Image failed to decode: ${failed.join(", ")}`);
+    const uris = await page.evaluate(placeLinkPlaceholders, LINK_PLACEHOLDER);
 
     const pdf = await page.pdf({
         width: `${pageSize.width}in`,
@@ -56,7 +58,8 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
         printBackground: true,
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
-    return withDocumentInfo(pdf, await page.evaluate(documentInfo));
+    // The links update reads the newest cross-reference section, so it follows the Info update, which needs the original one.
+    return withLinkUris(withDocumentInfo(pdf, await page.evaluate(documentInfo)), uris);
 }
 
 // prepareForPrint and documentInfo run inside the page: page.evaluate sends their source text, so they may use only
@@ -388,4 +391,13 @@ async function prepareForPrint(): Promise<string[]> {
 function documentInfo(): DocumentInfo {
     const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
     return { Title: document.title, Author: meta("author"), Subject: meta("description"), Company: meta("pdflapas-company"), Revision: meta("pdflapas-revision") };
+}
+
+/** Points each external link at `placeholder` and its index (see `withLinkUris`), and returns the links' URLs. */
+function placeLinkPlaceholders(placeholder: string): string[] {
+    return Array.from(document.querySelectorAll('a[href]:not([href^="#"])'), (link, index) => {
+        const href = link.getAttribute("href") ?? "";
+        link.setAttribute("href", `${placeholder}${index}`);
+        return href;
+    });
 }
