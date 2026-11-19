@@ -5,6 +5,7 @@ import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";
 import { convertToPixels, emuToPixels, inch2EmuToPixels, inchesToPixels, millimetersToPixels, pointsToPixels, smartParseEmu } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
+import { TRANSPARENT } from "#src/color";
 import { normalizeColor, normalizeFill } from "#src/normalize/style";
 import type { SharedRunOptions } from "#src/normalize/sharedRunOptions";
 import { normalizeText, type TextInput } from "#src/normalize/text";
@@ -121,7 +122,7 @@ function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder 
     return {
         visible: type !== "none",
         // A "none" side is written as <a:noFill/> without its color, so PptxGenJS never checks that color either.
-        color: type === "none" ? "transparent" : normalizeColor(border?.color || PPTX_DEFAULTS.table.border.color),
+        color: type === "none" ? TRANSPARENT : normalizeColor(border?.color || PPTX_DEFAULTS.table.border.color),
         width,
         style: type === "dash" ? "dashed" : "solid",
         // PptxGenJS 4.0.1 writes a "dash" cell border as <a:prstDash val="sysDash"/>.

@@ -23,7 +23,7 @@ describe("shared object normalization", () => {
     });
 
     test("resolves theme colors, fills, and lines", () => {
-        expect(normalizeColor("accent1")).toBe("#4472C4");
+        expect<string>(normalizeColor("accent1")).toBe("#4472C4");
         expect(normalizeFill({ type: "none", color: "FF0000" }).visible).toBe(false);
         expect(normalizeLine({ color: "accent2", width: 2, dashType: "dash" })).toMatchObject({
             visible: true,
@@ -41,12 +41,12 @@ describe("shared object normalization", () => {
         }
         // PptxGenJS 4.0.1 writes no color element for a "none" line, fill or shadow, so their color is never read.
         for (const color of ["transparent", "red; background-image: url(http://x)"]) {
-            expect(normalizeLine({ type: "none", color, width: 0 })).toEqual({ visible: false, color: "transparent", width: 0, style: "solid" });
-            expect(normalizeFill({ type: "none", color })).toEqual({ visible: false, color: "transparent" });
+            expect<unknown>(normalizeLine({ type: "none", color, width: 0 })).toEqual({ visible: false, color: "transparent", width: 0, style: "solid" });
+            expect<unknown>(normalizeFill({ type: "none", color })).toEqual({ visible: false, color: "transparent" });
             expect(normalizeShadow({ type: "none", color })).toMatchObject({ visible: false, color: "transparent" });
         }
-        expect(normalizeColor("#ED7D31")).toBe("#ED7D31");
-        expect(normalizeColor({ color: "tx1", transparency: 50 })).toBe("rgba(0, 0, 0, 0.5)");
+        expect<string>(normalizeColor("#ED7D31")).toBe("#ED7D31");
+        expect<string>(normalizeColor({ color: "tx1", transparency: 50 })).toBe("rgba(0, 0, 0, 0.5)");
     });
 
     test("the API throws on an injected color before any HTML is written (#148)", async () => {
@@ -168,7 +168,7 @@ describe("shared object normalization", () => {
         expect(shadow.offsetX).toBeCloseTo(0, 8);
         expect(shadow.offsetY).toBeCloseTo(8, 8);
         expect(shadow.blur).toBe(4);
-        expect(shadow.color).toBe("rgba(0, 0, 0, 0.5)");
+        expect<string>(shadow.color).toBe("rgba(0, 0, 0, 0.5)");
     });
 
     test("fills unset and zero shadow values like PptxGenJS's slide XML (blur || 8, offset || 4, angle || 270, opacity || 0.75)", () => {
@@ -177,7 +177,7 @@ describe("shared object normalization", () => {
             expect(shadow.blur).toBeCloseTo((8 * 96) / 72, 8);
             expect(shadow.offsetX).toBeCloseTo(0, 8);
             expect(shadow.offsetY).toBeCloseTo((-4 * 96) / 72, 8);
-            expect(shadow.color).toBe("rgba(0, 0, 0, 0.75)");
+            expect<string>(shadow.color).toBe("rgba(0, 0, 0, 0.75)");
         }
     });
 });

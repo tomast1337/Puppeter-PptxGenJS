@@ -46,7 +46,7 @@ describe("table normalization", () => {
         expect(table.rows[0]!.cells[0]!.colspan).toBe(2);
         expect(table.rows[0]!.cells[0]!.rowspan).toBe(2);
         expect(table.rows[0]!.cells[0]!.text.margin).toEqual([9.600000000000001, 19.200000000000003, 28.799999999999997, 38.400000000000006]);
-        expect(table.rows[0]!.cells[0]!.borders.map(border => [border.visible, border.style, border.color, border.width])).toEqual([
+        expect<unknown>(table.rows[0]!.cells[0]!.borders.map(border => [border.visible, border.style, border.color, border.width])).toEqual([
             [true, "solid", "#FF0000", (2 * 96) / 72],
             [true, "dashed", "#00FF00", 96 / 72],
             [false, "solid", "transparent", 0],
@@ -58,7 +58,7 @@ describe("table normalization", () => {
 
     // PptxGenJS 4.0.1 writes <a:lnX> solid lines for a border without `type` and none for a missing side.
     test("draws a given border without a type as a solid line", () => {
-        const sides = (border: unknown) => normalizeTable([[{ text: "a", options: { border: border as PptxGenJS.BorderProps } }]], { w: 1 }, PAGE).rows[0]!.cells[0]!.borders.map(side => [side.visible, side.style, side.color, side.width]);
+        const sides = (border: unknown): unknown[] => normalizeTable([[{ text: "a", options: { border: border as PptxGenJS.BorderProps } }]], { w: 1 }, PAGE).rows[0]!.cells[0]!.borders.map(side => [side.visible, side.style, side.color, side.width]);
         const solid = [true, "solid", "#FF0000", 2];
         expect(sides({ color: "FF0000", pt: 1.5 })).toEqual([solid, solid, solid, solid]);
         expect(sides([{ color: "FF0000", pt: 1.5 }, null, { type: "none" }, {}])).toEqual([solid, [false, "solid", "transparent", 0], [false, "solid", "transparent", 0], [true, "solid", "#666666", 96 / 72]]);
@@ -113,7 +113,7 @@ describe("table normalization", () => {
 
         const cell = table.rows[0]!.cells[0]!;
         expect(table.columns).toEqual([384]);
-        expect(cell.fill?.color).toBe("#D9EAF7");
+        expect<string | undefined>(cell.fill?.color).toBe("#D9EAF7");
         expect(cell.text.margin).toEqual([8, 8, 8, 8]);
         expect(cell.text.verticalAlign).toBe("bottom");
         expect(cell.text.direction).toBe("vertical270");

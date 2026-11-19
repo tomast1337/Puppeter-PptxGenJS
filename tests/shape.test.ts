@@ -27,7 +27,7 @@ describe("shape normalization", () => {
             normalizeLine,
         );
         expect(line.visible).toBe(true);
-        expect(line.color).toBe("#333333");
+        expect<string>(line.color).toBe("#333333");
         expect(line.width).toBe((2 * 96) / 72);
         expect(line.style).toBe("dashed");
         expect(line.beginArrow).toBe("triangle");
