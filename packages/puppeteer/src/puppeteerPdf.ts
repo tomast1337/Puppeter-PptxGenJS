@@ -155,6 +155,8 @@ async function prepareForPrint(): Promise<string[]> {
                     const lineHeight = paragraph.style.lineHeight;
                     if (lineHeight.endsWith("px")) paragraph.style.lineHeight = `${parseFloat(lineHeight) * step}px`;
                     // The baseline shift is a fraction of the line box and font size, so it shrinks with them.
+                    // shortcut: the scaled shift keeps the unscaled line's strut floor (printWorkarounds strutBaseline),
+                    // up to 1 device px off; recompute it from data-line-baseline when shrunk baselines are measured.
                     if (paragraph.style.top.endsWith("px")) paragraph.style.top = `${parseFloat(paragraph.style.top) * step}px`;
                 });
             }
