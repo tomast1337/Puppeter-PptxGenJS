@@ -280,6 +280,14 @@ taller than that cell's text and margins (svx `Cell::getMinimumHeight` returns
 28.838 px, not 28.8; the LibreOffice target does the same, and the cell's anchor
 places the text in that extra space. The PowerPoint target adds nothing.
 
+The column count is the first row's cells, each counted by its `colspan`, whatever `colW` or `w`
+say. A later row with more cells than that is cut: PptxGenJS 4.0.1 writes every cell, but PowerPoint
+draws only the cells that start inside the grid, and the rest take no text, border or height. PdfLapas
+drops them when it normalizes the table, so neither the HTML nor a renderer sees them, and does not
+warn, since PptxGenJS and PowerPoint accept such rows. A cell starts in the first column of its row
+not taken by a `rowspan` above, and a `colspan` that crosses the last column is cut at it (not
+checked against PowerPoint). A row with fewer cells than columns is drawn as it is.
+
 `autoPage` splits rows as PptxGenJS 4.0.1 does, which reads margins differently from the drawn
 cell: the unit comes from the cell's own `margin` array only, so a table-level `margin` on a cell
 without one counts as inches whatever its size (`margin: 1` is drawn as 1pt but paginated as 1in).

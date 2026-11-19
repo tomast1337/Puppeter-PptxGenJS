@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { inflateSync } from "node:zlib";
-import { closeBrowser } from "../packages/puppeteer/src/browser";
+import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
 import PptxGenJSRuntime from "pptxgenjs";
@@ -8,6 +8,7 @@ import JSZip from "jszip";
 import { normalizeTable } from "../packages/pptxgenjs/src/normalize/table";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { EXTRA_CELL_ROW_TOPS_IN, extraCellTable } from "./extraCellTable";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
@@ -176,6 +177,32 @@ describe("table normalization", () => {
         expect(table.rows[0]?.cells.map(cell => cell.text.fit)).toEqual(["none", "none", "none", "none"]);
     });
 
+    // PptxGenJS 4.0.1 writes 3 <a:gridCol> for a 3-cell first row and all 5 <a:tc> of a 5-cell row; PowerPoint draws
+    // only the first 3, without text, border or height for the others (#286).
+    test("drops the cells of a row beyond the grid columns, so they take no height (#286)", () => {
+        for (const size of [{ colW: [1, 1, 1] }, { w: 3 }]) {
+            const { rows, options } = extraCellTable(size);
+            const table = normalizeTable(rows, options, PAGE);
+            expect(table.columns).toEqual([96, 96, 96]);
+            expect(table.rows.map(row => row.cells.length)).toEqual([3, 3, 3, 3]);
+            expect(table.rows.map(row => row.height)).toEqual([17.28, 17.28, 17.28, 17.28]);
+            expect(table.rows[1]?.cells.map(cell => cell.text.paragraphs[0]?.runs[0]?.text)).toEqual(["Alpha", "Beta", "Gamma"]);
+        }
+    });
+
+    test("places cells after rowspans above, cuts a colspan at the last column, and keeps short rows", () => {
+        const texts = (rows: PptxGenJS.TableRow[]) => normalizeTable(rows, { w: 3 }, PAGE).rows.map(row => row.cells.map(cell => `${cell.text.paragraphs[0]?.runs[0]?.text ?? ""}:${cell.colspan}`));
+        const rows: PptxGenJS.TableRow[] = [
+            [{ text: "A", options: { rowspan: 2 } }, { text: "B" }, { text: "C" }],
+            // A takes the first column, so D and E fill the grid and F is past it.
+            [{ text: "D" }, { text: "E" }, { text: "F" }],
+            // G spans two columns, H starts in the last one and is cut to it; I is past the grid.
+            [{ text: "G", options: { colspan: 2 } }, { text: "H", options: { colspan: 2 } }, { text: "I" }],
+            [{ text: "J" }],
+        ];
+        expect(texts(rows)).toEqual([["A:1", "B:1", "C:1"], ["D:1", "E:1"], ["G:2", "H:1"], ["J:1"]]);
+    });
+
     test("rejects empty and malformed row input", () => {
         expect(() => normalizeTable([], {}, PAGE)).toThrow("non-empty array");
         expect(() => normalizeTable(["bad"] as unknown as PptxGenJS.TableRow[], {}, PAGE)).toThrow("each row");
@@ -303,6 +330,31 @@ describe("table rendering", () => {
         expect(cells[0]?.rowSpan).toBe(2);
         expect(cells[0]?.querySelectorAll(".text-run")).toHaveLength(2);
         expect(cells[0]?.style.borderTop).toContain("solid");
+    });
+});
+
+describe("cells beyond the grid columns (#286)", () => {
+    test("Chromium keeps every row at its rowH, as PowerPoint does", async () => {
+        const presentation = new PuppeteerGen(PAGE);
+        const { rows, options } = extraCellTable({ colW: [1, 1, 1] });
+        presentation.addSlide().addTable(rows, options);
+        const { html } = await presentation.toHtml();
+        const tops = await withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                await page.setContent(html);
+                return await page.evaluate(() => {
+                    const slide = document.querySelector(".slide-container")?.getBoundingClientRect().top ?? 0;
+                    return Array.from(document.querySelectorAll(".slide-table tr"), row => row.getBoundingClientRect().top - slide);
+                });
+            } finally {
+                await page.close();
+            }
+        });
+        // Rows from the first row's top, which collapsed borders move by half a pixel.
+        const first = tops[0] ?? Number.NaN;
+        expect(first / 96).toBeCloseTo(EXTRA_CELL_ROW_TOPS_IN[0], 1);
+        expect(tops.map(top => (top - first) / 96)).toEqual(EXTRA_CELL_ROW_TOPS_IN.map(inches => expect.closeTo(inches - EXTRA_CELL_ROW_TOPS_IN[0], 3)));
     });
 });
 
