@@ -31,7 +31,8 @@ await pres.writeFile({ fileName: "metrics.pdf" });
 ```
 
 `addComponent` is a PuppeteerGen extension. It returns the slide for chaining.
-`x`, `y`, `w`, and `h` are required finite numbers in inches; dimensions must be
+`x`, `y`, `w`, and `h` are required finite numbers, in inches below 100 and EMU from 100 on as in
+`addText`; dimensions must be
 positive. Components follow insertion order and clip content to their box.
 `objectName` is optional. Other drawing options (rotation, percentage geometry,
 fill, etc.) are currently unsupported: style the inner HTML in the renderer.
