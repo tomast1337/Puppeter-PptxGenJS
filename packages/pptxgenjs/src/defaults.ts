@@ -425,6 +425,7 @@ export const RENDERING_TARGETS = Object.freeze({
         fullSizeMark: false,
         advanceGridPt: undefined,
         baselineGridPerInch: undefined,
+        joinsOpeningBracket: false,
     }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
@@ -485,6 +486,15 @@ export const RENDERING_TARGETS = Object.freeze({
      * shortcut: the baseline is rounded below its line's top, on the page's grid only while that top is: box y and
      * insets in 1/600 in (any whole 0.01 in), sizes in whole 0.1pt (a 1.2 x size pitch) and paragraph spacing in
      * multiples of 0.72pt; round the page y when a renderer lays text out from the model's page positions.
+     * It has no line break before an opening bracket that follows a closing one or "%" (`joinsOpeningBracket`, a
+     * U+2060 WORD JOINER in the run text), where UAX #14 (Chromium, LibreOffice) has one: measured against its PDF
+     * export of a synthetic deck (Arial 10pt, "lorem " then the token in text boxes 0.75-1.15 in wide, margin 0),
+     * "word)(word" and "100%(word" go whole to the next line ("lorem | word)(word") where Chromium gave
+     * "lorem word) | (word", and a token wider than the line (a 10-letter word, ")(" and a 4-letter word) breaks
+     * where the line fills, as the joiner still lets overflow-wrap do. "word)word", "word(word", "word/word",
+     * "word,word", "word;word", "word%word", "word+word" and "word&word" never break and "word-word" breaks after the
+     * hyphen in both. Only "(" after ")" and "%" was measured; "[" and "{", and "]" and "}" before them, are the same
+     * UAX #14 classes (OP, CP/CL).
      */
     powerpoint: Object.freeze({
         readsKern: true,
@@ -500,6 +510,7 @@ export const RENDERING_TARGETS = Object.freeze({
         fullSizeMark: true,
         advanceGridPt: PPTX_DEFAULTS.units.pointsPerInch / PPTX_DEFAULTS.units.powerPointAdvanceGridPerInch,
         baselineGridPerInch: PPTX_DEFAULTS.units.powerPointBaselineGridPerInch,
+        joinsOpeningBracket: true,
     }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;

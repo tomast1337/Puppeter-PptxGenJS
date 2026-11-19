@@ -499,6 +499,21 @@ describe("rendering targets", () => {
         expect(source).not.toMatch(/runProps \+=[^\n]*kern="(?!0")/);
     });
 
+    // Measured against PowerPoint's PDF export of a synthetic deck (Arial 10pt): no break in ")(" or "%(", where UAX #14
+    // (Chromium, LibreOffice) has one (RENDERING_TARGETS.powerpoint.joinsOpeningBracket).
+    test("the PowerPoint target joins an opening bracket to a closing bracket or % before it with U+2060; LibreOffice keeps the text", () => {
+        const texts = (input: Parameters<typeof normalizeText>[0], target: "libreoffice" | "powerpoint") => normalizeText(input, { fontFace: "Arial", fontSize: 10 }, target).paragraphs.map(paragraph => paragraph.runs.map(run => run.text));
+        const joined = ["word)(word", "100%(word", "Consectetur)(elit", "word]{word", "word}[word", "a)((b"];
+        const untouched = ["word)word", "word(word", "word/word", "word,word", "word;word", "word%word", "word“word", "word+word", "word&word", "word-word", "word–word", "word) (word", "(word)"];
+        for (const token of [...joined, ...untouched]) expect(texts(`lorem ${token}`, "libreoffice")).toEqual([[`lorem ${token}`]]);
+        expect(joined.map(token => texts(token, "powerpoint")[0]?.[0])).toEqual(["word)⁠(word", "100%⁠(word", "Consectetur)⁠(elit", "word]⁠{word", "word}⁠[word", "a)⁠((b"]);
+        for (const token of untouched) expect(texts(token, "powerpoint")).toEqual([[token]]);
+        // Across runs of one line too, but not across a soft break or a line feed.
+        const runs: PptxGenJS.TextProps[] = [{ text: "word)" }, { text: "(word", options: { bold: true } }, { text: "100%" }, { text: "(word", options: { softBreakBefore: true } }];
+        expect(texts(runs, "powerpoint")).toEqual([["word)", "⁠(word", "100%", "(word"]]);
+        expect(texts("word)\n(word", "powerpoint")).toEqual([["word)"], ["(word"]]);
+    });
+
     test("an unknown target throws and names the valid ones", () => {
         expect(() => new PuppeteerGen(undefined, { target: "keynote" as "powerpoint" })).toThrow('`target` must be one of "libreoffice", "powerpoint", got "keynote"');
     });
@@ -557,6 +572,52 @@ describe("rendering targets in Chromium", () => {
             }
         });
         expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([0, 60.8, 60.8].map(px => expect.closeTo(px, 1)));
+    });
+
+    test("Chromium breaks the PowerPoint target's 'lorem word)(word' and 'lorem 100%(word' before the token, and LibreOffice's inside it", async () => {
+        // Each text box's lines, from the top of every character's rectangle.
+        async function lines(presentation: PuppeteerGen): Promise<string[][]> {
+            const slide = presentation.addSlide();
+            for (const [index, token] of ["word)(word", "100%(word", "Consectetur)(elit"].entries()) slide.addText(`lorem ${token}`, { x: 0.5, y: 0.5 + index, w: 0.85, h: 0.5, margin: 0, fontFace: "Arial", fontSize: 10, valign: "top" });
+            const { html } = await presentation.toHtml();
+            return withBrowser(async browser => {
+                const page = await browser.newPage();
+                try {
+                    await page.setContent(html);
+                    return await page.evaluate(() =>
+                        Array.from(document.querySelectorAll(".text-content"), content => {
+                            const byTop = new Map<number, string>();
+                            const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+                            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                                for (let offset = 0; offset < (node.textContent ?? "").length; offset++) {
+                                    const range = document.createRange();
+                                    range.setStart(node, offset);
+                                    range.setEnd(node, offset + 1);
+                                    const rect = range.getClientRects()[0];
+                                    if (!rect) continue;
+                                    const top = Math.round(rect.top);
+                                    byTop.set(top, `${byTop.get(top) ?? ""}${node.textContent?.[offset] ?? ""}`);
+                                }
+                            }
+                            return Array.from(byTop.values(), line => line.replaceAll("⁠", "").trim());
+                        }),
+                    );
+                } finally {
+                    await page.close();
+                }
+            });
+        }
+        expect(await lines(new PuppeteerGenPowerPoint())).toEqual([
+            ["lorem", "word)(word"],
+            ["lorem", "100%(word"],
+            // Wider than the line: broken where the line fills, as PowerPoint does.
+            ["lorem", "Consectetur)(", "elit"],
+        ]);
+        expect(await lines(new PuppeteerGenLibreOffice())).toEqual([
+            ["lorem word)", "(word"],
+            ["lorem 100%", "(word"],
+            ["lorem", "Consectetur)", "(elit"],
+        ]);
     });
 
     test("Chromium gives the PowerPoint target's paragraph of a lone 24pt superscript a full 28.8pt line", async () => {

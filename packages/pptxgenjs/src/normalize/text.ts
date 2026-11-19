@@ -10,6 +10,11 @@ import { normalizeColor, normalizeShadow } from "./style";
 
 export type TextInput = string | number | PptxGenJS.TextProps[];
 
+/** U+2060 WORD JOINER: no line break on either side, and drawn as nothing by Chromium and pdf-core. */
+const WORD_JOINER = "⁠";
+/** The point between a closing bracket or "%" and an opening bracket (RENDERING_TARGETS.joinsOpeningBracket). */
+const BEFORE_OPENING_BRACKET = /(?<=[)\]}%])(?=[([{])/gu;
+
 interface TextPiece {
     text: string;
     /** The run's options record, shared and mutated as in PptxGenJS (piecesFromInput). */
@@ -268,7 +273,8 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFont
     // A (14.4 + 9.6), in a 20pt one 38.4pt (14.4 + 24). Unset (no `sz`) is the default size.
     const runless = pieces.every(piece => piece.noRun);
     const pieceOptions = (piece: TextPiece) => inheritedOptions(parent, runless ? { ...piece.options, fontSize: markFontSizePt ?? PPTX_DEFAULTS.text.fontSizePt } : piece.options);
-    const runs = pieces.map(piece => normalizeTextRun(piece.text, pieceOptions(piece), target, fontMetrics));
+    const normalizedRuns = pieces.map(piece => normalizeTextRun(piece.text, pieceOptions(piece), target, fontMetrics));
+    const runs = RENDERING_TARGETS[target].joinsOpeningBracket ? joinOpeningBrackets(normalizedRuns) : normalizedRuns;
     // The mark of a paragraph whose <a:p> ends here, at its last run's size before a super/subscript reduction
     // (RENDERING_TARGETS.fullSizeMark); a line feed ends its line in the run's own font.
     const lastPiece = pieces.at(-1);
@@ -295,6 +301,19 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFont
         defaultTabStop: inchesToPixels(PPTX_DEFAULTS.text.defaultTabStopIn),
         bullet: normalizeBullet(first, numberIndex),
     };
+}
+
+/**
+ * `runs` with a WORD_JOINER at each BEFORE_OPENING_BRACKET point, also where a run ends with ")" and the next run on
+ * the same line starts with "(". Added after normalizeTextRun, so the advance grid's spacing does not count it, as
+ * Chromium gives it no letter-spacing.
+ */
+function joinOpeningBrackets(runs: NormalizedTextRun[]): NormalizedTextRun[] {
+    return runs.map((run, index) => {
+        const previous = run.softBreakBefore ? "" : (runs[index - 1]?.text.at(-1) ?? "");
+        const text = `${previous}${run.text}`.replace(BEFORE_OPENING_BRACKET, WORD_JOINER).slice(previous.length);
+        return text === run.text ? run : { ...run, text };
+    });
 }
 
 /**
