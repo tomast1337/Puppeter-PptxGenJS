@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { inflateSync } from "node:zlib";
 import { JSDOM } from "jsdom";
+import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/html";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { createPdfkitRenderer as createBrowserPdfkitRenderer, loadSystemFonts as browserLoadSystemFonts, type PdfkitRenderer } from "../packages/pdfkit/src/browser";
@@ -74,12 +75,78 @@ describe("PDFKit renderer", () => {
     });
 
     test("throws on what it cannot draw, or lists it in warnings() under onUnsupported: warn", async () => {
-        const populate = (pres: PuppeteerGen) => pres.addSlide().addTable([[{ text: "cell" }]], { x: 1, y: 1, w: 2 });
-        await expect(render(await createPdfkitRenderer({ fonts: systemFonts }), populate)).rejects.toThrow(/The PDFKit renderer cannot draw everything in this presentation \(pass \{ onUnsupported: "warn" \} to render anyway\):\n- slide 1: object 'Table 0': tables are not drawn/);
+        const populate = (pres: PuppeteerGen) => pres.addSlide().addTable([[{ text: "cell", options: { textDirection: "vert" } }]], { x: 1, y: 1, w: 2 });
+        await expect(render(await createPdfkitRenderer({ fonts: systemFonts }), populate)).rejects.toThrow(/The PDFKit renderer cannot draw everything in this presentation \(pass \{ onUnsupported: "warn" \} to render anyway\):\n- slide 1: object 'Table 0': vertical text is not drawn/);
         const renderer = await createPdfkitRenderer({ fonts: systemFonts, onUnsupported: "warn" });
         const pdf = await render(renderer, populate);
         expect(Buffer.from(pdf).toString("latin1").startsWith("%PDF-")).toBe(true);
-        expect(renderer.warnings()).toEqual(["slide 1: object 'Table 0': tables are not drawn by the PDFKit renderer"]);
+        expect(renderer.warnings()).toEqual(["slide 1: object 'Table 0': vertical text is not drawn"]);
+    });
+
+    describe("tables", () => {
+        const solid = { type: "solid", pt: 3, color: "FF0000" } as const;
+        const none = { type: "none" } as const;
+        // Two 1 in columns, two 0.5 in rows, at (1 in, 1 in): grid lines at x 96/192/288 px and y 96/144/192 px.
+        const grid = { x: 1, y: 1, colW: [1, 1], rowH: [0.5, 0.5], margin: 0, fontFace: "Arial", fontSize: 12 } satisfies PptxGenJS.TableProps;
+
+        test("fills each cell's rect on the column grid, a merged cell over every column it spans", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const pdf = await render(renderer, pres => pres.addSlide().addTable([[{ text: "", options: { colspan: 2, fill: { color: "00FF00" } } }], [{ text: "", options: { fill: { color: "0000FF" } } }, { text: "" }]], grid));
+            const content = pageContents(pdf)[0] ?? "";
+            expect(content).toContain("0 1 0 scn\n/Gs1 gs\n96 96 192 48 re\nf");
+            expect(content).toContain("0 0 1 scn\n/Gs1 gs\n96 144 96 48 re\nf");
+            expect(renderer.warnings()).toEqual([]);
+        });
+
+        test("strokes each shared grid edge once, a run of equal edges as one line centred on the grid line", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const pdf = await render(renderer, pres =>
+                pres.addSlide().addTable(
+                    [
+                        [
+                            { text: "", options: { border: [solid, none, none, none] } },
+                            { text: "", options: { border: [solid, none, none, none] } },
+                        ],
+                        [{ text: "" }, { text: "", options: { border: [none, none, none, { type: "dash", pt: 3, color: "0000FF" }] } }],
+                    ],
+                    { ...grid, border: none },
+                ),
+            );
+            const strokes = [...(pageContents(pdf)[0] ?? "").matchAll(/([\d.]+) w\n(\d+) J\n(?:\[[^\]]*\] [\d.]+ d\n)?([\d.]+) ([\d.]+) m\n([\d.]+) ([\d.]+) l\nS/g)].map(([, width, cap, ...points]) => ({ width: Number(width), cap: Number(cap), points: points.map(Number) }));
+            // 3 pt = 4 px: the two top sides are one square-capped line across both columns; the dashed left side of the
+            // second row's second cell is the shared vertical edge at x 192, butt-capped.
+            expect(strokes).toEqual([
+                { width: 4, cap: 2, points: [96, 96, 288, 96] },
+                { width: 4, cap: 0, points: [192, 144, 192, 192] },
+            ]);
+        });
+
+        test("places a cell's text at its margins, anchored in the row, and grows a row to its text", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const pdf = await render(renderer, pres =>
+                pres.addSlide().addTable(
+                    [
+                        [
+                            { text: "Top", options: { valign: "top", margin: [6, 0, 0, 12] } },
+                            { text: "Bottom", options: { valign: "bottom" } },
+                        ],
+                        [{ text: "one\ntwo\nthree\nfour", options: { colspan: 2 } }],
+                    ],
+                    grid,
+                ),
+            );
+            const drawn = texts(pageContents(pdf)[0] ?? "");
+            // 12 pt = 16 px Arial: 19.2 px line boxes with the baseline (data-line-baseline) 16 px below their top.
+            const baseline = 16;
+            // Margins are in pt: top 6 pt = 8 px, left 12 pt = 16 px.
+            expect(drawn[0]).toEqual({ x: 112, baseline: 104 + baseline, size: 16 });
+            // Bottom anchored in the 48 px first row: one 19.2 px line box ending at 144.
+            expect(drawn[1]?.x).toBe(192);
+            expect(drawn[1]?.baseline).toBeCloseTo(144 - 19.2 + baseline, 3);
+            // Four 19.2 px lines are taller than the 48 px row minimum, so the second row grows to 76.8 px.
+            expect(drawn.slice(2).map(text => text.baseline)).toEqual([0, 1, 2, 3].map(line => expect.closeTo(144 + line * 19.2 + baseline, 3)));
+            expect(renderer.warnings()).toEqual([]);
+        });
     });
 
     test("reports image formats PDFKit cannot embed", async () => {

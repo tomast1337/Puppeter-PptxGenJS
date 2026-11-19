@@ -5,6 +5,7 @@ import { attribute, children, type Element, hasClass } from "./dom";
 import { drawImage } from "./image";
 import { dash, fill, type Paint, stroke, transformBox } from "./paint";
 import { drawShapeSvg } from "./shape";
+import { drawTable } from "./table";
 import { drawLayout, type Frame, layoutBox } from "./text/draw";
 import { readTextBox, reportUnread } from "./text/read";
 
@@ -13,7 +14,6 @@ const TRANSFORM_PART = /(rotate|scaleX|scaleY)\(([^)]*)\)/g;
 const BOX_LAYOUT: ReadonlySet<string> = new Set(["transform-origin", "position", "overflow", "box-sizing", "white-space", "overflow-wrap"]);
 /** Object classes whose kind the renderer does not draw yet, reported as a whole. */
 const UNSUPPORTED_KINDS: Readonly<Record<string, string>> = Object.freeze({
-    "slide-table-container": "tables",
     "slide-chart": "charts",
     "slide-component": "components",
 });
@@ -102,6 +102,9 @@ function drawObject(element: Element, context: SlideContext, name: string): void
     } else if (hasClass(element, "slide-image")) {
         drawImage(element, style, paint, box);
         drawBoxPaint(element, style, paint, box);
+    } else if (hasClass(element, "slide-table-container")) {
+        drawBoxPaint(element, style, paint, box);
+        drawTable(element, paint, box);
     } else report(`<${element.tagName} class="${attribute(element, "class") ?? ""}"> is not a slide object the renderer draws`);
     const href = attribute(element, "href");
     const slide = attribute(element, "data-slide");
