@@ -348,12 +348,38 @@ pub(crate) struct Run {
     pub(crate) character_spacing: f32,
     /// False: laid out without the font's pair kerning (`font-kerning: none`, the PowerPoint target).
     pub(crate) kerning: bool,
+    pub(crate) synthesis: Synthesis,
     pub(crate) highlight: Option<Rgba>,
     pub(crate) outline: Option<Outline>,
     pub(crate) glow: Option<Shadow>,
     // The run's `shadow` is not read: PptxGenJS writes no run shadow, only the object's (`style.shadow`).
     pub(crate) link: Option<Link>,
     pub(crate) soft_break_before: bool,
+}
+
+/// Chromium's synthetic styles, read from its PDF output of a regular-only Liberation Sans at 9 to 72pt: bold
+/// draws an outline 1/64 em wider on each side (`106 -1516 244 1548 re` for the 138-318 x 0-1484 `l` of a
+/// 2048-unit em), a 1/32 em stroke at every size; italic shears by a quarter (`1 0 .25 -1 x y Tm`).
+const CHROMIUM_SYNTHETIC_BOLD_STROKE_EM: f32 = 1.0 / 32.0;
+const CHROMIUM_SYNTHETIC_ITALIC_SHEAR: f32 = 0.25;
+
+/// How a run is drawn when its face has no bold or italic style (`data-synthetic-bold`,
+/// `data-synthetic-italic`); the default is the browser's, for HTML that does not say.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct Synthesis {
+    /// The stroke drawn around the filled glyphs, as a fraction of the font size.
+    pub(crate) bold_stroke_em: f32,
+    /// The shear to the right per unit of height above the baseline.
+    pub(crate) italic_shear: f32,
+}
+
+impl Default for Synthesis {
+    fn default() -> Self {
+        Self {
+            bold_stroke_em: CHROMIUM_SYNTHETIC_BOLD_STROKE_EM,
+            italic_shear: CHROMIUM_SYNTHETIC_ITALIC_SHEAR,
+        }
+    }
 }
 
 pub(crate) struct Decoration {
@@ -525,6 +551,7 @@ pub(crate) mod build {
             baseline_offset: 0.0,
             character_spacing: 0.0,
             kerning: true,
+            synthesis: Synthesis::default(),
             highlight: None,
             outline: None,
             glow: None,

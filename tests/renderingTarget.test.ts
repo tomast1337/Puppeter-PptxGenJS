@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import DefaultExport, { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/index";
-import { FONT_WIN_METRICS } from "../packages/pptxgenjs/src/defaults";
+import { FONT_WIN_METRICS, RENDERING_TARGETS } from "../packages/pptxgenjs/src/defaults";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { KERNING_CASES } from "./visual/fixture";
 
@@ -55,6 +55,29 @@ describe("rendering targets", () => {
             expect(run(options, "libreoffice")).not.toHaveProperty("kerning");
             expect(run(options)).not.toHaveProperty("kerning");
         }
+    });
+
+    // LibreOffice's synthetic bold and italic travel on the run; the PowerPoint target leaves the browser's (Chromium's).
+    test("the LibreOffice target writes its synthetic bold and italic on bold and italic runs, the PowerPoint target none", async () => {
+        const run = (options: Parameters<typeof normalizeText>[1], target?: Parameters<typeof normalizeText>[2]) => normalizeText("x", options, target).paragraphs[0]?.runs[0];
+        expect(run({ bold: true, italic: true })).toMatchObject({ syntheticBold: RENDERING_TARGETS.libreoffice.syntheticBoldStrokeEm, syntheticItalic: RENDERING_TARGETS.libreoffice.syntheticItalicShear });
+        expect(run({ bold: true })).not.toHaveProperty("syntheticItalic");
+        expect(run({ italic: true })).not.toHaveProperty("syntheticBold");
+        for (const target of ["powerpoint", "libreoffice"] as const) expect(Object.keys(run({}, target) ?? {})).not.toContain("syntheticBold");
+        const powerPoint = run({ bold: true, italic: true }, "powerpoint");
+        expect(powerPoint).not.toHaveProperty("syntheticBold");
+        expect(powerPoint).not.toHaveProperty("syntheticItalic");
+        const html = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText([{ text: "Bold", options: { bold: true } }, { text: "Italic", options: { italic: true } }, { text: "Plain" }], { x: 1, y: 1, w: 3, h: 1 });
+            return [...(await presentation.toHtml()).html.matchAll(/<span class="text-run"([^>]*)>/g)].map(match => match[1]);
+        };
+        const [bold, italic, plain] = await html(new PuppeteerGenLibreOffice());
+        expect(bold).toContain(' data-synthetic-bold="0.03333333333333333"');
+        expect(bold).not.toContain("data-synthetic-italic");
+        expect(italic).toContain(' data-synthetic-italic="0.3462535606"');
+        expect(italic).not.toContain("data-synthetic-bold");
+        expect(plain).not.toContain("data-synthetic");
+        for (const attributes of await html(new PuppeteerGenPowerPoint())) expect(attributes).not.toContain("data-synthetic");
     });
 
     // Measured against PowerPoint's PDF export: 18pt Arial with paraSpaceBefore 6 and paraSpaceAfter 18 has a

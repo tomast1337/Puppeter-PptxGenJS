@@ -14,7 +14,7 @@ use parley::{FontStyle, FontWeight};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
-use crate::model::UnderlineStyle;
+use crate::model::{Synthesis, UnderlineStyle};
 use crate::path::{rect_path, to_path};
 use crate::text::layout::{RunPaint, TextStroke};
 
@@ -237,6 +237,7 @@ impl Renderer {
             strike: false,
             double_strike: false,
             baseline_offset: 0.0,
+            synthesis: Synthesis::default(),
             link: None,
             glow: None,
         };

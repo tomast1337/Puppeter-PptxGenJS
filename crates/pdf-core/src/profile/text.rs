@@ -6,8 +6,8 @@ use super::object::link;
 use super::style::{Style, font_family, integer, keyword, number, px, shadow, split_top_level};
 use crate::color::parse_color;
 use crate::model::{
-    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, TabAlign, TabStop, TextBox, TextDirection, TextFit,
-    UnderlineStyle, VerticalAlign,
+    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, Synthesis, TabAlign, TabStop, TextBox, TextDirection,
+    TextFit, UnderlineStyle, VerticalAlign,
 };
 
 /// Attributes of the element that holds a text box.
@@ -60,6 +60,8 @@ const RUN_ATTRS: &[&str] = &[
     "data-double-strike",
     "data-underline-style",
     "data-vertical-align",
+    "data-synthetic-bold",
+    "data-synthetic-italic",
     "data-text-shadow",
     "data-shadow-inset",
     "data-empty",
@@ -342,11 +344,31 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
             .map(|k| one_of("CSS property 'font-kerning'", k, &["none", "normal", "auto"]))
             .transpose()?
             != Some("none"),
+        synthesis: synthesis(element)?,
         highlight: style.color("background-color")?,
         outline,
         glow: glow(element, &style)?,
         link: link(element)?,
         soft_break_before: element.has_attr("data-soft-break-before"),
+    })
+}
+
+/// `data-synthetic-bold` and `data-synthetic-italic`, each the browser's when omitted.
+fn synthesis(element: &Element<'_>) -> Result<Synthesis, String> {
+    let attr = |name: &str| -> Result<Option<f32>, String> {
+        element
+            .attr(name)?
+            .map(|v| number(&v).map_err(|e| format!("attribute '{name}': {e}")))
+            .transpose()
+    };
+    let browser = Synthesis::default();
+    let bold_stroke_em = attr("data-synthetic-bold")?.unwrap_or(browser.bold_stroke_em);
+    if bold_stroke_em < 0.0 {
+        return Err(format!("attribute 'data-synthetic-bold': {bold_stroke_em} is negative"));
+    }
+    Ok(Synthesis {
+        bold_stroke_em,
+        italic_shear: attr("data-synthetic-italic")?.unwrap_or(browser.italic_shear),
     })
 }
 
@@ -373,7 +395,7 @@ fn glow(element: &Element<'_>, style: &Style<'_>) -> Result<Option<Shadow>, Stri
 #[cfg(test)]
 mod tests {
     use crate::color::Rgba;
-    use crate::model::{Shrink, SlideObject, TabAlign, TextFit, TextObject, UnderlineStyle, VerticalAlign};
+    use crate::model::{Shrink, SlideObject, Synthesis, TabAlign, TextFit, TextObject, UnderlineStyle, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -477,6 +499,26 @@ mod tests {
     }
 
     #[test]
+    fn reads_the_synthetic_styles_and_falls_back_to_the_browsers() {
+        let html = format!(
+            r#"<div class="text-paragraph" data-line-baseline="16" style="{PARAGRAPH_STYLE}"><span class="text-run" data-synthetic-bold="0.03333333333333333" data-synthetic-italic="0.3462535606" style="{RUN_STYLE}">a</span><span class="text-run" style="{RUN_STYLE}">b</span></div>"#
+        );
+        let text = text_object(&html).unwrap().text.expect("text");
+        let synthesis: Vec<Synthesis> = text.paragraphs.iter().flat_map(|p| &p.runs).map(|r| r.synthesis).collect();
+        let libreoffice = Synthesis {
+            bold_stroke_em: 1.0 / 30.0,
+            italic_shear: 0.346_253_56,
+        };
+        // Omitted, the run takes Chromium's: a 1/32 em stroke and a 0.25 shear.
+        let chromium = Synthesis {
+            bold_stroke_em: 1.0 / 32.0,
+            italic_shear: 0.25,
+        };
+        assert_eq!(synthesis, [libreoffice, chromium]);
+        assert_eq!(Synthesis::default(), chromium);
+    }
+
+    #[test]
     fn rejects_out_of_profile_text() {
         let run = |attrs: &str, style: &str, text: &str| {
             format!(
@@ -492,6 +534,11 @@ mod tests {
             (run("", " text-shadow: 1px 1px 1px red;", "x"), "data-text-shadow"),
             (run("", " text-decoration-line: overline;", "x"), "overline"),
             (run("", " font-kerning: off;", "x"), "font-kerning"),
+            (
+                run(" data-synthetic-bold=\"-0.1\"", "", "x"),
+                "attribute 'data-synthetic-bold': -0.1 is negative",
+            ),
+            (run(" data-synthetic-italic=\"slanted\"", "", "x"), "attribute 'data-synthetic-italic'"),
             (
                 run("", "", "x").replace("text-decoration-style: solid", "text-decoration-style: groove"),
                 "CSS property 'text-decoration-style': 'groove'",

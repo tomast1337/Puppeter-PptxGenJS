@@ -144,14 +144,17 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     const escapement = options.baseline ? Math.round(options.baseline * PPTX_DEFAULTS.text.customBaselineScale) / OOXML_PERCENT || undefined : options.subscript ? PPTX_DEFAULTS.text.subscriptBaseline : options.superscript ? PPTX_DEFAULTS.text.superscriptBaseline : undefined;
     const link = normalizeHyperlink(options.hyperlink);
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
+    const bold = options.bold ?? PPTX_DEFAULTS.text.bold;
+    const italic = options.italic ?? PPTX_DEFAULTS.text.italic;
+    const { syntheticBoldStrokeEm, syntheticItalicShear } = RENDERING_TARGETS[target];
 
     return {
         text,
         fontFace: options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
         fontSize: escapement === undefined ? fontSize : fontSize * RENDERING_TARGETS[target].escapementSizeRatio,
         color: normalizeColor({ color: options.color ?? defaultColor, transparency: options.transparency }),
-        bold: options.bold ?? PPTX_DEFAULTS.text.bold,
-        italic: options.italic ?? PPTX_DEFAULTS.text.italic,
+        bold,
+        italic,
         decoration: {
             // `u=""`, which only the string form writes, is no underline type: it draws none.
             underline: Boolean(underline) && underline !== "none",
@@ -164,6 +167,8 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         baselineOffset: escapement === undefined ? 0 : escapement * fontSize,
         characterSpacing: pointsToPixels((options.charSpacing ?? 0) + gridSpacing(text, options, escapement !== undefined, target, fontMetrics)),
         ...(kerned(options, target, fontMetrics) ? {} : { kerning: false as const }),
+        ...(bold && syntheticBoldStrokeEm !== undefined ? { syntheticBold: syntheticBoldStrokeEm } : {}),
+        ...(italic && syntheticItalicShear !== undefined ? { syntheticItalic: syntheticItalicShear } : {}),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
         outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(options.outline.size) } : undefined,
         glow: textShadow(options),

@@ -1180,6 +1180,12 @@ mod tests {
         let mut text = text_box(&[(&["Ag"], 36.0, 30.0)]);
         let run = &mut text.paragraphs[0].runs[0];
         (run.bold, run.italic) = (true, true);
+        // The LibreOffice target's, from data-synthetic-bold and data-synthetic-italic.
+        let libreoffice = model::Synthesis {
+            bold_stroke_em: 1.0 / 30.0,
+            italic_shear: 0.346_253_56,
+        };
+        run.synthesis = libreoffice;
         let Some(layout) = laid_out(&text) else {
             return eprintln!("Liberation Sans not installed: synthesis not checked");
         };
@@ -1187,9 +1193,11 @@ mod tests {
         let Some(parley::PositionedLayoutItem::GlyphRun(glyph_run)) = line.items().next() else {
             panic!("the line starts with a glyph run");
         };
-        // draw_layout strokes (bold) and shears (italic) exactly these runs.
+        // draw_layout strokes (bold) and shears (italic) exactly these runs, by the run's own amounts.
         let synthesis = glyph_run.run().synthesis();
         assert!(synthesis.embolden() && synthesis.skew().is_some());
+        let paint = layout.paints.get(glyph_run.style().brush.0 as usize).map(|p| p.synthesis);
+        assert_eq!(paint, Some(libreoffice));
     }
 
     #[test]
