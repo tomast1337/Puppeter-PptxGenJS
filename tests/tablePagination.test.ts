@@ -143,28 +143,18 @@ describe("table auto-pagination", () => {
     });
 });
 
-/**
- * Row heights in inches per slide, as PptxGenJS 4.0.1 writes them to `<a:tr h>` (genXmlSlide, table step 4A): the
- * table's `rowH[row]`, a number `rowH`, or its `h` shared over the rows; 0 lets the row size to its content.
- */
-function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): number[][] {
+/** Row heights in inches per slide, as PptxGenJS 4.0.1 writes them to `<a:tr h>`; 0 lets the row size to its content. */
+async function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Promise<number[][]> {
     const pptx = new PptxGenJSRuntime();
     pptx.layout = "LAYOUT_16x9";
     pptx.addSlide().addTable(rows, options);
-    // `as`: `_slides`, `_slideObjects`, `arrTabRows` and the EMU `options.h` are PptxGenJS 4.0.1 internals the types omit.
-    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ _type: string; arrTabRows: unknown[]; options: { rowH?: number | number[]; h?: number } }> }> })._slides;
-    const emu = PPTX_DEFAULTS.units.emuPerInch;
-    return slides.flatMap(slide =>
-        slide._slideObjects
-            .filter(object => object._type === "table")
-            .map(({ arrTabRows, options: { rowH, h } }) =>
-                arrTabRows.map((_, index) => {
-                    if (Array.isArray(rowH) && rowH[index]) return rowH[index];
-                    if (typeof rowH === "number") return rowH;
-                    return h ? Math.round(h / arrTabRows.length) / emu : 0;
-                }),
-            ),
-    );
+    // `as`: write() returns a Buffer for the nodebuffer output type.
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+    const slides = Object.keys(zip.files)
+        .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+        .sort((a, b) => Number(/\d+/.exec(a)?.[0]) - Number(/\d+/.exec(b)?.[0]));
+    const xmls = await Promise.all(slides.map(name => zip.file(name)?.async("string") ?? ""));
+    return xmls.map(xml => [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, emu]) => Number(emu) / PPTX_DEFAULTS.units.emuPerInch));
 }
 
 /** Row heights in inches per slide from our model; 0 is a row sized to its content. */
@@ -179,8 +169,10 @@ describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: eac
         ["repeated headers", { autoPageRepeatHeader: true, autoPageHeaderRows: 2 }],
         ["a number rowH", { rowH: 0.3 }],
         ["a rowH array, indexed per page", { rowH: [0.6, 0.2, 0.4] }],
+        // Number([0.3]) is 0.3, so a one-item array sizes every row of every page (#304).
+        ["a one-item rowH array", { rowH: [0.3] }],
         ["a table h", { h: 3 }],
-    ])("sizes rows as PptxGenJS does with %s", (_, extra) => {
+    ])("sizes rows as PptxGenJS does with %s", async (_, extra) => {
         const input = Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}` }, { text: index % 5 ? `Value ${index + 1}` : "Two\nlines" }]);
         const options: PptxGenJS.TableProps = { autoPage: true, y: 1, w: 8, ...extra };
         const presentation = new PuppeteerGen(PAGE);
@@ -188,7 +180,7 @@ describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: eac
         const ours = round(rowHeightsOf(presentation));
         expect(ours.length).toBeGreaterThan(1);
         // PptxGenJS writes into the rows and options it is given, so it gets copies.
-        expect(ours).toEqual(round(pptxGenJsRowHeights(structuredClone(input), structuredClone(options))));
+        expect(ours).toEqual(round(await pptxGenJsRowHeights(structuredClone(input), structuredClone(options))));
     });
 });
 

@@ -102,22 +102,21 @@ function rowsHeight(h: PptxGenJS.Coord, pageSize: PageSize): number {
     return emu >= PPTX_DEFAULTS.table.emuReadAsInchesBelow && emu <= PPTX_DEFAULTS.units.inchesBelow ? inchesToPixels(emu) : pixels;
 }
 
+/**
+ * Each row's height as genXmlTable (step 4 A) writes it: `rowH[row]` when truthy, else `Number(rowH)` when it is a
+ * number, else `h` shared over the rows. `Number` reads a one-item array as its item, so `rowH: [0.5]` sizes every row
+ * and `[]` or `[0]` none; a longer array is NaN and leaves its missing rows to `h` (#304). 0 sizes a row to its content.
+ */
 function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: PageSize): Array<Px | undefined> {
-    const heightFromTable = options.h === undefined ? undefined : px(rowsHeight(options.h, pageSize) / Math.max(1, rowCount));
-    if (Array.isArray(options.rowH)) {
-        const rowHeights = options.rowH;
-        return Array.from({ length: rowCount }, (_, index) => {
-            const height = rowHeights[index];
-            return typeof height === "number" && height > 0 ? inch2EmuToPixels(height) : heightFromTable;
-        });
-    }
-    if (typeof options.rowH === "number" && options.rowH > 0) {
-        return Array(rowCount).fill(inch2EmuToPixels(options.rowH));
-    }
-    if (options.h !== undefined) {
-        return Array(rowCount).fill(heightFromTable);
-    }
-    return Array(rowCount).fill(undefined);
+    const { rowH, h } = options;
+    const heightFromTable = h === undefined ? undefined : px(rowsHeight(h, pageSize) / Math.max(1, rowCount));
+    const height = (inches: number): Px | undefined => (inches > 0 ? inch2EmuToPixels(inches) : undefined);
+    return Array.from({ length: rowCount }, (_, index) => {
+        const own = Array.isArray(rowH) ? rowH[index] : undefined;
+        if (own) return height(Number(own));
+        if (rowH && !Number.isNaN(Number(rowH))) return height(Number(rowH));
+        return heightFromTable;
+    });
 }
 
 /**

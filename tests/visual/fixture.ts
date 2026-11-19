@@ -1932,14 +1932,15 @@ function populateParagraphFixture(presentation: Presentation): void {
         },
     );
     // PptxGenJS 4.0.1 writes rowH into `<a:tr h>` and `h` only into the frame's cy, which PowerPoint and LibreOffice
-    // ignore: three 0.3 in rows, not 1.2 in shared out (#246).
+    // ignore: three 0.3 in rows, not 1.2 in shared out (#246). A one-item rowH sizes every row, as Number([0.3]) is 0.3
+    // (#304).
     const fills = ["D9EAF7", "FFF2CC", "E2F0D9"];
     slide.addTable(
         fills.map((color, index) => [
             { text: `Label ${index + 1}`, options: { fill: { color } } },
             { text: `Value ${index + 1}`, options: { fill: { color } } },
         ]),
-        { x: frameHeight.x, y: frameHeight.y, w: frameHeight.w, h: frameHeight.h, rowH: 0.3, fontFace: "Arial", fontSize: 8, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } },
+        { x: frameHeight.x, y: frameHeight.y, w: frameHeight.w, h: frameHeight.h, rowH: [0.3], fontFace: "Arial", fontSize: 8, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } },
     );
     // PptxGenJS 4.0.1 fills a falsy cell option from the table (genXmlTable step 2) and a falsy run option from the
     // cell (genXmlTextBody step 6 C), so `bold: false` in a bold table is bold in both cells (#222).

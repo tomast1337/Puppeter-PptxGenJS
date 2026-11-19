@@ -6,6 +6,7 @@ import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
 import PptxGenJSRuntime from "pptxgenjs";
 import JSZip from "jszip";
+import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { normalizeTable } from "../packages/pptxgenjs/src/normalize/table";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
@@ -147,7 +148,8 @@ describe("table normalization", () => {
         expect(normalizeTable(rows, {}, PAGE).columns).toEqual([288, 288, 288].map(px));
         expect(normalizeTable(rows, { colW: 0.75 }, PAGE).columns).toEqual([64, 64, 64].map(px));
         expect(normalizeTable(rows, { w: 6, colW: [1, 2] }, PAGE).columns).toEqual([192, 192, 192].map(px));
-        expect(normalizeTable([rows[0]!, rows[0]!], { h: 2, rowH: [0.5] }, PAGE).rows.map(row => row.height)).toEqual([48, 96].map(px));
+        // PptxGenJS 4.0.1 reads a one-item rowH through Number(), so it sizes every row, whatever `h` says (#304).
+        expect(normalizeTable([rows[0]!, rows[0]!], { h: 2, rowH: [0.5] }, PAGE).rows.map(row => row.height)).toEqual([48, 48].map(px));
     });
 
     // PptxGenJS 4.0.1 genXmlTable writes `<a:tr h>` from rowH, else h / rows; h alone is only the frame's cy, which
@@ -160,7 +162,7 @@ describe("table normalization", () => {
         const fromH = normalizeTable(rows, { h: 3 }, PAGE);
         expect(fromH.rows.map(row => row.height)).toEqual([96, 96, 96].map(px));
         expect(fromH.height).toBe(px(288));
-        expect(normalizeTable([[{ text: "A" }], [{ text: "B" }]], { rowH: [0.5] }, PAGE).height).toBeUndefined();
+        expect(normalizeTable(rows, { rowH: [0.5, 0.25] }, PAGE).height).toBeUndefined();
 
         const presentation = new PuppeteerGen();
         presentation.addSlide().addTable(rows, { x: 0.5, y: 0.5, w: 8, h: 3, rowH: 0.5 });
@@ -168,6 +170,27 @@ describe("table normalization", () => {
         expect(parseFloat(page.querySelector<HTMLElement>(".slide-table-container")?.style.height ?? "")).toBe(144);
         expect(parseFloat(page.querySelector<HTMLElement>("table.slide-table")?.style.height ?? "")).toBe(144);
         expect([...page.querySelectorAll<HTMLElement>("tr")].map(row => parseFloat(row.style.height))).toEqual([48, 48, 48]);
+    });
+
+    // genXmlTable (step 4 A): rowH[row] when truthy, else Number(rowH), which reads a one-item array as its item (#304).
+    test.each<[string, PptxGenJS.TableProps["rowH"]]>([
+        ["one item", [0.5]],
+        ["one zero item", [0]],
+        ["no items", []],
+        ["one item per row", [0.5, 0.25, 0.75]],
+        ["fewer items than rows", [0.5, 0.25]],
+        ["a zero item among several", [0, 0.25, 0.75]],
+        ["a number", 0.4],
+        ["no rowH", undefined],
+    ])("sizes rows from rowH with %s as PptxGenJS does, with and without h", async (_, rowH) => {
+        const rows = [[{ text: "A" }], [{ text: "B" }], [{ text: "C" }]];
+        for (const options of [
+            { x: 1, y: 1, w: 2, rowH },
+            { x: 1, y: 1, w: 2, h: 2.4, rowH },
+        ] satisfies PptxGenJS.TableProps[]) {
+            const ours = normalizeTable(rows, options, PAGE).rows.map(row => Number(pixelsToInches(row.height ?? px(0)).toFixed(4)));
+            expect({ options, ours }).toEqual({ options, ours: await pptxGenJsRowHeights(rows, options) });
+        }
     });
 
     // PptxGenJS 4.0.1 writes a bare <a:bodyPr/> in every cell (genXmlTextBody), so a cell has no autofit (#197).
@@ -358,6 +381,16 @@ describe("cells beyond the grid columns (#286)", () => {
         expect(tops.map(top => (top - first) / 96)).toEqual(EXTRA_CELL_ROW_TOPS_IN.map(inches => expect.closeTo(inches - EXTRA_CELL_ROW_TOPS_IN[0], 3)));
     });
 });
+
+/** The `<a:tr h>` PptxGenJS 4.0.1 writes for a one-slide table, in inches to 4 places; 0 is a row sized to its content. */
+async function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Promise<number[]> {
+    const pptx = new PptxGenJSRuntime();
+    pptx.addSlide().addTable(structuredClone(rows), structuredClone(options));
+    // `as`: write() returns a Buffer for the nodebuffer output type.
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+    const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+    return [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, emu]) => Number((Number(emu) / PPTX_DEFAULTS.units.emuPerInch).toFixed(4)));
+}
 
 /** The runs PptxGenJS 4.0.1 writes for a one-slide table, per cell: each run's text and whether it has `b="1"`. */
 async function pptxGenJsRuns(rows: unknown[], options: PptxGenJS.TableProps): Promise<string[]> {

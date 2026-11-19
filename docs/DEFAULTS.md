@@ -284,8 +284,11 @@ values of 1 or greater are points.
 A table is as tall as its rows. PptxGenJS 4.0.1 writes each `<a:tr h>` from
 `rowH`, or from `h` divided by the row count when `rowH` is missing; with `rowH`,
 `h` only becomes the frame's `cy`, which PowerPoint and LibreOffice ignore, so
-`rowH: 0.3, h: 2` on three rows draws a 0.9in table. Every row height is a
-minimum that grows to the row's text.
+`rowH: 0.3, h: 2` on three rows draws a 0.9in table. A `rowH` array gives row
+`i` its item `i`; past its end, PptxGenJS reads the array through `Number()`, so a
+one-item array such as `[0.3]` sizes every row, `[]` or `[0]` leaves every row to
+its content, and a longer array leaves its missing rows to `h`. Every row height
+is a minimum that grows to the row's text.
 
 A row without a height (PptxGenJS writes `<a:tr h="0">`, as on autoPage and
 `tableToSlides` pages) sizes to its tallest cell. LibreOffice makes it 1/100 mm
