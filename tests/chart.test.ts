@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { JSDOM } from "jsdom";
 import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
 import { UnsupportedChartError } from "../packages/pptxgenjs/src/chart/errors";
 import { formatChartNumber } from "../packages/pptxgenjs/src/chart/format";
 import { normalizeChart } from "../packages/pptxgenjs/src/normalize/chart";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { unresolvedModelHtml } from "../packages/pptxgenjs/src/render/document";
 
 const categoricalData: PptxGenJS.OptsChartData[] = [
     { name: "First", labels: ["A", "B", "C"], values: [2, 5, 3] },
@@ -160,6 +162,28 @@ describe("chart normalization and rendering", () => {
             expect(svg?.querySelectorAll(".bar3d-mark")).toHaveLength(6);
             expect(svg?.textContent).toContain("First");
         }
+    });
+
+    test("escapes the bar3D title, series names and model strings it writes into attributes (#283)", () => {
+        const tricky = `a<b & "c" 'd'`;
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addChart("bar3D", [{ ...categoricalData[0], name: tricky }], { x: 0, y: 0, w: 5, h: 3, showTitle: true, title: tricky, showLegend: true });
+        const svg = renderedPage(presentation).querySelector(".slide-chart svg");
+        expect(svg?.querySelector(".bar3d-title")?.textContent).toBe(tricky);
+        expect(Array.from(svg?.querySelectorAll(".bar3d-series-label, .bar3d-legend") ?? [], label => label.textContent)).toEqual([tricky, tricky]);
+        expect(svg?.querySelectorAll("b")).toHaveLength(0);
+
+        // A model from another producer is not normalized, so its colors and shape name reach the SVG as given.
+        const injected = `red"><script>alert(1)</script><x y="`;
+        const model = presentation.getModel();
+        const chart = model.slides[0]?.objects[0];
+        if (chart?.kind !== "chart") throw new Error("expected the chart object");
+        Object.assign(chart.chart, { titleColor: injected, legendColor: injected, gridLineColor: injected, colors: [injected], bar3DShape: injected });
+        const page = new JSDOM(unresolvedModelHtml(model)).window.document;
+        expect(page.querySelectorAll("script, x")).toHaveLength(0);
+        expect(page.querySelector(".bar3d-title")?.getAttribute("fill")).toBe(injected);
+        expect(page.querySelector(".bar3d-legend")?.getAttribute("fill")).toBe(injected);
+        expect(page.querySelector("svg[data-chart-type='bar3D']")?.getAttribute("data-bar3d-shape")).toBe(injected);
     });
 
     test("projects bar3D through the view3D camera PptxGenJS writes", () => {

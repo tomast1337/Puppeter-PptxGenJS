@@ -1,6 +1,7 @@
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedChart } from "@pdflapas/model";
 import { pointsToPixels } from "@pdflapas/model";
+import { type Attribute, element, escapeText, type Html } from "./markup";
 
 interface Point {
     x: number;
@@ -15,18 +16,6 @@ interface Bar {
 
 const n = (value: number): string => Number(value.toFixed(2)).toString();
 const p = (point: Point): string => `${n(point.x)},${n(point.y)}`;
-const escapeXml = (value: string): string =>
-    value.replace(
-        /[&<>"']/g,
-        character =>
-            ({
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&apos;",
-            })[character]!,
-    );
 
 function shade(hex: string, amount: number): string {
     const value = hex.replace(/^#/, "");
@@ -107,7 +96,7 @@ function fitView3D(chart: NormalizedChart, depth: number, area: { x: number; y: 
 }
 
 /** Deterministic, browser-independent 3D bar projection used instead of WebGL. */
-export function renderBar3DSvg(width: number, height: number, chart: NormalizedChart): string {
+export function renderBar3DSvg(width: number, height: number, chart: NormalizedChart): Html {
     const labels = chart.series[0]?.labels ?? [];
     const categoryCount = Math.max(1, labels.length, ...chart.series.map(series => series.values.length));
     const seriesCount = Math.max(1, chart.series.length);
@@ -128,18 +117,33 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
     const backDepth = Math.cos(chart.rotationY3D * DEGREE) >= 0 ? 1 : 0;
     const frontDepth = 1 - backDepth;
     const sideX = Math.sin(chart.rotationY3D * DEGREE) >= 0 ? 0 : 1;
-    const polygon = (className: string, points: Point[], fill: string): string => `<polygon class="${className}" points="${points.map(p).join(" ")}" fill="${fill}"/>`;
+    const polygon = (className: string, points: Point[], fill: string): Html =>
+        element("polygon", [
+            ["class", className],
+            ["points", points.map(p).join(" ")],
+            ["fill", fill],
+        ]);
     const tickCount = 4;
     const otherX = 1 - sideX;
-    const gridStroke = `stroke="#${chart.gridLineColor.replace(/^#/, "")}" stroke-width="${n(pointsToPixels(chart.gridLineWidth))}"`;
+    const gridStroke: Attribute[] = [
+        ["fill", "none"],
+        ["stroke", `#${chart.gridLineColor.replace(/^#/, "")}`],
+        ["stroke-width", n(pointsToPixels(chart.gridLineWidth))],
+    ];
     // Office draws the value gridlines across the side wall and the back wall, labelled at the wall's front edge.
     const grid = Array.from({ length: tickCount + 1 }, (_, index) => {
         const value = minimum + (range * index) / tickCount;
         const label = project(sideX, frontDepth, value);
         const line = [label, project(sideX, backDepth, value), project(otherX, backDepth, value)];
-        const labelX = sideX === 0 ? `x="${n(label.x - 8)}" text-anchor="end"` : `x="${n(label.x + 8)}"`;
-        return `<polyline points="${line.map(p).join(" ")}" fill="none" ${gridStroke}/>` + `<text ${labelX} y="${n(label.y + 4)}">${escapeXml(tickLabel(value))}</text>`;
-    }).join("");
+        const labelX: Attribute[] =
+            sideX === 0
+                ? [
+                      ["x", n(label.x - 8)],
+                      ["text-anchor", "end"],
+                  ]
+                : [["x", n(label.x + 8)]];
+        return [element("polyline", [["points", line.map(p).join(" ")], ...gridStroke]), element("text", [...labelX, ["y", n(label.y + 4)]], escapeText(tickLabel(value)))];
+    }).flat();
     const backSideBottom = project(sideX, backDepth, minimum);
     const backSideTop = project(sideX, backDepth, maximum);
     const backOtherBottom = project(otherX, backDepth, minimum);
@@ -148,11 +152,33 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
     const frontSideTop = project(sideX, frontDepth, maximum);
     const frontOtherBottom = project(otherX, frontDepth, minimum);
     const floor = polygon("bar3d-floor", [frontSideBottom, frontOtherBottom, backOtherBottom, backSideBottom], `#${PPTX_DEFAULTS.chart.bar3DLighting.floorColor}`);
-    const wall = polygon("bar3d-wall", [backSideBottom, backOtherBottom, backOtherTop, backSideTop], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`) + polygon("bar3d-wall", [frontSideBottom, backSideBottom, backSideTop, frontSideTop], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`);
-    const frame =
-        `<polyline class="bar3d-frame" points="${[frontSideTop, frontSideBottom, frontOtherBottom, backOtherBottom, backOtherTop, backSideTop, frontSideTop].map(p).join(" ")}" fill="none" ${gridStroke}/>` +
-        `<polyline class="bar3d-frame" points="${[backSideBottom, backSideTop].map(p).join(" ")}" fill="none" ${gridStroke}/>`;
-    const gradients = `<defs>${chart.colors.map((color, index) => `<linearGradient id="bar3d-front-${index}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${shade(color, 0.13)}"/><stop offset="1" stop-color="${shade(color, -0.08)}"/></linearGradient>`).join("")}</defs>`;
+    const wall = [polygon("bar3d-wall", [backSideBottom, backOtherBottom, backOtherTop, backSideTop], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`), polygon("bar3d-wall", [frontSideBottom, backSideBottom, backSideTop, frontSideTop], `#${PPTX_DEFAULTS.chart.bar3DLighting.wallColor}`)];
+    const frame = [
+        element("polyline", [["class", "bar3d-frame"], ["points", [frontSideTop, frontSideBottom, frontOtherBottom, backOtherBottom, backOtherTop, backSideTop, frontSideTop].map(p).join(" ")], ...gridStroke]),
+        element("polyline", [["class", "bar3d-frame"], ["points", [backSideBottom, backSideTop].map(p).join(" ")], ...gridStroke]),
+    ];
+    const gradientStop = (offset: string, color: string): Html =>
+        element("stop", [
+            ["offset", offset],
+            ["stop-color", color],
+        ]);
+    const gradients = element(
+        "defs",
+        [],
+        chart.colors.map((color, index) =>
+            element(
+                "linearGradient",
+                [
+                    ["id", `bar3d-front-${index}`],
+                    ["x1", "0"],
+                    ["y1", "0"],
+                    ["x2", "0"],
+                    ["y2", "1"],
+                ],
+                [gradientStop("0", shade(color, 0.13)), gradientStop("1", shade(color, -0.08))],
+            ),
+        ),
+    );
 
     const bars: Bar[] = [];
     if (chart.grouping === "stacked" || chart.grouping === "percentStacked") {
@@ -213,87 +239,146 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
             const cap = chart.rotationX3D >= 0 ? high : low;
             const front = [project(x0, nearZ, low), project(x1, nearZ, low), project(x1, nearZ, high), project(x0, nearZ, high)];
             const side = [project(nearX, z0, low), project(nearX, z1, low), project(nearX, z1, high), project(nearX, z0, high)];
-            const shapeClass = `bar3d-mark bar3d-${chart.bar3DShape}`;
+            const group: Attribute[] = [
+                ["class", `bar3d-mark bar3d-${chart.bar3DShape}`],
+                ["data-series", String(bar.series)],
+                ["data-category", String(bar.category)],
+                ["opacity", opacity],
+            ];
             if (chart.bar3DShape === "pyramid" || chart.bar3DShape === "pyramidToMax") {
                 const apex = project(cx, (z0 + z1) / 2, high);
-                return `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` + polygon("bar3d-front", [bfl, bfr, apex], frontColor) + polygon("bar3d-side", [bfr, bbr, apex], sideColor) + polygon("bar3d-back", [bbr, bbl, apex], topColor) + `</g>`;
+                return element("g", group, [polygon("bar3d-front", [bfl, bfr, apex], frontColor), polygon("bar3d-side", [bfr, bbr, apex], sideColor), polygon("bar3d-back", [bbr, bbl, apex], topColor)]);
             }
             if (chart.bar3DShape === "cone" || chart.bar3DShape === "coneToMax") {
                 const bottom = project(cx, (z0 + z1) / 2, low);
                 const apex = project(cx, (z0 + z1) / 2, high);
                 const radiusX = Math.max(3, Math.hypot(bfr.x - bfl.x, bfr.y - bfl.y) / 2);
                 const radiusY = Math.max(2, Math.abs(bbr.y - bfr.y) / 2);
-                return (
-                    `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` +
-                    `<path class="bar3d-front" d="M ${n(bottom.x - radiusX)} ${n(bottom.y)} Q ${n(bottom.x)} ${n(bottom.y + radiusY)} ${n(bottom.x + radiusX)} ${n(bottom.y)} L ${n(apex.x)} ${n(apex.y)} Z" fill="${frontColor}"/>` +
-                    `<ellipse class="bar3d-base" cx="${n(bottom.x)}" cy="${n(bottom.y)}" rx="${n(radiusX)}" ry="${n(radiusY)}" fill="${sideColor}"/>` +
-                    `</g>`
-                );
+                return element("g", group, [
+                    element("path", [
+                        ["class", "bar3d-front"],
+                        ["d", `M ${n(bottom.x - radiusX)} ${n(bottom.y)} Q ${n(bottom.x)} ${n(bottom.y + radiusY)} ${n(bottom.x + radiusX)} ${n(bottom.y)} L ${n(apex.x)} ${n(apex.y)} Z`],
+                        ["fill", frontColor],
+                    ]),
+                    element("ellipse", [
+                        ["class", "bar3d-base"],
+                        ["cx", n(bottom.x)],
+                        ["cy", n(bottom.y)],
+                        ["rx", n(radiusX)],
+                        ["ry", n(radiusY)],
+                        ["fill", sideColor],
+                    ]),
+                ]);
             }
             if (chart.bar3DShape === "cylinder") {
                 const bottom = project(cx, (z0 + z1) / 2, low);
                 const top = project(cx, (z0 + z1) / 2, high);
                 const radiusX = Math.max(3, Math.hypot(bfr.x - bfl.x, bfr.y - bfl.y) / 2);
                 const radiusY = Math.max(2, Math.abs(bbr.y - bfr.y) / 2);
-                return (
-                    `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` +
-                    `<path class="bar3d-front" d="M ${n(top.x - radiusX)} ${n(top.y)} L ${n(bottom.x - radiusX)} ${n(bottom.y)} A ${n(radiusX)} ${n(radiusY)} 0 0 0 ${n(bottom.x + radiusX)} ${n(bottom.y)} L ${n(top.x + radiusX)} ${n(top.y)} Z" fill="${frontColor}"/>` +
-                    `<ellipse class="bar3d-top" cx="${n(top.x)}" cy="${n(top.y)}" rx="${n(radiusX)}" ry="${n(radiusY)}" fill="${topColor}"/>` +
-                    `</g>`
-                );
+                return element("g", group, [
+                    element("path", [
+                        ["class", "bar3d-front"],
+                        ["d", `M ${n(top.x - radiusX)} ${n(top.y)} L ${n(bottom.x - radiusX)} ${n(bottom.y)} A ${n(radiusX)} ${n(radiusY)} 0 0 0 ${n(bottom.x + radiusX)} ${n(bottom.y)} L ${n(top.x + radiusX)} ${n(top.y)} Z`],
+                        ["fill", frontColor],
+                    ]),
+                    element("ellipse", [
+                        ["class", "bar3d-top"],
+                        ["cx", n(top.x)],
+                        ["cy", n(top.y)],
+                        ["rx", n(radiusX)],
+                        ["ry", n(radiusY)],
+                        ["fill", topColor],
+                    ]),
+                ]);
             }
-            return (
-                `<g class="${shapeClass}" data-series="${bar.series}" data-category="${bar.category}" opacity="${opacity}">` +
-                polygon("bar3d-front", front, frontColor) +
-                polygon("bar3d-side", side, sideColor) +
-                polygon("bar3d-top", [project(x0, z0, cap), project(x1, z0, cap), project(x1, z1, cap), project(x0, z1, cap)], topColor) +
-                `</g>`
-            );
-        })
-        .join("");
+            return element("g", group, [polygon("bar3d-front", front, frontColor), polygon("bar3d-side", side, sideColor), polygon("bar3d-top", [project(x0, z0, cap), project(x1, z0, cap), project(x1, z1, cap), project(x0, z1, cap)], topColor)]);
+        });
 
     const categoryLabels = Array.from({ length: categoryCount }, (_, index) => {
         const point = project((index + 0.5) / categoryCount, frontDepth, minimum);
         const label = labels[index] ?? String(index + 1);
-        return `<text x="${n(point.x)}" y="${n(point.y + 20)}" text-anchor="middle">${escapeXml(label)}</text>`;
-    }).join("");
-    const seriesLabels = chart.series
-        .map((series, index) => {
-            const point = project(otherX, slotDepth(index), minimum);
-            return `<text class="bar3d-series-label" x="${n(point.x + 7)}" y="${n(point.y + 12)}">${escapeXml(series.name)}</text>`;
-        })
-        .join("");
+        return element(
+            "text",
+            [
+                ["x", n(point.x)],
+                ["y", n(point.y + 20)],
+                ["text-anchor", "middle"],
+            ],
+            escapeText(label),
+        );
+    });
+    const seriesLabels = chart.series.map((series, index) => {
+        const point = project(otherX, slotDepth(index), minimum);
+        return element(
+            "text",
+            [
+                ["class", "bar3d-series-label"],
+                ["x", n(point.x + 7)],
+                ["y", n(point.y + 12)],
+            ],
+            escapeText(series.name),
+        );
+    });
     // The legend has its own font (legendFontFace/legendFontSize/legendColor), not the axis-label font of the <g>.
-    const legendFont = ` font-family="${escapeXml(chart.legendFontFace)}" font-size="${n(pointsToPixels(chart.legendFontSize))}" fill="${chart.legendColor}"`;
+    const legendFont: Attribute[] = [
+        ["font-family", chart.legendFontFace],
+        ["font-size", n(pointsToPixels(chart.legendFontSize))],
+        ["fill", chart.legendColor],
+    ];
     const keySize = Math.round(pointsToPixels(chart.legendFontSize) * PPTX_DEFAULTS.chart.legendKeyFontRatio);
     const legend = chart.showLegend
-        ? chart.series
-              .map((series, index) => {
-                  const itemWidth = Math.min(100, width / Math.max(2, chart.series.length + 1));
-                  const x = width / 2 + (index - (chart.series.length - 1) / 2) * itemWidth;
-                  const y = height - 12;
-                  const color = chart.colors[index % chart.colors.length] ?? "#4472C4";
-                  return `<rect x="${n(x - 22 - keySize)}" y="${n(y - keySize)}" width="${n(keySize)}" height="${n(keySize)}" fill="${color}"/>` + `<text class="bar3d-legend" x="${n(x - 17)}" y="${n(y)}"${legendFont}>${escapeXml(series.name)}</text>`;
-              })
-              .join("")
-        : "";
+        ? chart.series.flatMap((series, index) => {
+              const itemWidth = Math.min(100, width / Math.max(2, chart.series.length + 1));
+              const x = width / 2 + (index - (chart.series.length - 1) / 2) * itemWidth;
+              const y = height - 12;
+              const color = chart.colors[index % chart.colors.length] ?? "#4472C4";
+              return [
+                  element("rect", [
+                      ["x", n(x - 22 - keySize)],
+                      ["y", n(y - keySize)],
+                      ["width", n(keySize)],
+                      ["height", n(keySize)],
+                      ["fill", color],
+                  ]),
+                  element("text", [["class", "bar3d-legend"], ["x", n(x - 17)], ["y", n(y)], ...legendFont], escapeText(series.name)),
+              ];
+          })
+        : [];
     const title = chart.showTitle
-        ? `<text class="bar3d-title" x="${n(width / 2)}" y="${n(pointsToPixels(chart.titleFontSize) + 4)}" text-anchor="middle" font-family="${escapeXml(chart.titleFontFace)}" font-size="${n(pointsToPixels(chart.titleFontSize))}" font-weight="${chart.titleBold ? "bold" : "normal"}" fill="${chart.titleColor}">${escapeXml(chart.title)}</text>`
-        : "";
+        ? [
+              element(
+                  "text",
+                  [
+                      ["class", "bar3d-title"],
+                      ["x", n(width / 2)],
+                      ["y", n(pointsToPixels(chart.titleFontSize) + 4)],
+                      ["text-anchor", "middle"],
+                      ["font-family", chart.titleFontFace],
+                      ["font-size", n(pointsToPixels(chart.titleFontSize))],
+                      ["font-weight", chart.titleBold ? "bold" : "normal"],
+                      ["fill", chart.titleColor],
+                  ],
+                  escapeText(chart.title),
+              ),
+          ]
+        : [];
 
-    return (
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(width)} ${n(height)}" data-chart-type="bar3D" data-bar3d-shape="${chart.bar3DShape}">` +
-        `<g font-family="${escapeXml(chart.fontFace)}" font-size="${n(pointsToPixels(chart.fontSize))}" fill="#000000">` +
-        gradients +
-        title +
-        wall +
-        floor +
-        frame +
-        grid +
-        barSvg +
-        categoryLabels +
-        seriesLabels +
-        legend +
-        `</g></svg>`
+    return element(
+        "svg",
+        [
+            ["xmlns", "http://www.w3.org/2000/svg"],
+            ["viewBox", `0 0 ${n(width)} ${n(height)}`],
+            ["data-chart-type", "bar3D"],
+            ["data-bar3d-shape", chart.bar3DShape],
+        ],
+        element(
+            "g",
+            [
+                ["font-family", chart.fontFace],
+                ["font-size", n(pointsToPixels(chart.fontSize))],
+                ["fill", "#000000"],
+            ],
+            [gradients, ...title, ...wall, floor, ...frame, ...grid, ...barSvg, ...categoryLabels, ...seriesLabels, ...legend],
+        ),
     );
 }
