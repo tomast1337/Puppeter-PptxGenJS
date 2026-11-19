@@ -150,39 +150,101 @@ export function printHtml(html: string): string {
         } else if (element.tagName === "svg" && hasClass(element, "shape-svg")) {
             edits.push(...shapeEdits(element));
         } else if (element.tagName === "table" && hasClass(element, "slide-table")) {
-            // Table offset: DrawingML centres table borders on the grid; Chromium collapses the outer half into the
-            // table box, so offset the grid by half the widest stroke. A hidden border is written 0px wide.
-            let widest = 0;
-            for (const cell of descendants(element)) {
-                if (cell.tagName !== "td") continue;
-                const half = { top: 0, right: 0, bottom: 0, left: 0 };
-                for (const [, side, width] of (attribute(cell, "style") ?? "").matchAll(BORDER_WIDTH)) {
-                    const value = snapBorder(number(cell, width, "numeric border width"));
-                    widest = Math.max(widest, value);
-                    // The pattern's alternation matches only these four sides.
-                    half[side as keyof typeof half] = value / 2;
-                }
-                const text = cell.childNodes.find((child): child is Element => isElement(child) && hasClass(child, "table-cell-text"));
-                // PptxGenJS writes a bare <a:bodyPr/> in a cell, so the profile has no cell autofit; the WASM parser rejects it too.
-                const fit = text && attribute(text, "data-text-fit");
-                if (text && fit !== undefined && fit !== "none") {
-                    throw new Error(`Cannot print '${objectName(text)}': its .table-cell-text needs data-text-fit="none", since a table cell has no autofit and its row grows to the text (PdfLapas HTML profile)`);
-                }
-                if (text && (half.top || half.right || half.bottom || half.left)) edits.push(cellInset(text, half));
-            }
-            if (widest) edits.push(addStyle(element, `position: relative; left: ${-widest / 2}px; top: ${-widest / 2}px;`));
+            edits.push(...tableEdits(element));
         }
     }
     let next = 0;
     return applySourceEdits(masked, edits).replace(DATA_URI_PAYLOAD, (head: string) => `${head}${payloads[next++] ?? ""}`);
 }
 
+type Sides = Record<"top" | "right" | "bottom" | "left", number>;
+
+/** A `<td>` at its place in the table grid, with the snapped width of each border it writes. */
+interface GridCell {
+    element: Element;
+    row: number;
+    column: number;
+    rows: number;
+    columns: number;
+    borders: Sides;
+}
+
+/** The table's cells placed on its grid as HTML table layout places them: each in the first free column of its row. */
+function gridCells(table: Element): GridCell[] {
+    const taken = new Set<string>();
+    const cells: GridCell[] = [];
+    let row = 0;
+    for (const tr of descendants(table)) {
+        if (tr.tagName !== "tr") continue;
+        let column = 0;
+        for (const td of tr.childNodes) {
+            if (!isElement(td) || td.tagName !== "td") continue;
+            while (taken.has(`${row},${column}`)) column++;
+            const rows = Math.max(1, Number(attribute(td, "rowspan") ?? 1) || 1);
+            const columns = Math.max(1, Number(attribute(td, "colspan") ?? 1) || 1);
+            for (let r = row; r < row + rows; r++) for (let c = column; c < column + columns; c++) taken.add(`${r},${c}`);
+            const borders = { top: 0, right: 0, bottom: 0, left: 0 };
+            for (const [, side, width] of (attribute(td, "style") ?? "").matchAll(BORDER_WIDTH)) {
+                // The pattern's alternation matches only these four sides. A hidden border is written 0px wide.
+                borders[side as keyof Sides] = snapBorder(number(td, width, "numeric border width"));
+            }
+            cells.push({ element: td, row, column, rows, columns, borders });
+            column += columns;
+        }
+        row++;
+    }
+    return cells;
+}
+
+/**
+ * Each side of `cell` as Chromium collapses it: the widest of its own border and the facing borders of the cells
+ * across that grid line (CSS 2.1 17.6.2.1; none and hidden borders are written 0px wide).
+ */
+function collapsedBorders(cell: GridCell, cells: readonly GridCell[]): Sides {
+    const overlaps = (start: number, count: number, otherStart: number, otherCount: number) => start < otherStart + otherCount && otherStart < start + count;
+    const facing = (side: keyof Sides, opposite: keyof Sides, across: (other: GridCell) => boolean) => Math.max(cell.borders[side], ...cells.filter(across).map(other => other.borders[opposite]));
+    const sameRows = (other: GridCell) => overlaps(cell.row, cell.rows, other.row, other.rows);
+    const sameColumns = (other: GridCell) => overlaps(cell.column, cell.columns, other.column, other.columns);
+    return {
+        top: facing("top", "bottom", other => other.row + other.rows === cell.row && sameColumns(other)),
+        right: facing("right", "left", other => other.column === cell.column + cell.columns && sameRows(other)),
+        bottom: facing("bottom", "top", other => other.row === cell.row + cell.rows && sameColumns(other)),
+        left: facing("left", "right", other => other.column + other.columns === cell.column && sameRows(other)),
+    };
+}
+
+function tableEdits(table: Element): SourceEdit[] {
+    const edits: SourceEdit[] = [];
+    const cells = gridCells(table);
+    let top = 0;
+    let left = 0;
+    for (const cell of cells) {
+        const borders = collapsedBorders(cell, cells);
+        if (cell.row === 0) top = Math.max(top, borders.top);
+        if (cell.column === 0) left = Math.max(left, borders.left);
+        const text = cell.element.childNodes.find((child): child is Element => isElement(child) && hasClass(child, "table-cell-text"));
+        // PptxGenJS writes a bare <a:bodyPr/> in a cell, so the profile has no cell autofit; the WASM parser rejects it too.
+        const fit = text && attribute(text, "data-text-fit");
+        if (text && fit !== undefined && fit !== "none") {
+            throw new Error(`Cannot print '${objectName(text)}': its .table-cell-text needs data-text-fit="none", since a table cell has no autofit and its row grows to the text (PdfLapas HTML profile)`);
+        }
+        const { top: t, right: r, bottom: b, left: l } = borders;
+        if (text && (t || r || b || l)) edits.push(cellInset(text, { top: t / 2, right: r / 2, bottom: b / 2, left: l / 2 }));
+    }
+    // Table offset: DrawingML centres table borders on the grid; Chromium puts the outer half of the first row's
+    // top borders and of the first column's left borders inside the table box, so move the grid up and left by them.
+    if (top || left) edits.push(addStyle(table, `position: relative; left: ${-left / 2}px; top: ${-top / 2}px;`));
+    return edits;
+}
+
 /**
  * Cell inset: DrawingML measures a cell's margins from the grid line under its centred border; Chromium puts the
- * inner half of a collapsed border inside the cell and the margins after it. Grow the cell's text box over that
- * half on each side: an absolute box by its inset, one in flow by negative margins and a wider width.
+ * inner half of a collapsed border inside the cell, its neighbour's when that one is wider, and the margins after it.
+ * Grow the cell's text box over that half on each side, or a row whose text fills it grows by the half (a 0.5pt
+ * bottom border on 0.2667in rows of 10pt text printed them 19.41-19.50pt apart, not 19.2): an absolute box by its
+ * inset, one in flow by negative margins and a wider width.
  */
-function cellInset(text: Element, half: Readonly<Record<"top" | "right" | "bottom" | "left", number>>): SourceEdit {
+function cellInset(text: Element, half: Readonly<Sides>): SourceEdit {
     const { top, right, bottom, left } = half;
     if (ABSOLUTE.test(attribute(text, "style") ?? "")) return addStyle(text, `inset: ${-top}px ${-right}px ${-bottom}px ${-left}px;`);
     return addStyle(text, `margin: ${-top}px ${-right}px ${-bottom}px ${-left}px; width: calc(100% + ${left + right}px);`);
