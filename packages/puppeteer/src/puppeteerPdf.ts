@@ -398,10 +398,21 @@ async function prepareForPrint(): Promise<string[]> {
     }
 }
 
-/** The Title (from <title>) and the meta tags' Author, Subject, Company and Revision, as the WASM reader reads them. */
+/** The Title (from <title>) and the other document properties from the meta tags, as the WASM reader reads them. */
 function documentInfo(): DocumentInfo {
     const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
-    return { Title: document.title, Author: meta("author"), Subject: meta("description"), Company: meta("pdflapas-company"), Revision: meta("pdflapas-revision") };
+    return {
+        Title: document.title,
+        Author: meta("author"),
+        Subject: meta("description"),
+        Company: meta("pdflapas-company"),
+        Revision: meta("pdflapas-revision"),
+        Keywords: meta("keywords"),
+        Creator: meta("pdflapas-creator"),
+        Producer: meta("pdflapas-producer"),
+        CreationDate: meta("pdflapas-creation-date"),
+        ModDate: meta("pdflapas-modification-date"),
+    };
 }
 
 /** Points each external link at `placeholder` and its index (see `withLinkUris`), and returns the links' URLs. */

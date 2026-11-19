@@ -6,6 +6,7 @@ import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, 
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import { type ImageSourceOptions, imageResolver, resolveRemoteImageSource } from "./normalize/image";
 import { fontMetricsLookup } from "./fontMetrics";
+import { normalizePdfMetadata, type PdfMetadataOptions } from "./normalize/pdfMetadata";
 import type { SharedRunOptions } from "./normalize/sharedRunOptions";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { paginateTableRows } from "./normalize/table/pagination";
@@ -83,6 +84,12 @@ export interface PuppeteerGenOptions {
      * (fontconfig); `null`, or no resolver in the browser build, keeps every face's natural advances.
      */
     resolveGlyphAdvances?: ((fontFace: string, bold: boolean, italic: boolean) => GlyphAdvances | undefined) | null;
+    /**
+     * PDF document properties PptxGenJS has no field for: `creator`, `producer`, `keywords`, `creationDate` and
+     * `modificationDate`. Unset, Creator and Producer are "PdfLapas" and the PDF has no dates, so the same deck gives
+     * the same bytes. Dates are written in UTC to the second; one date alone is used for both.
+     */
+    pdfMetadata?: PdfMetadataOptions;
 }
 
 /** The constructor's `target`, checked: a misspelled one would otherwise render silently for the default. */
@@ -114,6 +121,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     // Only what the caller sets: PptxGenJS's defaults ("PptxGenJS", "PptxGenJS Presentation", "1") are its branding,
     // not the caller's, so an unset one reads "" and reaches neither the HTML nor the PDF (owner decision, #102).
     private metadata: PresentationMetadata = {};
+    /** `PuppeteerGenOptions.pdfMetadata`, checked: PdfLapas's own properties, kept apart from PptxGenJS's `pres.*`. */
+    private readonly pdfMetadata: PresentationMetadata;
     /** The `slideNumber` set last on any slide: PptxGenJS writes it to the master, which slide numbers inherit from. */
     private masterSlideNumber: PptxGenJS.SlideNumberProps | null = null;
     private readonly components = new ComponentRegistry();
@@ -135,6 +144,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.resolveImage = imageResolver(options, resolveRemoteImageSource);
         this.createDocument = options.createDocument ?? createBrowserDocument;
         this.target = renderingTarget(options.target);
+        this.pdfMetadata = normalizePdfMetadata(options.pdfMetadata);
         this.fontMetrics = fontMetricsLookup(options.fontMetrics, options.resolveFontMetrics, options.resolveGlyphAdvances);
         this.componentDocument = lazyDocument(this.createDocument);
     }
@@ -314,7 +324,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
      * `component` objects keep only type, version and props; rendering them needs the registered definitions.
      */
     getModel(): NormalizedPresentation {
-        return structuredClone({ pageSize: this.pageSize, metadata: this.metadata, slides: this.slides.map(slide => slide.toModel(this.pageSize, this.masterSlideNumber)) });
+        return structuredClone({ pageSize: this.pageSize, metadata: { ...this.metadata, ...this.pdfMetadata }, slides: this.slides.map(slide => slide.toModel(this.pageSize, this.masterSlideNumber)) });
     }
 
     /** PptxGenJS `stream()`: the PDF as a Node Buffer. `compression` is ignored (zip-only). */

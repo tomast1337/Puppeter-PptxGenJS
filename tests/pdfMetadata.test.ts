@@ -7,7 +7,7 @@ import pptxgen from "pptxgenjs";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { PDF_PRODUCER } from "../packages/model/src/index";
-import { withDocumentInfo } from "../packages/puppeteer/src/pdfInfo";
+import { pdfDate, withDocumentInfo } from "../packages/puppeteer/src/pdfInfo";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 
 const KEYS = ["author", "company", "revision", "subject", "title"] as const;
@@ -28,7 +28,7 @@ async function documentInfo(pdf: Uint8Array): Promise<Record<string, string>> {
             const check = spawnSync("qpdf", ["--check", path], { encoding: "utf8" });
             if (check.status !== 0) throw new Error(`qpdf --check failed: ${check.stdout}${check.stderr}`);
         }
-        const result = spawnSync("pdfinfo", ["-custom", "-enc", "UTF-8", path], { encoding: "utf8" });
+        const result = spawnSync("pdfinfo", ["-custom", "-isodates", "-enc", "UTF-8", path], { encoding: "utf8" });
         if (result.status !== 0) throw new Error(`pdfinfo failed: ${result.stderr}`);
         return Object.fromEntries(
             result.stdout.split("\n").flatMap(line => {
@@ -56,6 +56,23 @@ function fullDeck(renderer?: ConstructorParameters<typeof PuppeteerGen>[1]): Pup
 // Both renderers name PdfLapas as Creator and Producer, as PowerPoint's export names itself, and write no dates.
 const PRODUCER_INFO = { Creator: PDF_PRODUCER, Producer: PDF_PRODUCER };
 const FULL_INFO = { Title: "Q3 plan – é 漢", Author: "Ana (A)", Subject: "Sales", Company: "Acme <Labs>", Revision: "7", ...PRODUCER_INFO };
+
+/** `pdfMetadata` with every property, non-ASCII included, and two different dates (local-time constructors on purpose: written in UTC). */
+const PDF_METADATA = {
+    creator: "Ação App 漢",
+    producer: "Lib (v2) ü",
+    keywords: "q3, vendas, 漢字",
+    creationDate: new Date("2026-01-02T03:04:05.678Z"),
+    modificationDate: new Date("2026-11-19T23:59:59+05:00"),
+};
+const PDF_METADATA_INFO = { Creator: "Ação App 漢", Producer: "Lib (v2) ü", Keywords: "q3, vendas, 漢字", CreationDate: "2026-01-02T03:04:05Z", ModDate: "2026-11-19T18:59:59Z" };
+
+/** A one-slide deck with the given `pdfMetadata` and no `pres.*` properties. */
+function pdfMetadataDeck(options: ConstructorParameters<typeof PuppeteerGen>[1]): PuppeteerGen {
+    const pres = new PuppeteerGen(undefined, options);
+    pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1 });
+    return pres;
+}
 
 describe("presentation metadata", () => {
     test("nothing is set by default, unlike PptxGenJS's branding defaults; setters read back", () => {
@@ -97,6 +114,44 @@ describe("presentation metadata", () => {
     });
 });
 
+describe("pdfMetadata option", () => {
+    test("reaches the model as plain JSON, dates as UTC ISO strings, next to the pres.* properties", () => {
+        const pres = new PuppeteerGen(undefined, { pdfMetadata: { ...PDF_METADATA, keywords: "" } });
+        pres.title = "T";
+        const metadata = pres.getModel().metadata;
+        expect(metadata).toEqual({ title: "T", creator: "Ação App 漢", producer: "Lib (v2) ü", creationDate: "2026-01-02T03:04:05.678Z", modificationDate: "2026-11-19T18:59:59.000Z" });
+        expect(JSON.parse(JSON.stringify(metadata))).toEqual(metadata);
+    });
+
+    test("toHtml() writes each set one as a meta tag after the PptxGenJS properties, the same for the same options", async () => {
+        const html = async () => (await pdfMetadataDeck({ pdfMetadata: PDF_METADATA }).toHtml()).html;
+        const first = await html();
+        expect(first).toContain(
+            '<meta name="keywords" content="q3, vendas, 漢字"><meta name="pdflapas-creator" content="Ação App 漢"><meta name="pdflapas-producer" content="Lib (v2) ü"><meta name="pdflapas-creation-date" content="2026-01-02T03:04:05.678Z"><meta name="pdflapas-modification-date" content="2026-11-19T18:59:59.000Z"><style',
+        );
+        expect(await html()).toBe(first);
+        // An empty object, or empty strings, write nothing: the HTML of a deck without the option.
+        const plain = (await pdfMetadataDeck({}).toHtml()).html;
+        expect((await pdfMetadataDeck({ pdfMetadata: { creator: "", keywords: "" } }).toHtml()).html).toBe(plain);
+        expect(plain).not.toContain("pdflapas-creator");
+    });
+
+    test("invalid input throws naming the option and the fix", () => {
+        const make = (pdfMetadata: unknown) => () => new PuppeteerGen(undefined, { pdfMetadata: pdfMetadata as never });
+        expect(make({ creationDate: new Date("nope") })).toThrow("PuppeteerGen option `pdfMetadata.creationDate` is an Invalid Date; pass a Date built from a valid time");
+        expect(make({ modificationDate: "2026-01-01" })).toThrow("PuppeteerGen option `pdfMetadata.modificationDate` must be a Date, got string");
+        expect(make({ creationDate: new Date(Date.UTC(10000, 0, 1)) })).toThrow("`pdfMetadata.creationDate` is in the year 10000; a PDF date needs a year from 0 to 9999");
+        expect(make({ creator: 3 })).toThrow("PuppeteerGen option `pdfMetadata.creator` must be a string, got number");
+        expect(make({ author: "A" })).toThrow("`pdfMetadata.author` is not a PDF property PdfLapas writes; use one of creator, producer, keywords, creationDate, modificationDate");
+        expect(make("x")).toThrow("PuppeteerGen option `pdfMetadata` must be an object, got string");
+    });
+
+    test("a profile date that is not UTC ISO cannot reach the Puppeteer Info dictionary", () => {
+        expect(pdfDate("2026-11-19T12:34:56.789Z")).toBe("(D:20261119123456Z)");
+        expect(() => pdfDate("2026-11-19T12:34:56+01:00")).toThrow('Cannot write the PDF dates: "2026-11-19T12:34:56+01:00" is not a UTC date such as 2026-11-19T12:34:56.000Z');
+    });
+});
+
 test("the Rust renderer's PRODUCER is PDF_PRODUCER", async () => {
     const source = await Bun.file(resolve(import.meta.dir, "../crates/pdf-core/src/document_info.rs")).text();
     expect(/const PRODUCER: &str = "([^"]*)";/.exec(source)?.[1]).toBe(PDF_PRODUCER);
@@ -126,6 +181,16 @@ describe("Puppeteer PDF document information", () => {
         },
         60_000,
     );
+
+    test.skipIf(!hasPdfinfo)(
+        "pdfMetadata's creator, producer, keywords and dates replace the defaults; one date is both",
+        async () => {
+            expect(await documentInfo(await pdfMetadataDeck({ pdfMetadata: PDF_METADATA }).toPdf())).toEqual(PDF_METADATA_INFO);
+            const created = { creationDate: PDF_METADATA.creationDate };
+            expect(await documentInfo(await pdfMetadataDeck({ pdfMetadata: created }).toPdf())).toEqual({ ...PRODUCER_INFO, CreationDate: "2026-01-02T03:04:05Z", ModDate: "2026-01-02T03:04:05Z" });
+        },
+        60_000,
+    );
 });
 
 describe.skipIf(!hasPdfinfo || systemFonts.length === 0)("WASM PDF document information", () => {
@@ -136,5 +201,15 @@ describe.skipIf(!hasPdfinfo || systemFonts.length === 0)("WASM PDF document info
         pres.title = "";
         pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1 });
         expect(await documentInfo(await pres.toPdf())).toEqual(PRODUCER_INFO);
+    });
+
+    test("the same pdfMetadata entries as the Puppeteer renderer, alone and with Company, and the same bytes twice", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pdf = await pdfMetadataDeck({ renderer, pdfMetadata: PDF_METADATA }).toPdf();
+        expect(await documentInfo(pdf)).toEqual(PDF_METADATA_INFO);
+        expect(await pdfMetadataDeck({ renderer, pdfMetadata: PDF_METADATA }).toPdf()).toEqual(pdf);
+        const created = { creationDate: PDF_METADATA.creationDate };
+        expect(await documentInfo(await pdfMetadataDeck({ renderer, pdfMetadata: created }).toPdf())).toEqual({ ...PRODUCER_INFO, CreationDate: "2026-01-02T03:04:05Z", ModDate: "2026-01-02T03:04:05Z" });
+        expect(await documentInfo(await fullDeck({ renderer, pdfMetadata: PDF_METADATA }).toPdf())).toEqual({ ...FULL_INFO, ...PDF_METADATA_INFO });
     });
 });

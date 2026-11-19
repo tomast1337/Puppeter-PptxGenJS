@@ -369,6 +369,36 @@ mod tests {
     }
 
     #[test]
+    fn writes_the_caller_s_creator_producer_keywords_and_dates() {
+        let mut r = Renderer::new();
+        let contains = |pdf: &[u8], needle: &[u8]| pdf.windows(needle.len()).any(|w| w == needle);
+        let head = r#"<meta name="keywords" content="k"><meta name="pdflapas-creator" content="App"><meta name="pdflapas-producer" content="Lib"><meta name="pdflapas-creation-date" content="2026-01-02T03:04:05.678Z">"#;
+        let html = profile::tests::document("").replace("<style", &format!("{head}<style"));
+        // One date is both: krilla writes it, with no incremental update.
+        let one = r.render_html(&html).unwrap();
+        assert!(contains(
+            &one,
+            b"<</Keywords(k)/Creator(App)/Producer(Lib)/ModDate(D:20260102030405Z)/CreationDate(D:20260102030405Z)>>"
+        ));
+        assert!(contains(&one, b"<xmp:ModifyDate>2026-01-02T03:04:05Z</xmp:ModifyDate>"));
+        assert!(contains(&one, b"<xmp:CreateDate>2026-01-02T03:04:05Z</xmp:CreateDate>"));
+        assert!(!contains(&one, b"/Prev"));
+        assert_eq!(one, r.render_html(&html).unwrap());
+
+        // A later modification date: the update's Info has both, and XMP's ModifyDate is replaced in place.
+        let later = html.replace("<style", r#"<meta name="pdflapas-modification-date" content="2026-11-19T12:00:00.000Z"><style"#);
+        let two = r.render_html(&later).unwrap();
+        assert!(two.len() > one.len());
+        assert!(contains(&two, b"<xmp:ModifyDate>2026-11-19T12:00:00Z</xmp:ModifyDate>"));
+        assert!(contains(&two, b"<xmp:CreateDate>2026-01-02T03:04:05Z</xmp:CreateDate>"));
+        assert!(contains(
+            &two,
+            b"/Creator<FEFF004100700070>/Producer<FEFF004C00690062>/CreationDate(D:20260102030405Z)/ModDate(D:20261119120000Z)>>"
+        ));
+        assert!(two.ends_with(b"%%EOF"));
+    }
+
+    #[test]
     fn renders_profile_html_and_prefixes_its_errors() {
         let mut r = Renderer::new();
         if let Some(font) = liberation_sans() {

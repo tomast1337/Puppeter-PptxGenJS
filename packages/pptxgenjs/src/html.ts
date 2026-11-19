@@ -72,6 +72,7 @@ export type { FontWinMetrics, FourSideMargin, GlyphAdvances, RenderingTarget } f
 export type { MissingFont, MissingFontPolicy, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdflapas/model";
 export { MissingFontError } from "@pdflapas/model";
 export type { ImageSourceOptions } from "./normalize/image";
+export type { PdfMetadataOptions } from "./normalize/pdfMetadata";
 export type { PuppeteerGenOptions } from "./PuppeteerGen";
 export type { PuppeteerSlide } from "./PuppeteerSlide";
 export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
