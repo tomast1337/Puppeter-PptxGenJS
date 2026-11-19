@@ -13,7 +13,7 @@ declare const dataUri: unique symbol;
 
 /**
  * A resolved image source, `data:image/…;base64,…`: the only image source the HTML profile writes as `src`. Only the
- * PptxGenJS image normalizer (`imageDataUri`, `dataUri`) makes one.
+ * PptxGenJS image normalizer (`imageDataUri`, `dataUri`) and its check on what `resolveImage` returns make one.
  * Type-only: the JSON holds a plain string.
  */
 export type DataUri = string & { readonly [dataUri]: "data-uri" };

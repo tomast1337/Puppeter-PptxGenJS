@@ -160,6 +160,31 @@ async function fetchImage(source: string, options: ImageSourceOptions): Promise<
     }
 }
 
+// What both renderers decode: an image media type and base64 data, as imageDataUri() and dataUri() write it.
+const RESOLVED_IMAGE = /^data:image\/[\w.+-]+;base64,[a-z\d+/=\s]+$/i;
+
+/** A `resolveImage` result that is not a `data:image/…;base64,` URI, such as a URL or a path the PDF would have to fetch. */
+export class UnresolvedImageError extends Error {
+    /** The image path or URL from the deck. */
+    readonly source: string;
+    /** What `resolveImage` returned for it. */
+    readonly result: unknown;
+
+    constructor(source: string, result: unknown) {
+        const got = typeof result === "string" ? JSON.stringify(result.length > 80 ? `${result.slice(0, 80)}…` : result) : typeof result;
+        super(`resolveImage returned ${got} for image "${source}", not a data URI: a resolver must read or fetch the image and return its bytes as "data:image/<type>;base64,<data>", so the PDF does not depend on the network or the filesystem`);
+        this.name = "UnresolvedImageError";
+        this.source = source;
+        this.result = result;
+    }
+}
+
+/** Checks what `resolveImage` returned for `source`: only a data URI may become an image's `src` (AGENTS.md, images resolve before PDF generation). */
+export function resolvedImageDataUri(source: string, result: unknown): DataUri {
+    if (typeof result === "string" && RESOLVED_IMAGE.test(result)) return result as DataUri; // `as`: RESOLVED_IMAGE matched
+    throw new UnresolvedImageError(source, result);
+}
+
 /** Runtime-neutral image resolution: data URIs and http(s) URLs only. File paths need a runtime adapter. */
 export async function resolveRemoteImageSource(source: string, options: ImageSourceOptions = {}): Promise<string> {
     if (/^data:/i.test(source)) return imageDataUri(source);

@@ -1,3 +1,4 @@
+import type { DataUri } from "@pdflapas/model";
 import type { DefaultTreeAdapterTypes } from "parse5";
 import type { normalizeComponent } from "#src/components/normalize";
 import type { ComponentDefinition } from "#src/components/types";
@@ -71,7 +72,7 @@ export function componentImageSources(component: RenderedComponent): string[] {
 }
 
 /** The host with its content; `resolved` maps image sources to data URIs, which replace them as `src`. */
-export function componentHtml(component: RenderedComponent, resolved?: ReadonlyMap<string, string>): Html {
+export function componentHtml(component: RenderedComponent, resolved?: ReadonlyMap<string, DataUri>): Html {
     for (const image of images(component.content)) {
         const source = pendingSource(image);
         const data = source && resolved?.get(source);

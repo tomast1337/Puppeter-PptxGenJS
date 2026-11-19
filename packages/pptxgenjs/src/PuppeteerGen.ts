@@ -40,7 +40,10 @@ function pptxEnum<Enum>(table: object): Enum {
 export interface PuppeteerGenOptions {
     /** Turns the toHtml() document into PDF bytes for toPdf() and writeFile(); every renderer reads the HTML (#69). */
     renderer?: PresentationRenderer;
-    /** Resolves an addImage() path or URL to a data URI before serialization. */
+    /**
+     * Resolves an addImage() path or URL to a `data:image/…;base64,` URI before serialization; toHtml() throws
+     * UnresolvedImageError for any other result, such as a URL or a path.
+     */
     resolveImage?: (source: string) => Promise<string>;
     /**
      * Limits and confinement of the default resolver: `timeoutMs`, `maxBytes`, `baseDir` (Node entry) and

@@ -1,4 +1,4 @@
-import type { NormalizedImage, NormalizedObjectStyle } from "@pdflapas/model";
+import type { DataUri, NormalizedImage, NormalizedObjectStyle } from "@pdflapas/model";
 import { cssPx, px } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, type Html, voidElement } from "./markup";
@@ -8,13 +8,13 @@ import { applyObjectStyle } from "./style";
  * `resolved` is the data URI of a path or URL source. It goes last, where resolving the image used to
  * append it; without it the source stays in `data-source-path` or `data-source-url`.
  */
-function sourceAttributes(image: NormalizedImage, resolved: string | undefined): { before: Attribute[]; after: Attribute[] } {
+function sourceAttributes(image: NormalizedImage, resolved: DataUri | undefined): { before: Attribute[]; after: Attribute[] } {
     if (image.sourceKind === "data") return { before: [["src", image.source]], after: [] };
     if (resolved !== undefined) return { before: [], after: [["src", resolved]] };
     return { before: [[image.sourceKind === "remote" ? "data-source-url" : "data-source-path", image.source]], after: [] };
 }
 
-export function renderImage(image: NormalizedImage, style: NormalizedObjectStyle, resolved?: string): Html {
+export function renderImage(image: NormalizedImage, style: NormalizedObjectStyle, resolved?: DataUri): Html {
     const outerCss: InlineStyle = new Map();
     const objectAttributes = applyObjectStyle(outerCss, style);
     if (image.rounding) outerCss.set("border-radius", "50%");

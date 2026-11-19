@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PuppeteerGen, resolveImageSource } from "../packages/pptxgenjs/src/node";
-import { IMAGE_SOURCE_LIMITS } from "../packages/pptxgenjs/src/normalize/image";
+import { IMAGE_SOURCE_LIMITS, UnresolvedImageError } from "../packages/pptxgenjs/src/normalize/image";
 import { PuppeteerGen as CorePuppeteerGen } from "../packages/pptxgenjs/src/PuppeteerGen";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
@@ -112,6 +112,26 @@ describe("image source limits (#149)", () => {
         const core = new CorePuppeteerGen(PAGE, { imageSources: { allowRemote: false } });
         core.addSlide().addImage({ path: `${base}/ok.png` });
         await expect(core.toHtml()).rejects.toThrow("imageSources.allowRemote is false");
+    });
+
+    // #284: the HTML and the PDF must not depend on the network or a path, so only a data URI may reach `src`.
+    test("toHtml() throws UnresolvedImageError when resolveImage returns anything but an image data URI", async () => {
+        const toHtml = (result: unknown, path = "logo.png") => {
+            const presentation = new CorePuppeteerGen(PAGE, { resolveImage: async () => result as string }); // `as`: a JavaScript caller can return anything
+            presentation.addSlide().addImage({ path });
+            return presentation.toHtml();
+        };
+        for (const result of ["https://cdn.example.com/logo.png", "/srv/images/logo.png", "data:text/plain;base64,YQ==", "data:image/svg+xml,<svg/>", "data:image/png;base64,", 42]) {
+            const error = await toHtml(result).catch((caught: unknown) => caught);
+            expect(error).toBeInstanceOf(UnresolvedImageError);
+            expect(error).toMatchObject({ name: "UnresolvedImageError", source: "logo.png", result });
+        }
+        await expect(toHtml("https://cdn.example.com/logo.png", "https://example.com/logo.png")).rejects.toThrow(
+            'resolveImage returned "https://cdn.example.com/logo.png" for image "https://example.com/logo.png", not a data URI: a resolver must read or fetch the image and return its bytes as "data:image/<type>;base64,<data>"',
+        );
+        await expect(toHtml("/srv/images/logo.png")).rejects.toThrow('resolveImage returned "/srv/images/logo.png" for image "logo.png"');
+        expect((await toHtml(PNG_DATA)).html).toContain(`src="${PNG_DATA}"`);
+        expect((await toHtml("DATA:IMAGE/JPEG;BASE64,/9j/")).html).toContain('src="DATA:IMAGE/JPEG;BASE64,/9j/"');
     });
 
     test("toHtml() resolves at most IMAGE_SOURCE_LIMITS.concurrency images at once", async () => {
