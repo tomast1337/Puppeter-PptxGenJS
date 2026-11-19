@@ -1,3 +1,5 @@
+import { appendObjects, pdfText, readTrailer } from "./pdfUpdate";
+
 /**
  * Document information entries (ISO 32000-1, 14.3.3) set from the HTML's `<title>` and its `author`, `description`,
  * `pdflapas-company` and `pdflapas-revision` meta tags. Company and Revision are not standard keys: 14.3.3 allows other
@@ -11,73 +13,24 @@ export interface DocumentInfo {
     Revision?: string;
 }
 
-const STARTXREF = /startxref\s+(\d+)\s+%%EOF\s*$/;
-const XREF_SUBSECTION = /^(\d+) (\d+)\r?\n/;
-const XREF_ENTRY_BYTES = 20; // ISO 32000-1 7.5.4: "nnnnnnnnnn ggggg n" and a two-byte end of line
-const TRAILER = /^trailer\s*<<([\s\S]*?)>>\s*startxref/;
-const INFO_REF = /\/Info\s+(\d+)\s+(\d+)\s+R/;
 const OBJECT_HEADER = /^(\d+)\s+(\d+)\s+obj\s*<</;
-const SIZE = /\/Size\s+(\d+)/;
-const ROOT_REF = /\/Root\s+\d+\s+\d+\s+R/;
-const ID = /\/ID\s*\[[^\]]*\]/;
 const NAME = /^\/[^\s/<>()[\]{}%]+/;
 const WHITESPACE = /\s/;
-// Bounds the search for startxref: ISO 32000-1 7.5.5 puts it in the file's last lines.
-const TAIL_BYTES = 1024;
 
 /**
  * `pdf` with an incremental update (ISO 32000-1, 7.5.6) that rewrites the Info dictionary with `info`, keeping the
- * entries Chromium wrote (Creator, Producer, dates). Chromium writes a cross-reference table and an Info dictionary
- * of strings; a PDF in another shape throws rather than being written wrong. Without entries, returns `pdf` itself.
+ * entries Chromium wrote (Creator, Producer, dates). Chromium writes an Info dictionary of strings; a PDF in another
+ * shape throws rather than being written wrong. Without entries, returns `pdf` itself.
  */
 export function withDocumentInfo(pdf: Uint8Array, info: DocumentInfo): Uint8Array {
     const entries = Object.entries(info).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1] !== "");
     if (entries.length === 0) return pdf;
-    // latin1 maps each byte to one character, so string offsets are byte offsets.
-    const text = Buffer.from(pdf.buffer, pdf.byteOffset, pdf.byteLength).toString("latin1");
-    const xrefOffset = Number(STARTXREF.exec(text.slice(-TAIL_BYTES))?.[1] ?? Number.NaN);
-    if (!(xrefOffset < text.length) || !text.startsWith("xref", xrefOffset)) throw pdfError("its startxref does not point at a cross-reference table");
-
-    const { offsets, end } = crossReference(text, xrefOffset + "xref".length);
-    const trailer = TRAILER.exec(text.slice(end))?.[1];
-    if (trailer === undefined) throw pdfError("it has no trailer after its cross-reference table");
-    const size = Number(SIZE.exec(trailer)?.[1] ?? Number.NaN);
-    const root = ROOT_REF.exec(trailer)?.[0];
-    if (!Number.isInteger(size) || root === undefined) throw pdfError("its trailer has no /Size or /Root");
-
-    const infoRef = INFO_REF.exec(trailer);
-    const number = infoRef ? Number(infoRef[1]) : size;
-    const generation = infoRef ? Number(infoRef[2]) : 0;
-    const kept = infoRef ? keptEntries(text, offsets.get(number), number, new Set(entries.map(([key]) => key))) : "";
-    const objectOffset = pdf.byteLength + 1;
-    const object = `\n${number} ${generation} obj\n<<${kept}${entries.map(([key, value]) => `/${key} ${textString(value)}`).join("")}>>\nendobj\n`;
-    const updateXref = pdf.byteLength + object.length;
-    const id = ID.exec(trailer)?.[0] ?? "";
-    const update = `${object}xref\n${number} 1\n${String(objectOffset).padStart(10, "0")} ${String(generation).padStart(5, "0")} n \ntrailer\n<</Size ${Math.max(size, number + 1)} ${root} /Info ${number} ${generation} R /Prev ${xrefOffset}${id ? ` ${id}` : ""}>>\nstartxref\n${updateXref}\n%%EOF\n`;
-    const out = new Uint8Array(pdf.byteLength + update.length);
-    out.set(pdf);
-    out.set(Buffer.from(update, "latin1"), pdf.byteLength);
-    return out;
-}
-
-/** The in-use object offsets of the cross-reference table starting at `start`, and where the table ends. */
-function crossReference(text: string, start: number): { offsets: Map<number, number>; end: number } {
-    const offsets = new Map<number, number>();
-    let position = start;
-    for (;;) {
-        while (WHITESPACE.test(text.charAt(position))) position++;
-        const subsection = XREF_SUBSECTION.exec(text.slice(position, position + 32));
-        if (!subsection) return { offsets, end: position };
-        position += subsection[0].length;
-        const first = Number(subsection[1]);
-        const count = Number(subsection[2]);
-        if (position + count * XREF_ENTRY_BYTES > text.length) throw pdfError("its cross-reference table is cut short");
-        for (let index = 0; index < count; index++) {
-            const entry = text.slice(position, position + XREF_ENTRY_BYTES);
-            if (entry.charAt(17) === "n") offsets.set(first + index, Number(entry.slice(0, 10)));
-            position += XREF_ENTRY_BYTES;
-        }
-    }
+    const text = pdfText(pdf);
+    const trailer = readTrailer(text, pdfError);
+    const { number, generation } = trailer.info ?? { number: trailer.size, generation: 0 };
+    const kept = trailer.info ? keptEntries(text, trailer.offsets.get(number), number, new Set(entries.map(([key]) => key))) : "";
+    const body = `<<${kept}${entries.map(([key, value]) => `/${key} ${textString(value)}`).join("")}>>`;
+    return appendObjects(pdf, trailer, [{ number, generation, body }], { number, generation });
 }
 
 /** The old Info dictionary's entries other than `replaced`, as written: each value is a literal or hex string. */
