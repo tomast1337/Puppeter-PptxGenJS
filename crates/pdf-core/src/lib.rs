@@ -1199,6 +1199,48 @@ mod tests {
 
     /// A shrink-to-fit box (re-laid out several times) holding a bulleted paragraph and an
     /// empty one, beside a plain text box.
+    /// The lines of one paragraph of `runs` (all on one line) in a box 1px narrower than the unwrapped text, so
+    /// it breaks once, at the last opportunity; None when Liberation Sans is not installed.
+    fn lines_one_px_too_narrow(runs: &[&str]) -> Option<Vec<String>> {
+        let runs = runs.iter().map(|text| build::run(text, "Liberation Sans", 30.0)).collect();
+        let text = build::text_box(vec![build::paragraph(runs, 36.0, 30.0)]);
+        let mut r = Renderer::new();
+        r.add_font(liberation_sans()?);
+        let mut layout = BoxLayout::default();
+        r.fit_text(&text, 800.0, 400.0, &mut layout);
+        let width = layout.paras.first()?.layout.width();
+        r.fit_text(&text, width - 1.0, 400.0, &mut layout);
+        let para = layout.paras.first()?;
+        Some(
+            para.layout
+                .lines()
+                .filter_map(|line| para.text.get(line.text_range()))
+                .map(String::from)
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn breaks_lines_where_chromium_does() {
+        let cases: [(&[&str], [&str; 2]); 6] = [
+            // Blink's ASCII pair table: no break around "/" (UAX #14 breaks after it), also in a URL across two runs.
+            (&["lorem amet/elit"], ["lorem ", "amet/elit"]),
+            (&["see https://", "example.com/docs"], ["see ", "https://example.com/docs"]),
+            // After a space run, even before "." (UAX #14 LB13) or a closing guillemet before ")" (LB15b).
+            (&["lorem sit .elit"], ["lorem sit ", ".elit"]),
+            (&["(dolor « sit »)"], ["(dolor « sit ", "»)"]),
+            // The table breaks before "(" after ")"; the PowerPoint target's U+2060 still joins them (#274).
+            (&["lorem word)(word"], ["lorem word)", "(word"]),
+            (&["lorem word)\u{2060}(word"], ["lorem ", "word)\u{2060}(word"]),
+        ];
+        for (runs, expected) in cases {
+            let Some(lines) = lines_one_px_too_narrow(runs) else {
+                return eprintln!("Liberation Sans not installed: line breaks not checked");
+            };
+            assert_eq!(lines, expected, "{runs:?}");
+        }
+    }
+
     fn shrink_model() -> Presentation {
         let run = |text: &str| {
             let mut run = model::Run {

@@ -52,7 +52,8 @@ root=$PWD
 # +181 B: the last line and a line ending in a soft break take their own baselines (#234: data-mark-baseline and data-break-baseline read, parley break reasons), 1,051,165 -> 1,051,346 B measured; budget = that size.
 # +1,063 B: each table grid edge drawn once and each run of edges with the same border stroked as one line (shared edges resolved per grid line), 1,051,346 -> 1,052,409 B measured; budget = that size.
 # +4 B: an empty paragraph keeps a raised or lowered empty run's offset out of its line box, as Chromium does, 1,052,409 -> 1,052,413 B measured; budget = that size.
-GZIP_BUDGET=1052413
+# +369 B: line breaks where Chromium has them (parley's Chromium break override: Blink's ASCII pair table, a break after every space run), 1,052,413 -> 1,052,782 B measured; budget = that size.
+GZIP_BUDGET=1052782
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

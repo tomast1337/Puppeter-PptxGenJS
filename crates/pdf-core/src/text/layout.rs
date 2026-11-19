@@ -4,8 +4,8 @@ use std::ops::Range;
 
 use parley::setting::{FontFeature, Tag};
 use parley::{
-    Alignment, AlignmentOptions, BaseDirection, BreakReason, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem, StyleProperty, TextWrapMode,
-    WhiteSpaceCollapse,
+    Alignment, AlignmentOptions, BaseDirection, BreakReason, CHROMIUM_LINE_BREAK_OVERRIDE, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem,
+    StyleProperty, TextWrapMode, WhiteSpaceCollapse,
 };
 
 use krilla::paint::Stroke;
@@ -196,6 +196,13 @@ impl Renderer {
             };
             let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, &s, 1.0, false);
             builder.set_base_direction(if paragraph.rtl { BaseDirection::Rtl } else { BaseDirection::Ltr });
+            // Break where Chromium does (PowerPoint agrees): after every space run, even before "." or a closing
+            // guillemet where UAX #14 LB13/LB15b forbid it, and by Blink's ASCII pair table, so no break around "/"
+            // inside "amet/consectetur" or a URL (text_break_iterator.cc, character_property_data_generator.cc).
+            // shortcut: Blink's fast table also covers pairs up to U+00FF (ICU on the two characters alone) and keeps
+            // U+2019 to its neighbours; here those pairs take ICU on the whole text, which can differ where a UAX #14
+            // rule reads past the pair. Port that table when a deck shows a difference.
+            builder.set_line_break_override(Some(CHROMIUM_LINE_BREAK_OVERRIDE));
             builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
             builder.push_default(StyleProperty::OverflowWrap(OverflowWrap::BreakWord));
             builder.push_default(StyleProperty::TextWrapMode(if text.wrap { TextWrapMode::Wrap } else { TextWrapMode::NoWrap }));
