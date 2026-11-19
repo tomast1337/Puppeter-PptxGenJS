@@ -241,7 +241,7 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceG
     const first = inheritedOptions(parent, RENDERING_TARGETS[target].lineFeedParagraph === "paragraph" ? paragraph : pieces[0]?.options);
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
-    const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(first.lineSpacing) : multiple;
+    const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(spacingPoints(first.lineSpacing, target)) : multiple;
     const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options), target, fontMetrics));
     const lineBox = paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace);
     // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
@@ -253,8 +253,8 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceG
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineHeight,
         lineBox: endsParagraph ? lineBox : feedLineBox,
-        spaceBefore: pointsToPixels(first.paraSpaceBefore ?? 0),
-        spaceAfter: pointsToPixels(first.paraSpaceAfter ?? 0),
+        spaceBefore: pointsToPixels(spacingPoints(first.paraSpaceBefore ?? 0, target)),
+        spaceAfter: pointsToPixels(spacingPoints(first.paraSpaceAfter ?? 0, target)),
         tabStops: (first.tabStops ?? [])
             .map(stop => ({
                 // PptxGenJS writes `stop.position || 1` and `stop.alignment || "l"`.
@@ -265,6 +265,17 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceG
         defaultTabStop: inchesToPixels(PPTX_DEFAULTS.text.defaultTabStopIn),
         bullet: normalizeBullet(first, numberIndex),
     };
+}
+
+/**
+ * A spacing of `points` as `target` reads the `<a:spcPts>` PptxGenJS writes (Math.round(points * 100)): PowerPoint
+ * rounds it half-up to whole points (RENDERING_TARGETS.spacingWholePoints), so 0.49 is 0 and 0.5 is 1.
+ */
+function spacingPoints(points: number, target: RenderingTarget): number {
+    if (!RENDERING_TARGETS[target].spacingWholePoints) return points;
+    const { spacingPointsPerPoint } = PPTX_DEFAULTS.units;
+    // Whole hundredths, as written, so the half-up step is exact integer arithmetic.
+    return Math.floor((Math.round(points * spacingPointsPerPoint) + spacingPointsPerPoint / 2) / spacingPointsPerPoint);
 }
 
 // PptxGenJS 4.0.1 genXmlTextBody STEP 4 keeps one mutable options record per run: the run's own options object, or for

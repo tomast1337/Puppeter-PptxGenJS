@@ -176,6 +176,57 @@ describe("rendering targets", () => {
         expect(await baselines(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(38.4, 6)]);
     });
 
+    // Measured against PowerPoint's PDF export of synthetic decks (12pt Arial): paraSpaceAfter 0.25 -> 0pt, 0.49 -> 0,
+    // 0.5 -> 1, 1.25 -> 1, 1.5 -> 2, 2.4 -> 2, 2.5 -> 3, 2.6 -> 3, 5.5 -> 6, paraSpaceBefore the same; after 0.5 then
+    // before 0.5 add 2pt (1 + 1); lineSpacing 12.5 gives a 13pt pitch. PptxGenJS writes spcPts val = round(pt * 100).
+    test("the PowerPoint target rounds paragraph spacing and point line spacing half-up to whole points; LibreOffice keeps them", async () => {
+        const measured: [number, number][] = [
+            [0.25, 0],
+            [0.49, 0],
+            [0.5, 1],
+            [1.25, 1],
+            [1.5, 2],
+            [2.4, 2],
+            [2.5, 3],
+            [2.6, 3],
+            [5.5, 6],
+        ];
+        const pt = (px: number | undefined) => (px === undefined ? undefined : Math.round(px * 0.75 * 1000) / 1000);
+        const gap = (options: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint") => pt(normalizeText("One\nTwo", { fontSize: 12, ...options }, target).paragraphs[1]?.spaceBefore);
+        for (const [points, powerPoint] of measured) {
+            expect(gap({ paraSpaceAfter: points }, "powerpoint")).toBe(powerPoint);
+            expect(gap({ paraSpaceBefore: points }, "powerpoint")).toBe(powerPoint);
+            expect(gap({ paraSpaceBefore: points }, "libreoffice")).toBe(points);
+            expect(pt(normalizeText("One\nTwo", { fontSize: 12, paraSpaceAfter: points }, "libreoffice").paragraphs[0]?.spaceAfter)).toBe(points);
+        }
+        // Each value on its own: 0.5 + 0.5 is 1 + 1, not round(1).
+        expect(gap({ paraSpaceAfter: 0.5, paraSpaceBefore: 0.5 }, "powerpoint")).toBe(2);
+        const lineHeight = (options: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint") => pt(normalizeText("Line", { fontSize: 12, ...options }, target).paragraphs[0]?.lineHeight);
+        expect(lineHeight({ lineSpacing: 12.5 }, "powerpoint")).toBe(13);
+        expect(lineHeight({ lineSpacing: 12.5 }, "libreoffice")).toBe(12.5);
+        // spcPct is not rounded.
+        expect(normalizeText("Line", { lineSpacingMultiple: 1.13 }, "powerpoint").paragraphs[0]?.lineHeight).toBeCloseTo(1.2 * 1.13);
+        // Table cells go through the same normalization. PptxGenJS writes a cell's paraSpaceAfter although its
+        // TableCellProps type leaves it out.
+        const options: PptxGenJS.TableCellProps & { paraSpaceAfter: number } = { paraSpaceAfter: 2.5 };
+        const cell = (presentation: PuppeteerGen) => {
+            presentation.addSlide().addTable([[{ text: "One\nTwo", options }]], { x: 1, y: 1, w: 3 });
+            const table = presentation.getModel().slides[0]?.objects[0];
+            return table?.kind === "table" ? table.table.rows[0]?.cells[0]?.text.paragraphs.map(paragraph => pt(paragraph.spaceBefore)) : undefined;
+        };
+        expect(cell(new PuppeteerGenPowerPoint())).toEqual([0, 3]);
+        expect(cell(new PuppeteerGenLibreOffice())).toEqual([0, 0]);
+
+        // Shape text: 13pt = 17.333px lines; 2pt = 2.667px on the second paragraph with PowerPoint, 1.5pt = 2px after the
+        // first with LibreOffice.
+        const margins = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText("One\nTwo", { shape: "rect", x: 1, y: 1, w: 3, h: 2, fontSize: 12, paraSpaceAfter: 1.5, lineSpacing: 12.5 });
+            return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*?margin-top: ([^;]*); margin-bottom: ([^;]*); line-height: ([^;]*);/g)].map(match => match.slice(1).join(" "));
+        };
+        expect(await margins(new PuppeteerGenPowerPoint())).toEqual([expect.stringMatching(/^0px 0px 17\.333\d*px$/), expect.stringMatching(/^2\.666\d*px 0px 17\.333\d*px$/)]);
+        expect(await margins(new PuppeteerGenLibreOffice())).toEqual([expect.stringMatching(/^0px 2px 16\.666\d*px$/), expect.stringMatching(/^0px 0px 16\.666\d*px$/)]);
+    });
+
     // Measured against PowerPoint's PDF export (#234; baseline below the line top): Arial 0.972-0.975em, Calibri
     // 0.936-0.939em, Arial 12/32/18 on one line 31.1pt, an Arial and a Calibri 18pt run on one line 17.04pt.
     test("with single spacing the PowerPoint target puts the baseline at the fonts' winAscent share of the line; LibreOffice at 1em", async () => {
