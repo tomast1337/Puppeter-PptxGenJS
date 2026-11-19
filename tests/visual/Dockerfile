@@ -44,6 +44,7 @@ COPY packages/model/package.json packages/model/
 COPY packages/puppeteer/package.json packages/puppeteer/
 COPY packages/pptxgenjs/package.json packages/pptxgenjs/
 COPY packages/wasm/package.json packages/wasm/
+COPY packages/pdfkit/package.json packages/pdfkit/
 COPY packages/react/package.json packages/react/
 # Only chrome-headless-shell is used (packages/puppeteer/src/browser.ts); skipping full Chrome saves ~360MB.
 RUN PUPPETEER_CHROME_SKIP_DOWNLOAD=true bun ci && chmod -R a+rX /deps /opt/puppeteer

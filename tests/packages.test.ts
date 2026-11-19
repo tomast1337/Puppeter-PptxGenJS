@@ -10,6 +10,7 @@ const ALLOWED: Record<string, string[]> = {
     model: [],
     puppeteer: ["@pdflapas/model"],
     wasm: ["@pdflapas/model"],
+    pdfkit: ["@pdflapas/model"],
     pptxgenjs: ["@pdflapas/model", "@pdflapas/puppeteer"],
     react: ["@pdflapas/pptxgenjs"],
 };

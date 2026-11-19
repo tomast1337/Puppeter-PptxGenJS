@@ -38,6 +38,7 @@
       "@pdflapas/pptxgenjs": ["./packages/pptxgenjs/src/index.ts"],
       "@pdflapas/pptxgenjs/html": ["./packages/pptxgenjs/src/html.ts"],
       "@pdflapas/wasm": ["./packages/wasm/src/browser.ts"],
+      "@pdflapas/pdfkit": ["./packages/pdfkit/src/browser.ts"],
       "@pdflapas/react": ["./packages/react/src/index.ts"]
     }
   },

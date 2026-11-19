@@ -1,7 +1,7 @@
 # Output and backends
 
 How a presentation becomes HTML or PDF: the output methods, the default Puppeteer backend, custom
-renderers, the browser-safe `/html` entry and the opt-in WASM backend. The main class is still named
+renderers, the browser-safe `/html` entry and the opt-in WASM and PDFKit backends. The main class is still named
 `PuppeteerGen` (the default export of `@pdflapas/pptxgenjs`); the samples below import it under that
 name.
 
@@ -369,3 +369,53 @@ binary from this repository, `bun run build:wasm` (pinned Rust toolchain, or
 Docker when it is missing; see [CONTRIBUTING.md](../CONTRIBUTING.md)) copies it to
 `packages/wasm/src/`, and `bun run build` ships it in `packages/wasm/dist/`.
 Tests that need it skip with a message when it is not built, except in CI.
+
+## PDFKit backend (`@pdflapas/pdfkit`, experimental, text, images and simple shapes)
+
+A third renderer in pure JavaScript on [PDFKit](https://pdfkit.org): no Chromium and no WebAssembly, so it runs
+wherever JavaScript does. It is a first version (#310); the WASM backend covers far more. Like the others it
+implements `PresentationRenderer` and reads only the `toHtml()` document: it parses the HTML once per render with
+parse5 and draws the [profile](HTML_PROFILE.md) with PDFKit, so HTML outside the profile throws and images must be
+`data:` URIs (`toHtml()` inlines them).
+
+**Drawn:**
+
+- Text boxes: runs with their face, size, bold, italic, color, letter spacing, kerning (`font-kerning: none`),
+  underline (single, double, dashed, dotted; wavy is drawn solid and reported), strike and double strike,
+  superscript and subscript (the profile's baseline offset and size), highlight, outline, hyperlinks and slide
+  links; paragraph alignment (left, center, right, justify), line spacing, space before and after, indents,
+  bullets and numbers, default tab stops; insets, vertical anchor, `fit: shrink` and `fit: resize`, rotation and
+  flips. Lines break where Chromium breaks them: UAX #14 opportunities from `linebreak`, with the same overrides as
+  `crates/pdf-core` (after a run of spaces, a minus before a digit, Blink's ASCII pair table), and words wider than
+  the box break between characters. Every line sits on the profile's line box and baseline
+  (`data-line-baseline`, `data-mark-baseline`, `data-break-baseline`), so only the breaks and x positions are
+  measured, with fontkit, shaping each piece exactly as PDFKit draws it.
+- Images: PNG and JPEG, every sizing mode (stretch, contain, cover, crop), rounding, transparency, rotation and flips.
+- Shapes whose geometry is a `rect`, `ellipse` or untransformed `path`, and multi-face presets (their faces and
+  outline): fill, stroke, transparency and dashes, and the fill and line of text boxes.
+
+**Reported** (an error by default, a `warnings()` line under `onUnsupported: "warn"`): tables, charts and
+components; GIF, WebP and SVG images; line heads; shape, text and object shadows and glow; vertical text, explicit
+tab stops and right-to-left text (drawn left to right); and any CSS property or `data-*` attribute of the profile
+it does not read, so nothing is dropped silently.
+
+**Fonts:** as with WASM, you pass font files (TTF/OTF/TTC bytes), parsed once when the renderer is created; at
+least one is required. Office faces fall back to the same metric-compatible faces as the WASM backend (Calibri ->
+Carlito, Arial -> Liberation Sans, ..., then DejaVu Sans, Liberation Sans and Noto Sans CJK JP), each character
+in the first face that has its glyph. A face neither supplied nor aliased goes to `onMissingFont`. Under Node/Bun,
+`loadSystemFonts()` reads the same faces as the WASM one, without the bitmap emoji font PDFKit cannot embed.
+
+```typescript
+import PuppeteerGen from "@pdflapas/pptxgenjs";
+import { createPdfkitRenderer, loadSystemFonts } from "@pdflapas/pdfkit";
+
+const renderer = await createPdfkitRenderer({ fonts: await loadSystemFonts(), onUnsupported: "warn" });
+const pres = new PuppeteerGen(undefined, { renderer });
+pres.addSlide().addText("Hello", { x: 1, y: 1, w: 4, h: 1, fontFace: "Calibri" });
+await pres.writeFile({ fileName: "hello.pdf" });
+```
+
+The `browser` export condition resolves to a build without `node:*` modules (`loadSystemFonts()` throws there;
+pass font bytes). The same HTML gives the same PDF bytes: the creation date is fixed at the Unix epoch, since
+PDFKit always writes one and derives the file ID from it. `bun run test:visual:pdfkit:docker` scores it against
+the LibreOffice references next to the Puppeteer and WASM backends; it has no baseline and gates nothing.
