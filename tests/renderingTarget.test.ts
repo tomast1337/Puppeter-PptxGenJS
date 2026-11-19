@@ -345,6 +345,66 @@ describe("rendering targets", () => {
         expect(await attributes(new PuppeteerGenLibreOffice())).toMatch(/^class="text-paragraph" data-line-baseline="37\.333\d*"$/);
     });
 
+    // Measured against PowerPoint's PDF export of synthetic decks (12pt Arial, top-anchored, margin 0): a 24pt superscript
+    // is drawn at 15.96pt (12pt at 8.04), its baseline 7.2pt above the line's; inside a 12pt line it puts the line's
+    // baseline 4.3pt below a plain line's, a subscript too. A paragraph whose only run is a 24pt superscript is a 28.8pt
+    // line (12pt lines around it 43.2pt apart), and "Next" after the second "3\n" superscript of the case below sits
+    // 30.36pt below "Label two" (14.4 + 1 + 14.4 + 1, the empty paragraph after the line feed a full 12pt line).
+    test("the PowerPoint target draws super- and subscripts at 2/3 of their size, counted so in the line, and keeps the paragraph mark at full size", async () => {
+        type Input = Parameters<typeof normalizeText>[0];
+        const pt = (px: number) => Math.round(px * 0.75 * 1000) / 1000;
+        /** The baseline of each paragraph's last line below the text top, in pt. */
+        const baselines = (input: Input, target: "libreoffice" | "powerpoint") => {
+            let top = 0;
+            return normalizeText(input, { fontFace: "Arial", fontSize: 12 }, target).paragraphs.map(({ spaceBefore, spaceAfter, lineBox }) => {
+                const baseline = top + spaceBefore + (lineBox.markBaseline ?? lineBox.baseline);
+                top += spaceBefore + lineBox.height + spaceAfter;
+                return pt(baseline);
+            });
+        };
+        const escaped = (target: "libreoffice" | "powerpoint", fontSize: number, options: PptxGenJS.TextPropsOptions) => normalizeText([{ text: "2", options: { fontSize, ...options } }], {}, target).paragraphs[0]!.runs[0]!;
+        for (const [fontSize, powerPoint] of [
+            [24, 16],
+            [12, 8],
+        ] as const) {
+            expect(pt(escaped("powerpoint", fontSize, { superscript: true }).fontSize)).toBe(powerPoint);
+            expect(pt(escaped("libreoffice", fontSize, { superscript: true }).fontSize)).toBe(pt(fontSize * 0.58 * (4 / 3)));
+        }
+        // The offset is of the full size on both targets: 0.3 x 24pt up, 0.4 x 24pt down (PptxGenJS's baseline="-40000").
+        for (const target of ["libreoffice", "powerpoint"] as const) {
+            expect(pt(escaped(target, 24, { superscript: true }).baselineOffset)).toBe(7.2);
+            expect(pt(escaped(target, 24, { subscript: true }).baselineOffset)).toBe(-9.6);
+        }
+
+        const plain = baselines("Text more", "powerpoint")[0]!;
+        for (const escapement of [{ superscript: true }, { subscript: true }]) {
+            const line: Input = [{ text: "Text " }, { text: "2", options: { fontSize: 24, ...escapement } }, { text: " more" }];
+            expect(baselines(line, "powerpoint")[0]! - plain).toBeCloseTo(4.3, 0);
+            // 0.58 gave 2.21.
+            expect(baselines(line, "libreoffice")[0]! - baselines("Text more", "libreoffice")[0]!).toBeCloseTo(13.92 - 12, 2);
+        }
+
+        const alone: Input = [{ text: "Before", options: { breakLine: true } }, { text: "X", options: { superscript: true, fontSize: 24, breakLine: true } }, { text: "After" }];
+        const [before = 0, , after = 0] = baselines(alone, "powerpoint");
+        expect(after - before).toBeCloseTo(43.2, 1);
+        const labels: Input = [{ text: "Label: ", options: { bold: true, paraSpaceAfter: 0.5 } }, { text: "value" }, { text: "3\n", options: { superscript: true } }, { text: "Label two", options: { bold: true } }, { text: "value" }, { text: "3\n", options: { superscript: true, breakLine: true } }, { text: "Next" }];
+        const lines = baselines(labels, "powerpoint");
+        expect(lines).toHaveLength(4);
+        expect(lines[3]! - lines[1]!).toBeCloseTo(30.36, 0);
+        // The empty paragraph after the line feed: a 12pt line holding the superscript's empty run.
+        const tail = normalizeText(labels, { fontFace: "Arial", fontSize: 12 }, "powerpoint").paragraphs[2]!;
+        expect([pt(tail.lineBox.height), pt(tail.runs[0]!.fontSize)]).toEqual([14.4, 8]);
+        expect(pt(normalizeText(labels, { fontFace: "Arial", fontSize: 12 }, "libreoffice").paragraphs[2]!.lineBox.height)).toBe(pt(12 * 0.58 * 1.2 * (4 / 3)));
+
+        const html = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText(alone, { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 12, margin: 0, valign: "top" });
+            const page = (await presentation.toHtml()).html;
+            return [...page.matchAll(/class="text-paragraph"[^>]*?line-height: ([^;]*);[^>]*>(?:<span class="text-run"[^>]*?font-size: ([^;]*);)?/g)].map(match => match.slice(1).join(" "));
+        };
+        expect(await html(new PuppeteerGenPowerPoint())).toEqual(["19.2px 16px", "38.4px 21.333333333333332px", "19.2px 16px"]);
+        expect(await html(new PuppeteerGenLibreOffice())).toEqual(["19.2px 16px", expect.stringMatching(/^22\.272\d*px 18\.56\d*px$/), "19.2px 16px"]);
+    });
+
     // Measured against PowerPoint's PDF export: 18pt Arial in a cell sits where an Arial mark puts it (0.08pt above
     // PowerPoint's, a Calibri mark puts it 0.55 above), and a line ending in a soft break 0.12 above (0.35 below without
     // the Calibri break). PptxGenJS writes the cell's fontFace on <a:endParaRPr>, never on <a:br/>.
@@ -461,6 +521,24 @@ describe("rendering targets in Chromium", () => {
             }
         });
         expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([0, 60.8, 60.8].map(px => expect.closeTo(px, 1)));
+    });
+
+    test("Chromium gives the PowerPoint target's paragraph of a lone 24pt superscript a full 28.8pt line", async () => {
+        const presentation = new PuppeteerGenPowerPoint();
+        const runs: PptxGenJS.TextProps[] = [{ text: "Before", options: { breakLine: true } }, { text: "X", options: { superscript: true, fontSize: 24, breakLine: true } }, { text: "After" }];
+        presentation.addSlide().addText(runs, { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 12, margin: 0, valign: "top" });
+        const { html } = await presentation.toHtml();
+        const tops = await withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                await page.setContent(html);
+                return await page.evaluate(() => Array.from(document.querySelectorAll(".text-paragraph"), element => element.getBoundingClientRect().top));
+            } finally {
+                await page.close();
+            }
+        });
+        // 14.4pt = 19.2px, then 28.8pt = 38.4px.
+        expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([19.2, 38.4].map(px => expect.closeTo(px, 1)));
     });
 
     test("with the PowerPoint target a line under 12pt is the sum of its unkerned advances; from 12pt it is kerned as with LibreOffice", async () => {

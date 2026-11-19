@@ -149,10 +149,6 @@ export const PPTX_DEFAULTS = Object.freeze({
         // baseline="-40000": the baseline moves by that fraction of the run's font size.
         superscriptBaseline: 0.3,
         subscriptBaseline: -0.4,
-        // LibreOffice's PPTX import draws a run with a baseline attribute at DFLT_ESC_PROP, 58% of its size
-        // (oox TextCharacterProperties). Measured on the visual runs slide: 13pt "super" 24 px wide vs
-        // 42 px unscaled, "sub" 15 vs 26 px.
-        escapementSizeRatio: 0.58,
         // defTabSz="914400" (1in) on every level of PptxGenJS's master text styles: default tab stops
         // after the last explicit one.
         defaultTabStopIn: 1,
@@ -389,6 +385,10 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * line's baseline below its top as a fraction of the line height; undefined keeps `text.lineDescentEm` above its bottom.
  * `fontLineBaseline`: whether a single-spaced line's baseline comes from its fonts' FONT_WIN_METRICS, or sits
  * `text.lineDescentEm` above its bottom whatever the font.
+ * `escapementSizeRatio`: the fraction of its font size a superscript or subscript run is drawn at; its baseline still
+ * moves by `text.superscriptBaseline` or `text.subscriptBaseline` of the full size.
+ * `fullSizeMark`: whether the paragraph mark takes its last run's size before that reduction and counts in its line's
+ * height, so a paragraph ending in a large superscript, or the empty one after its last line feed, has a full line.
  * `spacingWholePoints`: whether `paraSpaceBefore`, `paraSpaceAfter` and point `lineSpacing` (`<a:spcPts>`) are rounded
  * half-up to whole points, each value on its own.
  */
@@ -399,9 +399,23 @@ export const RENDERING_TARGETS = Object.freeze({
      * Cell::getMinimumHeight, `GetTextHeight()+1`). A numbered paragraph PptxGenJS writes without a run (from a
      * run starting with "\n") restarts the numbering: three such items after an intro are all "I." in its PDF export.
      * Each line feed PptxGenJS keeps inside `<a:t>` (a run ending with "\n") starts a line that takes its paragraph
-     * properties from the run that starts it (`lineFeedParagraph`).
+     * properties from the run that starts it (`lineFeedParagraph`). Its PPTX import draws a run with a baseline
+     * attribute at DFLT_ESC_PROP, 58% of its size (oox TextCharacterProperties): measured on the visual runs slide,
+     * 13pt "super" is 24 px wide against 42 px unscaled, "sub" 15 against 26 px (`escapementSizeRatio`).
      */
-    libreoffice: Object.freeze({ readsKern: false, contentRowSlackMm: 0.01, addsParagraphSpacing: false, spacesFirstParagraph: true, spacedLineBaseline: undefined, fontLineBaseline: false, emptyNumberedParagraph: "restarts", lineFeedParagraph: "run", spacingWholePoints: false }),
+    libreoffice: Object.freeze({
+        readsKern: false,
+        contentRowSlackMm: 0.01,
+        addsParagraphSpacing: false,
+        spacesFirstParagraph: true,
+        spacedLineBaseline: undefined,
+        fontLineBaseline: false,
+        emptyNumberedParagraph: "restarts",
+        lineFeedParagraph: "run",
+        spacingWholePoints: false,
+        escapementSizeRatio: 0.58,
+        fullSizeMark: false,
+    }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
      * pair kerning it reads (FontWinMetrics `pairKerning`): a font whose only pair kerning is an Apple-format `kern`
@@ -436,8 +450,26 @@ export const RENDERING_TARGETS = Object.freeze({
      * synthetic decks (12pt Arial), `paraSpaceAfter` 0.25 and 0.49 add 0pt, 0.5 and 1.25 1pt, 1.5 and 2.4 2pt, 2.5 and
      * 2.6 3pt, 5.5 6pt, `paraSpaceBefore` the same; a space after of 0.5 then a space before of 0.5 add 2pt (1 + 1), and
      * `lineSpacing: 12.5` gives a 13pt pitch. `lineSpacingMultiple` (`<a:spcPct>`) is not rounded.
+     * It draws a superscript or subscript run at 2/3 of its size (`escapementSizeRatio`): measured against its PDF
+     * export of synthetic decks, 24pt is drawn at 15.96pt and 12pt at 8.04pt, a 24pt superscript's baseline 7.2pt (0.3
+     * of 24) above the line's. The run counts in its line at that size: a 24pt superscript inside a 12pt Arial line puts
+     * the line's baseline 4.3pt below a plain line's (2/3 gives 4.24, 0.58 gave 2.21). The paragraph mark keeps the
+     * full size (`fullSizeMark`): a paragraph whose only run is a 24pt superscript is 28.8pt tall (12pt lines around it
+     * 43.2pt apart), and the empty paragraph left after a 12pt superscript run ending in a line feed is 14.4pt tall.
      */
-    powerpoint: Object.freeze({ readsKern: true, contentRowSlackMm: 0, addsParagraphSpacing: true, spacesFirstParagraph: false, spacedLineBaseline: 0.75, fontLineBaseline: true, emptyNumberedParagraph: "skipped", lineFeedParagraph: "paragraph", spacingWholePoints: true }),
+    powerpoint: Object.freeze({
+        readsKern: true,
+        contentRowSlackMm: 0,
+        addsParagraphSpacing: true,
+        spacesFirstParagraph: false,
+        spacedLineBaseline: 0.75,
+        fontLineBaseline: true,
+        emptyNumberedParagraph: "skipped",
+        lineFeedParagraph: "paragraph",
+        spacingWholePoints: true,
+        escapementSizeRatio: 2 / 3,
+        fullSizeMark: true,
+    }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
 
