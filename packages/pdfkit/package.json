@@ -1,0 +1,61 @@
+{
+  "name": "@pdflapas/pdfkit",
+  "version": "0.2.0",
+  "description": "Experimental pure-JavaScript PDFKit renderer for the PdfLapas HTML profile (browser, Node and Bun)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/browser.js",
+  "types": "./dist/browser.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/browser.d.ts",
+      "browser": "./dist/browser.js",
+      "bun": "./dist/node.js",
+      "node": "./dist/node.js",
+      "default": "./dist/browser.js"
+    }
+  },
+  "imports": {
+    "#src/*": {
+      "source": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomast1337/Puppeter-PptxGenJS.git",
+    "directory": "packages/pdfkit"
+  },
+  "bugs": {
+    "url": "https://github.com/tomast1337/Puppeter-PptxGenJS/issues"
+  },
+  "homepage": "https://github.com/tomast1337/Puppeter-PptxGenJS#readme",
+  "keywords": [
+    "pdf",
+    "presentation",
+    "pdfkit"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "prepack": "bun ../../scripts/build.ts"
+  },
+  "dependencies": {
+    "@pdflapas/model": "workspace:*",
+    "fontkit": "2.0.4",
+    "linebreak": "1.1.0",
+    "parse5": "7.3.0",
+    "pdfkit": "0.20.2"
+  }
+}

@@ -14,6 +14,7 @@ const PACKAGES = [
     { name: "puppeteer", entrypoints: ["index"] },
     { name: "pptxgenjs", entrypoints: ["index", "html"] },
     { name: "wasm", entrypoints: ["browser", "node"] },
+    { name: "pdfkit", entrypoints: ["browser", "node"] },
     { name: "react", entrypoints: ["index"] },
 ] as { name: string; entrypoints: string[] }[];
 
@@ -40,7 +41,7 @@ async function withDeclarationExtensions(declarationFile: string, source: string
 }
 
 /** Bundles that must load in a browser: no puppeteer, jsdom or node:* imports. */
-const BROWSER_SAFE = ["model/dist/index.js", "pptxgenjs/dist/html.js", "wasm/dist/browser.js"];
+const BROWSER_SAFE = ["model/dist/index.js", "pptxgenjs/dist/html.js", "wasm/dist/browser.js", "pdfkit/dist/browser.js"];
 
 async function declarationFiles(directory: string): Promise<string[]> {
     const entries = await readdir(directory, { withFileTypes: true });

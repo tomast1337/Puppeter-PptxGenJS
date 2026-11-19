@@ -21,7 +21,7 @@ async function workspaceManifests(): Promise<Manifest[]> {
 describe("publish:npm", () => {
     test("publishes the workspace's packages in dependency order", async () => {
         const order = publishOrder(await workspaceManifests()).map(batch => batch.map(manifest => manifest.name));
-        expect(order).toEqual([["@pdflapas/model"], ["@pdflapas/puppeteer", "@pdflapas/wasm"], ["@pdflapas/pptxgenjs"], ["@pdflapas/react"]]);
+        expect(order).toEqual([["@pdflapas/model"], ["@pdflapas/pdfkit", "@pdflapas/puppeteer", "@pdflapas/wasm"], ["@pdflapas/pptxgenjs"], ["@pdflapas/react"]]);
     });
 
     test("refuses a cycle and a dependency on a package it does not publish", () => {
