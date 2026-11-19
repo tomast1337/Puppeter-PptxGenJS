@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { inflateSync } from "node:zlib";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import { z } from "zod";
@@ -15,6 +16,7 @@ import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRen
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
+import { EXTRA_CELL_ROW_TOPS_IN, extraCellTable } from "./extraCellTable";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
 // incompatible binding fails `bun run typecheck`.
@@ -181,6 +183,22 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const source = ascii(pdf);
         expect(source.startsWith("%PDF-")).toBe(true);
         expect(source.match(/\/Type\s*\/Page\b(?!s)/g)).toHaveLength(3);
+    });
+
+    // PowerPoint draws only the cells inside the grid and keeps each row at its rowH (#286).
+    test("keeps the rows of a table with cells beyond its grid at their rowH", async () => {
+        const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
+        const { rows, options } = extraCellTable({ colW: [1, 1, 1] });
+        pres.addSlide().addTable(rows, options);
+        const pdf = Buffer.from(await pres.toPdf());
+        // The page's content stream, the object its /Contents names.
+        const contents = ascii(pdf).match(/\/Contents (\d+) 0 R/)?.[1];
+        expect(contents).toBeDefined();
+        const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
+        const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
+        // The horizontal grid lines, in CSS px from the slide top: each row's top, then the table's bottom.
+        const lines = [...content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)].filter(([, from, to]) => from === to).map(([, y]) => Number(y) / 96);
+        expect(lines.slice(0, -1)).toEqual(EXTRA_CELL_ROW_TOPS_IN.map(inches => expect.closeTo(inches, 3)));
     });
 
     test("follows the PowerPoint target's font-kerning: none, so the unkerned runs move", async () => {

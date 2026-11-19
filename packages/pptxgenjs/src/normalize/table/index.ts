@@ -1,6 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
-import type { NormalizedTable, NormalizedTableBorder } from "@pdflapas/model";
+import type { NormalizedTable, NormalizedTableBorder, NormalizedTableRow } from "@pdflapas/model";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";
 import { convertToPixels, inchesToPixels, millimetersToPixels, pointsToPixels } from "#src/units";
@@ -61,6 +61,33 @@ function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: P
         return Array(rowCount).fill(heightFromTable);
     }
     return Array(rowCount).fill(undefined);
+}
+
+/**
+ * The rows with only the cells that start inside the table's `count` grid columns, a colspan that crosses the last
+ * column cut at it. PptxGenJS 4.0.1 genXmlTable writes one <a:gridCol> per column of the first row but every <a:tc>
+ * of each row, and PowerPoint draws only the cells that fit the grid: the rest take no text, no border and no
+ * height (#286). Each cell starts in the first column of its row not taken by a rowspan above, as in <a:tc> order once
+ * PptxGenJS inserts its merge cells. A row with fewer cells than columns is kept as it is.
+ * The drop is documented (docs/DEFAULTS.md) rather than thrown: PptxGenJS and PowerPoint accept these rows and
+ * real decks rely on it, and normalization has no warning channel.
+ * shortcut: the cut of a colspan across the last column is assumed (no PowerPoint export checks it); measure it if a
+ * deck relies on it.
+ */
+function fitRowsToGrid(rows: NormalizedTableRow[], count: number): NormalizedTableRow[] {
+    const taken = new Set<string>();
+    return rows.map((row, rowIndex) => {
+        let column = 0;
+        const cells = row.cells.flatMap(cell => {
+            while (taken.has(`${rowIndex},${column}`)) column++;
+            if (column >= count) return [];
+            const colspan = Math.min(cell.colspan, count - column);
+            for (let r = rowIndex; r < rowIndex + cell.rowspan; r++) for (let c = column; c < column + colspan; c++) taken.add(`${r},${c}`);
+            column += colspan;
+            return [colspan === cell.colspan ? cell : { ...cell, colspan }];
+        });
+        return { ...row, cells };
+    });
 }
 
 // PptxGenJS 4.0.1 (addTableDefinition) gives a missing side { type: "none" } and fills a given one from
@@ -178,34 +205,37 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
         height,
         columns,
         ...(contentRowSlackMm ? { contentRowSlack: millimetersToPixels(contentRowSlackMm) } : {}),
-        rows: tableRows.map((row, rowIndex) => ({
-            height: heights[rowIndex],
-            cells: tableRow(row, rowIndex).map((rawCell, column) => {
-                const cell = tableCell(rawCell, rowIndex, column);
-                const cellOptions = inheritedCellOptions(options, cell.options ?? {});
-                const textOptions = cellTextOptions(cellOptions);
-                // The cell's options as genXmlTable (step 2) leaves them, which genXmlTextBody writes onto its runs.
-                // shortcut: PptxGenJS gives the table no default color when any of its cells holds a link, not only this
-                // one (addTableDefinition step 3); match it when a deck shares run options with such a table.
-                const box = writing.table ? cellTextOptions(inheritedCellOptions(writing.table, cell.options ?? {})) : textOptions;
-                const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
-                // PptxGenJS writes the cell's fontFace on <a:endParaRPr>, the paragraph mark's font in PowerPoint.
-                // shortcut: the theme font (soft breaks, a cell without fontFace) is the default Calibri whatever the
-                // deck's theme; pass pres.theme.bodyFontFace in once #256 settles the table normalizer's inputs.
-                const theme = PPTX_DEFAULTS.theme.bodyFontFace;
-                const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme, { box, shared: writing.shared, cell: true });
-                text.margin = tableMarginPixels(cellOptions.margin);
-                // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
-                // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.
-                text.fit = "none";
-                return {
-                    text,
-                    colspan: span(cellOptions.colspan),
-                    rowspan: span(cellOptions.rowspan),
-                    fill: cellOptions.fill ? normalizeFill(cellOptions.fill) : undefined,
-                    borders: normalizeBorders(cellOptions.border),
-                };
-            }),
-        })),
+        rows: fitRowsToGrid(
+            tableRows.map((row, rowIndex) => ({
+                height: heights[rowIndex],
+                cells: tableRow(row, rowIndex).map((rawCell, column) => {
+                    const cell = tableCell(rawCell, rowIndex, column);
+                    const cellOptions = inheritedCellOptions(options, cell.options ?? {});
+                    const textOptions = cellTextOptions(cellOptions);
+                    // The cell's options as genXmlTable (step 2) leaves them, which genXmlTextBody writes onto its runs.
+                    // shortcut: PptxGenJS gives the table no default color when any of its cells holds a link, not only this
+                    // one (addTableDefinition step 3); match it when a deck shares run options with such a table.
+                    const box = writing.table ? cellTextOptions(inheritedCellOptions(writing.table, cell.options ?? {})) : textOptions;
+                    const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
+                    // PptxGenJS writes the cell's fontFace on <a:endParaRPr>, the paragraph mark's font in PowerPoint.
+                    // shortcut: the theme font (soft breaks, a cell without fontFace) is the default Calibri whatever the
+                    // deck's theme; pass pres.theme.bodyFontFace in once #256 settles the table normalizer's inputs.
+                    const theme = PPTX_DEFAULTS.theme.bodyFontFace;
+                    const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme, { box, shared: writing.shared, cell: true });
+                    text.margin = tableMarginPixels(cellOptions.margin);
+                    // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
+                    // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.
+                    text.fit = "none";
+                    return {
+                        text,
+                        colspan: span(cellOptions.colspan),
+                        rowspan: span(cellOptions.rowspan),
+                        fill: cellOptions.fill ? normalizeFill(cellOptions.fill) : undefined,
+                        borders: normalizeBorders(cellOptions.border),
+                    };
+                }),
+            })),
+            count,
+        ),
     };
 }

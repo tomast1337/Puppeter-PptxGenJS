@@ -333,7 +333,8 @@ text sits where the anchor puts it. Borders are
 and LibreOffice do: each grid edge once, however many cells share it (the wider side wins, as in CSS's collapsing
 border model, and on a tie the first cell in document order), and each run of edges along a grid line with the
 same width, color and dash array as one line of exactly that width, centred on the grid line, with square caps
-when solid and butt caps when dashed. Pagination happens in
+when solid and butt caps when dashed. A row never has more cells than the `colgroup` has columns:
+normalization drops the cells beyond the grid, as PowerPoint does (docs/DEFAULTS.md). Pagination happens in
 normalization (`normalize/table/pagination.ts`), so a paginated table is already several slides.
 
 ### Charts
