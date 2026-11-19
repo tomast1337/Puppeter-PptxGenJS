@@ -238,7 +238,10 @@ export class PuppeteerSlide implements PptxSlide {
             this.newAutoPagedSlides = continuationSlides;
             return this;
         }
-        const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.context.bodyFontFace() }, this.pageSize, this.context.target, this.context.fontMetrics);
+        const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.context.bodyFontFace() }, this.pageSize, this.context.target, this.context.fontMetrics, {
+            table: tableOptions,
+            shared: this.context.sharedRunOptions,
+        });
         const tableStyle = normalizeObjectStyle(
             {
                 ...tableOptions,
@@ -266,7 +269,16 @@ export class PuppeteerSlide implements PptxSlide {
             shadow: true,
         });
         textStyle.line = normalizeTextLine(textOptions, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0));
-        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.context.bodyFontFace() }, this.context.target, this.context.fontMetrics, this.context.bodyFontFace());
+        // PptxGenJS 4.0.1 addTextDefinition (cleanOpts) gives the box, and each of its runs without one, the box's color,
+        // else the slide's, else black, and writes the box's options onto the runs as it writes the slide (RunWriting).
+        // shortcut: PptxGenJS writes slide by slide, and PdfLapas reads what an earlier box wrote onto a run's options in
+        // the order of the addText() and addTable() calls; they differ only when a deck adds to a slide after a later
+        // one with options both share. Normalize at write time if a deck needs that order.
+        const box = { ...textOptions, color: textOptions.color || this.color || PPTX_DEFAULTS.text.color };
+        const normalizedText = normalizeText(text, { color: this.color, ...textOptions, fontFace: textOptions.fontFace ?? this.context.bodyFontFace() }, this.context.target, this.context.fontMetrics, this.context.bodyFontFace(), this.context.bodyFontFace(), {
+            box,
+            shared: this.context.sharedRunOptions,
+        });
         const height = textStyle.geometry.height ?? 0;
         if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizedText, height) });
         // `as`: PptxGenJS writes a text box's shape from its own options object, so normalizeShape reads them as ShapeProps.

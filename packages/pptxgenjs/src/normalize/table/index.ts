@@ -6,6 +6,7 @@ import type { PageSize } from "#src/pageLayouts";
 import { convertToPixels, inchesToPixels, millimetersToPixels, pointsToPixels } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
 import { normalizeColor, normalizeFill } from "#src/normalize/style";
+import type { SharedRunOptions } from "#src/normalize/sharedRunOptions";
 import { normalizeText, type TextInput } from "#src/normalize/text";
 
 const INHERITED_CELL_OPTIONS = ["align", "bold", "border", "color", "fill", "fontFace", "fontSize", "margin", "textDirection", "underline", "valign"] as const;
@@ -84,40 +85,22 @@ function normalizeBorders(border?: PptxGenJS.BorderProps | [PptxGenJS.BorderProp
 }
 
 // PptxGenJS 4.0.1 genXmlTextBody (STEP 4 A) gives a run without options the cell's own options object
-// (`itext.options || opts`), so those runs share one record that carries the cell's `align` (normalizeText).
+// (`itext.options || opts`), so those runs share one record that carries the cell's `align` (normalizeText). A run with
+// options keeps its own object, which genXmlTextBody (STEP 6) writes the cell's options onto (normalizeText).
 function richText(input: PptxGenJS.TableCell[], cellOptions: PptxGenJS.TextPropsOptions): PptxGenJS.TextProps[] {
     return input.flatMap(cell => {
         const value = cell.text ?? "";
         if (Array.isArray(value)) return richText(value, cellOptions);
         // `as`: a run in a cell takes the same text options as an addText() run.
         const own = cell.options as PptxGenJS.TextPropsOptions | undefined;
-        return [{ text: String(value), options: own ? runOptions(own, cellOptions) : cellOptions }];
+        return [{ text: String(value), options: own ?? cellOptions }];
     });
 }
 
-/**
- * PptxGenJS 4.0.1 genXmlTextBody (step 6 C) fills every falsy run option from the cell, not only a missing one (which
- * normalizeText inherits), except `bullet` and a linked run's `color`: `bold: false` in a bold cell is bold.
- */
-function runOptions(run: PptxGenJS.TextPropsOptions, cell: PptxGenJS.TextPropsOptions): PptxGenJS.TextPropsOptions {
-    const own: Record<string, unknown> = { ...run };
-    const parent: Record<string, unknown> = { ...cell };
-    for (const name of Object.keys(own)) {
-        if (!own[name] && parent[name] !== undefined && name !== "bullet" && !(name === "color" && own.hyperlink)) own[name] = parent[name];
-    }
-    // `as`: the run's own option names, some with the cell's values for the same names.
-    return tableTextOptions(own as PptxGenJS.TextPropsOptions);
-}
-
-/**
- * Only addTextDefinition turns `underline: true` into `{ style: "sng" }`; in a table PptxGenJS 4.0.1 keeps the boolean,
- * which genXmlTextRunProperties writes no `u` for. It becomes `false`, which normalizeText neither inherits over nor draws.
- */
-function tableTextOptions(options: PptxGenJS.TextPropsOptions): PptxGenJS.TextPropsOptions {
-    // `unknown`: PptxGenJS's types declare only the object form of `underline`.
-    const underline: unknown = options.underline;
-    // `as`: `false` is how normalizeText reads "no underline written"; the declared type has no boolean.
-    return underline === true ? { ...options, underline: false as unknown as undefined } : options;
+/** A cell's text options: its options with the text direction under the name addText() gives it. */
+function cellTextOptions(cell: PptxGenJS.TableCellProps): PptxGenJS.TextPropsOptions {
+    // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
+    return { ...cell, vert: cell.textDirection } as unknown as PptxGenJS.TextPropsOptions;
 }
 
 /** A cell option genXmlTable (step 2) fills from the table: falsy (`false`, `""`, `null`, unset) but not 0. */
@@ -168,7 +151,15 @@ export function tableRow(row: unknown, index: number): PptxGenJS.TableRow {
     return row;
 }
 
-export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTable {
+/** How PptxGenJS 4.0.1 writes a table's runs (normalizeText's RunWriting). */
+export interface TableRunWriting {
+    /** The table's options as the caller gave them, without the face PdfLapas fills in to draw them; `options` when unset. */
+    readonly table?: PptxGenJS.TableProps;
+    /** What PptxGenJS wrote onto run options objects in earlier text boxes and cells. */
+    readonly shared?: SharedRunOptions;
+}
+
+export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, writing: TableRunWriting = {}): NormalizedTable {
     if (!Array.isArray(tableRows) || tableRows.length === 0) {
         throw new Error("addTable: tableRows must be a non-empty array");
     }
@@ -192,14 +183,17 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
             cells: tableRow(row, rowIndex).map((rawCell, column) => {
                 const cell = tableCell(rawCell, rowIndex, column);
                 const cellOptions = inheritedCellOptions(options, cell.options ?? {});
-                // `as`: a cell names its text options as addText() does, except `textDirection`, which addText() calls `vert`.
-                const textOptions = tableTextOptions({ ...cellOptions, vert: cellOptions.textDirection } as unknown as PptxGenJS.TextPropsOptions);
+                const textOptions = cellTextOptions(cellOptions);
+                // The cell's options as genXmlTable (step 2) leaves them, which genXmlTextBody writes onto its runs.
+                // shortcut: PptxGenJS gives the table no default color when any of its cells holds a link, not only this
+                // one (addTableDefinition step 3); match it when a deck shares run options with such a table.
+                const box = writing.table ? cellTextOptions(inheritedCellOptions(writing.table, cell.options ?? {})) : textOptions;
                 const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
                 // PptxGenJS writes the cell's fontFace on <a:endParaRPr>, the paragraph mark's font in PowerPoint.
                 // shortcut: the theme font (soft breaks, a cell without fontFace) is the default Calibri whatever the
                 // deck's theme; pass pres.theme.bodyFontFace in once #256 settles the table normalizer's inputs.
                 const theme = PPTX_DEFAULTS.theme.bodyFontFace;
-                const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme);
+                const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme, { box, shared: writing.shared, cell: true });
                 text.margin = tableMarginPixels(cellOptions.margin);
                 // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
                 // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.

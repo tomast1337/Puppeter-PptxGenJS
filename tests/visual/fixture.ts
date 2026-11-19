@@ -491,6 +491,8 @@ const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, 
 const LINE_FEED_TAIL_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-line-feed-tail-run", x: 0.5, y: 1, w: 4, h: 2.5 } as const;
 // populateLineFeedTailFixture() too: paragraphs written without a run, at the size on their <a:endParaRPr>.
 const EMPTY_PARAGRAPH_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-empty-paragraph-mark", x: 5.5, y: 1, w: 4, h: 2.5 } as const;
+// populateLineFeedTailFixture() too: run options two text boxes, and two tables, share.
+const SHARED_RUN_OPTIONS_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-shared-run-options", x: 0.5, y: 3.9, w: 9, h: 1.2 } as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
@@ -527,6 +529,7 @@ export const PARITY_REGIONS = [
     ...PARAGRAPH_CASES.map(({ name, x, y, w, h }) => ({ page: PARAGRAPH_PAGE, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
     { ...LINE_FEED_TAIL_CASE, x: LINE_FEED_TAIL_CASE.x - 0.15, y: LINE_FEED_TAIL_CASE.y - 0.15, w: LINE_FEED_TAIL_CASE.w + 0.3, h: LINE_FEED_TAIL_CASE.h + 0.3 },
     { ...EMPTY_PARAGRAPH_CASE, x: EMPTY_PARAGRAPH_CASE.x - 0.15, y: EMPTY_PARAGRAPH_CASE.y - 0.15, w: EMPTY_PARAGRAPH_CASE.w + 0.3, h: EMPTY_PARAGRAPH_CASE.h + 0.3 },
+    { ...SHARED_RUN_OPTIONS_CASE, x: SHARED_RUN_OPTIONS_CASE.x - 0.15, y: SHARED_RUN_OPTIONS_CASE.y - 0.15, w: SHARED_RUN_OPTIONS_CASE.w + 0.3, h: SHARED_RUN_OPTIONS_CASE.h + 0.3 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1819,6 +1822,32 @@ function populateLineFeedTailFixture(presentation: Presentation): void {
         ],
         { x: empty.x, y: empty.y + 1.1, w: empty.w, border: { type: "solid", pt: 1, color: "404040" }, ...style },
     );
+    // PptxGenJS writes the first box's options onto the run options both boxes share (sharedRunOptions.ts): the
+    // second box's runs keep the first one's 12pt and spacing, and the second table's run its 14pt, red and right.
+    const shared = SHARED_RUN_OPTIONS_CASE;
+    const title = { color: "0077AA", italic: true, breakLine: true, paraSpaceAfter: 5 };
+    const item = { breakLine: true, paraSpaceAfter: 3 };
+    const column = { y: shared.y, w: 2.1, h: shared.h, fontFace: "Arial", color: "000000", align: "left", valign: "top", margin: 0 } as const;
+    slide.addText(
+        [
+            { text: "Column A", options: title },
+            { text: "Alpha", options: item },
+            { text: "Beta", options: item },
+        ],
+        { ...column, x: shared.x, fontSize: 12 },
+    );
+    slide.addText(
+        [
+            { text: "Column B", options: title },
+            { text: "Gamma", options: item },
+            { text: "Delta", options: item },
+        ],
+        { ...column, x: shared.x + 2.3, fontSize: 10 },
+    );
+    const cellRun = { breakLine: true };
+    const table = { y: shared.y, w: 2.1, fontFace: "Arial", border: { type: "solid", pt: 1, color: "404040" } } as const;
+    slide.addTable([[{ text: [{ text: "Cell A", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 4.6, fontSize: 14, color: "AA0000", align: "right" });
+    slide.addTable([[{ text: [{ text: "Cell B", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 6.9, fontSize: 8, color: "0000AA", align: "left" });
 }
 
 function populateParagraphFixture(presentation: Presentation): void {
