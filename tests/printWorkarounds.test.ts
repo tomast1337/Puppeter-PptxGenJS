@@ -1,5 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
+import { inflateSync } from "node:zlib";
 import { JSDOM } from "jsdom";
+import type PptxGenJS from "pptxgenjs";
+import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
 
@@ -9,6 +12,8 @@ const printedHtml = async (presentation: PuppeteerGen) => printHtml((await prese
 async function printedPage(presentation: PuppeteerGen): Promise<Document> {
     return new JSDOM(await printedHtml(presentation)).window.document;
 }
+
+afterAll(() => closeBrowser());
 
 describe("Puppeteer print workarounds", () => {
     test("moves each horizontal paragraph so the strut's centred baseline lands on data-line-baseline", async () => {
@@ -74,15 +79,16 @@ describe("Puppeteer print workarounds", () => {
         expect(plain?.getAttribute("style")).not.toContain("outline");
     });
 
-    test("offsets a table by half its widest border, which DrawingML centres on the grid", async () => {
+    test("offsets a table by half its first row's widest top border and its first column's widest left border, which DrawingML centres on the grid", async () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
         const cell = (pt: number) => ({ text: "x", options: { border: { type: "solid" as const, pt, color: "000000" } } });
         slide.addTable([[cell(1), cell(3)]], { x: 1, y: 1, w: 4 });
         slide.addTable([[{ text: "x", options: { border: { type: "none" as const } } }]], { x: 1, y: 3, w: 4 });
         const [bordered, borderless] = (await printedPage(presentation)).querySelectorAll<HTMLElement>("table.slide-table");
-        // 3pt = 4px: the grid moves up and left by 2px.
-        expect([bordered?.style.position, bordered?.style.left, bordered?.style.top]).toEqual(["relative", "-2px", "-2px"]);
+        // The first column's left border is 1pt (1.25px snapped), the first row's widest top 3pt = 4px: Chromium puts their
+        // outer halves inside the table box, so the grid moves left by 0.625px and up by 2px.
+        expect([bordered?.style.position, bordered?.style.left, bordered?.style.top]).toEqual(["relative", "-0.625px", "-2px"]);
         expect([borderless?.style.position, borderless?.style.left]).toEqual(["", ""]);
     });
 
@@ -101,6 +107,50 @@ describe("Puppeteer print workarounds", () => {
         expect(absolute).toEndWith("; inset: -2px 0px -1px 0px;");
         expect(none).not.toMatch(/margin|inset/);
     });
+
+    test("grows a cell's text box over the half of a neighbour's wider border that Chromium collapses into it", async () => {
+        const presentation = new PuppeteerGen();
+        const line = { type: "solid", pt: 1.5, color: "000000" } as const;
+        const none = { type: "none" } as const;
+        // A bottom border only on the first row, a right border only on the first column: the cells below and to the
+        // right write none, yet Chromium gives each the inner half of the shared 2px line.
+        presentation.addSlide().addTable(
+            [
+                [
+                    { text: "a", options: { border: [none, line, line, none] } },
+                    { text: "b", options: { border: [none, none, line, none] } },
+                ],
+                [{ text: "c", options: { border: [none, line, none, none], colspan: 2 } }],
+                [{ text: "d" }, { text: "e" }],
+            ],
+            { x: 1, y: 1, w: 4 },
+        );
+        const page = await printedPage(presentation);
+        const [a, b, c] = Array.from(page.querySelectorAll(".table-cell-text"), text => text.getAttribute("style") ?? "");
+        expect(a).toEndWith("; margin: 0px -1px -1px 0px; width: calc(100% + 1px);");
+        expect(b).toEndWith("; margin: 0px 0px -1px -1px; width: calc(100% + 1px);");
+        // The spanning cell takes the widest of the edges above it; its own right border is the table's outer edge.
+        expect(c).toEndWith("; margin: -1px -1px 0px 0px; width: calc(100% + 1px);");
+        // No top border on the first row and no left border on the first column: the table stays where it is.
+        expect(page.querySelector<HTMLElement>("table.slide-table")?.getAttribute("style")).not.toContain("position: relative");
+    });
+
+    // PowerPoint keeps 0.2667in rows of 10pt text (0.05in margins, filling the row) 19.2pt apart whatever the borders;
+    // Chromium grew each row by the half of the border above it that the cell itself does not write.
+    test("prints rows at their height when the borders between them belong to one side only", async () => {
+        const presentation = new PuppeteerGen();
+        const line = { type: "solid", pt: 0.5, color: "000000" } as const;
+        const none = { type: "none" } as const;
+        const rows = (count: number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}`, options: { fill: { color: index % 2 ? "FF0000" : "0000FF" }, border: [none, none, line, none] } }]);
+        const slide = presentation.addSlide();
+        const heights = [0.2667, 0.31, 0.2667, 0.2833, 0.2667, 0.29];
+        slide.addTable(rows(12), { x: 0.5, y: 0.5, w: 3, rowH: 0.2667, fontSize: 10, fontFace: "Arial" });
+        slide.addTable(rows(heights.length), { x: 5, y: 0.5, w: 3, rowH: heights, fontSize: 10, fontFace: "Arial" });
+        const fills = fillRows(await presentation.toPdf());
+        // Each fill's top, in PRINT_ZOOM device px from the page top, against the exact running sum of the row heights.
+        const expected = (x: number, inches: number[]) => inches.map((_, index) => ({ x, y: Math.round((0.5 + inches.slice(0, index).reduce((sum, h) => sum + h, 0)) * 96 * PRINT_ZOOM) }));
+        expect(fills).toEqual([...expected(0.5 * 96 * PRINT_ZOOM, Array(12).fill(0.2667)), ...expected(5 * 96 * PRINT_ZOOM, heights)].map(({ x, y }) => ({ x, y: expect.closeTo(y, -0.5) as unknown as number })));
+    }, 60_000);
 
     test("measures the inset and offset from the border width Chromium lays out, floored to a whole print device px", async () => {
         const presentation = new PuppeteerGen();
@@ -206,3 +256,28 @@ describe("Puppeteer print workarounds", () => {
         expect(printHtml(html)).toBe(html.replace("<html>", `<html style="zoom: ${PRINT_ZOOM};">`));
     });
 });
+
+/**
+ * The red and blue cell fills of a Chromium PDF, in page order, at their top-left corner in PRINT_ZOOM device px (the
+ * unit Chromium writes rectangles in, after its page `cm`).
+ */
+function fillRows(pdf: Uint8Array): Array<{ x: number; y: number }> {
+    const bytes = Buffer.from(pdf);
+    const fills: Array<{ x: number; y: number }> = [];
+    for (let at = bytes.indexOf("stream\n"); at >= 0; at = bytes.indexOf("stream\n", at + 1)) {
+        let content: string;
+        try {
+            content = inflateSync(bytes.subarray(at + "stream\n".length, bytes.indexOf("endstream", at))).toString("latin1");
+        } catch {
+            // Not a Flate stream (fonts are, but images may not be); content streams always are.
+            continue;
+        }
+        // A rectangle filled (`re` then `f`) while the fill colour (`rg`) is red or blue.
+        let colored = false;
+        for (const [, color, x, y] of content.matchAll(/(?:^|\n)(?:(?:.* )?([\d.]+ [\d.]+ [\d.]+) rg|([\d.]+) ([\d.]+) [\d.]+ [\d.]+ re\nf)(?=\n)/g)) {
+            if (color !== undefined) colored = color === "1 0 0" || color === "0 0 1";
+            else if (colored) fills.push({ x: Number(x), y: Number(y) });
+        }
+    }
+    return fills;
+}
