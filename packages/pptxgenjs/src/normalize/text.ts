@@ -6,6 +6,7 @@ import { inchesToPixels, pointsToPixels } from "#src/units";
 import { advanceGridSpacing } from "./advanceGrid";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
+import { recordSharedRun, type SharedRunOptions, sharedRunOptions } from "./sharedRunOptions";
 import { normalizeColor, normalizeShadow } from "./style";
 
 export type TextInput = string | number | PptxGenJS.TextProps[];
@@ -327,21 +328,43 @@ function spacingPoints(points: number, target: RenderingTarget): number {
     return Math.floor((Math.round(points * spacingPointsPerPoint) + spacingPointsPerPoint / 2) / spacingPointsPerPoint);
 }
 
+/** How PptxGenJS 4.0.1 writes a box's runs, beyond the options PdfLapas draws the box with. */
+export interface RunWriting {
+    /**
+     * The box's options as PptxGenJS holds them when it writes them onto the runs (STEP 6), without the face or color
+     * PdfLapas fills in to draw them; the drawn options when unset.
+     */
+    readonly box?: PptxGenJS.TextPropsOptions;
+    /** What PptxGenJS wrote onto run options objects in earlier boxes; this box's writes are added to it. */
+    readonly shared?: SharedRunOptions;
+    /** A table cell's text, which no addTextDefinition cleans. */
+    readonly cell?: boolean;
+}
+
+/** A run options record of one box: the options it started from and the copy this box's writes go to. */
+interface RunRecord {
+    readonly start: PptxGenJS.TextPropsOptions;
+    readonly state: PptxGenJS.TextPropsOptions;
+}
+
 // PptxGenJS 4.0.1 genXmlTextBody STEP 4 keeps one mutable options record per run: the run's own options object, or for
-// a run without one, a fresh `{}` in a text box (addTextDefinition) and the cell's own options in a table cell. Every
-// piece split from a run shares it, and so do the runs that share it, so a write to one is seen by all of them.
-function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): TextPiece[] {
-    const source = Array.isArray(input) ? input.map(item => ({ text: String(item.text ?? ""), options: item.options ?? {} })) : [{ text: String(input), options: parent }];
-    // Copies, so the mutations below never reach the caller's options.
-    const records = new Map<PptxGenJS.TextPropsOptions, PptxGenJS.TextPropsOptions>();
+// a run without one, the `{}` addTextDefinition stores on it in a text box and the cell's own options in a table cell.
+// Every piece split from a run shares it, and so do the runs that share it, so a write to one is seen by all of them.
+// `records` holds them by that object; each starts as a copy of what earlier boxes left on it (sharedRunOptions).
+function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions, writing: RunWriting, records: Map<object, RunRecord>): TextPiece[] {
+    const source = Array.isArray(input) ? input.map(item => ({ text: String(item.text ?? ""), key: item.options ?? item, own: item.options ?? {} })) : [{ text: String(input), key: parent, own: parent }];
     const pieces: TextPiece[] = [];
 
     for (const item of source) {
-        const options = records.get(item.options) ?? { ...item.options };
-        // A run's own `shadow` draws nothing: PptxGenJS 4.0.1 genXmlTextRunProperties writes only `glow` into the run's
-        // <a:effectLst> (COMPATIBILITY.text runShadow). A string's options are the text box's, whose shadow is written.
-        if (Array.isArray(input)) delete options.shadow;
-        records.set(item.options, options);
+        const record = records.get(item.key);
+        // A copy, so the mutations below never reach the caller's options.
+        const options = record?.state ?? sharedRunOptions(Array.isArray(input) ? writing.shared : undefined, item.key, item.own);
+        if (!record) {
+            // A run's own `shadow` draws nothing: PptxGenJS 4.0.1 genXmlTextRunProperties writes only `glow` into the run's
+            // <a:effectLst> (COMPATIBILITY.text runShadow). A string's options are the text box's, whose shadow is written.
+            if (Array.isArray(input)) delete options.shadow;
+            records.set(item.key, { start: { ...options }, state: options });
+        }
         const text = item.text.replace(/\r\n?/g, "\n");
         // STEP 4 C splits a text with a line feed that does not end with one, and sets `breakLine` on the shared record,
         // so every piece ends a paragraph, the last one too. A text ending with a line feed is written whole, its line
@@ -350,7 +373,49 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions): 
         if (lines.length > 1) options.breakLine = true;
         for (const line of lines) pieces.push({ text: line, options, ...(line ? {} : { noRun: true }) });
     }
+    // STEP 4 A gives the first run the box's bullet.
+    const first = pieces[0]?.options;
+    const box = writing.box ?? parent;
+    if (first && !first.bullet && box.bullet) first.bullet = box.bullet;
     return pieces;
+}
+
+/** Whether `options.underline` is the boolean `true`. */
+function underlinedTrue(options: PptxGenJS.TextPropsOptions): boolean {
+    // `unknown`: PptxGenJS's types declare only the object form; the boolean works at runtime.
+    const underline: unknown = options.underline;
+    return underline === true;
+}
+
+/** Box options PptxGenJS 4.0.1 copies onto runs (STEP 6 C) that no run draws. */
+const UNWRITTEN_RUN_OPTIONS: ReadonlySet<string> = new Set([
+    // Left out by PptxGenJS.
+    "bullet",
+    // genXmlTextRunProperties never writes a run's shadow (piecesFromInput).
+    "shadow",
+    // Written as a link to `rIdundefined`, a relationship PptxGenJS never creates: the box's link stays the shape's.
+    "hyperlink",
+]);
+
+/**
+ * PptxGenJS 4.0.1 genXmlTextBody STEP 6 writes the box's options onto each run's options, paragraph by paragraph: each
+ * one the run leaves falsy (B for the paragraph options, C for the rest but `bullet`, and `color` on a linked run), so
+ * `bold: false` or `paraSpaceAfter: 0` in a box that sets them takes the box's; and E gives an unsized box the size of
+ * its first sized run, which the runs after it then take.
+ */
+function writeBoxOptions(lines: readonly TextPiece[][], box: PptxGenJS.TextPropsOptions): void {
+    // `Record`: options are written by name, which the declared option type does not index.
+    const written: Record<string, unknown> = { ...box };
+    for (const line of lines) {
+        for (const { options } of line) {
+            // `as`: the same record, written by name; its pieces read the writes.
+            const run = options as Record<string, unknown>;
+            for (const [name, value] of Object.entries(written)) {
+                if (!run[name] && !UNWRITTEN_RUN_OPTIONS.has(name) && !(name === "color" && run.hyperlink)) run[name] = value;
+            }
+            written.fontSize ||= run.fontSize;
+        }
+    }
 }
 
 // PptxGenJS 4.0.1 genXmlTextBody (STEP 5) groups the runs into `<a:p>`s: when the run or the box has `align`, only a change of the run's
@@ -433,10 +498,27 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
  * the metrics of the faces that place a single-spaced baseline where the target reads them (`fontLineBaseline`) and
  * decide whether it kerns them (`readsKern`), and `themeFontFace` is the theme's minor font (`pres.theme.bodyFontFace`),
  * the font of soft breaks and, unless `markFontFace` names the one PptxGenJS writes on `<a:endParaRPr>` (a table cell's
- * fontFace), of the paragraph mark.
+ * fontFace), of the paragraph mark. `writing` says how PptxGenJS writes the box's runs (RunWriting).
  */
-export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace, markFontFace: string = themeFontFace): NormalizedTextBox {
-    const lines = groupPieces(piecesFromInput(input, options), options.align);
+export function normalizeText(
+    input: TextInput,
+    options: PptxGenJS.TextPropsOptions = {},
+    target: RenderingTarget = DEFAULT_RENDERING_TARGET,
+    fontMetrics: FontMetricsLookup = builtInFontMetrics,
+    themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace,
+    markFontFace: string = themeFontFace,
+    writing: RunWriting = {},
+): NormalizedTextBox {
+    const records = new Map<object, RunRecord>();
+    const lines = groupPieces(piecesFromInput(input, options, writing, records), options.align);
+    writeBoxOptions(lines, writing.box ?? options);
+    for (const [key, { start, state }] of records) {
+        // A string's options and a cell's option-less runs are the box's own, not a run options object.
+        if (writing.shared && Array.isArray(input) && key !== options) recordSharedRun(writing.shared, key, start, state);
+        // A table cell gets no addTextDefinition, which turns a text box's `underline: true` into `{ style: "sng" }`:
+        // in a cell the boolean writes no `u`. Set after STEP 6, which keeps the cell's underline off the run.
+        if (writing.cell && underlinedTrue(state)) Object.assign(state, { underline: false });
+    }
     const markSizes = markFontSizes(lines, options);
     const groups = lines.flatMap((line, index) => splitAtLineFeeds(line, markSizes[index]));
 

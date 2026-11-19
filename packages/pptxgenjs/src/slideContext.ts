@@ -1,6 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
 import type { ComponentRegistry } from "./components/registry";
 import type { FontMetricsLookup, RenderingTarget } from "./defaults";
+import type { SharedRunOptions } from "./normalize/sharedRunOptions";
 import type { PageSize } from "./pageLayouts";
 import type { PuppeteerSlide } from "./PuppeteerSlide";
 
@@ -18,6 +19,8 @@ export interface SlideContext {
     readonly target: RenderingTarget;
     /** The faces' metrics (`fontMetrics`, `resolveFontMetrics`, FONT_WIN_METRICS) the target may place baselines from. */
     readonly fontMetrics: FontMetricsLookup;
+    /** What PptxGenJS has written onto the run options objects of the presentation's text boxes and table cells. */
+    readonly sharedRunOptions: SharedRunOptions;
     /** The `context.document` of components rendered to check them when they are added; toHtml() does not use it. */
     readonly getDocument: () => Document;
     /** The slide `offset` places after this one, added when it does not exist yet: where autoPage tables continue. */

@@ -6,6 +6,7 @@ import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, type FontWinMetrics, 
 import { ALIGN_H, ALIGN_V, CHART_TYPE, DEPRECATED_CHART_TYPE, DEPRECATED_SCHEME_COLOR, DEPRECATED_SHAPE_TYPE, OUTPUT_TYPE, SCHEME_COLOR, SHAPE_TYPE } from "./enums";
 import { type ImageSourceOptions, imageResolver, resolveRemoteImageSource } from "./normalize/image";
 import { fontMetricsLookup } from "./fontMetrics";
+import type { SharedRunOptions } from "./normalize/sharedRunOptions";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { paginateTableRows } from "./normalize/table/pagination";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
@@ -113,6 +114,8 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     /** The `slideNumber` set last on any slide: PptxGenJS writes it to the master, which slide numbers inherit from. */
     private masterSlideNumber: PptxGenJS.SlideNumberProps | null = null;
     private readonly components = new ComponentRegistry();
+    /** What PptxGenJS writes onto run options objects the deck shares between boxes, which its slides read and extend. */
+    private readonly sharedRunOptions: SharedRunOptions = new WeakMap();
     private slides: PuppeteerSlide[] = [];
     private readonly renderer: PresentationRenderer | undefined;
     private readonly resolveImage: (source: string) => Promise<string>;
@@ -365,6 +368,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
             bodyFontFace: () => this.bodyFontFace(),
             target: this.target,
             fontMetrics: this.fontMetrics,
+            sharedRunOptions: this.sharedRunOptions,
             getDocument: this.componentDocument,
             continuationSlide: offset => this.slideAt(slideIndex + offset),
             setMasterSlideNumber: props => {

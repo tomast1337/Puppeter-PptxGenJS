@@ -57,6 +57,12 @@ returns a `.pptx`:
   and `endArrowType`. A `shadow` on a text run (a run's `options`, in a text box or a table cell) draws
   nothing: PptxGenJS writes only a run's `glow`, so PowerPoint shows no run shadow. Put `shadow` on the
   text box instead (`COMPATIBILITY.text.options.runShadow` is `"ignored"`).
+- **Run options shared between boxes:** PptxGenJS writes a box's options onto the `options` object of
+  each of its runs (every option the run leaves falsy, and the box's color), so a run options object
+  passed to a second `addText()` or `addTable()` keeps the first box's size, color, alignment and
+  spacing there. PdfLapas draws the same, without changing your objects. Pass a fresh object per box
+  (`{ ...item }`) to give each box its own options. Boxes are read in call order, PptxGenJS's write
+  order unless you add to a slide after a later one with an object both use.
 - **Text fit and tab stops:** `fit: "shrink"` (`shrinkText`) scales font size and line height in
   0.95 steps until the text fits, close to but not the scale PowerPoint or LibreOffice pick; the HTML
   states the rule on the box (`data-text-fit-step`).
