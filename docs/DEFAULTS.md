@@ -163,6 +163,15 @@ a space after of 0.5 followed by a space before of 0.5 adds 2pt, and
 `lineSpacing: 12.5` gives a 13pt line. `lineSpacingMultiple` is not rounded.
 The LibreOffice target keeps the values as given.
 
+PptxGenJS writes `superscript` as `baseline="30000"` and `subscript` as
+`baseline="-40000"`: the run's baseline moves by 30% or 40% of its font size.
+PowerPoint draws the run at 2/3 of that size (24pt at 15.96pt) and counts it
+in its line at the reduced size, and so does the PowerPoint target;
+LibreOffice draws it at 58%, and so does the LibreOffice target. On the
+PowerPoint target the paragraph mark keeps the last run's full size: a
+paragraph whose only run is a 24pt superscript is a 28.8pt line, and the empty
+paragraph after a superscript run ending in "\n" a full line of its size.
+
 A text option set to `null` is unset, as in PptxGenJS, which reads options by
 truthiness: a run's `null` takes the box's value, and a box's the default.
 PptxGenJS's `addText` itself writes `lineSpacing: null` and

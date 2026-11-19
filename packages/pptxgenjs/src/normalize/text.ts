@@ -105,13 +105,18 @@ function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fo
     return fontMetrics(options.fontFace ?? PPTX_DEFAULTS.text.fontFace)?.pairKerning !== false;
 }
 
+/** A run's font size in px, before any superscript or subscript reduction. */
+function runFontSize(options: PptxGenJS.TextPropsOptions): number {
+    return pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt);
+}
+
 export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextRun {
     const underline = underlineType(options);
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const baseline = options.baseline ?? 0;
-    const fontSize = pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt);
+    const fontSize = runFontSize(options);
     // A custom baseline wins over super/subscript, as in PptxGenJS's run XML.
-    // shortcut: custom baselines keep their full size and the point-based offset; check them against LibreOffice's 58% when a fixture uses one.
+    // shortcut: custom baselines keep their full size and the point-based offset; check them against the targets' escapementSizeRatio when a fixture uses one.
     const escapement = options.baseline ? undefined : options.subscript ? PPTX_DEFAULTS.text.subscriptBaseline : options.superscript ? PPTX_DEFAULTS.text.superscriptBaseline : undefined;
     const link = normalizeHyperlink(options.hyperlink);
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
@@ -119,7 +124,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     return {
         text,
         fontFace: options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
-        fontSize: escapement === undefined ? fontSize : fontSize * PPTX_DEFAULTS.text.escapementSizeRatio,
+        fontSize: escapement === undefined ? fontSize : fontSize * RENDERING_TARGETS[target].escapementSizeRatio,
         color: normalizeColor({ color: options.color ?? defaultColor, transparency: options.transparency }),
         bold: options.bold ?? PPTX_DEFAULTS.text.bold,
         italic: options.italic ?? PPTX_DEFAULTS.text.italic,
@@ -243,7 +248,11 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceG
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
     const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(spacingPoints(first.lineSpacing, target)) : multiple;
     const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options), target, fontMetrics));
-    const lineBox = paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace);
+    // The mark of a paragraph whose <a:p> ends here, at its last run's size before a super/subscript reduction
+    // (RENDERING_TARGETS.fullSizeMark); a line feed ends its line in the run's own font.
+    const lastPiece = pieces.at(-1);
+    const markFontSize = endsParagraph && lastPiece && RENDERING_TARGETS[target].fullSizeMark ? runFontSize(inheritedOptions(parent, lastPiece.options)) : undefined;
+    const lineBox = paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace, markFontSize);
     // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
     const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
 
@@ -418,7 +427,8 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * `target` may place the baseline differently: with explicit spacing (RENDERING_TARGETS.spacedLineBaseline), and with
  * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline), where the paragraph mark and soft breaks,
  * set in `markFontFace` and `themeFontFace`, may move the last line and the lines ending in a break (`markBaseline`,
- * `breakBaseline`).
+ * `breakBaseline`). `markFontSize` is the mark's size when it is not the last run's (RENDERING_TARGETS.fullSizeMark):
+ * it counts in the line's height as well.
  */
 export function paragraphLineBox(
     paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">,
@@ -426,8 +436,11 @@ export function paragraphLineBox(
     fontMetrics: FontMetricsLookup = builtInFontMetrics,
     themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace,
     markFontFace: string = themeFontFace,
+    markFontSize?: number,
 ): NormalizedTextParagraph["lineBox"] {
-    const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
+    // shortcut: one line box per paragraph, so a full-size mark sets the height of every line, not only the last; split
+    // it per line when the model gets a line box per line.
+    const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), markFontSize ?? 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);
     const { lineHeight } = paragraph;
     // Model contract: values below 10 are lineSpacingMultiple, larger ones exact px (lineSpacing).
     const box = lineBoxOf(fontSize, lineHeight === undefined ? undefined : lineHeight < 10 ? lineHeight * fontSize : lineHeight);
@@ -444,7 +457,7 @@ export function paragraphLineBox(
     // shortcut: one line box per paragraph, so every line holds all the paragraph's runs and every break the largest
     // size before one; split it per line when the model gets a line box per line.
     const baseline = fontBaseline(runs, box.height, fontMetrics);
-    const markBaseline = fontBaseline([...runs, { fontFace: markFontFace, fontSize: last.fontSize }], box.height, fontMetrics);
+    const markBaseline = fontBaseline([...runs, { fontFace: markFontFace, fontSize: markFontSize ?? last.fontSize }], box.height, fontMetrics);
     const breakSize = Math.max(0, ...runs.map((run, index) => (index > 0 && run.softBreakBefore ? (runs[index - 1]?.fontSize ?? 0) : 0)));
     const breakBaseline = breakSize ? fontBaseline([...runs, { fontFace: themeFontFace, fontSize: breakSize }], box.height, fontMetrics) : baseline;
     return { ...box, baseline, ...(markBaseline !== baseline ? { markBaseline } : {}), ...(breakBaseline !== baseline ? { breakBaseline } : {}) };
