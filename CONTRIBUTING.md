@@ -213,10 +213,55 @@ Side-by-side crops (`montage-*.png`) land in `.visual-parity/wasm-parity/<deck>/
 
 `.github/workflows/release.yml` (manual, or on a `v*` tag) runs every CI job,
 rebuilds the `.wasm` in Docker and checks it matches CI's build and the
-committed hash, packs every package, checks the `@pdflapas/wasm` tarball carries
-that binary, and runs `npm publish --dry-run`. On a tag it also checks every
-package version matches the tag and creates the GitHub release. It does not
-publish to npm yet.
+committed hash, packs every public package, checks the `@pdflapas/wasm` tarball
+carries that binary, and runs `npm publish --dry-run`. On a tag it also checks
+every package version matches the tag and creates the GitHub release with the
+attested tarballs. It never publishes to npm: by decision, the maintainer
+publishes locally with their own npm login and 2FA, so CI holds no npm token.
+
+First time only: create the `@pdflapas` organization on npmjs.com (Add
+Organization, free plan for public packages) under the maintainer's account;
+the scope does not exist until then. Then deprecate the old unscoped package,
+which this repository no longer publishes (`packages/puppeteer-pptxgenjs` is
+private and only tests the old import names):
+
+```bash
+npm deprecate puppeteer-pptxgenjs "Renamed: use @pdflapas/pptxgenjs (and @pdflapas/react, @pdflapas/wasm for the /react and /wasm subpaths)"
+```
+
+Each release:
+
+1. On a branch, bump every package (the private shim too, so the versions
+   stay equal) and open a PR:
+
+    ```bash
+    for package in packages/*/; do (cd "$package" && bun pm version 0.3.0 --no-git-tag-version); done
+    ```
+
+2. Merge it, then tag the merge commit on `main` and push the tag. The
+   Release workflow builds the GitHub release and the attested tarballs:
+
+    ```bash
+    git switch main && git pull --ff-only
+    git tag -a v0.3.0 -m v0.3.0 && git push origin v0.3.0
+    ```
+
+3. `bun run build:wasm` (the binary must match the committed hash), then
+   `bun run publish:npm`. This is a dry run: it checks the tree is clean, on
+   `main`, equal to `origin/main` and tagged `v<version>` (pushed), that all
+   public packages share that version and the `.wasm` matches its hash; runs
+   `bun run test:package`; packs each package into `release/` and verifies the
+   tarball (no `workspace:` specifiers, `@pdflapas/*` dependencies pinned to the
+   release version, every `main`/`types`/`exports` file present, the `.wasm`
+   hash); prints the plan; and runs `npm publish --dry-run` in dependency order
+   (model, then puppeteer and wasm, then pptxgenjs, then react).
+4. `bun run publish:npm --yes` publishes. npm prompts for the one-time
+   password, or pass `--otp=123456`. A version already on npm is skipped, so a
+   run that stopped half-way can be rerun. A prerelease (`0.3.0-rc.1`) needs
+   `--tag=next` (or another dist-tag) so it does not become `latest`.
+
+Local publishes carry no npm provenance attestation (`--provenance` only works
+from CI); the attested tarballs are the ones on the GitHub release.
 
 ## Compatibility changes
 

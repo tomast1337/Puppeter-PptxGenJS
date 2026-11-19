@@ -103,9 +103,10 @@ jobs:
             npm publish --dry-run "./$tarball"
           done
 
-      # TODO(publish): nothing is published to npm yet; no token or @pdflapas org exists. Once they
-      # do, add a tag-only step here that runs `npm publish --provenance` for each tarball, gated on
-      # the token secret (or npm trusted publishing via the id-token permission above).
+      # No publish step, by decision: the maintainer publishes to npm locally, with their own login
+      # and 2FA, through `bun run publish:npm` (scripts/publish.ts, CONTRIBUTING.md "Releases"), so
+      # no npm token is stored in CI. Those publishes carry no npm provenance; the tarballs attested
+      # below and attached to the GitHub release are the attested build.
 
       - name: Attest release provenance
         if: github.event.repository.private == false

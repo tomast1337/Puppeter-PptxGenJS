@@ -15,6 +15,7 @@
     "build:wasm": "sh packages/wasm/build-wasm.sh",
     "build:wasm:docker": "WASM_BUILD=docker sh packages/wasm/build-wasm.sh",
     "test:package": "bun run scripts/test-package.ts",
+    "publish:npm": "bun run scripts/publish.ts",
     "typecheck": "node --max-old-space-size=2048 --stack-size=8192 ./node_modules/typescript/bin/tsc --noEmit",
     "test": "bun test",
     "test:visual": "bun run tests/visual/compare.ts",
