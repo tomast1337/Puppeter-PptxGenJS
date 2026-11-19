@@ -34,13 +34,20 @@ function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
 
+/** `options` without the keys whose value is undefined or null, which PptxGenJS treats as unset. */
+function setOptions(options: PptxGenJS.TextPropsOptions): PptxGenJS.TextPropsOptions {
+    return Object.fromEntries(Object.entries(options).filter(([, value]) => value != null));
+}
+
 function inheritedOptions(parent: PptxGenJS.TextPropsOptions, child: PptxGenJS.TextPropsOptions = {}): PptxGenJS.TextPropsOptions {
     const { x: _x, y: _y, w: _w, h: _h, fill: _fill, line: _line, shadow: _shadow, rotate: _rotate, flipH: _flipH, flipV: _flipV, rectRadius: _rectRadius, objectName: _objectName, ...parentText } = parent;
     // PptxGenJS 4.0.1 genXmlTextBody (step 6 C) fills a run option the run leaves unset from its parent's, so a key
     // present with an undefined value (a table cell's `{ fontSize: undefined }`, copied onto its autoPage word runs)
-    // inherits rather than resetting to the default.
-    const inherited = { ...parentText, ...Object.fromEntries(Object.entries(child).filter(([, value]) => value !== undefined)) };
-    if (child.hyperlink && child.color === undefined) delete inherited.color;
+    // inherits rather than resetting to the default. Null is unset too: addTextDefinition writes `lineSpacing: null` and
+    // `lineSpacingMultiple: null` into the options it is given, step 6 B copies them onto each run, and PptxGenJS
+    // reads them only by truthiness, so options that went through PptxGenJS once must give the same text again.
+    const inherited = { ...setOptions(parentText), ...setOptions(child) };
+    if (child.hyperlink && child.color == null) delete inherited.color;
     return inherited;
 }
 

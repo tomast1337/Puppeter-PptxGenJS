@@ -9,6 +9,7 @@ import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/norma
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { presentationCSS } from "../packages/pptxgenjs/src/render/slide";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
+import { pointsToPixels } from "../packages/pptxgenjs/src/units";
 
 describe("text normalization", () => {
     test("accepts numbers and preserves empty hard-line paragraphs", () => {
@@ -560,5 +561,68 @@ describe("underline forms (the `u` PptxGenJS 4.0.1 genXmlTextRunProperties write
             ["dash", true, "dashed"],
             ["none", false, "solid"],
         ]);
+    });
+});
+
+type TextPlace = (slide: PptxGenJS.Slide) => void;
+// Each builds its options afresh, so the PptxGenJS pass and the fresh pass never share an object.
+const NULLED_TEXT_PLACES: Record<string, () => TextPlace> = {
+    runs: () => {
+        const runs: PptxGenJS.TextProps[] = [{ text: "One", options: { breakLine: true } }, { text: "Two\n" }, { text: "Three" }];
+        const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2, fontSize: 12 };
+        return slide => slide.addText(runs, options);
+    },
+    "runs in a spaced box": () => {
+        const runs: PptxGenJS.TextProps[] = [{ text: "One", options: { breakLine: true, lineSpacingMultiple: 1.5 } }, { text: "Two" }];
+        const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2, fontSize: 12, lineSpacing: 20 };
+        return slide => slide.addText(runs, options);
+    },
+    string: () => {
+        const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2, fontSize: 12 };
+        return slide => slide.addText("One\nTwo", options);
+    },
+    shape: () => {
+        const options: PptxGenJS.TextPropsOptions = { shape: "rect", x: 1, y: 1, w: 4, h: 2, fontSize: 12 };
+        return slide => slide.addText("One\nTwo", options);
+    },
+};
+
+describe("options PptxGenJS 4.0.1 has written once", () => {
+    test.each(Object.keys(NULLED_TEXT_PLACES))("%s: its null lineSpacing and lineSpacingMultiple leave the text as fresh options do", async place => {
+        const build = NULLED_TEXT_PLACES[place];
+        if (!build) throw new Error(`no text place ${place}`);
+        // The text only: PptxGenJS also writes `line: {}` into the box, which draws an outline here (a separate gap).
+        const text = (add: TextPlace) => {
+            const presentation = new PuppeteerGen();
+            add(presentation.addSlide());
+            const object = presentation.getModel().slides[0]?.objects[0];
+            return object?.kind === "text" ? object.text : undefined;
+        };
+        const written = build();
+        const pptx = new PptxGenJSRuntime();
+        written(pptx.addSlide());
+        await pptx.write({ outputType: "nodebuffer" });
+        const fresh = text(build());
+        if (!fresh) throw new Error(`${place} made no text`);
+        expect(text(written)).toEqual(fresh);
+    });
+
+    test("PptxGenJS writes null line spacing into the options it is given", () => {
+        const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2 };
+        new PptxGenJSRuntime().addSlide().addText("Text", options);
+        expect(options).toMatchObject({ lineSpacing: null, lineSpacingMultiple: null });
+    });
+
+    test("a null run or box lineSpacing is unset, so the line keeps its single height", () => {
+        // `as`: PptxGenJS's types leave out the null it writes itself.
+        const unset = { lineSpacing: null, lineSpacingMultiple: null } as unknown as PptxGenJS.TextPropsOptions;
+        const single = normalizeText("Text", { fontSize: 12 }).paragraphs[0];
+        expect(normalizeText("Text", { fontSize: 12, ...unset }).paragraphs[0]).toEqual(single!);
+        expect(normalizeText([{ text: "Text", options: unset }], { fontSize: 12 }).paragraphs[0]).toEqual(single!);
+        // A null run value inherits the box's, as PptxGenJS's `run.lineSpacing || box.lineSpacing` does.
+        expect(normalizeText([{ text: "Text", options: unset }], { fontSize: 12, lineSpacing: 20 }).paragraphs[0]?.lineHeight).toBeCloseTo(pointsToPixels(20));
+        for (const target of ["libreoffice", "powerpoint"] as const) {
+            expect(normalizeText("Text", { fontSize: 12, ...unset }, target).paragraphs[0]?.lineBox).toEqual(normalizeText("Text", { fontSize: 12 }, target).paragraphs[0]!.lineBox);
+        }
     });
 });
