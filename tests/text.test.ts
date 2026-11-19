@@ -5,6 +5,7 @@ import PptxGenJSRuntime from "pptxgenjs";
 import type { NormalizedTextRun } from "@pdflapas/model";
 import { renderedPage } from "./renderedPage";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
+import { normalizeTable } from "../packages/pptxgenjs/src/normalize/table/index";
 import { normalizeText, paragraphLineBox } from "../packages/pptxgenjs/src/normalize/text";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { presentationCSS } from "../packages/pptxgenjs/src/render/slide";
@@ -624,5 +625,67 @@ describe("options PptxGenJS 4.0.1 has written once", () => {
         for (const target of ["libreoffice", "powerpoint"] as const) {
             expect(normalizeText("Text", { fontSize: 12, ...unset }, target).paragraphs[0]?.lineBox).toEqual(normalizeText("Text", { fontSize: 12 }, target).paragraphs[0]!.lineBox);
         }
+    });
+});
+
+// PptxGenJS 4.0.1 writes an empty run, or the empty line between two line feeds, as an <a:p> with only <a:endParaRPr>;
+// PowerPoint and LibreOffice draw it one line at the size written there.
+describe("paragraphs without a run", () => {
+    const heading = { text: "Heading", options: { fontSize: 12, bold: true, breakLine: true } };
+    const body = { text: "Body", options: { fontSize: 12 } };
+    const CASES: ReadonlyArray<{ name: string; runs: PptxGenJS.TextProps[]; options: PptxGenJS.TextPropsOptions; size: number }> = [
+        // The box's or cell's fontSize, not the 12pt runs around it.
+        { name: "line feeds, 8pt parent", runs: [{ text: "Heading\n\nBody", options: { fontSize: 12 } }], options: { fontSize: 8 }, size: 8 },
+        { name: "empty run, 8pt parent", runs: [heading, { text: "", options: { breakLine: true } }, body], options: { fontSize: 8 }, size: 8 },
+        // The empty run's own size is never written: the parent's comes first.
+        { name: "empty run of its own 20pt, 8pt parent", runs: [heading, { text: "", options: { breakLine: true, fontSize: 20 } }, body], options: { fontSize: 8 }, size: 8 },
+        // Without one, the first run size PptxGenJS met so far, set on the shared options (genXmlTextBody step 6 E).
+        { name: "empty run of its own 20pt, no parent size", runs: [heading, { text: "", options: { breakLine: true, fontSize: 20 } }, body], options: {}, size: 12 },
+        { name: "leading empty run of its own 20pt", runs: [{ text: "", options: { breakLine: true, fontSize: 20 } }, body], options: {}, size: 20 },
+        // Nothing written: the default size.
+        { name: "leading empty run, no size", runs: [{ text: "", options: { breakLine: true } }, body], options: {}, size: PPTX_DEFAULTS.text.fontSizePt },
+    ];
+
+    /** The `sz` PptxGenJS writes on the `<a:endParaRPr>` of the first run-less `<a:p>` of a text box, in points. */
+    async function writtenMarkSize(runs: PptxGenJS.TextProps[], options: PptxGenJS.TextPropsOptions): Promise<number | undefined> {
+        const pptx = new PptxGenJSRuntime();
+        pptx.addSlide().addText(structuredClone(runs), { x: 1, y: 1, w: 4, h: 2, ...options });
+        const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+        const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+        const runless = xml.split("<a:p>").find(paragraph => paragraph.includes("<a:endParaRPr") && !paragraph.includes("<a:r>"));
+        const size = runless?.match(/<a:endParaRPr[^>]* sz="(\d+)"/)?.[1];
+        return size === undefined ? undefined : Number(size) / 100;
+    }
+
+    test("take the size PptxGenJS writes on the paragraph mark, in a text box", async () => {
+        for (const { name, runs, options, size } of CASES) {
+            expect({ name, size: (await writtenMarkSize(runs, options)) ?? PPTX_DEFAULTS.text.fontSizePt }).toEqual({ name, size });
+            for (const target of ["libreoffice", "powerpoint"] as const) {
+                const empty = normalizeText(structuredClone(runs), options, target).paragraphs.find(paragraph => paragraph.runs.every(run => !run.text));
+                expect({ name, target, size: empty?.runs[0]?.fontSize }).toEqual({ name, target, size: pointsToPixels(size) });
+                // One single line of that size: 1.2x, the line box the HTML writes as line-height.
+                expect(empty?.lineBox.height).toBeCloseTo(pointsToPixels(1.2 * size), 9);
+            }
+        }
+    });
+
+    test("take the size PptxGenJS writes on the paragraph mark, in a table cell", () => {
+        const cell = (runs: PptxGenJS.TextProps[], table: PptxGenJS.TableProps) => {
+            const text = normalizeTable([[{ text: structuredClone(runs) as PptxGenJS.TableCell[] }]], { x: 1, y: 1, w: 4, ...table }, PAGE_SIZES.SCREEN_16X9.landscape).rows[0]?.cells[0]?.text;
+            return text?.paragraphs.map(paragraph => paragraph.lineBox.height);
+        };
+        const lines = (...points: number[]) => points.map(size => expect.closeTo(pointsToPixels(1.2 * size), 9));
+        // A table fontSize reaches the cell's <a:endParaRPr>; autoPage rebuilds the runs and keeps it.
+        expect(cell([{ text: "Heading\n\nBody", options: { fontSize: 12 } }], { fontSize: 8 })).toEqual(lines(12, 8, 12));
+        expect(cell([{ text: "Heading\n\nBody", options: { fontSize: 12 } }], { fontSize: 8, autoPage: true })).toEqual(lines(12, 8, 12));
+        expect(cell([heading, { text: "", options: { breakLine: true, fontSize: 20 } }, body], { fontSize: 8 })).toEqual(lines(12, 8, 12));
+        expect(cell([heading, { text: "", options: { breakLine: true } }, body], {})).toEqual(lines(12, 12, 12));
+    });
+
+    test("write the mark's line height into the HTML", () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addText([{ text: "Heading\n\nBody", options: { fontSize: 12 } }], { x: 1, y: 1, w: 4, h: 2, fontSize: 8 });
+        const heights = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph"), paragraph => parseFloat(paragraph.style.lineHeight));
+        expect(heights.map(height => Number(height.toFixed(6)))).toEqual([19.2, 12.8, 19.2]);
     });
 });

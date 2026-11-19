@@ -487,6 +487,8 @@ const PARAGRAPH_CASES = [
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
 // populateLineFeedTailFixture(): runs ending with line feeds, on the slide after the paragraph slide; no WASM deck takes it.
 const LINE_FEED_TAIL_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-line-feed-tail-run", x: 0.5, y: 1, w: 4, h: 2.5 } as const;
+// populateLineFeedTailFixture() too: paragraphs written without a run, at the size on their <a:endParaRPr>.
+const EMPTY_PARAGRAPH_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-empty-paragraph-mark", x: 5.5, y: 1, w: 4, h: 2.5 } as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
@@ -522,6 +524,7 @@ export const PARITY_REGIONS = [
     ...PRESET_ASPECT_CASES,
     ...PARAGRAPH_CASES.map(({ name, x, y, w, h }) => ({ page: PARAGRAPH_PAGE, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
     { ...LINE_FEED_TAIL_CASE, x: LINE_FEED_TAIL_CASE.x - 0.15, y: LINE_FEED_TAIL_CASE.y - 0.15, w: LINE_FEED_TAIL_CASE.w + 0.3, h: LINE_FEED_TAIL_CASE.h + 0.3 },
+    { ...EMPTY_PARAGRAPH_CASE, x: EMPTY_PARAGRAPH_CASE.x - 0.15, y: EMPTY_PARAGRAPH_CASE.y - 0.15, w: EMPTY_PARAGRAPH_CASE.w + 0.3, h: EMPTY_PARAGRAPH_CASE.h + 0.3 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1792,6 +1795,27 @@ function populateLineFeedTailFixture(presentation: Presentation): void {
         // shortcut: left, not justify: LibreOffice draws the paragraphs a line feed inside <a:t> starts unjustified, which is
         // the paragraph-properties follow-up (the <a:p>'s first <a:pPr>), not this line pitch; justify them once that lands.
         { x, y, w, h, fontFace: "Arial", color: "363636", align: "left", valign: "bottom", margin: 0 },
+    );
+    // PptxGenJS writes the empty line between two line feeds, and an empty run, as an <a:p> with only <a:endParaRPr
+    // sz="800">, the box's or table's 8pt: each is one 9.6pt line between the 12pt ones (PowerPoint and LibreOffice).
+    const empty = EMPTY_PARAGRAPH_CASE;
+    const style = { fontFace: "Arial", fontSize: 8, color: "363636" } as const;
+    slide.addText([{ text: "Heading in a box\n\nBody after an 8pt empty line", options: { fontSize: 12 } }], { x: empty.x, y: empty.y, w: empty.w, h: 1, valign: "top", margin: 0, ...style });
+    slide.addTable(
+        [
+            [
+                {
+                    text: [
+                        { text: "Heading in a cell", options: { fontSize: 12, bold: true, breakLine: true } },
+                        { text: "", options: { breakLine: true } },
+                        { text: "Body after an empty run", options: { fontSize: 12, breakLine: true } },
+                        { text: "", options: { breakLine: true, fontSize: 20 } },
+                        { text: "Its own 20pt is not written", options: { fontSize: 12 } },
+                    ],
+                },
+            ],
+        ],
+        { x: empty.x, y: empty.y + 1.1, w: empty.w, border: { type: "solid", pt: 1, color: "404040" }, ...style },
     );
 }
 

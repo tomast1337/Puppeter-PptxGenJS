@@ -27,6 +27,8 @@ interface PieceGroup {
     paragraph: PptxGenJS.TextPropsOptions | undefined;
     /** The group ends its `<a:p>`, so its last line holds the paragraph mark, not a line feed. */
     endsParagraph: boolean;
+    /** The size PptxGenJS writes on the `<a:p>`'s `<a:endParaRPr>`, in points (markFontSizes); unset is no `sz`. */
+    markFontSize: number | undefined;
 }
 
 // --- UTILITIES ---
@@ -249,7 +251,7 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceGroup, parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
+function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFontSize: markFontSizePt }: PieceGroup, parent: PptxGenJS.TextPropsOptions, numberIndex: number, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
     // PowerPoint and LibreOffice give the empty text after a run's last line feed no size in a paragraph that holds
     // other text (measured against PowerPoint's PDF export); alone, it is an empty paragraph in the run's font. Without
     // it, the paragraph's properties come from its next run.
@@ -260,11 +262,17 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph }: PieceG
     // lineSpacingMultiple (spcPct) multiplies the single line, 1.2x the font size; the model's multiples are of the font size.
     const multiple = first.lineSpacingMultiple === undefined ? undefined : PPTX_DEFAULTS.text.singleLineEm * first.lineSpacingMultiple;
     const lineHeight = first.lineSpacing !== undefined ? pointsToPixels(spacingPoints(first.lineSpacing, target)) : multiple;
-    const runs = pieces.map(piece => normalizeTextRun(piece.text, inheritedOptions(parent, piece.options), target, fontMetrics));
+    // An <a:p> PptxGenJS writes without a run holds only its <a:endParaRPr>, and PowerPoint and LibreOffice draw it one
+    // line at the size written there, not the size of the empty run it came from: measured against PowerPoint's PDF
+    // export of synthetic decks and LibreOffice's, "A\n\nZ" at 12pt in an 8pt text box or table cell puts Z 24pt below
+    // A (14.4 + 9.6), in a 20pt one 38.4pt (14.4 + 24). Unset (no `sz`) is the default size.
+    const runless = pieces.every(piece => piece.noRun);
+    const pieceOptions = (piece: TextPiece) => inheritedOptions(parent, runless ? { ...piece.options, fontSize: markFontSizePt ?? PPTX_DEFAULTS.text.fontSizePt } : piece.options);
+    const runs = pieces.map(piece => normalizeTextRun(piece.text, pieceOptions(piece), target, fontMetrics));
     // The mark of a paragraph whose <a:p> ends here, at its last run's size before a super/subscript reduction
     // (RENDERING_TARGETS.fullSizeMark); a line feed ends its line in the run's own font.
     const lastPiece = pieces.at(-1);
-    const markFontSize = endsParagraph && lastPiece && RENDERING_TARGETS[target].fullSizeMark ? runFontSize(inheritedOptions(parent, lastPiece.options)) : undefined;
+    const markFontSize = endsParagraph && lastPiece && RENDERING_TARGETS[target].fullSizeMark ? runFontSize(pieceOptions(lastPiece)) : undefined;
     const lineBox = paragraphLineBox({ runs, lineHeight }, target, fontMetrics, themeFontFace, markFontFace, markFontSize);
     // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
     const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
@@ -357,8 +365,21 @@ function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextP
     return groups;
 }
 
+/**
+ * The size PptxGenJS 4.0.1 genXmlTextBody writes on each `<a:p>`'s `<a:endParaRPr>`: the box's or cell's `fontSize`, else
+ * the first truthy run `fontSize` up to the end of that `<a:p>` (step 6 E sets the shared options' `fontSize` from it),
+ * else none. So "A" then an empty run with `fontSize: 20` in an 8pt cell writes `sz="800"` on the empty `<a:p>`.
+ */
+function markFontSizes(lines: readonly TextPiece[][], parent: PptxGenJS.TextPropsOptions): Array<number | undefined> {
+    let size = parent.fontSize || undefined;
+    return lines.map(line => {
+        for (const piece of line) size ||= piece.options.fontSize || undefined;
+        return size;
+    });
+}
+
 /** An `<a:p>`'s pieces cut at each line feed inside a run's `<a:t>`, which PowerPoint draws as a new paragraph. */
-function splitAtLineFeeds(line: TextPiece[]): PieceGroup[] {
+function splitAtLineFeeds(line: TextPiece[], markFontSize: number | undefined): PieceGroup[] {
     let current: TextPiece[] = [];
     const groups = [current];
     for (const piece of line) {
@@ -371,7 +392,7 @@ function splitAtLineFeeds(line: TextPiece[]): PieceGroup[] {
             current.push(lines.length === 1 ? piece : { ...piece, text, ...(index === lines.length - 1 ? { tail: true } : {}) });
         });
     }
-    return groups.map((pieces, index) => ({ pieces, paragraph: line[0]?.options, endsParagraph: index === groups.length - 1 }));
+    return groups.map((pieces, index) => ({ pieces, paragraph: line[0]?.options, endsParagraph: index === groups.length - 1, markFontSize }));
 }
 
 function getTextDirection(vert?: string): "vertical" | "vertical270" | "stacked" | "horizontal" {
@@ -396,7 +417,9 @@ function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | 
  * fontFace), of the paragraph mark.
  */
 export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOptions = {}, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace, markFontFace: string = themeFontFace): NormalizedTextBox {
-    const groups = groupPieces(piecesFromInput(input, options), options.align).flatMap(splitAtLineFeeds);
+    const lines = groupPieces(piecesFromInput(input, options), options.align);
+    const markSizes = markFontSizes(lines, options);
+    const groups = lines.flatMap((line, index) => splitAtLineFeeds(line, markSizes[index]));
 
     const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
     let numberIndex = 0;
@@ -465,7 +488,8 @@ export function paragraphLineBox(
     const last = runs.at(-1);
     if (!fontLineBaseline || !last) return box;
     // PowerPoint counts the paragraph mark on the last line and a soft break on the line it ends, at the size of the last
-    // run and of the run before the break; it ignores the size PptxGenJS writes on <a:endParaRPr> but reads its typeface,
+    // run and of the run before the break; in a paragraph with a run it ignores the size PptxGenJS writes on <a:endParaRPr> (a
+    // run-less one takes it, paragraphFromPieces) but reads its typeface,
     // written only in table cells (markFontFace), else takes the theme font.
     // shortcut: one line box per paragraph, so every line holds all the paragraph's runs and every break the largest
     // size before one; split it per line when the model gets a line box per line.
