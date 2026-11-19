@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { px } from "@pdflapas/model";
+import { inchesToPixels, pixelsToInches, px } from "@pdflapas/model";
 import { inflateSync } from "node:zlib";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { renderedPage } from "./renderedPage";
@@ -410,5 +410,23 @@ describe("falsy cell values (PptxGenJS 4.0.1 fills falsy options from the parent
         const rows = [[{ text: "a" }], { text: "b" }] as unknown as PptxGenJS.TableRow[];
         expect(() => normalizeTable(rows, {}, PAGE)).toThrow("addTable: rows[1] is of type object, not an array of cells");
         expect(() => new PuppeteerGen(PAGE).addSlide().addTable(rows, { autoPage: true })).toThrow("rows[1] is of type object");
+    });
+});
+
+describe("the table frame takes the grid's px size (#281)", () => {
+    test("style.geometry.width is table.width for a width that a px to inch to px round trip changes", () => {
+        // The first second column whose grid width does not survive pixelsToInches then inchesToPixels, which addTable once did.
+        const row = () => [{ text: "a" }, { text: "b" }];
+        const widths = Array.from({ length: 300 }, (_, index) => (index + 1) / 100);
+        const second = widths.find(width => {
+            const gridWidth = normalizeTable([row()], { colW: [1, width] }, PAGE).width;
+            return inchesToPixels(pixelsToInches(gridWidth)) !== gridWidth;
+        });
+        if (second === undefined) throw new Error("no second column up to 3in changes in a px to inch to px round trip");
+        const pres = new PuppeteerGen();
+        pres.addSlide().addTable([row()], { x: 1, y: 1, colW: [1, second] });
+        const object = pres.getModel().slides[0]?.objects[0];
+        if (object?.kind !== "table") throw new Error(`expected a table, got ${object?.kind}`);
+        expect([object.style.geometry.width, object.style.geometry.height]).toEqual([object.table.width, object.table.height]);
     });
 });
