@@ -2,10 +2,14 @@
  * Caller markup (chart SVG, component HTML) parsed and serialized with parse5, the parser and serializer
  * jsdom uses, so the bytes are the ones jsdom's `innerHTML` and `outerHTML` gave, without a DOM.
  */
-import { type DefaultTreeAdapterTypes, defaultTreeAdapter, html, parseFragment } from "parse5";
+import { type DefaultTreeAdapterTypes, defaultTreeAdapter, html, parseFragment, serialize as parse5Serialize, serializeOuter as parse5SerializeOuter } from "parse5";
+import type { Html } from "./markup";
 
-/** `serializeOuter` is `outerHTML` of a parsed element, `serialize` the `innerHTML` of a fragment. */
-export { serialize, serializeOuter } from "parse5";
+// `as Html`: the serializer escapes every text and attribute value it writes.
+/** `outerHTML` of a parsed element. */
+export const serializeOuter = (node: DefaultTreeAdapterTypes.Element): Html => parse5SerializeOuter(node) as Html;
+/** `innerHTML` of a fragment. */
+export const serialize = (node: DefaultTreeAdapterTypes.DocumentFragment): Html => parse5Serialize(node) as Html;
 
 export type FragmentElement = DefaultTreeAdapterTypes.Element;
 type FragmentParent = DefaultTreeAdapterTypes.ParentNode;

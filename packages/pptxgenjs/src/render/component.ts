@@ -4,7 +4,7 @@ import type { ComponentDefinition } from "#src/components/types";
 import { COMPONENT_DEFAULTS } from "#src/defaults";
 import { type InlineStyle, styleAttribute } from "./css";
 import { descendants, type FragmentElement, getAttribute, HTML_NAMESPACE, parseMarkup, removeAttribute, serialize, setAttribute } from "./fragment";
-import { type Attribute, element } from "./markup";
+import { type Attribute, element, type Html } from "./markup";
 import { applyObjectStyle } from "./style";
 
 const REMOTE_URL = /^https?:\/\//i;
@@ -71,7 +71,7 @@ export function componentImageSources(component: RenderedComponent): string[] {
 }
 
 /** The host with its content; `resolved` maps image sources to data URIs, which replace them as `src`. */
-export function componentHtml(component: RenderedComponent, resolved?: ReadonlyMap<string, string>): string {
+export function componentHtml(component: RenderedComponent, resolved?: ReadonlyMap<string, string>): Html {
     for (const image of images(component.content)) {
         const source = pendingSource(image);
         const data = source && resolved?.get(source);

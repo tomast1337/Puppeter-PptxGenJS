@@ -1,6 +1,6 @@
 import type { NormalizedTable, NormalizedTableBorder, NormalizedTableCell, NormalizedTextBox } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
-import { type Attribute, element, voidElement } from "./markup";
+import { type Attribute, element, type Html, voidElement } from "./markup";
 import { renderText } from "./text";
 
 const BORDER_SIDES = ["top", "right", "bottom", "left"] as const;
@@ -26,7 +26,7 @@ function slackMargin({ margin, verticalAlign }: NormalizedTextBox, slack: number
     return [top + above, right, bottom + slack - above, left];
 }
 
-function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: number): string {
+function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: number): Html {
     const css: InlineStyle = new Map([
         ["padding", "0px"],
         ["overflow", "hidden"],
@@ -62,18 +62,22 @@ function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: numb
     return element("td", [["colspan", String(cell.colspan)], ["rowspan", String(cell.rowspan)], ...dashArrays, styleAttribute(css)], textElement);
 }
 
-export function renderTable(table: NormalizedTable): string {
+export function renderTable(table: NormalizedTable): Html {
     const css: InlineStyle = new Map([["width", `${table.width}px`]]);
     if (table.height !== undefined) css.set("height", `${table.height}px`);
     css.set("table-layout", "fixed");
     css.set("border-collapse", "collapse");
     css.set("border-spacing", "0");
 
-    const columns = element("colgroup", [], table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", `${width}px`]]))])).join(""));
+    const columns = element(
+        "colgroup",
+        [],
+        table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", `${width}px`]]))])),
+    );
     const rows = table.rows.map(row => {
         const rowHeight: RowHeight = row.height !== undefined ? "fixed" : "auto";
-        const cells = row.cells.map(cell => renderCell(cell, rowHeight, table.contentRowSlack ?? 0)).join("");
+        const cells = row.cells.map(cell => renderCell(cell, rowHeight, table.contentRowSlack ?? 0));
         return element("tr", [styleAttribute(new Map(row.height !== undefined ? [["height", `${row.height}px`]] : []))], cells);
     });
-    return element("table", [["class", "slide-table"], styleAttribute(css)], `${columns}${rows.join("")}`);
+    return element("table", [["class", "slide-table"], styleAttribute(css)], [columns, ...rows]);
 }

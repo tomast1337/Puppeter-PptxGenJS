@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { modelToHtml } from "../packages/pptxgenjs/src/render/document";
 import type { ComponentLookup } from "../packages/pptxgenjs/src/render/slide";
-import { element, escapeAttribute, escapeText, voidElement } from "../packages/pptxgenjs/src/render/markup";
+import { element, escapeAttribute, escapeText, rawTextElement, voidElement } from "../packages/pptxgenjs/src/render/markup";
 import { populateParityFixture } from "./visual/fixture";
 
 // `as`: the registry is private; toHtml() hands the same object to modelToHtml().
@@ -20,12 +20,24 @@ describe("string-built HTML", () => {
             const span = document.createElement("span");
             span.textContent = value;
             span.setAttribute("title", value);
-            expect(element("span", [["title", value]], escapeText(value))).toBe(span.outerHTML);
+            expect<string>(element("span", [["title", value]], escapeText(value))).toBe(span.outerHTML);
             expect(escapeAttribute(value)).toBe(span.outerHTML.slice('<span title="'.length, span.outerHTML.indexOf('">')));
         }
         const image = document.createElement("img");
         image.setAttribute("alt", TRICKY.join(""));
-        expect(voidElement("img", [["alt", TRICKY.join("")]])).toBe(image.outerHTML);
+        expect<string>(voidElement("img", [["alt", TRICKY.join("")]])).toBe(image.outerHTML);
+    });
+
+    test("markup takes only escaped or serialized content, never a plain string", () => {
+        const text = "<b>";
+        // @ts-expect-error a plain string is not Html: it must go through escapeText() or element()
+        const unescaped = element("p", [], text);
+        expect<string>(unescaped).toBe("<p><b></p>");
+        expect<string>(element("p", [], escapeText(text))).toBe("<p>&lt;b&gt;</p>");
+    });
+
+    test("a <style> refuses text that would end it early", () => {
+        expect(() => rawTextElement("style", [], "a{}</STYLE><script>")).toThrow('<style> text must not contain "</style"');
     });
 
     test("decks without components never create a document", async () => {

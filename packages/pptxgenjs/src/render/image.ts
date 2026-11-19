@@ -1,6 +1,6 @@
 import type { NormalizedImage, NormalizedObjectStyle } from "@pdflapas/model";
 import { type InlineStyle, styleAttribute } from "./css";
-import { type Attribute, element, voidElement } from "./markup";
+import { type Attribute, element, type Html, voidElement } from "./markup";
 import { applyObjectStyle } from "./style";
 
 /**
@@ -13,7 +13,7 @@ function sourceAttributes(image: NormalizedImage, resolved: string | undefined):
     return { before: [[image.sourceKind === "remote" ? "data-source-url" : "data-source-path", image.source]], after: [] };
 }
 
-export function renderImage(image: NormalizedImage, style: NormalizedObjectStyle, resolved?: string): string {
+export function renderImage(image: NormalizedImage, style: NormalizedObjectStyle, resolved?: string): Html {
     const outerCss: InlineStyle = new Map();
     const objectAttributes = applyObjectStyle(outerCss, style);
     if (image.rounding) outerCss.set("border-radius", "50%");

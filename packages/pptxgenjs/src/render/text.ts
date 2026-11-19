@@ -1,7 +1,7 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { type InlineStyle, styleAttribute } from "./css";
-import { type Attribute, element, escapeText, voidElement } from "./markup";
+import { type Attribute, element, escapeText, type Html, voidElement } from "./markup";
 import { shadowInsetAttribute } from "./style";
 
 /** U+200B: the text of an empty run, so an empty PowerPoint paragraph still owns a line box. */
@@ -59,7 +59,7 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
     ];
 }
 
-function renderRun(run: NormalizedTextRun): string {
+function renderRun(run: NormalizedTextRun): Html {
     const link = run.link;
     return element(
         link ? "a" : "span",
@@ -112,7 +112,7 @@ function paragraphAttributes(paragraph: NormalizedTextParagraph): Attribute[] {
     ];
 }
 
-function renderBulletMarker(paragraph: NormalizedTextParagraph & { bullet: NonNullable<NormalizedTextParagraph["bullet"]> }): string {
+function renderBulletMarker(paragraph: NormalizedTextParagraph & { bullet: NonNullable<NormalizedTextParagraph["bullet"]> }): Html {
     const { bullet } = paragraph;
     const css: InlineStyle = new Map([
         ["display", "inline-block"],
@@ -127,12 +127,12 @@ function renderBulletMarker(paragraph: NormalizedTextParagraph & { bullet: NonNu
     return element("span", [["class", "text-bullet"], styleAttribute(css)], escapeText(`${bullet.marker}${BULLET_GAP}`));
 }
 
-function renderParagraph(paragraph: NormalizedTextParagraph): string {
-    let content = paragraph.bullet ? renderBulletMarker({ ...paragraph, bullet: paragraph.bullet }) : "";
+function renderParagraph(paragraph: NormalizedTextParagraph): Html {
+    const content = paragraph.bullet ? [renderBulletMarker({ ...paragraph, bullet: paragraph.bullet })] : [];
     paragraph.runs.forEach((run, index) => {
         // A soft break separates a run from what precedes it in the paragraph; the bullet marker does not count.
-        if (run.softBreakBefore && index > 0) content += voidElement("br", []);
-        content += renderRun(run);
+        if (run.softBreakBefore && index > 0) content.push(voidElement("br", []));
+        content.push(renderRun(run));
     });
     return element("div", paragraphAttributes(paragraph), content);
 }
@@ -152,7 +152,7 @@ export function shrinkAttributes(): (readonly [name: string, value: string])[] {
 }
 
 /** Adds the text box's declarations to `css`, which the caller writes; returns the box's attributes and its content. */
-export function renderText(css: InlineStyle, text: NormalizedTextBox): { attributes: Attribute[]; content: string } {
+export function renderText(css: InlineStyle, text: NormalizedTextBox): { attributes: Attribute[]; content: Html } {
     const [top, right, bottom, left] = text.margin;
     css.set("padding", `${top}px ${right}px ${bottom}px ${left}px`);
     css.set("align-items", alignItemsCSS(text.verticalAlign));
@@ -178,7 +178,7 @@ export function renderText(css: InlineStyle, text: NormalizedTextBox): { attribu
         contentCss.set("text-orientation", text.direction === "stacked" ? "upright" : "mixed");
         contentCss.set("height", "100%");
     }
-    const paragraphs = text.paragraphs.map(renderParagraph).join("");
+    const paragraphs = text.paragraphs.map(renderParagraph);
     return {
         attributes: [["data-text-fit", text.fit], ...(text.fit === "shrink" ? shrinkAttributes() : []), ["data-text-direction", text.direction]],
         content: element("div", [["class", "text-content"], styleAttribute(contentCss)], paragraphs),
