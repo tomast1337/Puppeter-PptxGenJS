@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/tomast1337/PdfLapas/security/advisories/new
+    about: Report security issues privately. Never open a public issue for a vulnerability.
+  - name: Usage question
+    url: https://github.com/tomast1337/PdfLapas/blob/main/docs/USAGE.md
+    about: Read the usage guide first.
