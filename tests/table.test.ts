@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
+import { inflateSync } from "node:zlib";
+import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { renderedPage } from "./renderedPage";
 import type PptxGenJS from "pptxgenjs";
 import PptxGenJSRuntime from "pptxgenjs";
@@ -8,6 +10,8 @@ import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
+
+afterAll(closeBrowser);
 
 describe("table normalization", () => {
     test("normalizes explicit columns, rows, spans, and per-side borders", () => {
@@ -179,6 +183,31 @@ describe("table normalization", () => {
 });
 
 describe("table rendering", () => {
+    // PowerPoint and LibreOffice stroke each grid line once at the border's width; Chromium fills a CSS border as a
+    // box floored to whole device px (0.47pt for 0.5pt), which viewers anti-alias to a pale line.
+    test("prints table borders as one stroke per grid line, not filled boxes per cell side", async () => {
+        const presentation = new PuppeteerGen(PAGE);
+        const line = { type: "solid", pt: 0.5, color: "000000" } as const;
+        const dash = { ...line, type: "dash" } as const;
+        const slide = presentation.addSlide();
+        slide.addTable(
+            [
+                ["A", "B"],
+                ["C", "D"],
+            ].map(row => row.map(text => ({ text, options: { border: line } }))),
+            { x: 1, y: 1, w: 4, fontFace: "Arial" },
+        );
+        slide.addTable([[{ text: "E", options: { border: [dash, { type: "none" }, dash, { type: "none" }] } }]], { x: 1, y: 3, w: 4, fontFace: "Arial" });
+        const content = pdfContent(await presentation.toPdf());
+
+        // Three row lines and three column lines of the grid, then the dashed top and bottom, one subpath per dash.
+        const strokes = content.match(/(?:[-\d. ]+ [ml]\n)+S\n/g) ?? [];
+        expect(strokes).toHaveLength(8);
+        expect(strokes.slice(-2).every(path => (path.match(/ m\n/g) ?? []).length > 1)).toBe(true);
+        // The only filled rectangle is the slide background.
+        expect(content.match(/ re\nf\n/g)).toHaveLength(1);
+    }, 60_000);
+
     // PptxGenJS writes <a:tr h> and PowerPoint and LibreOffice grow the row to its text, so the text stays in flow.
     test("keeps cell text in flow in rows with a height, so a row grows to its text", () => {
         const presentation = new PuppeteerGen(PAGE);
@@ -285,6 +314,21 @@ async function pptxGenJsRuns(rows: unknown[], options: PptxGenJS.TableProps): Pr
     const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
     const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
     return [...xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)].map(([, cell]) => [...(cell ?? "").matchAll(/<a:r><a:rPr([^>]*)>.*?<a:t>([^<]*)<\/a:t><\/a:r>/g)].map(([, props, text]) => `${text}${props?.includes('b="1"') ? "/b" : ""}`).join("|"));
+}
+
+/** Every page content stream of a Chromium PDF, inflated and joined. */
+function pdfContent(pdf: Uint8Array): string {
+    const bytes = Buffer.from(pdf);
+    const streams: string[] = [];
+    for (let at = bytes.indexOf("stream\n"); at >= 0; at = bytes.indexOf("stream\n", at + 1)) {
+        const end = bytes.indexOf("endstream", at);
+        try {
+            streams.push(inflateSync(bytes.subarray(at + "stream\n".length, end)).toString("latin1"));
+        } catch {
+            // Not a Flate stream (fonts are, but images may not be); content streams always are.
+        }
+    }
+    return streams.join("\n");
 }
 
 function ourRuns(rows: unknown[], options: PptxGenJS.TableProps): string[] {

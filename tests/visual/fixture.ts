@@ -7,7 +7,7 @@ import { z } from "zod";
 import { PuppeteerGen } from "../../packages/pptxgenjs/src/node";
 import { inchesToPixels } from "../../packages/pptxgenjs/src/units";
 import { registerReactComponent } from "../../packages/react/src/index";
-import { CROP_TARGET, TABLE_TEXT_OFFSET_CROP_THRESHOLDS, TEXT_LINE_SNAP_CROP_THRESHOLDS, UNDERLINE_DOUBLE_CROP_THRESHOLDS } from "./thresholds";
+import { CROP_TARGET, TEXT_LINE_SNAP_CROP_THRESHOLDS, UNDERLINE_DOUBLE_CROP_THRESHOLDS } from "./thresholds";
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
@@ -442,6 +442,8 @@ const TABLE_OPTION_CASES = [
     { name: "table-height-grow", x: 5.5, y: 1.25, w: 4, h: 2 },
     { name: "table-border-no-type", x: 0.5, y: 3.75, w: 4, h: 0.75 },
     { name: "table-border-sides-no-type", x: 5.5, y: 3.75, w: 4, h: 0.75 },
+    { name: "table-thin-border-rows", x: 0.5, y: 4.75, w: 4, h: 0.6 },
+    { name: "table-thin-border-grid", x: 5.5, y: 4.75, w: 4, h: 0.6 },
 ] as const;
 
 // populatePresetAspectFixture(): presets whose OOXML geometry depends on the aspect ratio, drawn wide and tall
@@ -489,8 +491,6 @@ const LINE_FEED_TAIL_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-line-feed-ta
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
 function cropThreshold(name: string): number {
-    const tableTextOffset = TABLE_TEXT_OFFSET_CROP_THRESHOLDS[name];
-    if (tableTextOffset !== undefined) return tableTextOffset;
     const lineSnap = TEXT_LINE_SNAP_CROP_THRESHOLDS[name];
     if (lineSnap !== undefined) return lineSnap;
     return UNDERLINE_DOUBLE_CROP_THRESHOLDS[name] ?? CROP_TARGET;
@@ -2307,7 +2307,7 @@ export function populateTextOptionsFixture(presentation: Presentation): void {
 export function populateTableOptionsFixture(presentation: Presentation): void {
     const slide = presentation.addSlide();
     slide.addText("Table rows and borders", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [rowGrow, heightGrow, noType, sidesNoType] = TABLE_OPTION_CASES;
+    const [rowGrow, heightGrow, noType, sidesNoType, thinRows, thinGrid] = TABLE_OPTION_CASES;
     const border = { type: "solid", pt: 1, color: "404040" } as const;
     const cell = (text: string) => ({ text, options: { border } });
     // rowH is a minimum: the middle row grows to its three lines and the last row moves down (PowerPoint, LibreOffice).
@@ -2325,4 +2325,15 @@ export function populateTableOptionsFixture(presentation: Presentation): void {
     slide.addTable([[{ text: "Border without type" }, { text: "Solid" }]], { x: noType.x, y: noType.y, w: noType.w, rowH: 0.75, border: typeless, fontFace: "Arial", fontSize: 12, color: "363636" });
     const sides = [typeless, null, typeless, null] as unknown as [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps];
     slide.addTable([[{ text: "Top and bottom only", options: { border: sides } }]], { x: sidesNoType.x, y: sidesNoType.y, w: sidesNoType.w, rowH: 0.75, fontFace: "Arial", fontSize: 12, color: "363636" });
+    // 0.5pt borders (<a:lnT w="6350">) are stroked once per grid line at their width, centred on it, as PowerPoint and
+    // LibreOffice draw them; a filled CSS border box prints 0.47pt high and anti-aliases to a pale line.
+    const thin = { type: "solid", pt: 0.5, color: "000000" } as const;
+    const thinGray = { type: "solid", pt: 0.5, color: "808080" } as const;
+    const thinCells = (border: PptxGenJS.BorderProps | [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps]) =>
+        [
+            ["Lorem", "Ipsum", "Dolor"],
+            ["Sit", "Amet", "Elit"],
+        ].map(row => row.map(text => ({ text, options: { border } })));
+    slide.addTable(thinCells([thin, { type: "none" }, thin, { type: "none" }]), { x: thinRows.x, y: thinRows.y, w: thinRows.w, rowH: 0.25, fontFace: "Arial", fontSize: 10, color: "363636" });
+    slide.addTable(thinCells(thinGray), { x: thinGrid.x, y: thinGrid.y, w: thinGrid.w, rowH: 0.25, fontFace: "Arial", fontSize: 10, color: "363636" });
 }

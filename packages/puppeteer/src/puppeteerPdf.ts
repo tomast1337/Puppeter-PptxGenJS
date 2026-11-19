@@ -75,6 +75,7 @@ async function prepareForPrint(): Promise<string[]> {
     const marked = markedParagraphs();
     shrinkTextToFit();
     raiseMarkedLines(marked);
+    strokeTableBorders();
     return failedImages();
 
     /** Resolves once `image` has loaded or failed. */
@@ -259,6 +260,117 @@ async function prepareForPrint(): Promise<string[]> {
                 return { index, offset: high };
             }
             return start;
+        }
+    }
+
+    /**
+     * Strokes table borders as the profile draws them (docs/HTML_PROFILE.md, Table): one line per run of grid edges
+     * with the same border, at the border's width, centred on the grid line. Chromium paints a CSS border as a filled
+     * box floored to whole device px (a 0.5pt border prints 0.47pt high), which viewers anti-alias to a pale line,
+     * where they draw a stroke crisp. The CSS borders keep their width, so the layout stays as it is, and turn
+     * transparent; an SVG over the table strokes the lines on the edges of the cells, which a collapsed border centres
+     * on the grid line. Read after the text has settled, since a row grows to its text.
+     */
+    function strokeTableBorders(): void {
+        const BORDER = /(?:^|; )border-(top|right|bottom|left): ([^ ;]+)px ([^ ;]+) ([^;]+)(?=;|$)/g;
+        const SVG = "http://www.w3.org/2000/svg";
+        const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+        type Side = { width: number; color: string; dash: string | undefined };
+        for (const table of Array.from(document.querySelectorAll<HTMLTableElement>("table.slide-table"))) {
+            const container = table.parentElement;
+            if (!container) continue;
+            // A transform moves no layout: measure without the object's rotation or flip, in CSS px from its corner.
+            const transform = container.style.transform;
+            container.style.transform = "none";
+            const origin = container.getBoundingClientRect();
+            const cells = Array.from(table.querySelectorAll<HTMLTableCellElement>("td"), cell => {
+                const rect = cell.getBoundingClientRect();
+                const sides: Record<string, Side> = {};
+                for (const [, name = "", width, style, color = ""] of (cell.getAttribute("style") ?? "").matchAll(BORDER)) {
+                    if (style === "none" || !(Number(width) > 0)) continue;
+                    sides[name] = { width: Number(width), color, dash: cell.getAttribute(`data-border-${name}-dash-array`) ?? undefined };
+                }
+                const at = (value: number, from: number) => (value - from) / zoom;
+                return { sides, left: at(rect.left, origin.left), right: at(rect.right, origin.left), top: at(rect.top, origin.top), bottom: at(rect.bottom, origin.top) };
+            });
+            container.style.transform = transform;
+            // After every read: a style write between two reads makes Chromium recompute styles for the second.
+            table.querySelectorAll<HTMLTableCellElement>("td").forEach(cell => (cell.style.borderColor = "transparent"));
+
+            // The grid lines are the cells' edges; a key rounds away layout-unit noise. The first line is drawn on the
+            // object's corner, where DrawingML starts the grid: the table offset centres only the widest border there.
+            const key = (value: number) => Math.round(value * 64);
+            const grid = (values: number[]) => {
+                const sorted = Array.from(new Map(values.map(value => [key(value), value])).values()).sort((a, b) => a - b);
+                const first = sorted[0] ?? 0;
+                return { lines: sorted.map(value => value - first), index: new Map(sorted.map((value, index) => [key(value), index])) };
+            };
+            const xs = grid(cells.flatMap(cell => [cell.left, cell.right]));
+            const ys = grid(cells.flatMap(cell => [cell.top, cell.bottom]));
+            // Edge `line * steps + step` of each direction. The wider side wins an edge two cells share, as in CSS's
+            // collapsing border model, and on a tie the first cell in document order keeps it.
+            const horizontal: (Side | undefined)[] = [];
+            const vertical: (Side | undefined)[] = [];
+            const columns = xs.lines.length - 1;
+            const rows = ys.lines.length - 1;
+            const claim = (edges: (Side | undefined)[], slot: number, side: Side | undefined) => {
+                const held = edges[slot];
+                if (side && (!held || side.width > held.width)) edges[slot] = side;
+            };
+            for (const { sides, left, right, top, bottom } of cells) {
+                const [x0 = 0, x1 = 0, y0 = 0, y1 = 0] = [xs.index.get(key(left)), xs.index.get(key(right)), ys.index.get(key(top)), ys.index.get(key(bottom))];
+                for (let column = x0; column < x1; column++) {
+                    claim(horizontal, y0 * columns + column, sides.top);
+                    claim(horizontal, y1 * columns + column, sides.bottom);
+                }
+                for (let row = y0; row < y1; row++) {
+                    claim(vertical, x0 * rows + row, sides.left);
+                    claim(vertical, x1 * rows + row, sides.right);
+                }
+            }
+
+            const svg = document.createElementNS(SVG, "svg");
+            svg.setAttribute("style", "position: absolute; left: 0px; top: 0px; width: 1px; height: 1px; overflow: visible;");
+            /** The dashes of `side` from `from` to `to`: Skia prints a dashed stroke as filled outlines, so each dash is its own subpath. */
+            const dashes = (side: Side, from: number, to: number): [number, number][] => {
+                const pattern = (side.dash ?? "").split(/[\s,]+/).map(Number);
+                const period = pattern.reduce((sum, part) => sum + part, 0);
+                if (!(period > 0) || pattern.some(part => !(part >= 0))) return [[from, to]];
+                const on: [number, number][] = [];
+                for (let at = from, index = 0; at < to; index++) {
+                    const length = pattern[index % pattern.length] ?? 0;
+                    if (index % 2 === 0 && length > 0) on.push([at, Math.min(at + length, to)]);
+                    at += length;
+                }
+                return on;
+            };
+            const strokeLines = (edges: (Side | undefined)[], lines: number[], steps: number[], segment: (at: number, from: number, to: number) => string) =>
+                lines.forEach((at, line) => {
+                    let run: { start: number; side: Side } | undefined;
+                    for (let step = 0; step <= steps.length - 1; step++) {
+                        const side = step < steps.length - 1 ? edges[line * (steps.length - 1) + step] : undefined;
+                        if (run && side && side.width === run.side.width && side.color === run.side.color && side.dash === run.side.dash) continue;
+                        if (run) {
+                            const path = document.createElementNS(SVG, "path");
+                            path.setAttribute(
+                                "d",
+                                dashes(run.side, steps[run.start] ?? 0, steps[step] ?? 0)
+                                    .map(([from, to]) => segment(at, from, to))
+                                    .join(" "),
+                            );
+                            path.setAttribute("fill", "none");
+                            path.setAttribute("stroke", run.side.color);
+                            path.setAttribute("stroke-width", String(run.side.width));
+                            // Solid lines close the corners they share with the lines across them.
+                            path.setAttribute("stroke-linecap", run.side.dash ? "butt" : "square");
+                            svg.append(path);
+                        }
+                        run = side && { start: step, side };
+                    }
+                });
+            strokeLines(horizontal, ys.lines, xs.lines, (y, from, to) => `M ${from} ${y} H ${to}`);
+            strokeLines(vertical, xs.lines, ys.lines, (x, from, to) => `M ${x} ${from} V ${to}`);
+            if (svg.childElementCount) table.after(svg);
         }
     }
 
