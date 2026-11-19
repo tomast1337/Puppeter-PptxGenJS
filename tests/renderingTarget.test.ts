@@ -116,16 +116,16 @@ describe("rendering targets", () => {
     test("the PowerPoint target gives each paragraph an <a:p>'s line feeds make the first run's properties; LibreOffice the line's first run's", async () => {
         const runs = (): PptxGenJS.TextProps[] => [{ text: "One\n", options: { paraSpaceAfter: 9 } }, { text: "Two\n", options: { paraSpaceBefore: 6, lineSpacing: 30 } }, { text: "Three" }];
         const text = (target: Parameters<typeof normalizeText>[2]) => normalizeText(runs(), { fontSize: 12, fontFace: "Arial", align: "left" }, target).paragraphs;
-        const props = (target: Parameters<typeof normalizeText>[2]) => text(target).map(({ spaceBefore, spaceAfter, lineHeight }) => [spaceBefore, spaceAfter, lineHeight]);
+        const props = (target: Parameters<typeof normalizeText>[2]) => text(target).map(({ spaceBefore, spaceAfter, lineBox }) => [spaceBefore, spaceAfter, lineBox.height]);
         expect(props("powerpoint")).toEqual([
-            [0, 0, undefined],
-            [12, 0, undefined],
-            [12, 0, undefined],
+            [0, 0, 19.2],
+            [12, 0, 19.2],
+            [12, 0, 19.2],
         ]);
         expect(props("libreoffice")).toEqual([
-            [0, 12, undefined],
+            [0, 12, 19.2],
             [8, 0, 40],
-            [0, 0, undefined],
+            [0, 0, 19.2],
         ]);
         // A line feed ends its line in the run's font: only the <a:p>'s last line holds the paragraph mark.
         expect(text("powerpoint").map(paragraph => paragraph.lineBox.markBaseline !== undefined)).toEqual([false, false, true]);
@@ -203,11 +203,11 @@ describe("rendering targets", () => {
         }
         // Each value on its own: 0.5 + 0.5 is 1 + 1, not round(1).
         expect(gap({ paraSpaceAfter: 0.5, paraSpaceBefore: 0.5 }, "powerpoint")).toBe(2);
-        const lineHeight = (options: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint") => pt(normalizeText("Line", { fontSize: 12, ...options }, target).paragraphs[0]?.lineHeight);
+        const lineHeight = (options: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint") => pt(normalizeText("Line", { fontSize: 12, ...options }, target).paragraphs[0]?.lineBox.height);
         expect(lineHeight({ lineSpacing: 12.5 }, "powerpoint")).toBe(13);
         expect(lineHeight({ lineSpacing: 12.5 }, "libreoffice")).toBe(12.5);
         // spcPct is not rounded.
-        expect(normalizeText("Line", { lineSpacingMultiple: 1.13 }, "powerpoint").paragraphs[0]?.lineHeight).toBeCloseTo(1.2 * 1.13);
+        expect(lineHeight({ lineSpacingMultiple: 1.13 }, "powerpoint")).toBeCloseTo(12 * 1.2 * 1.13);
         // Table cells go through the same normalization. PptxGenJS writes a cell's paraSpaceAfter although its
         // TableCellProps type leaves it out.
         const options: PptxGenJS.TableCellProps & { paraSpaceAfter: number } = { paraSpaceAfter: 2.5 };

@@ -120,7 +120,6 @@ export interface NormalizedTextParagraph {
     runs: NormalizedTextRun[];
     align: "left" | "center" | "right" | "justify";
     rtl: boolean;
-    lineHeight?: number;
     /**
      * Each line's height and its baseline's distance below the line top, in px (a font-independent line box, as the
      * target draws it). `markBaseline` replaces `baseline` on the paragraph's last line and `breakBaseline` on a line
