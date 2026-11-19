@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import type { NormalizedImage } from "@pdflapas/model";
 import { px } from "@pdflapas/model";
 import { renderedPage } from "./renderedPage";
 import { unlink, writeFile } from "node:fs/promises";
@@ -18,6 +19,15 @@ describe("image normalization", () => {
         expect(() => normalizeImage({ data: "not-a-data-uri" }, PAGE)).toThrow("must be base64-encoded image data");
         expect(() => normalizeImage({ data: "data:text/plain;base64,YQ==" }, PAGE)).toThrow("must be base64-encoded image data");
         expect(() => normalizeImage({ data: PNG_DATA, hyperlink: {} }, PAGE)).toThrow("hyperlink requires either url or slide");
+    });
+
+    test("types a data image's source as a DataUri, which a plain string is not", () => {
+        const image = normalizeImage({ data: PNG_DATA }, PAGE);
+        // @ts-expect-error a plain string is not a DataUri: only the image normalizer makes one
+        const forged: NormalizedImage = { ...image, source: PNG_DATA, sourceKind: "data" };
+        const path: NormalizedImage = { ...image, source: "logo.png", sourceKind: "path" };
+        expect([forged.sourceKind, path.sourceKind]).toEqual(["data", "path"]);
+        expect(image).toMatchObject({ source: PNG_DATA, sourceKind: "data" });
     });
 
     // PptxGenJS 4.0.1 addImageDefinition takes any data containing "base64," and types it from

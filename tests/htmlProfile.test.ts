@@ -32,6 +32,9 @@ function modelFields(): Set<string> {
         return literals.map(literal => (literal.isStringLiteral() ? literal.value : "?")).join("|");
     };
 
+    // An object type, or an intersection of them; a branded primitive (`string & { … }`) is a leaf.
+    const isObject = (type: ts.Type): boolean => Boolean(type.flags & ts.TypeFlags.Object) || (type.isIntersection() && type.types.every(isObject));
+
     const visit = (input: ts.Type, path: string): void => {
         const type = checker.getNonNullableType(input);
         if (checker.isArrayType(type) || checker.isTupleType(type)) {
@@ -41,6 +44,16 @@ function modelFields(): Set<string> {
         if (type.isUnion()) {
             // Only object variants carry fields; literal unions such as `"left" | "center"` are leaves.
             const name = type.aliasSymbol?.name ?? path;
+            // Object variants without a `kind` or `type` (NormalizedImage, split on `sourceKind`) are one owner: their fields keep one row each.
+            if (type.types.every(isObject) && type.types.every(variant => discriminant(variant) === undefined)) {
+                if (visited.has(name)) return;
+                visited.add(name);
+                for (const property of type.types.flatMap(variant => checker.getPropertiesOfType(variant))) {
+                    fields.add(`${name}.${property.name}`);
+                    visit(checker.getTypeOfSymbol(property), `${name}.${property.name}`);
+                }
+                return;
+            }
             for (const variant of type.types) if (variant.flags & ts.TypeFlags.Object) visit(variant, `${name}<${discriminant(variant)}>`);
             return;
         }
