@@ -140,6 +140,13 @@ PowerPoint also leaves out the first paragraph's `paraSpaceBefore`, and so does
 the PowerPoint target, in every anchor and in table cells (measured on
 top-anchored text boxes only); the LibreOffice target keeps it.
 
+A text option set to `null` is unset, as in PptxGenJS, which reads options by
+truthiness: a run's `null` takes the box's value, and a box's the default.
+PptxGenJS's `addText` itself writes `lineSpacing: null` and
+`lineSpacingMultiple: null` into the options object it is given, and copies
+them onto each run, so options reused after a PptxGenJS pass keep single
+spacing.
+
 With explicit line spacing (`lineSpacing`, or a `lineSpacingMultiple` other
 than 1), PowerPoint puts each line's baseline at 0.75 of the line height,
 whatever the font and size, and so does the PowerPoint target. The LibreOffice
