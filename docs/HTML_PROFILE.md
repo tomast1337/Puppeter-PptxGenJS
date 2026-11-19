@@ -259,6 +259,15 @@ U+2060 WORD JOINER in run text between `)`, `]`, `}` or `%` and a following `(`,
 PowerPoint has no line break and UAX #14 has one. Renderers draw it as nothing, give it no
 `letter-spacing`, and still break there when the word alone overflows its line (`overflow-wrap`).
 
+A bold or italic run whose face has no bold or italic style is drawn with a synthetic one. The LibreOffice
+target writes how on the run: `data-synthetic-bold` (on a bold run) is the width of the stroke drawn
+around the filled glyphs as a fraction of the font size, `0.03333333333333333` (1/30), and `data-synthetic-italic` (on an
+italic run) is the shear to the right per unit of height above the baseline, `0.3462535606`. Omitted,
+the renderer uses the browser's: Chromium strokes with 1/32 of the font size and shears by 0.25 (14
+degrees), measured in its PDF output, and the WASM renderer draws the same. Chromium ignores both
+attributes, so only the WASM renderer follows the LibreOffice values. Both are numbers; the bold width is
+not negative.
+
 Every line of a paragraph is `line-height` tall with its baseline `data-line-baseline` px below its top,
 except two lines whose baseline may sit elsewhere in the same height: the paragraph's last line, at
 `data-mark-baseline` px, and a line that ends in a soft break (the line before a `<br>`), at
@@ -700,6 +709,8 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextRun.baselineOffset`              | profile | `position: relative; top: <-offset>px`, omitted at 0.                                                                      |
 | `NormalizedTextRun.characterSpacing`            | profile | `letter-spacing`, omitted at 0.                                                                                            |
 | `NormalizedTextRun.kerning`                     | profile | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
+| `NormalizedTextRun.syntheticBold`               | profile | `data-synthetic-bold` on a bold run (LibreOffice target), omitted for the renderer's own synthetic bold.                   |
+| `NormalizedTextRun.syntheticItalic`             | profile | `data-synthetic-italic` on an italic run (LibreOffice target), omitted for the renderer's own synthetic italic.            |
 | `NormalizedTextRun.highlight`                   | profile | `background-color` on the run.                                                                                             |
 | `NormalizedTextRun.outline`                     | profile | `-webkit-text-stroke: <width>px <color>`.                                                                                  |
 | `NormalizedTextRun.outline.color`               | profile | Color of `-webkit-text-stroke`.                                                                                            |

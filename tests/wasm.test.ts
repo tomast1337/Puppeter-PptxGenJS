@@ -215,6 +215,30 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         expect(powerPoint).not.toBe(await pdf(new PuppeteerGenLibreOffice(PAGE, { renderer })));
     });
 
+    // A regular-only face: bold and italic are synthesized, LibreOffice's way from the run's data-synthetic-* and
+    // Chromium's (a 1/32 em stroke, a 0.25 shear) on the PowerPoint target, which writes none.
+    test("strokes and shears a face without bold or italic as the target says", async () => {
+        const renderer = await createWasmRenderer({ fonts: await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ }) });
+        const content = async (pres: PuppeteerGen, options: PptxGenJS.TextPropsOptions) => {
+            pres.addSlide().addText("Synthetic", { x: 1, y: 1, w: 6, h: 1, fontFace: "Liberation Sans", fontSize: 36, ...options });
+            const pdf = Buffer.from(await pres.toPdf());
+            const contents = ascii(pdf).match(/\/Contents (\d+) 0 R/)?.[1];
+            const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
+            return inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
+        };
+        const stroke = async (pres: PuppeteerGen) => Number((await content(pres, { bold: true })).match(/ ([\d.]+) w\n/)?.[1]);
+        // The page's y flip and the shear in one matrix: shear = -c / a.
+        const shear = async (pres: PuppeteerGen) => {
+            const [, a, c] = (await content(pres, { italic: true })).match(/q ([\d.]+) 0 (-[\d.]+) -[\d.]+ [\d.]+ [\d.]+ cm\b/) ?? [];
+            return -Number(c) / Number(a);
+        };
+        // 36pt is 48px: LibreOffice's stroke 48/30, Chromium's 48/32.
+        expect(await stroke(new PuppeteerGenLibreOffice(PAGE, { renderer }))).toBeCloseTo(48 / 30, 5);
+        expect(await stroke(new PuppeteerGenPowerPoint(PAGE, { renderer }))).toBeCloseTo(48 / 32, 5);
+        expect(await shear(new PuppeteerGenLibreOffice(PAGE, { renderer }))).toBeCloseTo(0.3462535606, 5);
+        expect(await shear(new PuppeteerGenPowerPoint(PAGE, { renderer }))).toBeCloseTo(0.25, 5);
+    });
+
     test("throws on unsupported objects by default and lists them", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE);

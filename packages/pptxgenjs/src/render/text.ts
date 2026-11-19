@@ -51,6 +51,8 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
         ["data-double-strike", run.decoration.doubleStrike ? "" : undefined],
         ["data-underline-style", run.decoration.doubleStrike ? run.decoration.underlineStyle : undefined],
         ["data-vertical-align", run.verticalAlign !== "baseline" ? run.verticalAlign : undefined],
+        ["data-synthetic-bold", run.syntheticBold === undefined ? undefined : String(run.syntheticBold)],
+        ["data-synthetic-italic", run.syntheticItalic === undefined ? undefined : String(run.syntheticItalic)],
         // Names the text-shadow entries in order, so one entry still says whether it is the glow or the shadow.
         ["data-text-shadow", glow || shadow ? [glow && "glow", shadow && "shadow"].filter(Boolean).join(" ") : undefined],
         styleAttribute(css),

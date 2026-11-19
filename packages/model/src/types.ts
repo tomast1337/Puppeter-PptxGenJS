@@ -119,6 +119,10 @@ export interface NormalizedTextRun {
     characterSpacing: number;
     /** `false`: drawn without the font's pair kerning (PowerPoint, below the run's `kern` size); omitted: kerned. */
     kerning?: false;
+    /** On a bold run: the stroke width, as a fraction of `fontSize`, that emboldens a face with no bold; omitted: the renderer's own. */
+    syntheticBold?: number;
+    /** On an italic run: the shear that slants a face with no italic (x per unit of height); omitted: the renderer's own. */
+    syntheticItalic?: number;
     highlight?: CssColor;
     outline?: { color: CssColor; width: number };
     glow?: NormalizedShadow;

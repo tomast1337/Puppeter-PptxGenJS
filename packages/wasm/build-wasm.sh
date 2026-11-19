@@ -55,7 +55,8 @@ root=$PWD
 # +369 B: line breaks where Chromium has them (parley's Chromium break override: Blink's ASCII pair table, a break after every space run), 1,052,413 -> 1,052,782 B measured; budget = that size.
 # +1,580 B: run faces no registered font provides are reported with the objects asking for them and the fallback drawn instead (#287: the family check per run, the read-only MissingFont class across the wasm boundary), 1,052,782 -> 1,054,362 B measured; budget = that size.
 # +211 B: every PDF names PdfLapas as its /Creator and /Producer (#292: the Info entries and their XMP counterparts), 1,054,362 -> 1,054,573 B measured; budget = that size.
-GZIP_BUDGET=1054573
+# +235 B: synthetic bold and italic follow the run's data-synthetic-bold and data-synthetic-italic, Chromium's 1/32 em stroke and 0.25 shear when omitted (#290: the two attributes and their errors), 1,054,573 -> 1,054,808 B measured; budget = that size.
+GZIP_BUDGET=1054808
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

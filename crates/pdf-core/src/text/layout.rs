@@ -13,7 +13,7 @@ use krilla::paint::Stroke;
 use crate::Renderer;
 use crate::color::Rgba;
 use crate::effect::Effect;
-use crate::model::{LineBox, ParagraphAlign, TextBox, TextDirection, TextFit, UnderlineStyle};
+use crate::model::{LineBox, ParagraphAlign, Synthesis, TextBox, TextDirection, TextFit, UnderlineStyle};
 use crate::text::font::family_stack;
 use crate::text::tabs::{MAX_TAB_REBREAK_BYTES, TAB_PLACEHOLDER, TabRuler, place_tabs, tab_box};
 
@@ -32,6 +32,8 @@ pub(crate) struct RunPaint {
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
     pub(crate) baseline_offset: f32,
+    /// How the glyphs are emboldened or slanted when the face lacks the run's style.
+    pub(crate) synthesis: Synthesis,
     /// The run whose `link` this run carries.
     pub(crate) link: Option<RunRef>,
     /// The glow drawn under the run's glyphs.
@@ -227,6 +229,7 @@ impl Renderer {
                     strike: run.decoration.strike,
                     double_strike: run.decoration.double_strike,
                     baseline_offset: run.baseline_offset,
+                    synthesis: run.synthesis,
                     link: run.link.is_some().then_some(RunRef { paragraph: p, run: r }),
                     glow: run.glow.as_ref().and_then(Effect::glow),
                 });
@@ -327,6 +330,7 @@ impl Renderer {
                         strike: false,
                         double_strike: false,
                         baseline_offset: 0.0,
+                        synthesis: run.synthesis,
                         link: None,
                         glow: None,
                     });

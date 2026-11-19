@@ -408,6 +408,11 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * step, before it lays text out; undefined lays it out with the natural advances.
  * `baselineGridPerInch`: the steps per inch of the grid each line's baseline is rounded to, to the nearest step;
  * undefined keeps it where the line box puts it.
+ * `syntheticBoldStrokeEm` and `syntheticItalicShear`: how a bold or italic run is drawn in a face that has no bold or
+ * italic style: the glyphs filled and stroked with a line this fraction of the font size wide, and sheared to the right
+ * by this much per unit of height above the baseline. Undefined leaves the browser's own synthesis (Chromium, measured
+ * in its PDF output of a regular-only Liberation Sans at 9 to 72pt: a 1/32 em stroke, its glyph outlines 1/64 em wider
+ * on each side, and a 0.25 shear), which the HTML does not write.
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -419,6 +424,9 @@ export const RENDERING_TARGETS = Object.freeze({
      * properties from the run that starts it (`lineFeedParagraph`). Its PPTX import draws a run with a baseline
      * attribute at DFLT_ESC_PROP, 58% of its size (oox TextCharacterProperties): measured on the visual runs slide,
      * 13pt "super" is 24 px wide against 42 px unscaled, "sub" 15 against 26 px (`escapementSizeRatio`).
+     * Its synthetic styles, read from its PDF export of a regular-only face (Droid Sans Mono, 72pt): bold fills and
+     * strokes the glyphs (`2 Tr`) with a line 1/30 of the size wide (`2.39996 w`); italic shears them
+     * (`1 0 0.3462535606 1 x y Tm`).
      */
     libreoffice: Object.freeze({
         readsKern: false,
@@ -435,6 +443,8 @@ export const RENDERING_TARGETS = Object.freeze({
         advanceGridPt: undefined,
         baselineGridPerInch: undefined,
         joinsOpeningBracket: false,
+        syntheticBoldStrokeEm: 1 / 30,
+        syntheticItalicShear: 0.3462535606,
     }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
@@ -504,6 +514,8 @@ export const RENDERING_TARGETS = Object.freeze({
      * "word,word", "word;word", "word%word", "word+word" and "word&word" never break and "word-word" breaks after the
      * hyphen in both. Only "(" after ")" and "%" was measured; "[" and "{", and "]" and "}" before them, are the same
      * UAX #14 classes (OP, CP/CL).
+     * shortcut: its synthetic bold and italic are left to the browser (Chromium's, see `syntheticBoldStrokeEm`), not
+     * measured against PowerPoint's PDF export of a regular-only face; measure them when a deck needs one.
      */
     powerpoint: Object.freeze({
         readsKern: true,
@@ -520,6 +532,8 @@ export const RENDERING_TARGETS = Object.freeze({
         advanceGridPt: PPTX_DEFAULTS.units.pointsPerInch / PPTX_DEFAULTS.units.powerPointAdvanceGridPerInch,
         baselineGridPerInch: PPTX_DEFAULTS.units.powerPointBaselineGridPerInch,
         joinsOpeningBracket: true,
+        syntheticBoldStrokeEm: undefined,
+        syntheticItalicShear: undefined,
     }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
