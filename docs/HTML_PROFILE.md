@@ -244,7 +244,10 @@ and the WASM renderer follow it without knowing the target. Today that is `font-
 the PowerPoint target draws unkerned (under 12pt, or with `charSpacing`), a paragraph's
 `data-line-baseline`, which the PowerPoint target sets from its fonts' ascent and descent, and a run's
 `letter-spacing`, which on the PowerPoint target also carries the rounding of its glyph advances to
-PowerPoint's 0.125pt grid (spread evenly over the run's characters), so its width is PowerPoint's.
+PowerPoint's 0.125pt grid (spread evenly over the run's characters), so its width is PowerPoint's, and
+U+2060 WORD JOINER in run text between `)`, `]`, `}` or `%` and a following `(`, `[` or `{`, where
+PowerPoint has no line break and UAX #14 has one. Renderers draw it as nothing, give it no
+`letter-spacing`, and still break there when the word alone overflows its line (`overflow-wrap`).
 
 Every line of a paragraph is `line-height` tall with its baseline `data-line-baseline` px below its top,
 except two lines whose baseline may sit elsewhere in the same height: the paragraph's last line, at
@@ -671,7 +674,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextBullet.level`                    | profile      | `data-bullet-level`.                                                                                                       |
 | `NormalizedTextBullet.start`                    | profile      | `data-bullet-start`; the marker text is already numbered from it.                                                          |
 | `NormalizedTextBullet.numberType`               | profile      | `data-bullet-number-type`, the PptxGenJS name (`arabicPeriod`, `romanLcParenR`, …), omitted when unset.                    |
-| `NormalizedTextRun.text`                        | profile      | Run text content. An empty run holds U+200B and has `data-empty`.                                                          |
+| `NormalizedTextRun.text`                        | profile      | Run text content. An empty run holds U+200B and has `data-empty`; the PowerPoint target's U+2060 is in the model text.     |
 | `NormalizedTextRun.fontFace`                    | profile      | `font-family`: only the face, a CSS string (unescape `\\` and `\"`); fallbacks are a [workaround](#renderer-workarounds).  |
 | `NormalizedTextRun.fontSize`                    | profile      | `font-size: <n>px` (already the sub/superscript size).                                                                     |
 | `NormalizedTextRun.color`                       | profile      | `color`.                                                                                                                   |
