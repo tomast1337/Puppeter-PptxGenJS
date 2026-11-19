@@ -39,6 +39,11 @@ returns a `.pptx`:
   the sizes in `PAGE_SIZES` are listed in [docs/USAGE.md](./USAGE.md#page-sizes-and-layouts).
 - **Theme:** `pres.theme.bodyFontFace` is the font of text, table cells and chart legends that set
   none, as in PowerPoint. Set it before adding objects; changing it afterwards throws.
+- **Fonts:** the PDF uses the fonts installed on the machine that renders it (Puppeteer) or the
+  fonts you pass (WASM). A `fontFace` neither available nor stood in for by a metric-compatible
+  face is drawn in a fallback and wraps differently; `toPdf()` warns with the face and the objects
+  using it, and `onMissingFont: "throw"` makes it an error
+  ([docs/BACKENDS.md](./BACKENDS.md#missing-fonts-onmissingfont)).
 - **Document properties:** `pres.title`, `author`, `subject`, `company` and `revision` become the
   PDF's Title, Author, Subject and the custom Company and Revision entries. Only what you set is
   written: PptxGenJS's defaults (`PptxGenJS Presentation`, `PptxGenJS`, revision `1`) are not, and

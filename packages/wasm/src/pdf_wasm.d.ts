@@ -1,10 +1,32 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * A run face no registered font provides (`pdf_core::MissingFont`).
+ */
+export class MissingFont {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    readonly face: string;
+    /**
+     * `slide <n> '<object name>'` of each object asking for the face, sorted.
+     */
+    readonly objects: string[];
+    /**
+     * The fallback face Latin text was drawn in, when one is registered.
+     */
+    readonly used: string | undefined;
+}
+
 export class Renderer {
     free(): void;
     [Symbol.dispose](): void;
     addFont(data: Uint8Array | number[]): number;
+    /**
+     * The run faces of the last render no registered font provides.
+     */
+    missingFonts(): MissingFont[];
     constructor();
     /**
      * Renders a PdfLapas HTML profile document (`toHtml().html`).
@@ -17,18 +39,23 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_get_missingfont_face: (a: number, b: number) => void;
+    readonly __wbg_get_missingfont_objects: (a: number, b: number) => void;
+    readonly __wbg_get_missingfont_used: (a: number, b: number) => void;
+    readonly __wbg_missingfont_free: (a: number, b: number) => void;
     readonly __wbg_renderer_free: (a: number, b: number) => void;
     readonly renderer_addFont: (a: number, b: number, c: number) => number;
+    readonly renderer_missingFonts: (a: number, b: number) => void;
     readonly renderer_new: () => number;
     readonly renderer_renderHtml: (a: number, b: number, c: number, d: number) => void;
     readonly renderer_warnings: (a: number, b: number) => void;
     readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_export: (a: number, b: number) => number;
-    readonly __wbindgen_export2: (a: number, b: number, c: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_export4: (a: number) => void;
-    readonly __wbindgen_export5: (a: number, b: number) => void;
+    readonly __wbindgen_export: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_export2: (a: number, b: number) => void;
+    readonly __wbindgen_export3: (a: number, b: number) => number;
+    readonly __wbindgen_export4: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export5: (a: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

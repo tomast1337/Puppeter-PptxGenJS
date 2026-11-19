@@ -34,6 +34,16 @@ const CAMBRIA_FALLBACK = '"Caladea", Arial, "Liberation Sans", sans-serif';
 const SANS_FALLBACK = 'Arial, "Liberation Sans", sans-serif';
 
 /**
+ * The metric-compatible face the print step names first after `face`: Carlito for every Calibri face, Caladea for every
+ * Cambria face. Text drawn in it is drawn as intended, so it is not a missing font (PptxGenJS writes Calibri and the
+ * theme's Calibri Light by default).
+ */
+export function metricSubstitute(face: string): "Carlito" | "Caladea" | undefined {
+    const lower = face.toLowerCase();
+    return lower.startsWith("calibri") ? "Carlito" : lower.startsWith("cambria") ? "Caladea" : undefined;
+}
+
+/**
  * Print zoom: Chromium paints every text baseline and SVG root on a whole CSS px, so text sits up to 1 px above
  * LibreOffice's fractional baselines (#49). The printed document is laid out at this zoom and `page.pdf()` scales
  * it back by its inverse, so the snap step becomes 1 / PRINT_ZOOM px. 8 is the largest power of two whose
@@ -138,7 +148,8 @@ export function printHtml(html: string): string {
             const face = style.match(FONT_FAMILY)?.[2]?.toLowerCase();
             // A bullet takes its first run's font; one without runs has none.
             if (face === undefined) continue;
-            const fallback = face.startsWith("calibri") ? CALIBRI_FALLBACK : face.startsWith("cambria") ? CAMBRIA_FALLBACK : SANS_FALLBACK;
+            const substitute = metricSubstitute(face);
+            const fallback = substitute === "Carlito" ? CALIBRI_FALLBACK : substitute === "Caladea" ? CAMBRIA_FALLBACK : SANS_FALLBACK;
             edits.push(setAttribute(element, "style", style.replace(FONT_FAMILY, `$1, ${fallback}`)));
         } else if (hasClass(element, "text-paragraph")) {
             // Line box: the paragraph's 0px-font strut (stylesheet) puts the baseline about the middle of `line-height`

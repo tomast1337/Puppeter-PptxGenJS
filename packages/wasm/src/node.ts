@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createWasmRenderer as createBrowserWasmRenderer, type SystemFontOptions, type WasmRenderer, type WasmRendererOptions } from "./browser";
 
-export type { SystemFontOptions, TextPdfBinding, WasmRendererOptions, WasmSource } from "./browser";
+export type { MissingFontBinding, SystemFontOptions, TextPdfBinding, WasmRendererOptions, WasmSource } from "./browser";
+export { type MissingFont, MissingFontError, type MissingFontPolicy } from "./browser";
 export { WasmRenderer } from "./browser";
 
 export async function createWasmRenderer(options: WasmRendererOptions): Promise<WasmRenderer> {

@@ -1,5 +1,84 @@
 /* @ts-self-types="./pdf_wasm.d.ts" */
 
+/**
+ * A run face no registered font provides (`pdf_core::MissingFont`).
+ */
+export class MissingFont {
+    static __wrap(ptr) {
+        const obj = Object.create(MissingFont.prototype);
+        obj.__wbg_ptr = ptr;
+        MissingFontFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        MissingFontFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_missingfont_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get face() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16) >>> 0;
+            wasm.__wbg_get_missingfont_face(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * `slide <n> '<object name>'` of each object asking for the face, sorted.
+     * @returns {string[]}
+     */
+    get objects() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16) >>> 0;
+            wasm.__wbg_get_missingfont_objects(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var v1 = getArrayJsValueFromWasm0(r0, r1);
+            wasm.__wbindgen_export(r0, r1 * 4, 4);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * The fallback face Latin text was drawn in, when one is registered.
+     * @returns {string | undefined}
+     */
+    get used() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16) >>> 0;
+            wasm.__wbg_get_missingfont_used(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            let v1;
+            if (r0 !== 0) {
+                v1 = getStringFromWasm0(r0, r1);
+                wasm.__wbindgen_export(r0, r1 * 1, 1);
+            }
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+}
+if (Symbol.dispose) MissingFont.prototype[Symbol.dispose] = MissingFont.prototype.free;
+
 export class Renderer {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -16,10 +95,27 @@ export class Renderer {
      * @returns {number}
      */
     addFont(data) {
-        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export);
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export3);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.renderer_addFont(this.__wbg_ptr, ptr0, len0);
         return ret >>> 0;
+    }
+    /**
+     * The run faces of the last render no registered font provides.
+     * @returns {MissingFont[]}
+     */
+    missingFonts() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16) >>> 0;
+            wasm.renderer_missingFonts(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var v1 = getArrayJsValueFromWasm0(r0, r1);
+            wasm.__wbindgen_export(r0, r1 * 4, 4);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
     }
     constructor() {
         const ret = wasm.renderer_new();
@@ -35,7 +131,7 @@ export class Renderer {
     renderHtml(html) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16) >>> 0;
-            const ptr0 = passStringToWasm0(html, wasm.__wbindgen_export, wasm.__wbindgen_export3);
+            const ptr0 = passStringToWasm0(html, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
             const len0 = WASM_VECTOR_LEN;
             wasm.renderer_renderHtml(retptr, this.__wbg_ptr, ptr0, len0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -46,7 +142,7 @@ export class Renderer {
                 throw takeFromExternrefTable0(r2);
             }
             var v2 = getArrayU8FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export2(r0, r1 * 1, 1);
+            wasm.__wbindgen_export(r0, r1 * 1, 1);
             return v2;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -62,7 +158,7 @@ export class Renderer {
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v1 = getArrayJsValueFromWasm0(r0, r1);
-            wasm.__wbindgen_export2(r0, r1 * 4, 4);
+            wasm.__wbindgen_export(r0, r1 * 4, 4);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -79,6 +175,10 @@ function __wbg_get_imports() {
         },
         __wbg___wbindgen_throw_4c88d8bf264fd984: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
+        },
+        __wbg_missingfont_new: function(arg0) {
+            const ret = MissingFont.__wrap(arg0);
+            return ret;
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
@@ -100,6 +200,9 @@ function __wbg_get_imports() {
     };
 }
 
+const MissingFontFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_missingfont_free(ptr, 1));
 const RendererFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_renderer_free(ptr, 1));
@@ -111,7 +214,7 @@ function getArrayJsValueFromWasm0(ptr, len) {
     for (let i = ptr; i < ptr + 4 * len; i += 4) {
         result.push(wasm.__wbindgen_externrefs.get(mem.getUint32(i, true)));
     }
-    wasm.__wbindgen_export5(ptr, len);
+    wasm.__wbindgen_export2(ptr, len);
     return result;
 }
 
@@ -187,7 +290,7 @@ function passStringToWasm0(arg, malloc, realloc) {
 
 function takeFromExternrefTable0(idx) {
     const value = wasm.__wbindgen_externrefs.get(idx);
-    wasm.__wbindgen_export4(idx);
+    wasm.__wbindgen_export5(idx);
     return value;
 }
 

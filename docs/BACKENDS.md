@@ -132,6 +132,45 @@ const renderer = new PuppeteerPdfRenderer({ launchOptions: { args: [] } });
 const pres = new PuppeteerGen(undefined, { renderer });
 ```
 
+### Missing fonts (`onMissingFont`)
+
+A `fontFace` the renderer has no font for is drawn in a fallback face, whose
+widths differ, so lines wrap differently from PowerPoint. Both renderers check
+every text run's face (text boxes, shapes, table cells) and apply
+`onMissingFont`:
+
+| Value              | Effect                                                                  |
+| ------------------ | ----------------------------------------------------------------------- |
+| `"warn"` (default) | `console.warn` lists each face, the face drawn instead and the objects  |
+| `"throw"`          | `toPdf()` rejects with `MissingFontError`; its `missing` holds the list |
+| `"ignore"`         | renders without reporting                                               |
+| a function         | called with the list (`MissingFont[]`: `face`, `objects`, `usedFace`)   |
+
+Objects are named `slide <n> '<object name>'` (`#<index>` when unnamed). A
+metric-compatible substitute counts as the face: Arial and Helvetica drawn in
+Liberation Sans, Times New Roman in Liberation Serif, Courier New in Liberation
+Mono, any Calibri face (the default text font and the theme's Calibri Light) in
+Carlito, Cambria in Caladea. Segoe UI drawn in Liberation Sans is reported: its
+widths differ. Chart text is not checked.
+
+```typescript
+import PuppeteerGen, { MissingFontError, PuppeteerPdfRenderer } from "@pdflapas/pptxgenjs";
+
+const pres = new PuppeteerGen(undefined, { renderer: new PuppeteerPdfRenderer({ onMissingFont: "throw" }) });
+pres.addSlide().addText("Q3", { x: 1, y: 1, w: 4, h: 1, fontFace: "Corporate Sans" });
+try {
+    await pres.writeFile({ fileName: "q3.pdf" });
+} catch (error) {
+    if (error instanceof MissingFontError)
+        console.error(error.missing); // [{ face: "Corporate Sans", objects: ["slide 1 'Text 0'"], usedFace: "Arial" }]
+    else throw error;
+}
+```
+
+The WASM renderer takes the same option: `createWasmRenderer({ fonts, onMissingFont })`.
+Puppeteer checks the faces in the page before printing: one canvas width
+comparison per distinct `font-family` list, not per run.
+
 `@pdflapas/pptxgenjs` installs `@pdflapas/puppeteer` for its Node entry's
 default renderer; install `@pdflapas/puppeteer` directly only to use
 `PuppeteerPdfRenderer` or `closeBrowser` without the compatibility layer.
@@ -276,7 +315,9 @@ metric-compatible equivalents when the originals are not supplied: Calibri ->
 Carlito, Cambria -> Caladea, Arial/Helvetica -> Liberation Sans, Times New
 Roman -> Liberation Serif, Courier New -> Liberation Mono, then DejaVu Sans,
 Liberation Sans and Noto Sans CJK JP, so Latin text tries a Latin face before
-the CJK one.
+the CJK one. A face neither supplied nor aliased is reported through
+`onMissingFont` (see [Missing fonts](#missing-fonts-onmissingfont)); it is not
+one of the `onUnsupported` warnings, since its text is drawn.
 Under Node/Bun, `loadSystemFonts()` reads those faces (and the Office
 originals, Noto Color Emoji and Noto Sans CJK when installed) from the system
 font directories; pass `{ dirs, match }` to choose others. Emoji and CJK fonts
