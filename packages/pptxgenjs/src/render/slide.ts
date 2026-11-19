@@ -8,7 +8,7 @@ import { renderChart, renderChartExtension } from "./chart";
 import { componentHtml, type RenderedComponent, renderComponent } from "./component";
 import { type InlineStyle, styleAttribute } from "./css";
 import { renderImage } from "./image";
-import { element, escapeText, voidElement } from "./markup";
+import { element, escapeText, type Html, rawTextElement, voidElement } from "./markup";
 import { renderShape, renderShapeSvg } from "./shape";
 import { applyObjectStyle } from "./style";
 import { renderTable } from "./table";
@@ -30,14 +30,14 @@ export interface RenderPass {
     images?: ReadonlyMap<string, string>;
 }
 
-function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass: RenderPass): string {
+function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass: RenderPass): Html {
     switch (object.kind) {
         case "text": {
             const css: InlineStyle = new Map();
             const objectAttributes = applyObjectStyle(css, object.shape ? { ...object.style, fill: undefined, line: undefined, shadow: undefined } : object.style);
-            const svg = object.shape ? renderShapeSvg(object.shape, object.style) : "";
+            const svg = object.shape ? [renderShapeSvg(object.shape, object.style)] : [];
             const text = renderText(css, object.text);
-            return element("div", [["class", "slide-element slide-text"], ...objectAttributes, ["data-shape", object.shape?.name], ...text.attributes, styleAttribute(css)], `${svg}${text.content}`);
+            return element("div", [["class", "slide-element slide-text"], ...objectAttributes, ["data-shape", object.shape?.name], ...text.attributes, styleAttribute(css)], [...svg, text.content]);
         }
         case "shape":
             return renderShape(object.shape, object.style);
@@ -61,8 +61,8 @@ function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass:
     }
 }
 
-function renderSlide(slide: NormalizedSlide, index: number, pass: RenderPass): string {
-    const objects = slide.objects.map((object, objectIndex) => renderSlideObject(object, objectIdScope(index, objectIndex), pass)).join("");
+function renderSlide(slide: NormalizedSlide, index: number, pass: RenderPass): Html {
+    const objects = slide.objects.map((object, objectIndex) => renderSlideObject(object, objectIdScope(index, objectIndex), pass));
     const css: InlineStyle = new Map([
         ["background-color", slide.background],
         ["--slide-text-color", slide.color],
@@ -106,24 +106,26 @@ export function presentationHtml(presentation: NormalizedPresentation, pass: Ren
         ["content", presentation.pageSize.name],
     ]);
     // <style> holds raw text: its content is not escaped.
-    const style = element("style", [["id", "puppeteer-gen-styles"]], presentationCSS(presentation.pageSize));
+    const style = rawTextElement("style", [["id", "puppeteer-gen-styles"]], presentationCSS(presentation.pageSize));
     // A hidden slide is not printed; the others keep their number in `id`, which slide links jump to.
-    const slides = presentation.slides.map((slide, index) => (slide.hidden ? "" : renderSlide(slide, index, pass))).join("");
+    const slides = presentation.slides.flatMap((slide, index) => (slide.hidden ? [] : [renderSlide(slide, index, pass)]));
     // Standards mode: quirks mode drops the line-box strut that text.ts sizes lines with.
-    return `<!DOCTYPE html><html><head>${profile}${pageSize}${metadataHtml(presentation.metadata)}${style}</head><body>${slides}</body></html>`;
+    return `<!DOCTYPE html>${element("html", [], [element("head", [], [profile, pageSize, ...metadataHtml(presentation.metadata), style]), element("body", [], slides)])}`;
 }
 
 /** Document properties: standard HTML where it has a name for one, `pdflapas-*` meta otherwise; empty ones are left out. */
-function metadataHtml({ title, author, subject, company, revision }: PresentationMetadata = {}): string {
+function metadataHtml({ title, author, subject, company, revision }: PresentationMetadata = {}): Html[] {
     const meta = (name: string, content: string | undefined) =>
         content
-            ? voidElement("meta", [
-                  ["name", name],
-                  ["content", content],
-              ])
-            : "";
+            ? [
+                  voidElement("meta", [
+                      ["name", name],
+                      ["content", content],
+                  ]),
+              ]
+            : [];
     // `description` is HTML's "free-form string describing the page", the PDF Subject's meaning (krilla writes it there too).
-    return `${title ? element("title", [], escapeText(title)) : ""}${meta("author", author)}${meta("description", subject)}${meta("pdflapas-company", company)}${meta("pdflapas-revision", revision)}`;
+    return [...(title ? [element("title", [], escapeText(title))] : []), ...meta("author", author), ...meta("description", subject), ...meta("pdflapas-company", company), ...meta("pdflapas-revision", revision)];
 }
 
 /** The shared stylesheet: generated from the page size only. */

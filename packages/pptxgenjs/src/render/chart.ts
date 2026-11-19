@@ -10,7 +10,7 @@ import { pointsToPixels } from "@pdflapas/model";
 import { renderBar3DSvg } from "./chart3d";
 import { type InlineStyle, styleAttribute } from "./css";
 import { attributeName, descendants, firstElementChild, getAttribute, parseMarkup, SVG_NAMESPACE, serializeOuter, setAttribute } from "./fragment";
-import { element } from "./markup";
+import { element, type Html } from "./markup";
 import { applyObjectStyle } from "./style";
 
 use([BarChart, LineChart, PieChart, RadarChart, ScatterChart, GridComponent, LegendComponent, RadarComponent, TitleComponent, SVGRenderer]);
@@ -375,7 +375,7 @@ const EXTERNAL_CSS_URL = /url\(\s*["']?(?:https?:|file:|\/\/)/i;
  * its ids prefixed with `idScope` and its size set to the object box. Only the root's descendants are
  * checked and renamed (it was `svg.querySelectorAll()`), so the bytes match the DOM-built HTML.
  */
-function chartSvg(source: string, idScope: string): string {
+function chartSvg(source: string, idScope: string): Html {
     const svg = firstElementChild(parseMarkup(source.trim()));
     if (svg?.namespaceURI !== SVG_NAMESPACE || svg.tagName !== "svg") {
         throw new TypeError("Chart renderer did not return an SVG root element");
@@ -410,7 +410,7 @@ function chartSvg(source: string, idScope: string): string {
 }
 
 /** `idScope` is unique per object in the document (slide and object index), so chart ids stay apart and deterministic. */
-function chartContainer(svgSource: string, style: NormalizedObjectStyle, altText: string, idScope: string): string {
+function chartContainer(svgSource: string, style: NormalizedObjectStyle, altText: string, idScope: string): Html {
     const css: InlineStyle = new Map();
     const objectAttributes = applyObjectStyle(css, style);
     css.set("overflow", "hidden");
@@ -425,7 +425,7 @@ export function chartSize(style: NormalizedObjectStyle): { width: number; height
     return { width, height };
 }
 
-export function renderChart(chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): string {
+export function renderChart(chart: NormalizedChart, style: NormalizedObjectStyle, idScope: string): Html {
     const { width, height } = chartSize(style);
     const source = chart.type === "bar3D" ? renderBar3DSvg(width, height, chart) : renderEChartsSvg(width, height, chartOption(chart, height));
     return chartContainer(source, style, chart.altText, idScope);
@@ -437,6 +437,6 @@ export function renderChartExtensionSvg(input: ChartExtensionInput, style: Norma
     return input.renderer === "svg" ? input.svg : renderEChartsSvg(width, height, input.option as EChartsCoreOption);
 }
 
-export function renderChartExtension(svg: string, style: NormalizedObjectStyle, altText: string, idScope: string): string {
+export function renderChartExtension(svg: string, style: NormalizedObjectStyle, altText: string, idScope: string): Html {
     return chartContainer(svg, style, altText, idScope);
 }
