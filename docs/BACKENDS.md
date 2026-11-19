@@ -257,8 +257,11 @@ Two differences from the Puppeteer output: a rotated or flipped object gets
 its exact outline (`/QuadPoints`, with the bounding box as `/Rect` for viewers
 that ignore them) where Chromium only writes the bounding box, and the
 `tooltip` is the annotation's `/Contents`, which Chromium leaves out. Chromium
-also normalizes the URL (`https://example.com` becomes `https://example.com/`)
-and jumps to slides through named destinations. Both backends accept only
+also jumps to slides through named destinations. Both write the `url` as the
+deck gives it: Chromium would canonicalize it (`https://example.com` becomes
+`https://example.com/`), so the Puppeteer renderer prints each link with a
+placeholder and an incremental update (`packages/puppeteer/src/pdfLinks.ts`)
+writes the URL back into the annotation. Both backends accept only
 `http:`, `https:` and `mailto:` URLs: normalization rejects any other scheme
 (PptxGenJS writes any string).
 
