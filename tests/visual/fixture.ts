@@ -300,6 +300,8 @@ const TEXT_CASES = [
 // per-object crops see them whole; these regions pad the box for the centred oval and diamond.
 const ARROW_HEAD_TYPES = ["none", "triangle", "stealth", "diamond", "oval", "arrow"] as const;
 const ARROW_HEAD_CASES = [1, 4.5].flatMap((widthPt, row) => ARROW_HEAD_TYPES.map((type, index) => ({ page: 60, name: `arrowhead-${type}-${widthPt}pt`, type, widthPt, x: 1 + index * 1.5, y: 1.5 + row * 2, w: 0.5, h: 0.5 })));
+// A vertical line is a zero-width shape: PptxGenJS writes <a:ext cx="0">, PowerPoint and LibreOffice draw the stroke.
+const VERTICAL_LINE_CASE = { page: 60, name: "line-zero-width", x: 9.5, y: 1.5, w: 0, h: 2.5 } as const;
 
 // populateTextOptionsFixture(): text options PptxGenJS reads only in some combinations, one slide per
 // group. Each case is a text box with a short text and a crop (padded for strokes and arrowheads), on whole
@@ -515,7 +517,7 @@ export const PARITY_REGIONS = [
     ...TEXT_CASES,
     { page: 59, name: "html-react-component-bars", x: 1, y: 1, w: 6, h: 2 },
     { page: 12, name: "dashed-arrow-line", x: 6.55, y: 1.6, w: 2.6, h: 0 },
-    ...ARROW_HEAD_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.1, y: y - 0.1, w: w + 0.2, h: h + 0.2 })),
+    ...[...ARROW_HEAD_CASES, VERTICAL_LINE_CASE].map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.1, y: y - 0.1, w: w + 0.2, h: h + 0.2 })),
     // populateSlidePropertiesFixture(): the slide numbers, own style and inherited one; its hidden slide prints no page.
     { page: 61, name: "slide-number-own-style", x: 7.5, y: 4.6, w: 2, h: 0.8 },
     { page: 62, name: "slide-number-inherited-style", x: 0.5, y: 1.2, w: 2.5, h: 1 },
@@ -2262,6 +2264,8 @@ function populateArrowHeadFixture(presentation: Presentation): void {
         slide.addShape("line", { x, y, w, h, line: { color: "4472C4", width: widthPt, beginArrowType: type, endArrowType: type } });
         slide.addText(`${type} ${widthPt}pt`, { x: x - 0.25, y: y + h + 0.3, w: w + 0.5, h: 0.3, fontFace: "Arial", fontSize: 12, align: "center", margin: 0 });
     }
+    const { x, y, w, h } = VERTICAL_LINE_CASE;
+    slide.addShape("line", { x, y, w, h, line: { color: "2CA8E2", width: 1 } });
 }
 
 export function populateComponentFixture(presentation: Presentation): void {

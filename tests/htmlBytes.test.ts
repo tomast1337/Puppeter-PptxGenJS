@@ -14,12 +14,12 @@ const sha256 = (html: string) => createHash("sha256").update(html).digest("hex")
  * same PR, so the output change is visible in review; to see what changed, diff toHtml() against main.
  */
 const EXPECTED_SHA256: Record<string, string> = {
-    fixture: "75ffd36c8b9e55da8ce60a3fbabeb220850b590dba7a38aaf64cd3d9b6b8ac79",
+    fixture: "a17e9d05855a826308dd9ab1b36e76bd0874e306e5220f9a90294d9a28f96913",
     "cross-runtime": "0e5a7d08cf537153940f4f5b32f5e7c4add19766b56cfa466f8045131e2854ac",
     "wasm-text": "6a656b4e066d9a3285f2953b826c059d736d67bce10c52acacede4a2c97b3083",
     "wasm-emoji": "7691cbcb68c4d2067ed6c8c5aee227876563cdfd819b187aac64140a69a091ea",
     "wasm-layout": "64dde9ee29f2626e8b0c8385b55839e779cb79a73bc14566bb7513e7dc18de33",
-    "wasm-shapes": "f7692bad4ceaf666b3286d9dc4f05e66b2ea5ee535efac3c47e343b0dda2c466",
+    "wasm-shapes": "0c67d02ba4e53f08fd3fb2d08c9d77d89fc2cab3f24feb5cb65b8ac87bebb2d0",
     "wasm-tables": "eb7d194c1c8f07ac92b1ca3ae1c7a38064dc239008d328c1070510ba5552d53f",
     "wasm-images": "7d5e8e01f368701e7c69b2c241a0e3459f2d00dfcd126e5bde9d23186b37a21f",
     "wasm-effects": "b74ebc4b81bc18c9ea36ae78212448b3e5db6dab3a28c25f907ec719be6d1ac5",

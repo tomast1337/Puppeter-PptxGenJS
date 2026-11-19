@@ -457,6 +457,14 @@ describe("SVG shape rendering", () => {
         expect(page.querySelector(".slide-text")?.getAttribute("data-line-dash-array")).toBe(presentation.getModel().slides[0]?.objects[2]?.style.line?.dashArray ?? "");
     });
 
+    test("gives a zero-width line a unit-wide SVG, as a zero-height one a unit-high SVG, so Chromium paints it at the object's x", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("line", { x: 3, y: 1, w: 0, h: 2, line: { color: "2CA8E2", width: 1, endArrowType: "triangle" } });
+        const svg = renderedPage(presentation).querySelector<SVGSVGElement>("svg.shape-svg");
+        expect(["viewBox", "width", "height", "data-shape-width", "data-shape-height"].map(name => svg?.getAttribute(name) ?? null)).toEqual(["0 0 1 192", "1", "100%", "0", null]);
+        expect(svg?.querySelector(".shape-geometry")?.getAttribute("d")).toBe("M 0 0 L 0 192");
+    });
+
     test("leaves the print snap to the Puppeteer print step and lays the SVG out as a block", () => {
         const presentation = new PuppeteerGen(PAGE);
         presentation.addSlide().addShape("line", { x: 6.55, y: 1.6, w: 2.6, h: 0, line: { color: "4472C4", width: 2.25 } });
