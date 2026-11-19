@@ -15,7 +15,7 @@ function span(value?: number): number {
     return Number.isFinite(value) && value! > 1 ? Math.floor(value!) : 1;
 }
 
-function columnCount(rows: PptxGenJS.TableRow[]): number {
+export function columnCount(rows: PptxGenJS.TableRow[]): number {
     const firstRow = rows[0] ?? [];
     return Math.max(
         1,
@@ -37,26 +37,58 @@ function addTableSize(value: PptxGenJS.Coord, pageInches: number): { emu: number
     return { emu, pixels };
 }
 
+/**
+ * The table `w` genXmlTable shares among the columns when the table has a `colW`: addTableDefinition skips
+ * getSmartParseNumber then and only reads a number below 20 as inches (step 4), so 30 is 30 EMU, and genXmlTable takes
+ * 1 EMU for a string (`typeof w === "number" ? w : 1`).
+ */
+function widthBesideColW(w: PptxGenJS.Coord | undefined): number {
+    if (typeof w !== "number") return emuToPixels(1);
+    return w < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(w) : emuToPixels(w);
+}
+
+/** Scalar `colW`, or a single-item one over several columns: PptxGenJS 4.0.1 gives every column that width. */
+function repeatedColumnWidth(count: number, options: PptxGenJS.TableProps): number | undefined {
+    if (typeof options.colW === "number") return options.colW;
+    return Array.isArray(options.colW) && options.colW.length === 1 && count > 1 ? options.colW[0] : undefined;
+}
+
+/**
+ * PptxGenJS 4.0.1 addTableDefinition drops a `colW` array whose length is not the column count, and sets `w` to the
+ * floored total of a repeated one; when that leaves no `w` (unset, 0, or a total floored to 0), genXmlTable draws 1in
+ * columns and autoPage sizes them its own way (autoPageTableOptions).
+ */
+export function addTableLeavesNoWidth(count: number, options: PptxGenJS.TableProps): boolean {
+    const repeatedWidth = repeatedColumnWidth(count, options);
+    if (repeatedWidth !== undefined) return !Math.floor(repeatedWidth * count);
+    return Array.isArray(options.colW) && options.colW.length !== count && !options.w;
+}
+
 function tableWidthAndColumns(count: number, options: PptxGenJS.TableProps, pageSize: PageSize): { width: number; columns: number[] } {
-    const defaultWidth = inchesToPixels(Math.floor(pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2));
-    const widths = Array.isArray(options.colW) ? options.colW : undefined;
-    const repeatedWidth = typeof options.colW === "number" ? options.colW : widths?.length === 1 && count > 1 ? widths[0] : undefined;
+    const evenly = (width: number) => ({ width, columns: Array<number>(count).fill(width / count) });
+    if (addTableLeavesNoWidth(count, options)) return evenly(inchesToPixels(count));
 
     // PptxGenJS 4.0.1 sets `w` to the floored total for scalar/single-item colW, which addTableDefinition (step 4) reads
     // as inches below 20 and as EMU from 20 on: colW 7 over 3 columns is a 21 EMU table, colW 914400 an inch a column.
+    const repeatedWidth = repeatedColumnWidth(count, options);
     if (repeatedWidth !== undefined) {
         const total = Math.floor(repeatedWidth * count);
-        const width = total < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(total) : emuToPixels(total);
-        return { width, columns: Array(count).fill(width / count) };
+        return evenly(total < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(total) : emuToPixels(total));
     }
-    if (widths?.length === count) {
-        // genXmlTable (step 2) writes each width through inch2Emu: 100 is inches, 914400 EMU.
-        const columns = widths.map(inch2EmuToPixels);
+    if (Array.isArray(options.colW) && options.colW.length === count) {
+        // genXmlTable (step 2) writes each width through inch2Emu (100 is inches, 914400 EMU) and shares `w` for one
+        // that is not a number.
+        const columns = options.colW.map(width => {
+            const pixels = inch2EmuToPixels(width);
+            return Number.isNaN(pixels) ? widthBesideColW(options.w) / count : pixels;
+        });
         return { width: columns.reduce((sum, width) => sum + width, 0), columns };
     }
+    // A `colW` of the wrong length is dropped, and `w` shared as it stands.
+    if (Array.isArray(options.colW)) return evenly(widthBesideColW(options.w));
 
-    const width = options.w === undefined ? defaultWidth : addTableSize(options.w, pageSize.width).pixels;
-    return { width, columns: Array(count).fill(width / count) };
+    // Without `colW`, a falsy `w` (unset or 0) is the slide width less the default margins, floored to the inch.
+    return evenly(options.w ? addTableSize(options.w, pageSize.width).pixels : inchesToPixels(Math.floor(pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2)));
 }
 
 /**

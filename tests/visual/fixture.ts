@@ -501,6 +501,8 @@ const CUSTOM_BASELINE_CASES = [
     { page: PARAGRAPH_PAGE + 2, name: "text-custom-baseline-20pt", fontSize: 20, x: 0.5, y: 1.25, w: 9, h: 1 },
     { page: PARAGRAPH_PAGE + 2, name: "text-custom-baseline-40pt", fontSize: 40, x: 0.5, y: 3, w: 9, h: 1.6 },
 ] as const;
+// populateLineFeedTailFixture() too, beside the title: a `colW` shorter than the column count (#302).
+const COLW_LENGTH_CASE = { page: PARAGRAPH_PAGE + 1, name: "table-colw-shorter-than-columns", x: 5.5, y: 0.3, w: 3, h: 0.3 } as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
@@ -539,6 +541,7 @@ export const PARITY_REGIONS = [
     { ...EMPTY_PARAGRAPH_CASE, x: EMPTY_PARAGRAPH_CASE.x - 0.15, y: EMPTY_PARAGRAPH_CASE.y - 0.15, w: EMPTY_PARAGRAPH_CASE.w + 0.3, h: EMPTY_PARAGRAPH_CASE.h + 0.3 },
     { ...SHARED_RUN_OPTIONS_CASE, x: SHARED_RUN_OPTIONS_CASE.x - 0.15, y: SHARED_RUN_OPTIONS_CASE.y - 0.15, w: SHARED_RUN_OPTIONS_CASE.w + 0.3, h: SHARED_RUN_OPTIONS_CASE.h + 0.3 },
     ...CUSTOM_BASELINE_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
+    { ...COLW_LENGTH_CASE, x: COLW_LENGTH_CASE.x - 0.15, y: COLW_LENGTH_CASE.y - 0.15, w: COLW_LENGTH_CASE.w + 0.3, h: COLW_LENGTH_CASE.h + 0.3 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
@@ -1881,6 +1884,10 @@ function populateLineFeedTailFixture(presentation: Presentation): void {
     const table = { y: shared.y, w: 2.1, fontFace: "Arial", border: { type: "solid", pt: 1, color: "404040" } } as const;
     slide.addTable([[{ text: [{ text: "Cell A", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 4.6, fontSize: 14, color: "AA0000", align: "right" });
     slide.addTable([[{ text: [{ text: "Cell B", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 6.9, fontSize: 8, color: "0000AA", align: "left" });
+    // PptxGenJS 4.0.1 addTableDefinition drops a `colW` whose length is not the column count; with no `w`, genXmlTable
+    // then writes 1in columns.
+    const colWLength = COLW_LENGTH_CASE;
+    slide.addTable([[{ text: "1in" }, { text: "1in" }, { text: "1in" }]], { x: colWLength.x, y: colWLength.y, colW: [1, 2], rowH: colWLength.h, fontFace: "Arial", fontSize: 10, color: "363636", fill: { color: "E2EFDA" }, border: { type: "solid", pt: 1, color: "404040" } });
 }
 
 function populateParagraphFixture(presentation: Presentation): void {

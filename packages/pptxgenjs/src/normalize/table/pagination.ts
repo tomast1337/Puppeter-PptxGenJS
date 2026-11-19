@@ -4,7 +4,7 @@ import type { NormalizedTable } from "@pdflapas/model";
 import type { PageSize } from "#src/pageLayouts";
 import { convertToInches, pixelsToInches, pointsToInches } from "#src/units";
 import { slideMarginInches } from "#src/normalize/margin";
-import { normalizeTable, tableCell, tableRow } from "./index";
+import { addTableLeavesNoWidth, columnCount, normalizeTable, tableCell, tableRow } from "./index";
 
 export interface PaginatedTablePage {
     rows: PptxGenJS.TableRow[];
@@ -172,6 +172,19 @@ function firstRowTooTallError(margins: number, lineHeight: number, available: nu
     return new Error(
         `addTable autoPage: the first row needs ${inches(margins + lineHeight)} (top and bottom cell margins ${inches(margins)} plus one line) but the first slide leaves ${inches(available)} below the table y, so PptxGenJS 4.0.1 throws "addTable: Array expected!" here. Move the table up, or lower the cell margins: autoPage reads a table-level \`margin\` as inches whatever its size, so give points per cell (options.margin: [6, 4, 6, 4]) or a table-level margin below 1 in inches.`,
     );
+}
+
+/**
+ * The options addTableDefinition hands each autoPage table. When it leaves no `w` (addTableLeavesNoWidth),
+ * getSlidesForTableRows (step 5) gives every column `((x || right margin) + left margin) / columns` inches, 1/3in each
+ * over 3 columns by default, and every page keeps that `colW`.
+ */
+export function autoPageTableOptions(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PptxGenJS.TableProps {
+    const count = columnCount(rows);
+    if (!addTableLeavesNoWidth(count, options)) return options;
+    const [, rightMargin, , leftMargin] = slideMarginInches((options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin }).slideMargin);
+    const x = options.x === undefined ? 0 : convertToInches(options.x, pageSize.width);
+    return { ...options, colW: Array<number>(count).fill(((x || rightMargin) + leftMargin) / count) };
 }
 
 export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
