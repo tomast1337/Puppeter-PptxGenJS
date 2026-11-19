@@ -12,7 +12,7 @@ import { normalizeShapeLine, normalizeTextLine, straightLineLength } from "./nor
 import { normalizeSlideNumber } from "./normalize/slideNumber";
 import { normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
-import { paginateTableRows } from "./normalize/table/pagination";
+import { autoPageTableOptions, paginateTableRows } from "./normalize/table/pagination";
 import { collapseTextMargins, normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import type { PptxSlide } from "./pptx";
@@ -221,13 +221,14 @@ export class PuppeteerSlide implements PptxSlide {
         const tableOptions = options ?? {};
         this.newAutoPagedSlides = [];
         if (tableOptions.autoPage) {
-            const pages = paginateTableRows(tableRows, tableOptions, this.pageSize);
+            const pageOptions = autoPageTableOptions(tableRows, tableOptions, this.pageSize);
+            const pages = paginateTableRows(tableRows, pageOptions, this.pageSize);
             const continuationSlides: PuppeteerSlide[] = [];
             pages.forEach((page, index) => {
                 const target = index === 0 ? this : this.context.continuationSlide(index);
                 if (index > 0) continuationSlides.push(target);
                 target.addTable(page.rows, {
-                    ...tableOptions,
+                    ...pageOptions,
                     // PptxGenJS 4.0.1 addTableDefinition (step 6 C) adds each page with the caller's options, so its
                     // rows keep the caller's rowH or h and otherwise size to their content.
                     y: page.y,
