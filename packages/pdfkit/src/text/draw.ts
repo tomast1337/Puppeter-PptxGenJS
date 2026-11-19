@@ -12,26 +12,38 @@ export interface Frame {
     readonly height: number;
 }
 
+/** Lays the box's text out at `scale` in `width` px, the box's padding taken off. */
+export function measureBox(paint: Paint, box: TextBox, width: number, scale = 1): BoxLayout {
+    const missing = (run: Run) => paint.missingFace(run.face.family, fallbackFamily(paint.shaper.chain(run.face)));
+    return layoutText(box, width - box.padding[1] - box.padding[3], scale, paint.shaper, missing);
+}
+
+/** The content top of `layout` placed in `frame` by the box's anchor (`align-items`), the box's padding taken off. */
+export function anchorTop(box: TextBox, layout: BoxLayout, frame: Frame): number {
+    const [padTop, , padBottom] = box.padding;
+    const slack = frame.height - padTop - padBottom - layout.height;
+    const offset = box.anchor === "center" ? slack / 2 : box.anchor === "flex-end" ? slack : 0;
+    return frame.y + padTop + offset;
+}
+
 /** Lays the box out in `frame`, shrinking it as its `data-text-fit` rule says; returns the layout and its content top. */
 export function layoutBox(paint: Paint, box: TextBox, frame: Frame): { layout: BoxLayout; top: number; height: number } {
     const [padTop, padRight, padBottom, padLeft] = box.padding;
     const innerWidth = frame.width - padLeft - padRight;
     let innerHeight = frame.height - padTop - padBottom;
-    const missing = (run: Run) => paint.missingFace(run.face.family, fallbackFamily(paint.shaper.chain(run.face)));
-    let layout = layoutText(box, innerWidth, 1, paint.shaper, missing);
+    let layout = measureBox(paint, box, frame.width);
     if (box.fit.kind === "shrink") {
         let scale = 1;
         for (let step = 0; step < box.fit.maxSteps; step++) {
             if (layout.height <= innerHeight + box.fit.tolerance && layout.width <= innerWidth + box.fit.tolerance) break;
             scale *= box.fit.step;
-            layout = layoutText(box, innerWidth, scale, paint.shaper, missing);
+            layout = measureBox(paint, box, frame.width, scale);
         }
     }
     // `fit: resize` writes the height as min-height: the box grows to its text.
     if (box.fit.kind === "resize") innerHeight = Math.max(innerHeight, layout.height);
-    const slack = innerHeight - layout.height;
-    const offset = box.anchor === "center" ? slack / 2 : box.anchor === "flex-end" ? slack : 0;
-    return { layout, top: frame.y + padTop + offset, height: innerHeight + padTop + padBottom };
+    const height = innerHeight + padTop + padBottom;
+    return { layout, top: anchorTop(box, layout, { ...frame, height }), height };
 }
 
 /** The font's metrics in px at `size`: hhea ascent and descent, post underline, OS/2 strikeout. */
