@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { px } from "@pdflapas/model";
+import { type CssColor, px } from "@pdflapas/model";
 import type PptxGenJS from "pptxgenjs";
 import pptxgen from "pptxgenjs";
+import { colorToCSS, TRANSPARENT } from "../packages/pptxgenjs/src/color";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { renderedPage } from "./renderedPage";
 import { GENERATED_PRESET_NAMES } from "../packages/pptxgenjs/src/normalize/generatedPreset";
@@ -365,6 +366,27 @@ describe("SVG shape rendering", () => {
         const fills = Array.from(renderShapeSvg(shape, object.style).matchAll(/class="shape-face"[^>]*? fill="([^"]*)"/g), match => match[1]);
         // PPTX_DEFAULTS.shape.faceShading ([MS-OI29500]): blended with 40% or 50/255 white or black, floored.
         expect(fills).toEqual(["rgba(100, 200, 50, 0.5)", "rgba(162, 222, 132, 0.5)", "rgba(130, 210, 90, 0.5)", "rgba(60, 120, 30, 0.5)", "rgba(80, 160, 40, 0.5)"]);
+    });
+
+    // modifyColor handles every form colorToCSS makes and throws on any other string, rather than leave a face unshaded (#285).
+    test("shades every CssColor form and rejects a color colorToCSS cannot make", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        presentation.addSlide().addShape("can", { x: 1, y: 1, w: 2, h: 1, fill: { color: "64C832", transparency: 99.99999 } });
+        const object = presentation.getModel().slides[0]?.objects[0];
+        const fill = object?.kind === "shape" ? object.style.fill : undefined;
+        if (object?.kind !== "shape" || !fill) throw new Error("expected the filled can shape");
+        const lidFill = (color: string) => {
+            // `as`: stands in for a color from model JSON another producer built without colorToCSS.
+            const style = { ...object.style, fill: { ...fill, color: color as CssColor } };
+            return /data-fill-modifier="lighten" stroke="none" fill="([^"]*)"/.exec(renderShapeSvg(object.shape, style))?.[1];
+        };
+        // colorToCSS writes the alpha as a JavaScript number, here with an exponent.
+        expect<string>(fill.color).toBe("rgba(100, 200, 50, 1.0000000005838672e-7)");
+        expect(lidFill(fill.color)).toBe("rgba(162, 222, 132, 1.0000000005838672e-7)");
+        expect(lidFill(colorToCSS("64C832"))).toBe("#a2de84");
+        expect(lidFill(colorToCSS({ color: "64C832", transparency: 100 }))).toBe("rgba(162, 222, 132, 0)");
+        expect(lidFill(TRANSPARENT)).toBe("transparent");
+        for (const color of ["red", "rgb(100, 200, 50)", "#64C83280"]) expect(() => lidFill(color)).toThrow(`color "${color}" is not a CssColor`);
     });
 
     test("shades the can's lid as Office does: D9E2F3 blended with 40% white", () => {
