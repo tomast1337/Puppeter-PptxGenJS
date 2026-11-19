@@ -1,0 +1,59 @@
+name: Bug report
+description: PdfLapas crashes, throws or renders something wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach confidential decks. Build a synthetic reproduction instead. PDFs and screenshots are welcome
+        if they contain no private data.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The PptxGenJS calls that trigger it.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: html
+    attributes:
+      label: toHtml() output
+      description: The output of `toHtml()`, or the relevant excerpt, if it helps.
+      render: html
+  - type: dropdown
+    id: renderer
+    attributes:
+      label: Renderer
+      options:
+        - Puppeteer
+        - WASM
+        - Both
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Rendering target
+      options:
+        - PowerPoint
+        - LibreOffice
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        - PdfLapas package and version:
+        - PptxGenJS version:
+        - Runtime (Node / Bun / browser) and version:
+        - OS:
+    validations:
+      required: true

@@ -4,6 +4,9 @@ Thank you for helping improve PuppeteerGen. Contributions should preserve the
 PptxGenJS-compatible API while keeping HTML and PDF output as visually close to
 PowerPoint as practical.
 
+Everyone taking part follows the [code of conduct](.github/CODE_OF_CONDUCT.md).
+Report vulnerabilities privately as described in the [security policy](.github/SECURITY.md).
+
 ## Development setup
 
 This repository is a Bun workspace: each published package lives in

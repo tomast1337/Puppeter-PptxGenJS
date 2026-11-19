@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest something PdfLapas should do that is not a PptxGenJS compatibility gap.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what stops you today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you would like PdfLapas to do. Note any API or HTML output it would change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

@@ -1,0 +1,43 @@
+name: Compatibility gap
+description: A PptxGenJS option or behaviour that PdfLapas ignores, rejects or renders differently.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach confidential decks. Build a synthetic reproduction instead. PDFs and screenshots are welcome
+        if they contain no private data.
+  - type: textarea
+    id: calls
+    attributes:
+      label: PptxGenJS calls
+      description: The smallest code that shows the difference.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: ooxml
+    attributes:
+      label: OOXML written by PptxGenJS
+      description: The relevant XML from the `.pptx`, if you know it.
+      render: xml
+  - type: textarea
+    id: reference
+    attributes:
+      label: What PowerPoint or LibreOffice shows
+    validations:
+      required: true
+  - type: textarea
+    id: pdflapas
+    attributes:
+      label: What PdfLapas does
+      description: Ignores the option, throws (paste the error), or renders differently.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        - PdfLapas package and version:
+        - Renderer (Puppeteer / WASM):
+        - Runtime and version:
