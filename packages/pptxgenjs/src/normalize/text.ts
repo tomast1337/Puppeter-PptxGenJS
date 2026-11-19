@@ -464,7 +464,8 @@ export function normalizeText(input: TextInput, options: PptxGenJS.TextPropsOpti
  * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline), where the paragraph mark and soft breaks,
  * set in `markFontFace` and `themeFontFace`, may move the last line and the lines ending in a break (`markBaseline`,
  * `breakBaseline`). `markFontSize` is the mark's size when it is not the last run's (RENDERING_TARGETS.fullSizeMark):
- * it counts in the line's height as well.
+ * it counts in the line's height as well. Each baseline then goes on the target's grid
+ * (RENDERING_TARGETS.baselineGridPerInch).
  */
 export function paragraphLineBox(
     paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">,
@@ -474,6 +475,23 @@ export function paragraphLineBox(
     markFontFace: string = themeFontFace,
     markFontSize?: number,
 ): NormalizedTextParagraph["lineBox"] {
+    return baselinesOnGrid(fontLineBox(paragraph, target, fontMetrics, themeFontFace, markFontFace, markFontSize), target);
+}
+
+/** `lineBox` with each baseline on the target's grid, a mark or break baseline kept only where it still differs. */
+function baselinesOnGrid(lineBox: NormalizedTextParagraph["lineBox"], target: RenderingTarget): NormalizedTextParagraph["lineBox"] {
+    const { baselineGridPerInch } = RENDERING_TARGETS[target];
+    if (baselineGridPerInch === undefined) return lineBox;
+    // One division of whole numbers, so the HTML writes 23.36, not 23.359999999999996.
+    const { cssDpi } = PPTX_DEFAULTS.units;
+    const onGrid = (value: number) => (Math.round((value * baselineGridPerInch) / cssDpi) * cssDpi) / baselineGridPerInch;
+    const { height, baseline, markBaseline, breakBaseline } = lineBox;
+    const [line, mark, soft] = [onGrid(baseline), markBaseline === undefined ? undefined : onGrid(markBaseline), breakBaseline === undefined ? undefined : onGrid(breakBaseline)];
+    return { height, baseline: line, ...(mark !== undefined && mark !== line ? { markBaseline: mark } : {}), ...(soft !== undefined && soft !== line ? { breakBaseline: soft } : {}) };
+}
+
+/** The line box before the baseline grid (`paragraphLineBox`). */
+function fontLineBox(paragraph: Pick<NormalizedTextParagraph, "runs" | "lineHeight">, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string, markFontSize: number | undefined): NormalizedTextParagraph["lineBox"] {
     // shortcut: one line box per paragraph, so a full-size mark sets the height of every line, not only the last; split
     // it per line when the model gets a line box per line.
     const fontSize = Math.max(...paragraph.runs.map(run => run.fontSize), markFontSize ?? 0) || pointsToPixels(PPTX_DEFAULTS.text.fontSizePt);

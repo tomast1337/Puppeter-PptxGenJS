@@ -121,15 +121,15 @@ describe("fontMetrics option", () => {
         expect(fontMetricsLookup(undefined, undefined)("ARIAL")).toBe(FONT_WIN_METRICS.arial!);
     });
 
-    // 18pt = 24px on a 28.8px line: the baseline is the line's winAscent share.
+    // 18pt = 24px on a 28.8px line: the baseline is the line's winAscent share, on the PowerPoint target's 1/600 in grid.
     test("the PowerPoint target places a single-spaced baseline from the caller's metrics; LibreOffice ignores them", () => {
         const baseline = (fontFace: string, target: "libreoffice" | "powerpoint", fontMetrics?: (face: string) => FontWinMetrics | undefined) => normalizeText("Line", { fontFace, fontSize: 18 }, target, fontMetrics).paragraphs[0]?.lineBox.baseline;
         const table = fontMetricsLookup({ "My Brand Sans": BRAND, Arial: { unitsPerEm: 1000, winAscent: 800, winDescent: 200 } }, null);
-        // An unlisted face: 1em without the option, 28.8 x 950/1200 with it.
+        // An unlisted face: 1em without the option, 28.8 x 950/1200 = 22.8 (22.72 on the grid) with it.
         expect(baseline("My Brand Sans", "powerpoint")).toBeCloseTo(24, 6);
-        expect(baseline("my brand sans", "powerpoint", table)).toBeCloseTo(22.8, 6);
-        // A built-in face overridden: 28.8 x 1854/2288 before, 28.8 x 800/1000 after.
-        expect(baseline("Arial", "powerpoint")).toBeCloseTo(23.337, 3);
+        expect(baseline("my brand sans", "powerpoint", table)).toBeCloseTo(22.72, 6);
+        // A built-in face overridden: 28.8 x 1854/2288 = 23.337 (23.36) before, 28.8 x 800/1000 = 23.04 after.
+        expect(baseline("Arial", "powerpoint")).toBeCloseTo(23.36, 6);
         expect(baseline("Arial", "powerpoint", table)).toBeCloseTo(23.04, 6);
         for (const face of ["My Brand Sans", "Arial"]) expect(baseline(face, "libreoffice", table)).toBeCloseTo(24, 6);
         // A face matching an Object.prototype member is not listed.
@@ -146,7 +146,8 @@ describe("fontMetrics option", () => {
         const baselines = (document: string) => [...document.matchAll(/class="text-paragraph" data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
         const fontMetrics = { "My Brand Sans": BRAND };
         const powerPoint = await html(new PuppeteerGenPowerPoint(undefined, { fontMetrics }));
-        expect(baselines(powerPoint)).toEqual([expect.closeTo(22.8, 6), expect.closeTo(22.8, 6)]);
+        // 22.8px on the 1/600 in grid.
+        expect(baselines(powerPoint)).toEqual([22.72, 22.72]);
         expect(await html(new PuppeteerGenPowerPoint(undefined, { fontMetrics }))).toBe(powerPoint);
         expect(baselines(await html(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null })))).toEqual([expect.closeTo(24, 6), expect.closeTo(24, 6)]);
         const libreOffice = await html(new PuppeteerGenLibreOffice(undefined, { fontMetrics }));
@@ -257,11 +258,12 @@ describe("resolveFontMetrics option", () => {
         return [...html.matchAll(/class="text-paragraph" data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
     };
 
-    // 18pt = 24px on a 28.8px line: caller 22.8 (950/1200), resolver 21.6 (1500/2000), Calibri 22.464 (1950/2500), else 24.
+    // 18pt = 24px on a 28.8px line: caller 22.8 (950/1200), resolver 21.6 (1500/2000), Calibri 22.464 (1950/2500), else 24;
+    // on the 1/600 in baseline grid 22.72, 21.6, 22.4 and 24.
     test("the caller's fontMetrics come before the resolver, the resolver before FONT_WIN_METRICS, which comes before 1em", async () => {
         const resolveFontMetrics = (face: string) => (["My Brand Sans", "My Brand Serif", "Arial"].includes(face) ? INSTALLED : undefined);
         const presentation = new PuppeteerGenPowerPoint(undefined, { fontMetrics: { "My Brand Sans": BRAND }, resolveFontMetrics });
-        expect(await baselines(presentation, ["My Brand Sans", "My Brand Serif", "Arial", "Calibri", "No Such Font 123"])).toEqual([expect.closeTo(22.8, 6), expect.closeTo(21.6, 6), expect.closeTo(21.6, 6), expect.closeTo(22.464, 6), expect.closeTo(24, 6)]);
+        expect(await baselines(presentation, ["My Brand Sans", "My Brand Serif", "Arial", "Calibri", "No Such Font 123"])).toEqual([22.72, 21.6, 21.6, 22.4, 24]);
     });
 
     test("is called once per face per presentation, only for faces fontMetrics does not list, and never for the LibreOffice target", async () => {
@@ -277,7 +279,7 @@ describe("resolveFontMetrics option", () => {
     });
 
     test("null turns the lookup off; the result is checked and an invalid one throws naming the face", async () => {
-        expect(await baselines(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null }), ["Arial", "My Brand Sans"])).toEqual([expect.closeTo(23.337, 3), expect.closeTo(24, 6)]);
+        expect(await baselines(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null }), ["Arial", "My Brand Sans"])).toEqual([23.36, 24]);
         const broken = () => ({ unitsPerEm: 0, winAscent: 1, winDescent: 1 });
         await expect(baselines(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: broken }), ["My Brand Sans"])).rejects.toThrow('`resolveFontMetrics` returned invalid metrics for "My Brand Sans": unitsPerEm must be a positive integer');
         // `as`: the option arrives unchecked from JavaScript callers.
