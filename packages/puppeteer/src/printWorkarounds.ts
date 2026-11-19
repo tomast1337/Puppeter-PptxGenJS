@@ -79,6 +79,17 @@ const px = (element: Element, pattern: RegExp, property: string) => number(eleme
  * the visual fixture (#196): a row was 1/12 px shorter than its margins and line height, 1px every 12 rows.
  */
 const snapBorder = (width: number) => (width > 0 ? Math.max(1, Math.floor(width * PRINT_ZOOM)) / PRINT_ZOOM : 0);
+/**
+ * Strut baseline: Chromium puts the 0px-font strut's baseline its half-leading below the line top, that is half the
+ * line height in its 1/64 px layout unit floored to a whole px of the zoomed layout (Blink FontHeight::AddLeading
+ * floors the half-leading), then paints the baseline at the nearest device px. Measured on 80 Arial text boxes and
+ * cells (6-18pt, fractional y): a 9.6px line puts the baseline 0.398 device px above the line's middle, 11.2px 0.797,
+ * 12.8px 0.203, and every painted baseline is that layout baseline rounded. Moving by the centre instead printed
+ * baselines 0.049pt high on average (sd 0.04, up to 0.12pt).
+ */
+const LAYOUT_UNITS_PER_PX = 64;
+// 1e-6 keeps float noise in `height x PRINT_ZOOM` from flooring a whole layout unit away.
+const strutBaseline = (height: number) => Math.floor(Math.floor(height * PRINT_ZOOM * LAYOUT_UNITS_PER_PX + 1e-6) / (2 * LAYOUT_UNITS_PER_PX)) / PRINT_ZOOM;
 const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4) / 1e4;
 const local = (value: number) => Number(value.toFixed(4)) || 0;
 
@@ -130,15 +141,15 @@ export function printHtml(html: string): string {
             const fallback = face.startsWith("calibri") ? CALIBRI_FALLBACK : face.startsWith("cambria") ? CAMBRIA_FALLBACK : SANS_FALLBACK;
             edits.push(setAttribute(element, "style", style.replace(FONT_FAMILY, `$1, ${fallback}`)));
         } else if (hasClass(element, "text-paragraph")) {
-            // Line box: the paragraph's 0px-font strut (stylesheet) puts the baseline in the middle of `line-height`;
-            // moving the paragraph puts it at data-line-baseline, where LibreOffice puts it.
+            // Line box: the paragraph's 0px-font strut (stylesheet) puts the baseline about the middle of `line-height`
+            // (strutBaseline); moving the paragraph puts it at data-line-baseline, where LibreOffice puts it.
             // shortcut: vertical text keeps the centred baseline; shift along the block axis once it is measured.
             const content = parentElement(element);
             const box = content && parentElement(content);
             if (!content || !box || !hasClass(content, "text-content") || attribute(box, "data-text-direction") !== "horizontal") continue;
             const height = px(element, LINE_HEIGHT, "line-height");
             const baseline = number(element, attribute(element, "data-line-baseline"), "numeric data-line-baseline");
-            edits.push(addStyle(element, `position: relative; top: ${baseline - height / 2}px;`));
+            edits.push(addStyle(element, `position: relative; top: ${baseline - strutBaseline(height)}px;`));
         } else if (hasClass(element, "slide-text")) {
             // Text outline: DrawingML centres a text box's line on its edge and measures the inset from the edge;
             // a CSS border lies inside the box and pushes the text in by its width. An outline moves nothing.

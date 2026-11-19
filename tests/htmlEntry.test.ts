@@ -81,8 +81,8 @@ describe("printHtml()", () => {
         const preview = printHtml((await pres.toHtml()).html);
         expect(preview).not.toContain("<script");
         const page = new JSDOM(preview).window.document;
-        // 18pt (24px) default: the paragraph moves 24 - 28.8 / 2 down, as in the PDF.
-        expect(parseFloat(page.querySelector<HTMLElement>(".text-paragraph")?.style.top ?? "")).toBeCloseTo(9.6, 9);
+        // 18pt (24px) default: the paragraph moves 24 - 14.375 down (the strut baseline, printWorkarounds), as in the PDF.
+        expect(parseFloat(page.querySelector<HTMLElement>(".text-paragraph")?.style.top ?? "")).toBeCloseTo(9.625, 9);
         expect(page.querySelector<HTMLElement>(".text-run")?.getAttribute("style")).toContain('font-family: "Calibri", "Carlito", "Noto Sans", Arial');
     });
 });

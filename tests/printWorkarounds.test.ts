@@ -5,6 +5,7 @@ import type PptxGenJS from "pptxgenjs";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
+import { inchesToPixels, inchesToPoints, pixelsToInches } from "../packages/pptxgenjs/src/units";
 
 const printedHtml = async (presentation: PuppeteerGen) => printHtml((await presentation.toHtml()).html);
 
@@ -22,11 +23,31 @@ describe("Puppeteer print workarounds", () => {
         slide.addText("Horizontal", { x: 1, y: 1, w: 4, h: 1 });
         slide.addText("Vertical", { x: 1, y: 3, w: 1, h: 3, vert: "vert270" });
         const [horizontal, vertical] = (await printedPage(presentation)).querySelectorAll<HTMLElement>(".text-paragraph");
-        // 18pt (24px) default: a 28.8px line box with its baseline at 24px, so 24 - 28.8 / 2 below the strut's.
+        // 18pt (24px) default: a 28.8px line box with its baseline at 24px. The strut's sits 115 of the 230.39 zoomed
+        // layout px of the line below its top (half, floored to a whole px), 14.375px, so the paragraph moves 9.625px.
         expect(horizontal?.style.position).toBe("relative");
-        expect(parseFloat(horizontal?.style.top ?? "")).toBeCloseTo(9.6, 9);
+        expect(parseFloat(horizontal?.style.top ?? "")).toBeCloseTo(9.625, 9);
         expect([vertical?.style.position, vertical?.style.top]).toEqual(["", ""]);
     });
+
+    test("prints each baseline at data-line-baseline, within half a print device px", async () => {
+        const presentation = new PuppeteerGen();
+        const slide = presentation.addSlide();
+        const boxes = [
+            { fontSize: 6, y: 0.3137 },
+            { fontSize: 7, y: 0.9071 },
+            { fontSize: 9.5, y: 1.5513 },
+            { fontSize: 12, y: 2.2299 },
+            { fontSize: 14, y: 2.8642 },
+            { fontSize: 18, y: 3.6085 },
+        ];
+        for (const { fontSize, y } of boxes) slide.addText("Hxg", { x: 1, y, w: 3, h: 0.6, fontSize, fontFace: "Arial", margin: 0, valign: "top" });
+        const baselines = [...(await presentation.toHtml()).html.matchAll(/data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
+        const printed = textBaselines(await presentation.toPdf());
+        // Printed less intended, in pt: Chromium paints a baseline at a whole device px, 0.09375pt, so half of it at most.
+        const errors = boxes.map(({ y }, index) => inchesToPoints(pixelsToInches((printed[index] ?? NaN) / PRINT_ZOOM - inchesToPixels(y) - (baselines[index] ?? NaN))));
+        for (const error of errors) expect(Math.abs(error)).toBeLessThanOrEqual(0.05);
+    }, 60_000);
 
     test("undoes Chromium's whole-px SVG root snap, in the object's pre-transform space (issue #42)", async () => {
         const presentation = new PuppeteerGen();
@@ -230,7 +251,7 @@ describe("Puppeteer print workarounds", () => {
         const outsideTags = (markup: string) => markup.replace(/<[^>]*>/g, "<>");
         expect(outsideTags(printed)).toBe(outsideTags(html));
         // Numbers are written as JavaScript prints them, the same text the in-page step gave the CSSOM setters.
-        expect(printed).toContain('line-height: 28.799999999999997px; tab-size: 96px; position: relative; top: 9.599999999999998px;"');
+        expect(printed).toContain('line-height: 28.799999999999997px; tab-size: 96px; position: relative; top: 9.624999999999996px;"');
         expect(printed).toContain('style="overflow: visible; transform: translate(0.05px, -0.025px);"');
     });
 
@@ -257,21 +278,32 @@ describe("Puppeteer print workarounds", () => {
     });
 });
 
+/** The text baselines of a one-page Chromium PDF, in drawing order and PRINT_ZOOM device px from the page top (each `Tm`'s y). */
+function textBaselines(pdf: Uint8Array): number[] {
+    return pdfContentStreams(pdf).flatMap(content => [...content.matchAll(/(?:^|\n)1 0 0 -1 [\d.]+ ([\d.]+) Tm(?=\n)/g)].map(match => Number(match[1])));
+}
+
+/** The decoded Flate streams of a Chromium PDF, in file order. */
+function pdfContentStreams(pdf: Uint8Array): string[] {
+    const bytes = Buffer.from(pdf);
+    const streams: string[] = [];
+    for (let at = bytes.indexOf("stream\n"); at >= 0; at = bytes.indexOf("stream\n", at + 1)) {
+        try {
+            streams.push(inflateSync(bytes.subarray(at + "stream\n".length, bytes.indexOf("endstream", at))).toString("latin1"));
+        } catch {
+            // Not a Flate stream (fonts are, but images may not be); content streams always are.
+        }
+    }
+    return streams;
+}
+
 /**
  * The red and blue cell fills of a Chromium PDF, in page order, at their top-left corner in PRINT_ZOOM device px (the
  * unit Chromium writes rectangles in, after its page `cm`).
  */
 function fillRows(pdf: Uint8Array): Array<{ x: number; y: number }> {
-    const bytes = Buffer.from(pdf);
     const fills: Array<{ x: number; y: number }> = [];
-    for (let at = bytes.indexOf("stream\n"); at >= 0; at = bytes.indexOf("stream\n", at + 1)) {
-        let content: string;
-        try {
-            content = inflateSync(bytes.subarray(at + "stream\n".length, bytes.indexOf("endstream", at))).toString("latin1");
-        } catch {
-            // Not a Flate stream (fonts are, but images may not be); content streams always are.
-            continue;
-        }
+    for (const content of pdfContentStreams(pdf)) {
         // A rectangle filled (`re` then `f`) while the fill colour (`rg`) is red or blue.
         let colored = false;
         for (const [, color, x, y] of content.matchAll(/(?:^|\n)(?:(?:.* )?([\d.]+ [\d.]+ [\d.]+) rg|([\d.]+) ([\d.]+) [\d.]+ [\d.]+ re\nf)(?=\n)/g)) {
