@@ -451,6 +451,32 @@ with the same fonts. Pass `resolveFontMetrics: null` (with `fontMetrics` for the
 HTML must be identical across machines, for example in snapshot tests. The LibreOffice target does not
 read installed fonts.
 
+**PDF document properties.** `pres.title`, `pres.author`, `pres.subject`, `pres.company` and
+`pres.revision` work as in PptxGenJS and reach the PDF's Info dictionary. The PDF properties PptxGenJS has
+no field for are a PdfLapas option, `options.pdfMetadata`, so the PptxGenJS-compatible surface stays as
+upstream:
+
+```typescript
+const pres = new PuppeteerGen(undefined, {
+    pdfMetadata: {
+        creator: "Acme Reports", // PDF /Creator, default "PdfLapas"
+        producer: "Acme Reports 4.2", // PDF /Producer, default "PdfLapas"
+        keywords: "q3, sales", // PDF /Keywords, written as given
+        creationDate: new Date("2026-11-19T12:00:00Z"), // PDF /CreationDate
+        modificationDate: new Date(), // PDF /ModDate
+    },
+});
+```
+
+Both backends write the same values. Dates are written in UTC to the second (`D:20261119120000Z`), so the
+output does not depend on the machine's time zone; with only one of the two dates, it is used for both, as a
+document saved once was created and last modified then. Without dates the PDF has none, so the same deck
+gives the same bytes; with them, the same deck and options still do. An empty string leaves a property at
+its default. The constructor throws a `TypeError` for a value of the wrong type or an unknown key, and a
+`RangeError` for an `Invalid Date` or a year outside 0 to 9999. The values travel through `getModel()`
+(dates as ISO strings) and `toHtml()` as meta tags ([HTML profile](./HTML_PROFILE.md#document-properties)).
+WASM also writes them to the XMP packet; Puppeteer writes no XMP.
+
 #### Methods
 
 - `addSlide(props?: AddSlideProps): PptxSlide`

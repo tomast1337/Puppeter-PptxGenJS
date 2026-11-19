@@ -56,9 +56,9 @@ root=$PWD
 # +1,580 B: run faces no registered font provides are reported with the objects asking for them and the fallback drawn instead (#287: the family check per run, the read-only MissingFont class across the wasm boundary), 1,052,782 -> 1,054,362 B measured; budget = that size.
 # +211 B: every PDF names PdfLapas as its /Creator and /Producer (#292: the Info entries and their XMP counterparts), 1,054,362 -> 1,054,573 B measured; budget = that size.
 # +235 B: synthetic bold and italic follow the run's data-synthetic-bold and data-synthetic-italic, Chromium's 1/32 em stroke and 0.25 shear when omitted (#290: the two attributes and their errors), 1,054,573 -> 1,054,808 B measured; budget = that size.
-# +259 B: synthetic bold and italic follow the run's data-synthetic-bold and data-synthetic-italic, Chromium's 1/32 em stroke and 0.25 shear when omitted (#290: the two attributes and their errors), 1,054,362 -> 1,054,621 B measured; budget = that size.
 # +69 B: a td must have padding 0px, the cell margin being its text's padding (#291: the check and its error message), 1,054,808 -> 1,054,877 B measured; budget = that size.
-GZIP_BUDGET=1054877
+# +2,288 B: the caller's Creator, Producer, Keywords and dates (pdfMetadata: the profile's ISO date reader and krilla's date and keyword writers, Info and XMP, now reachable), 1,054,877 -> 1,057,165 B measured; budget = that size.
+GZIP_BUDGET=1057165
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

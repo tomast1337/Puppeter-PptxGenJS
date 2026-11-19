@@ -114,7 +114,7 @@ export function presentationHtml(presentation: NormalizedPresentation, pass: Ren
 }
 
 /** Document properties: standard HTML where it has a name for one, `pdflapas-*` meta otherwise; empty ones are left out. */
-function metadataHtml({ title, author, subject, company, revision }: PresentationMetadata = {}): Html[] {
+function metadataHtml({ title, author, subject, company, revision, keywords, creator, producer, creationDate, modificationDate }: PresentationMetadata = {}): Html[] {
     const meta = (name: string, content: string | undefined) =>
         content
             ? [
@@ -125,7 +125,18 @@ function metadataHtml({ title, author, subject, company, revision }: Presentatio
               ]
             : [];
     // `description` is HTML's "free-form string describing the page", the PDF Subject's meaning (krilla writes it there too).
-    return [...(title ? [element("title", [], escapeText(title))] : []), ...meta("author", author), ...meta("description", subject), ...meta("pdflapas-company", company), ...meta("pdflapas-revision", revision)];
+    return [
+        ...(title ? [element("title", [], escapeText(title))] : []),
+        ...meta("author", author),
+        ...meta("description", subject),
+        ...meta("pdflapas-company", company),
+        ...meta("pdflapas-revision", revision),
+        ...meta("keywords", keywords),
+        ...meta("pdflapas-creator", creator),
+        ...meta("pdflapas-producer", producer),
+        ...meta("pdflapas-creation-date", creationDate),
+        ...meta("pdflapas-modification-date", modificationDate),
+    ];
 }
 
 /** The shared stylesheet: generated from the page size only. */

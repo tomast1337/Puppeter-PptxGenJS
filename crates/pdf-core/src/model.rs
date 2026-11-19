@@ -11,8 +11,10 @@ pub(crate) struct Presentation {
 }
 
 /// `PresentationMetadata`: `<title>`, `<meta name="author">`, `<meta name="description">` (the
-/// subject), `<meta name="pdflapas-company">` and `<meta name="pdflapas-revision">`. Read from
-/// profile version 2 only.
+/// subject), `<meta name="pdflapas-company">`, `<meta name="pdflapas-revision">`,
+/// `<meta name="keywords">`, `<meta name="pdflapas-creator">`, `<meta name="pdflapas-producer">`,
+/// `<meta name="pdflapas-creation-date">` and `<meta name="pdflapas-modification-date">`. Read
+/// from profile version 2 only.
 #[derive(Default)]
 pub(crate) struct Metadata {
     pub(crate) title: Option<String>,
@@ -20,6 +22,22 @@ pub(crate) struct Metadata {
     pub(crate) subject: Option<String>,
     pub(crate) company: Option<String>,
     pub(crate) revision: Option<String>,
+    pub(crate) keywords: Option<String>,
+    pub(crate) creator: Option<String>,
+    pub(crate) producer: Option<String>,
+    pub(crate) creation_date: Option<UtcDate>,
+    pub(crate) modification_date: Option<UtcDate>,
+}
+
+/// A date and time in UTC, to the second: the profile's ISO dates without their milliseconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct UtcDate {
+    pub(crate) year: u16,
+    pub(crate) month: u8,
+    pub(crate) day: u8,
+    pub(crate) hour: u8,
+    pub(crate) minute: u8,
+    pub(crate) second: u8,
 }
 
 pub(crate) struct PageSize {

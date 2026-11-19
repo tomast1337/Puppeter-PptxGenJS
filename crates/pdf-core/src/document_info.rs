@@ -1,24 +1,38 @@
-//! The document properties of the PDF. krilla writes Title, Author, Subject, Creator and Producer
-//! to the Info dictionary and the XMP packet; its metadata has no field for Company or Revision, so
-//! when the deck sets either, `with_custom_entries` appends an incremental update (ISO 32000-1
-//! 7.5.6) whose Info dictionary holds all seven, as the Puppeteer renderer does
-//! (`packages/puppeteer/src/pdfInfo.ts`).
+//! The document properties of the PDF. krilla writes Title, Author, Subject, Keywords, Creator,
+//! Producer and one date (as both CreationDate and ModDate) to the Info dictionary and the XMP
+//! packet; its metadata has no field for Company, Revision or a second date, so when the deck sets
+//! any of them, `with_custom_entries` appends an incremental update (ISO 32000-1 7.5.6) whose Info
+//! dictionary holds them all, as the Puppeteer renderer does (`packages/puppeteer/src/pdfInfo.ts`).
 
 use std::fmt::Write;
 
-use crate::model::Metadata;
+use crate::model::{Metadata, UtcDate};
 
-/// The /Creator and /Producer of every PDF, as PowerPoint's Save as PDF names itself in both.
-/// `PDF_PRODUCER` in `packages/model/src/renderer.ts` is the same string; tests/pdfMetadata.test.ts
-/// checks that the PDFs of both renderers carry it.
+/// The default /Creator and /Producer of every PDF, as PowerPoint's Save as PDF names itself in
+/// both. `PDF_PRODUCER` in `packages/model/src/renderer.ts` is the same string;
+/// tests/pdfMetadata.test.ts checks that the PDFs of both renderers carry it.
 pub(crate) const PRODUCER: &str = "PdfLapas";
 
-/// krilla's metadata for `metadata`: Title, Author and Subject (krilla's `description`, written as
-/// /Subject and dc:description) when set, and `PRODUCER` as Creator and Producer. No creation
-/// date, so the same deck gives the same bytes.
+/// The XMP element krilla (through xmp-writer) writes the modification date in.
+const XMP_MODIFY_DATE: &[u8] = b"<xmp:ModifyDate>";
+
+/// krilla's metadata for `metadata`: Title, Author, Subject (krilla's `description`, written as
+/// /Subject and dc:description) and Keywords when set, Creator and Producer (`PRODUCER` unless
+/// set), and the creation date, or the modification date without one. No date unless the deck
+/// sets one, so the same deck gives the same bytes.
 pub(crate) fn krilla_metadata(metadata: &Metadata) -> krilla::metadata::Metadata {
-    let Metadata { title, author, subject, .. } = metadata;
-    let mut pdf = krilla::metadata::Metadata::new().creator(PRODUCER.to_string()).producer(PRODUCER.to_string());
+    let Metadata {
+        title,
+        author,
+        subject,
+        keywords,
+        creator,
+        producer,
+        ..
+    } = metadata;
+    let mut pdf = krilla::metadata::Metadata::new()
+        .creator(creator.as_deref().unwrap_or(PRODUCER).to_string())
+        .producer(producer.as_deref().unwrap_or(PRODUCER).to_string());
     if let Some(title) = title {
         pdf = pdf.title(title.clone());
     }
@@ -28,13 +42,36 @@ pub(crate) fn krilla_metadata(metadata: &Metadata) -> krilla::metadata::Metadata
     if let Some(subject) = subject {
         pdf = pdf.description(subject.clone());
     }
+    if let Some(keywords) = keywords {
+        // One item: krilla joins the list with ", ", so the deck's string is written as given.
+        pdf = pdf.keywords(vec![keywords.clone()]);
+    }
+    if let Some((created, _)) = dates(metadata) {
+        // No UTC offset: krilla then writes `Z`, in the PDF date and in XMP.
+        pdf = pdf.creation_date(
+            krilla::metadata::DateTime::new(created.year)
+                .month(created.month)
+                .day(created.day)
+                .hour(created.hour)
+                .minute(created.minute)
+                .second(created.second),
+        );
+    }
     pdf
 }
 
+/// The creation and modification dates: either one alone is both, as krilla has a single date.
+fn dates(metadata: &Metadata) -> Option<(UtcDate, UtcDate)> {
+    let created = metadata.creation_date.or(metadata.modification_date)?;
+    Some((created, metadata.modification_date.unwrap_or(created)))
+}
+
 /// `pdf` (krilla's output) with an incremental update whose Info dictionary holds every property of
-/// `metadata` and `PRODUCER`, including the non-standard /Company and /Revision (14.3.3 allows other keys). XMP has
-/// no standard property for either and krilla writes no custom ones, so they are in the Info
-/// dictionary only. Without a company or revision, returns `pdf` unchanged.
+/// `metadata`, including the non-standard /Company and /Revision (14.3.3 allows other keys) and a
+/// modification date that differs from the creation date, which krilla cannot write. XMP has no
+/// standard property for Company or Revision and krilla writes no custom ones, so they are in the
+/// Info dictionary only; a differing modification date replaces krilla's `xmp:ModifyDate` in place
+/// (same length, so no offset moves). Without any of them, returns `pdf` unchanged.
 pub(crate) fn with_custom_entries(mut pdf: Vec<u8>, metadata: &Metadata) -> Result<Vec<u8>, String> {
     let Metadata {
         title,
@@ -42,11 +79,28 @@ pub(crate) fn with_custom_entries(mut pdf: Vec<u8>, metadata: &Metadata) -> Resu
         subject,
         company,
         revision,
+        keywords,
+        creator,
+        producer,
+        ..
     } = metadata;
-    if company.is_none() && revision.is_none() {
+    let dates = dates(metadata);
+    let modified = dates.and_then(|(created, modified)| (created != modified).then_some(modified));
+    if company.is_none() && revision.is_none() && modified.is_none() {
         return Ok(pdf);
     }
-    let fail = |problem: &str| format!("cannot add Company and Revision to the PDF: krilla's output {problem}");
+    let fail = |problem: &str| format!("cannot write the document properties to the PDF: krilla's output {problem}");
+    if let Some(modified) = modified {
+        let start = rfind(&pdf, XMP_MODIFY_DATE).ok_or_else(|| fail("has no xmp:ModifyDate"))? + XMP_MODIFY_DATE.len();
+        let value = xmp_date(modified);
+        let end = start + value.len();
+        if pdf.get(end..).is_none_or(|rest| !rest.starts_with(b"</xmp:ModifyDate>")) {
+            return Err(fail("has an xmp:ModifyDate in another format"));
+        }
+        pdf.get_mut(start..end)
+            .ok_or_else(|| fail("has no xmp:ModifyDate"))?
+            .copy_from_slice(value.as_bytes());
+    }
     let startxref = rfind(&pdf, b"startxref").ok_or_else(|| fail("has no startxref"))?;
     let trailer = rfind(pdf.get(..startxref).unwrap_or_default(), b"trailer").ok_or_else(|| fail("has no trailer"))?;
     let tail = pdf
@@ -73,12 +127,16 @@ pub(crate) fn with_custom_entries(mut pdf: Vec<u8>, metadata: &Metadata) -> Resu
         ("Subject", subject.as_deref()),
         ("Company", company.as_deref()),
         ("Revision", revision.as_deref()),
-        ("Creator", Some(PRODUCER)),
-        ("Producer", Some(PRODUCER)),
+        ("Keywords", keywords.as_deref()),
+        ("Creator", Some(creator.as_deref().unwrap_or(PRODUCER))),
+        ("Producer", Some(producer.as_deref().unwrap_or(PRODUCER))),
     ] {
         if let Some(value) = value {
             let _ = write!(info, "/{key}{}", text_string(value)); // writing to a String cannot fail
         }
+    }
+    if let Some((created, modified)) = dates {
+        let _ = write!(info, "/CreationDate{}/ModDate{}", pdf_date(created), pdf_date(modified)); // as above
     }
     let object = format!("\n{size} 0 obj\n<<{info}>>\nendobj\n");
     let object_offset = pdf.len() + 1;
@@ -89,6 +147,32 @@ pub(crate) fn with_custom_entries(mut pdf: Vec<u8>, metadata: &Metadata) -> Resu
     );
     pdf.extend_from_slice(update.as_bytes());
     Ok(pdf)
+}
+
+/// A PDF date string (7.9.4) in UTC, as krilla's pdf-writer writes it: `(D:YYYYMMDDHHmmSSZ)`.
+fn pdf_date(date: UtcDate) -> String {
+    let UtcDate {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+    } = date;
+    format!("(D:{year:04}{month:02}{day:02}{hour:02}{minute:02}{second:02}Z)")
+}
+
+/// An XMP date in UTC, as krilla's xmp-writer writes it: `YYYY-MM-DDTHH:mm:ssZ`.
+fn xmp_date(date: UtcDate) -> String {
+    let UtcDate {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+    } = date;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 /// The offset of the last `needle` in `haystack`.
@@ -157,7 +241,7 @@ mod tests {
         assert_eq!(with_custom_entries(b"x".to_vec(), &metadata(None)).unwrap(), b"x");
         assert_eq!(
             with_custom_entries(b"x".to_vec(), &metadata(Some("Acme"))).unwrap_err(),
-            "cannot add Company and Revision to the PDF: krilla's output has no startxref"
+            "cannot write the document properties to the PDF: krilla's output has no startxref"
         );
     }
 }

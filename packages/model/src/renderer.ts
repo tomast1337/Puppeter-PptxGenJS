@@ -1,7 +1,8 @@
 import type { PageSize } from "./types";
 
 /**
- * The /Creator and /Producer every renderer writes to the PDF Info dictionary, as PowerPoint's Save as PDF names
+ * The /Creator and /Producer every renderer writes to the PDF Info dictionary unless the document sets its own
+ * (`PresentationMetadata.creator`, `producer`), as PowerPoint's Save as PDF names
  * itself in both. No version: a release would change every PDF's bytes (tests/visual/wasm/pdf-sha256.json), and the
  * crates have no version of their own. `crates/pdf-core/src/document_info.rs` keeps the same string as `PRODUCER`.
  */

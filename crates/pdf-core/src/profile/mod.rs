@@ -21,7 +21,7 @@ mod text;
 use dom::{Dom, Element};
 use style::{Style, integer, number, split_top_level};
 
-use crate::model::{Metadata, PageSize, Presentation, Slide, SlideObject};
+use crate::model::{Metadata, PageSize, Presentation, Slide, SlideObject, UtcDate};
 
 /// The profile version this reader implements (`<meta name="pdflapas-profile" content="2">`). It also
 /// reads version 1, whose documents have no metadata: version 2 only added `<title>` and the
@@ -104,6 +104,13 @@ fn read_head(dom: &Dom<'_>, head: &Element<'_>) -> Result<Head, String> {
                     Some("description") => set_once(&mut metadata.subject, r#"<meta name="description">"#, content()?)?,
                     Some("pdflapas-company") => set_once(&mut metadata.company, r#"<meta name="pdflapas-company">"#, content()?)?,
                     Some("pdflapas-revision") => set_once(&mut metadata.revision, r#"<meta name="pdflapas-revision">"#, content()?)?,
+                    Some("keywords") => set_once(&mut metadata.keywords, r#"<meta name="keywords">"#, content()?)?,
+                    Some("pdflapas-creator") => set_once(&mut metadata.creator, r#"<meta name="pdflapas-creator">"#, content()?)?,
+                    Some("pdflapas-producer") => set_once(&mut metadata.producer, r#"<meta name="pdflapas-producer">"#, content()?)?,
+                    Some("pdflapas-creation-date") => set_date_once(&mut metadata.creation_date, r#"<meta name="pdflapas-creation-date">"#, &content()?)?,
+                    Some("pdflapas-modification-date") => {
+                        set_date_once(&mut metadata.modification_date, r#"<meta name="pdflapas-modification-date">"#, &content()?)?
+                    }
                     _ => {}
                 }
             }
@@ -154,6 +161,60 @@ fn set_once(field: &mut Option<String>, element: &str, value: String) -> Result<
     }
     *field = Some(value).filter(|v| !v.is_empty());
     Ok(())
+}
+
+/// Stores a date read from `element`; a second element for the same date is an error.
+fn set_date_once(field: &mut Option<UtcDate>, element: &str, value: &str) -> Result<(), String> {
+    if field.is_some() {
+        return Err(format!("<head> has more than one {element}"));
+    }
+    *field = Some(utc_date(value).map_err(|e| format!("{element}: {e}"))?);
+    Ok(())
+}
+
+/// A profile date: UTC as `Date.prototype.toISOString()` writes it, `YYYY-MM-DDTHH:mm:ss.sssZ`, the
+/// milliseconds optional and dropped (a PDF date stops at the second).
+fn utc_date(text: &str) -> Result<UtcDate, String> {
+    let fail = || format!("'{text}' is not a UTC date such as 2026-11-19T12:34:56.000Z");
+    let (main, fraction) = text.strip_suffix('Z').and_then(|t| t.split_at_checked(19)).ok_or_else(fail)?;
+    let fraction_ok = fraction.is_empty()
+        || fraction
+            .strip_prefix('.')
+            .is_some_and(|digits| (1..=3).contains(&digits.len()) && digits.bytes().all(|b| b.is_ascii_digit()));
+    let separators_ok = [(4, b'-'), (7, b'-'), (10, b'T'), (13, b':'), (16, b':')]
+        .iter()
+        .all(|&(at, separator)| main.as_bytes().get(at) == Some(&separator));
+    if !fraction_ok || !separators_ok {
+        return Err(fail());
+    }
+    let field = |from: usize, to: usize, min: u8, max: u8| {
+        main.get(from..to)
+            .filter(|digits| digits.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|digits| digits.parse::<u8>().ok())
+            .filter(|value| (min..=max).contains(value))
+            .ok_or_else(fail)
+    };
+    let year = main
+        .get(..4)
+        .filter(|digits| digits.bytes().all(|b| b.is_ascii_digit()))
+        .and_then(|digits| digits.parse::<u16>().ok())
+        .ok_or_else(fail)?;
+    let month = field(5, 7, 1, 12)?;
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    Ok(UtcDate {
+        year,
+        month,
+        day: field(8, 10, 1, days)?,
+        hour: field(11, 13, 0, 23)?,
+        minute: field(14, 16, 0, 59)?,
+        second: field(17, 19, 0, 59)?,
+    })
 }
 
 /// The `size` of a stylesheet's `@page` rule, in inches.
@@ -291,18 +352,56 @@ pub(crate) mod tests {
     #[test]
     fn reads_the_metadata_of_version_2() {
         let head = r#"<title>  Q3 &amp;
- plan </title><meta name="author" content="Ana &quot;A&quot;"><meta name="description" content="Sales"><meta name="pdflapas-company" content="Co"><meta name="pdflapas-revision" content="4">"#;
+ plan </title><meta name="author" content="Ana &quot;A&quot;"><meta name="description" content="Sales"><meta name="pdflapas-company" content="Co"><meta name="pdflapas-revision" content="4"><meta name="keywords" content="q3, é"><meta name="pdflapas-creator" content="App"><meta name="pdflapas-producer" content="Lib"><meta name="pdflapas-creation-date" content="2024-02-29T23:59:58.123Z"><meta name="pdflapas-modification-date" content="2026-11-19T00:00:00Z">"#;
         let Metadata {
             title,
             author,
             subject,
             company,
             revision,
+            keywords,
+            creator,
+            producer,
+            creation_date,
+            modification_date,
         } = parse(&with_head("2", head)).map(|p| p.metadata).unwrap();
         assert_eq!(title.as_deref(), Some("Q3 & plan"));
         assert_eq!(author.as_deref(), Some(r#"Ana "A""#));
         assert_eq!((company.as_deref(), revision.as_deref()), (Some("Co"), Some("4")));
         assert_eq!(subject.as_deref(), Some("Sales"));
+        assert_eq!(
+            (keywords.as_deref(), creator.as_deref(), producer.as_deref()),
+            (Some("q3, é"), Some("App"), Some("Lib"))
+        );
+        let date = |year, month, day, hour, minute, second| UtcDate {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        };
+        assert_eq!(creation_date, Some(date(2024, 2, 29, 23, 59, 58)));
+        assert_eq!(modification_date, Some(date(2026, 11, 19, 0, 0, 0)));
+        for bad in [
+            "2026-11-19",
+            "2026-11-19T00:00:00",
+            "2026-11-19T00:00:00+01:00",
+            "2026-11-19T00:00:00.1234Z",
+            "2025-02-29T00:00:00Z",
+            "2026-13-01T00:00:00Z",
+            "2026-11-19T24:00:00Z",
+            "+12026-11-19T00:00:00Z",
+            "2026-11-19T00:00:0éZ",
+        ] {
+            let error = parse(&with_head("2", &format!(r#"<meta name="pdflapas-creation-date" content="{bad}">"#)))
+                .err()
+                .unwrap_or_default();
+            assert_eq!(
+                error,
+                format!(r#"<meta name="pdflapas-creation-date">: '{bad}' is not a UTC date such as 2026-11-19T12:34:56.000Z"#)
+            );
+        }
 
         let empty = parse(&with_head("2", r#"<title></title><meta name="author" content="">"#)).unwrap().metadata;
         assert!(empty.title.is_none() && empty.author.is_none() && empty.subject.is_none());

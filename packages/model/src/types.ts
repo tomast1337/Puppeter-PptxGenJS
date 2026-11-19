@@ -373,7 +373,8 @@ export interface NormalizedSlide {
 
 /**
  * Document properties, as PptxGenJS writes them to docProps/core.xml (title, subject, author as dc:creator, revision)
- * and docProps/app.xml (company). An absent or empty one is not written: no element in the HTML, no entry in the PDF.
+ * and docProps/app.xml (company), plus the PDF-only ones PptxGenJS has no field for (`PuppeteerGenOptions.pdfMetadata`).
+ * An absent or empty one is not written: no element in the HTML, no entry in the PDF.
  */
 export interface PresentationMetadata {
     title?: string;
@@ -381,6 +382,15 @@ export interface PresentationMetadata {
     subject?: string;
     company?: string;
     revision?: string;
+    keywords?: string;
+    /** The PDF /Creator; renderers write `PDF_PRODUCER` without one. */
+    creator?: string;
+    /** The PDF /Producer; renderers write `PDF_PRODUCER` without one. */
+    producer?: string;
+    /** UTC, as `Date.prototype.toISOString()` writes it (`2026-11-19T12:34:56.000Z`). */
+    creationDate?: string;
+    /** UTC, as `creationDate`. */
+    modificationDate?: string;
 }
 
 export interface NormalizedPresentation {

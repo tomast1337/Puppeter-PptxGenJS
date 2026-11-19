@@ -134,9 +134,12 @@ From the maintainer's decisions on #69:
 ### Document properties
 
 Version 2. The presentation's `title`, `author`, `subject`, `company` and `revision`
-(`PresentationMetadata`), which PptxGenJS writes to `docProps/core.xml` and `docProps/app.xml`. Standard
-HTML holds a value where it has a name for it; each element is left out when its value is empty or absent,
-and appears at most once.
+(`PresentationMetadata`), which PptxGenJS writes to `docProps/core.xml` and `docProps/app.xml`, and the PDF
+properties PptxGenJS has no field for, set through `PuppeteerGenOptions.pdfMetadata` (`keywords`,
+`creator`, `producer`, `creationDate`, `modificationDate`). Standard HTML holds a value where it has a name
+for it, a `pdflapas-*` meta tag otherwise; each element is left out when its value is empty or absent, and
+appears at most once. The `pdfMetadata` tags were added to version 2 in place, still unreleased: a reader
+that does not know them ignores them, as it ignores any other meta name.
 
 | Property   | PptxGenJS (its default, not written by PdfLapas)   | HTML                              | PDF Info dictionary (both renderers) | WASM also writes XMP |
 | ---------- | -------------------------------------------------- | --------------------------------- | ------------------------------------ | -------------------- |
@@ -145,6 +148,14 @@ and appears at most once.
 | `subject`  | `dc:subject` (`PptxGenJS Presentation`)            | `<meta name="description">`       | `/Subject`                           | `dc:description`     |
 | `company`  | app.xml `Company` (`PptxGenJS`)                    | `<meta name="pdflapas-company">`  | `/Company` (custom key)              | none                 |
 | `revision` | `cp:revision` (`1`)                                | `<meta name="pdflapas-revision">` | `/Revision` (custom key)             | none                 |
+
+| `pdfMetadata` property | HTML                                       | PDF Info dictionary (both renderers)  | WASM also writes XMP |
+| ---------------------- | ------------------------------------------ | ------------------------------------- | -------------------- |
+| `keywords`             | `<meta name="keywords">`                   | `/Keywords`                           | `pdf:Keywords`       |
+| `creator`              | `<meta name="pdflapas-creator">`           | `/Creator` (`PdfLapas` without it)    | `xmp:CreatorTool`    |
+| `producer`             | `<meta name="pdflapas-producer">`          | `/Producer` (`PdfLapas` without it)   | `pdf:Producer`       |
+| `creationDate`         | `<meta name="pdflapas-creation-date">`     | `/CreationDate` (`D:YYYYMMDDHHmmSSZ`) | `xmp:CreateDate`     |
+| `modificationDate`     | `<meta name="pdflapas-modification-date">` | `/ModDate` (`D:YYYYMMDDHHmmSSZ`)      | `xmp:ModifyDate`     |
 
 - **Only what the deck sets.** PptxGenJS fills every property with its own name when the caller sets
   none; those values brand the file rather than describe it, so `toHtml()` writes no element for a property
@@ -158,17 +169,23 @@ and appears at most once.
   custom XMP, so neither renderer writes them to XMP. LibreOffice's PDF export of the PptxGenJS `.pptx`
   writes neither, so the visual reference has none.
 - **The title is read as `document.title`:** ASCII whitespace stripped and collapsed.
-- **Creator and Producer are `PdfLapas`.** PowerPoint's Save as PDF names itself in both (`Microsoft®
+- **Creator and Producer are `PdfLapas` by default.** PowerPoint's Save as PDF names itself in both (`Microsoft®
 PowerPoint® for Microsoft 365`), so both renderers write `PDF_PRODUCER` (`@pdflapas/model`; the Rust
   `PRODUCER` in `crates/pdf-core/src/document_info.rs` is checked against it) as `/Creator` and `/Producer`
-  of every PDF, with or without document properties. It carries no version, so a release does not change
-  every PDF's bytes.
-- **No dates.** PowerPoint writes `/CreationDate` and `/ModDate`; neither renderer does, so the same deck
-  gives the same Info dictionary on every run (and the same bytes from WASM). Chromium's own dates are in
-  the superseded dictionary only.
+  of every PDF that sets no `pdflapas-creator` or `pdflapas-producer`. It carries no version, so a release
+  does not change every PDF's bytes.
+- **Dates only when the deck sets them.** PowerPoint writes `/CreationDate` and `/ModDate`; neither
+  renderer does unless the document has `pdflapas-creation-date` or `pdflapas-modification-date`, so the same
+  deck gives the same Info dictionary on every run (and the same bytes from WASM). Their content is UTC as
+  `Date.prototype.toISOString()` writes it, `YYYY-MM-DDTHH:mm:ss.sssZ` (the milliseconds optional); any
+  other form, an offset included, is an error in both renderers. The PDF dates are UTC to the second,
+  `D:YYYYMMDDHHmmSSZ`, so they do not depend on the time zone of the machine that renders. With one date,
+  both renderers write it as both `/CreationDate` and `/ModDate` (krilla has a single date for both).
+  Chromium's own dates are in the superseded dictionary only.
 - **Each renderer writes the same Info dictionary.** WASM sets krilla's metadata (Info dictionary and XMP
-  packet) from a version 2 document; when it has a company or revision, `crates/pdf-core/src/document_info.rs`
-  appends an incremental update (ISO 32000-1 7.5.6) whose Info dictionary holds all seven entries.
+  packet) from a version 2 document; when it has a company, a revision or two different dates,
+  `crates/pdf-core/src/document_info.rs` appends an incremental update (ISO 32000-1 7.5.6) whose Info
+  dictionary holds every entry, and replaces krilla's `xmp:ModifyDate` in place with the modification date.
   Chromium writes `/Title` from `<title>` and its own Creator, Producer and dates; the Puppeteer renderer
   appends an incremental update (`packages/puppeteer/src/pdfInfo.ts`) whose Info dictionary replaces
   Chromium's with the title, the meta tags of any HTML it prints and the Creator and Producer. It writes no
@@ -581,23 +598,28 @@ object-valued field covers the field's presence; its own fields have their own r
 
 ### Presentation and slides
 
-| Field                             | Status  | HTML                                                                         |
-| --------------------------------- | ------- | ---------------------------------------------------------------------------- |
-| `NormalizedPresentation.pageSize` | profile | Stylesheet `@page` and `.slide-container` size.                              |
-| `PageSize.width`                  | profile | `@page { size: <width>in … }`; `.slide-container { width: <width × 96>px }`. |
-| `PageSize.height`                 | profile | `@page { size: … <height>in }`; `.slide-container { height }`.               |
-| `PageSize.name`                   | profile | `<meta name="pdflapas-page-size" content="<name>">` in the head.             |
-| `NormalizedPresentation.slides`   | profile | One `div.slide-container#slide-N` per slide that is not hidden, in order.    |
-| `NormalizedPresentation.metadata` | profile | The [document properties](#document-properties) in the head (version 2).     |
-| `PresentationMetadata.title`      | profile | `<title>`.                                                                   |
-| `PresentationMetadata.author`     | profile | `<meta name="author" content>`.                                              |
-| `PresentationMetadata.subject`    | profile | `<meta name="description" content>`.                                         |
-| `PresentationMetadata.company`    | profile | `<meta name="pdflapas-company" content>`.                                    |
-| `PresentationMetadata.revision`   | profile | `<meta name="pdflapas-revision" content>`.                                   |
-| `NormalizedSlide.background`      | profile | `.slide-container` `background-color`.                                       |
-| `NormalizedSlide.color`           | profile | `.slide-container` custom property `--slide-text-color` (verbatim).          |
-| `NormalizedSlide.hidden`          | profile | A hidden slide has no `.slide-container`; the others keep their number N.    |
-| `NormalizedSlide.objects`         | profile | The container's `.slide-element` children, in paint order.                   |
+| Field                                   | Status  | HTML                                                                         |
+| --------------------------------------- | ------- | ---------------------------------------------------------------------------- |
+| `NormalizedPresentation.pageSize`       | profile | Stylesheet `@page` and `.slide-container` size.                              |
+| `PageSize.width`                        | profile | `@page { size: <width>in … }`; `.slide-container { width: <width × 96>px }`. |
+| `PageSize.height`                       | profile | `@page { size: … <height>in }`; `.slide-container { height }`.               |
+| `PageSize.name`                         | profile | `<meta name="pdflapas-page-size" content="<name>">` in the head.             |
+| `NormalizedPresentation.slides`         | profile | One `div.slide-container#slide-N` per slide that is not hidden, in order.    |
+| `NormalizedPresentation.metadata`       | profile | The [document properties](#document-properties) in the head (version 2).     |
+| `PresentationMetadata.title`            | profile | `<title>`.                                                                   |
+| `PresentationMetadata.author`           | profile | `<meta name="author" content>`.                                              |
+| `PresentationMetadata.subject`          | profile | `<meta name="description" content>`.                                         |
+| `PresentationMetadata.company`          | profile | `<meta name="pdflapas-company" content>`.                                    |
+| `PresentationMetadata.revision`         | profile | `<meta name="pdflapas-revision" content>`.                                   |
+| `PresentationMetadata.keywords`         | profile | `<meta name="keywords" content>`.                                            |
+| `PresentationMetadata.creator`          | profile | `<meta name="pdflapas-creator" content>`.                                    |
+| `PresentationMetadata.producer`         | profile | `<meta name="pdflapas-producer" content>`.                                   |
+| `PresentationMetadata.creationDate`     | profile | `<meta name="pdflapas-creation-date" content>` (UTC ISO).                    |
+| `PresentationMetadata.modificationDate` | profile | `<meta name="pdflapas-modification-date" content>` (UTC ISO).                |
+| `NormalizedSlide.background`            | profile | `.slide-container` `background-color`.                                       |
+| `NormalizedSlide.color`                 | profile | `.slide-container` custom property `--slide-text-color` (verbatim).          |
+| `NormalizedSlide.hidden`                | profile | A hidden slide has no `.slide-container`; the others keep their number N.    |
+| `NormalizedSlide.objects`               | profile | The container's `.slide-element` children, in paint order.                   |
 
 ### Slide object variants
 
