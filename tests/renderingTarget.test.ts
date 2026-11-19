@@ -471,6 +471,8 @@ describe("rendering targets", () => {
 });
 
 describe("rendering targets in Chromium", () => {
+    // The kerning cases compare natural advances, so the PowerPoint advance grid (tests/advanceGrid.test.ts) stays off.
+    const NATURAL_ADVANCES = { resolveGlyphAdvances: null };
     // Every case from the visual fixture: its box is narrower than the unkerned line and wider than the kerned one.
     function kerningDeck(presentation: PuppeteerGen, wrap: boolean): PuppeteerGen {
         presentation.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
@@ -542,7 +544,7 @@ describe("rendering targets in Chromium", () => {
     });
 
     test("with the PowerPoint target a line under 12pt is the sum of its unkerned advances; from 12pt it is kerned as with LibreOffice", async () => {
-        const powerPoint = await measure(kerningDeck(new PuppeteerGenPowerPoint(), false));
+        const powerPoint = await measure(kerningDeck(new PuppeteerGenPowerPoint(undefined, NATURAL_ADVANCES), false));
         const libreOffice = await measure(kerningDeck(new PuppeteerGenLibreOffice(), false));
         expect(powerPoint).toHaveLength(KERNING_CASES.length);
         for (const [index, { options }] of KERNING_CASES.entries()) {
@@ -557,7 +559,7 @@ describe("rendering targets in Chromium", () => {
 
     test("a line that fits its box kerned wraps with the PowerPoint target under 12pt when the font kerns it", async () => {
         const unwrapped = await measure(kerningDeck(new PuppeteerGenLibreOffice(), false));
-        const powerPoint = await measure(kerningDeck(new PuppeteerGenPowerPoint(), true));
+        const powerPoint = await measure(kerningDeck(new PuppeteerGenPowerPoint(undefined, NATURAL_ADVANCES), true));
         const libreOffice = await measure(kerningDeck(new PuppeteerGenLibreOffice(), true));
         for (const [index, { fontSize, w }] of KERNING_CASES.map(({ options }) => options).entries()) {
             const kerned = unwrapped[index]!;

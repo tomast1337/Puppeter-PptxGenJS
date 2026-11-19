@@ -25,6 +25,8 @@ export const PPTX_DEFAULTS = Object.freeze({
         emuPerPoint: 12700,
         // `<a:spcPts val>`, which PptxGenJS writes as Math.round(points * 100) for paragraph and line spacing.
         spacingPointsPerPoint: 100,
+        // PowerPoint's grid for each glyph's advance width: 1/576 in, 0.125pt (RENDERING_TARGETS.powerpoint.advanceGridPt).
+        powerPointAdvanceGridPerInch: 576,
     }),
     presentation: Object.freeze({
         layout: "LAYOUT_16x9",
@@ -391,6 +393,8 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * height, so a paragraph ending in a large superscript, or the empty one after its last line feed, has a full line.
  * `spacingWholePoints`: whether `paraSpaceBefore`, `paraSpaceAfter` and point `lineSpacing` (`<a:spcPts>`) are rounded
  * half-up to whole points, each value on its own.
+ * `advanceGridPt`: the grid each glyph's advance width (hmtx advance x size / unitsPerEm) is rounded to, to the nearest
+ * step, before it lays text out; undefined lays it out with the natural advances.
  */
 export const RENDERING_TARGETS = Object.freeze({
     /**
@@ -415,6 +419,7 @@ export const RENDERING_TARGETS = Object.freeze({
         spacingWholePoints: false,
         escapementSizeRatio: 0.58,
         fullSizeMark: false,
+        advanceGridPt: undefined,
     }),
     /**
      * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
@@ -456,6 +461,14 @@ export const RENDERING_TARGETS = Object.freeze({
      * the line's baseline 4.3pt below a plain line's (2/3 gives 4.24, 0.58 gave 2.21). The paragraph mark keeps the
      * full size (`fullSizeMark`): a paragraph whose only run is a 24pt superscript is 28.8pt tall (12pt lines around it
      * 43.2pt apart), and the empty paragraph left after a 12pt superscript run ending in a line feed is 14.4pt tall.
+     * It lays text out with each glyph's advance width rounded to 1/576 in, 0.125pt (`advanceGridPt`), spaces included,
+     * at the run's font size, then places word starts on a 1/600 in grid: measured against its PDF export of synthetic
+     * decks (Arial and Calibri, 8, 9, 10 and 12pt, regular and bold, lines about 700pt long), word starts fit the rounded
+     * advances with a residual sd of 0.07-0.25pt against 0.2-1.2pt for the natural ones (a 1/600, 1/1200, 1/1440, 1/96 or
+     * 1/72 in grid, floor or ceiling, and hinted advances at 72-1200 dpi fit worse). Arial 8pt's space, 2.222pt, takes
+     * 2.25pt. Pair kerning still applies from 12pt (`readsKern`); whether it rounds kerning values too was not measured,
+     * so they stay unrounded. Inside a word it draws glyphs at hinted 600 dpi widths, which never moves a word start or a
+     * line break, so the PDF does not copy them. Wrapping tests the line without its trailing space against the box.
      */
     powerpoint: Object.freeze({
         readsKern: true,
@@ -469,6 +482,7 @@ export const RENDERING_TARGETS = Object.freeze({
         spacingWholePoints: true,
         escapementSizeRatio: 2 / 3,
         fullSizeMark: true,
+        advanceGridPt: PPTX_DEFAULTS.units.pointsPerInch / PPTX_DEFAULTS.units.powerPointAdvanceGridPerInch,
     }),
 });
 export type RenderingTarget = keyof typeof RENDERING_TARGETS;
@@ -489,7 +503,18 @@ export interface FontWinMetrics {
 /** Font metrics keyed by lower-case face name. */
 export type FontMetricsTable = Readonly<Record<string, FontWinMetrics>>;
 /** A face's metrics by face name, or undefined when they are not known. */
-export type FontMetricsLookup = (fontFace: string) => FontWinMetrics | undefined;
+export interface FontMetricsLookup {
+    (fontFace: string): FontWinMetrics | undefined;
+    /** The advances of a face in a weight and style, for `advanceGridPt`; missing, or undefined for a face, lays it out with the natural advances. */
+    readonly glyphAdvances?: GlyphAdvanceLookup;
+}
+/** A font's head.unitsPerEm and each character's hmtx advance width in those units, keyed by Unicode code point. */
+export interface GlyphAdvances {
+    readonly unitsPerEm: number;
+    readonly advances: ReadonlyMap<number, number>;
+}
+/** A face's advances in a weight and style, or undefined when they are not known. */
+export type GlyphAdvanceLookup = (fontFace: string, bold: boolean, italic: boolean) => GlyphAdvances | undefined;
 
 /**
  * OS/2 usWinAscent and usWinDescent of common Office fonts, in units of `unitsPerEm`, keyed by lower-case face name:

@@ -148,6 +148,24 @@ which reads the installed font's `kern` and GPOS tables on Node, else
 `FONT_WIN_METRICS`, which says `true` for Arial and Calibri); a face none of
 them knows is kerned from 12pt.
 
+PowerPoint lays text out with each glyph's advance width (its `hmtx` advance
+times the font size over `unitsPerEm`) rounded to the nearest 0.125pt, 1/576
+in, spaces included, then puts word starts on a 1/600 in grid. Measured
+against its PDF export of synthetic decks (Arial and Calibri, 8 to 12pt,
+regular and bold, lines about 700pt long), the rounded advances fit its word
+starts with a residual of 0.07 to 0.25pt (sd), the natural ones 0.2 to 1.2pt;
+on a long line the difference reaches about 0.5%, which moves line breaks.
+Pair kerning from 12pt still applies; whether PowerPoint rounds kerning values
+too was not measured, so they stay as they are. The PowerPoint target adds the
+rounding of a run's advances, spread evenly over its characters, to its
+`letter-spacing` (`RENDERING_TARGETS.powerpoint.advanceGridPt`), from the
+advances of the face, weight and style `resolveGlyphAdvances` finds (on Node by
+default the installed font). A run in a face it does not find keeps the natural
+advances, as does every run of the LibreOffice target. Word starts inside a run
+can be off the grid by up to 0.2 to 0.5pt (the run's end is exact), and the
+1/600 in word-start grid and PowerPoint's hinted glyph widths inside a word are
+not reproduced.
+
 Two paragraphs are `paraSpaceAfter` of the first plus `paraSpaceBefore` of the
 second apart in PowerPoint, and the PowerPoint target adds them the same way.
 The LibreOffice target keeps only the larger of the two, as CSS margins collapse.
