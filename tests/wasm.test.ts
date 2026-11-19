@@ -12,7 +12,7 @@ import { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint } from ".
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { completeProfileHtml, pptxHtmlDocument } from "../packages/pptxgenjs/src/render/completion";
-import { loadSystemFonts as browserLoadSystemFonts, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
+import { loadSystemFonts as browserLoadSystemFonts, type MissingFontBinding, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
@@ -52,6 +52,9 @@ class FakeBinding implements TextPdfBinding {
     }
     warnings(): string[] {
         return this.skipped;
+    }
+    missingFonts(): MissingFontBinding[] {
+        return [];
     }
 }
 

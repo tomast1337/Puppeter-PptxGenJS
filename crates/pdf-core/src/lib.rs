@@ -39,6 +39,7 @@ use crate::model::{Presentation, SlideObject, TextFit};
 use crate::path::rect_path;
 use crate::table::TableLayout;
 use crate::text::draw::LinkQuad;
+pub use crate::text::font::MissingFont;
 use crate::text::layout::{BoxLayout, Brush};
 
 /// Model page sizes are in inches; PDF user space is in points.
@@ -53,6 +54,8 @@ pub struct Renderer {
     layout_cx: LayoutContext<Brush>,
     pdf_fonts: HashMap<(u64, u32), Font>,
     warnings: BTreeSet<String>,
+    /// Run faces of the current render that no registered font provides (`text::font`).
+    missing_fonts: Vec<MissingFont>,
     /// Images of the current render by data URI: each distinct picture is decoded once per
     /// document however often it repeats. Cleared per render so a renderer does not pin old images.
     images: HashMap<String, Picture>,
@@ -100,6 +103,7 @@ impl Renderer {
             layout_cx: LayoutContext::new(),
             pdf_fonts: HashMap::new(),
             warnings: BTreeSet::new(),
+            missing_fonts: Vec::new(),
             images: HashMap::new(),
             image_pixels: 0,
             page_slides: Vec::new(),
@@ -142,6 +146,13 @@ impl Renderer {
         self.warnings.iter().cloned().collect()
     }
 
+    /// Run faces of the last rendered document that no registered font provides, in the order
+    /// the document first uses them. Kept out of `warnings()`: the text is drawn, in a fallback
+    /// face, and `@pdflapas/wasm` applies its own `onMissingFont` policy to them.
+    pub fn missing_fonts(&self) -> &[MissingFont] {
+        &self.missing_fonts
+    }
+
     /// Renders a PdfLapas HTML profile document (`toHtml()`, docs/HTML_PROFILE.md): parses it into
     /// the `model` structs once, then draws them.
     pub fn render_html(&mut self, html: &str) -> Result<Vec<u8>, String> {
@@ -150,9 +161,10 @@ impl Renderer {
         self.draw_presentation(&model)
     }
 
-    /// Forgets the previous render's warnings, images and links.
+    /// Forgets the previous render's warnings, missing fonts, images and links.
     fn reset(&mut self) {
         self.warnings.clear();
+        self.missing_fonts.clear();
         self.images.clear();
         self.image_pixels = 0;
         self.links.clear();
@@ -165,6 +177,7 @@ impl Renderer {
         }
         let page_size = Size::from_wh(model.page_size.width * PT_PER_IN, model.page_size.height * PT_PER_IN).ok_or("invalid page size")?;
         let (page_w, page_h) = (model.page_size.width * PX_PER_IN, model.page_size.height * PX_PER_IN);
+        self.find_missing_fonts(model);
         self.page_slides.clear();
         self.page_slides
             .extend(model.slides.iter().zip(1..).map(|(slide, position)| slide.number.unwrap_or(position)));

@@ -5,3 +5,4 @@ export type * from "./types";
 export * from "./units";
 export * from "./htmlDocument";
 export * from "./sourceEdits";
+export * from "./missingFont";

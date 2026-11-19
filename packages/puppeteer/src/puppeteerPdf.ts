@@ -1,10 +1,10 @@
-import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type PresentationRenderer } from "@pdflapas/model";
+import { CSS_PX_PER_INCH, type HtmlPresentationDocument, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOptions";
 import { type DocumentInfo, withDocumentInfo } from "./pdfInfo";
 import { LINK_PLACEHOLDER, withLinkUris } from "./pdfLinks";
-import { PRINT_ZOOM, printHtml } from "./printWorkarounds";
+import { metricSubstitute, PRINT_ZOOM, printHtml } from "./printWorkarounds";
 
 // Model page sizes are in inches.
 const inchesToPixels = (inches: number): number => inches * CSS_PX_PER_INCH;
@@ -13,20 +13,27 @@ const inchesToPixels = (inches: number): number => inches * CSS_PX_PER_INCH;
 export interface PuppeteerPdfRendererOptions {
     /** Merged over `DEFAULT_LAUNCH_OPTIONS` (shallowly: `args` given here replaces the default args). */
     readonly launchOptions?: PuppeteerLaunchOptions;
+    /**
+     * What to do when a text run asks for a face Chromium has no font for (its metric-compatible fontconfig alias
+     * counts as the face): `"warn"` (default), `"throw"` (`MissingFontError`), `"ignore"`, or a function receiving the list.
+     */
+    readonly onMissingFont?: MissingFontPolicy;
 }
 
 export class PuppeteerPdfRenderer implements PresentationRenderer {
     private readonly launchOptions: PuppeteerLaunchOptions;
+    private readonly onMissingFont: MissingFontPolicy;
 
-    constructor({ launchOptions }: PuppeteerPdfRendererOptions = {}) {
+    constructor({ launchOptions, onMissingFont }: PuppeteerPdfRendererOptions = {}) {
         this.launchOptions = { ...DEFAULT_LAUNCH_OPTIONS, ...launchOptions };
+        this.onMissingFont = missingFontPolicy(onMissingFont);
     }
 
     render(document: HtmlPresentationDocument): Promise<Uint8Array> {
         return withBrowser(async browser => {
             const page = await browser.newPage();
             try {
-                return await printPdf(page, document);
+                return await printPdf(page, document, this.onMissingFont);
             } finally {
                 await page.close();
             }
@@ -34,7 +41,7 @@ export class PuppeteerPdfRenderer implements PresentationRenderer {
     }
 }
 
-async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument): Promise<Uint8Array> {
+async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument, onMissingFont: MissingFontPolicy): Promise<Uint8Array> {
     await page.setViewport({
         width: Math.round(inchesToPixels(pageSize.width)),
         height: Math.round(inchesToPixels(pageSize.height)),
@@ -44,6 +51,13 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
     await page.setContent(printHtml(html), { waitUntil: "load" });
     const failed = await page.evaluate(prepareForPrint);
     if (failed.length) throw new Error(`Image failed to decode: ${failed.join(", ")}`);
+    // Before printing, so "throw" does not print first; the fonts are loaded once prepareForPrint returns. A Calibri or
+    // Cambria face drawn in its metric-compatible substitute is drawn as intended (the theme's Calibri Light in Carlito).
+    const missing = await page.evaluate(missingFonts);
+    reportMissingFonts(
+        missing.filter(({ face, usedFace }) => !usedFace || usedFace !== metricSubstitute(face)),
+        onMissingFont,
+    );
     const uris = await page.evaluate(placeLinkPlaceholders, LINK_PLACEHOLDER);
 
     const pdf = await page.pdf({
@@ -400,4 +414,47 @@ function placeLinkPlaceholders(placeholder: string): string[] {
         link.setAttribute("href", `${placeholder}${index}`);
         return href;
     });
+}
+
+/**
+ * The run faces Chromium has no font for, with the objects asking for them and the face drawn instead. A family is
+ * available when putting it before a generic family changes a sample's width against that generic alone (two generics
+ * of different widths, so a font as wide as one of them still counts). Fontconfig's metric aliases (Arial -> Liberation
+ * Sans, Calibri -> Carlito) count as the face: Chromium draws them for it. The width checks run once per distinct
+ * font-family list; per run it reads the inline style. `document.fonts.check()` cannot tell: it is true for any
+ * family that is not a web font.
+ */
+function missingFonts(): MissingFont[] {
+    const sample = "mmmmmmmmmmlli WQ@#0";
+    const context = document.createElement("canvas").getContext("2d");
+    if (!context) throw new Error("Cannot check the deck's fonts: this Chromium build has no 2D canvas");
+    const width = (fontFamily: string) => {
+        context.font = `16px ${fontFamily}`;
+        return context.measureText(sample).width;
+    };
+    const generics = ["monospace", "serif"].map(generic => ({ generic, alone: width(generic) }));
+    const available = (family: string) => generics.some(({ generic, alone }) => width(`${family}, ${generic}`) !== alone);
+    // Chromium serializes a family as an identifier when it is one, else as a string with `"` and `\` escaped.
+    const unquote = (family: string) => (family.startsWith('"') ? family.slice(1, -1).replace(/\\(.)/g, "$1") : family);
+    // A font-family list -> its missing first face and the family drawn instead, or null when the face is available.
+    const lists = new Map<string, { face: string; usedFace: string | undefined } | null>();
+    const missing = new Map<string, { usedFace: string | undefined; objects: Set<string> }>();
+    for (const run of Array.from(document.querySelectorAll<HTMLElement>(".text-run"))) {
+        const list = run.style.fontFamily;
+        if (!list) continue; // Out-of-profile HTML; the profile gives every run a face.
+        if (!lists.has(list)) {
+            const [face = "", ...fallbacks] = (list.match(/"(?:[^"\\]|\\.)*"|[^,\s][^,]*/g) ?? []).map(family => family.trim());
+            const used = available(face) ? null : (fallbacks.find(family => available(family)) ?? "");
+            lists.set(list, used === null ? null : { face: unquote(face), usedFace: used ? unquote(used) : undefined });
+        }
+        const found = lists.get(list);
+        if (!found) continue;
+        const entry = missing.get(found.face) ?? { usedFace: found.usedFace, objects: new Set<string>() };
+        missing.set(found.face, entry);
+        const object = run.closest<HTMLElement>(".slide-element");
+        const slide = run.closest(".slide-container")?.id.replace(/^slide-/, "") ?? "?";
+        const index = object?.parentElement ? Array.prototype.indexOf.call(object.parentElement.children, object) : -1;
+        entry.objects.add(object?.dataset.objectName === undefined ? `slide ${slide} #${index}` : `slide ${slide} '${object.dataset.objectName}'`);
+    }
+    return Array.from(missing, ([face, { usedFace, objects }]) => ({ face, objects: [...objects].sort(), ...(usedFace ? { usedFace } : {}) }));
 }

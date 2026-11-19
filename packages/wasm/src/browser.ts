@@ -1,13 +1,24 @@
 // Browser-safe WASM text renderer ("@pdflapas/wasm" under the browser/default conditions).
 // Must not load node:* modules, puppeteer or jsdom (enforced by tests/wasm.test.ts and scripts/build.ts).
-import type { HtmlPresentationDocument, PresentationRenderer } from "@pdflapas/model";
+import { type HtmlPresentationDocument, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import init, { Renderer } from "./pdf_wasm.js";
+
+export { type MissingFont, MissingFontError, type MissingFontPolicy } from "@pdflapas/model";
+
+/** One entry of the binding's `missingFonts()`: a wasm-owned object, released with `free()`. */
+export interface MissingFontBinding {
+    readonly face: string;
+    readonly used?: string | undefined;
+    readonly objects: string[];
+    free(): void;
+}
 
 /** The wasm-bindgen surface the loader relies on; tests/wasm.test.ts checks the generated class against it. */
 export interface TextPdfBinding {
     addFont(data: Uint8Array): number;
     renderHtml(html: string): Uint8Array;
     warnings(): string[];
+    missingFonts(): MissingFontBinding[];
 }
 
 /** Where to load `pdf_wasm_bg.wasm` from; a subset of wasm-bindgen's `InitInput` without DOM-only types. */
@@ -24,6 +35,12 @@ export interface WasmRendererOptions {
      * the list in `warnings()`.
      */
     onUnsupported?: "error" | "warn";
+    /**
+     * What to do when a text run asks for a face none of `fonts` provides, neither the face nor its metric-compatible
+     * alias (Calibri -> Carlito, Arial -> Liberation Sans, ...): `"warn"` (default), `"throw"` (`MissingFontError`),
+     * `"ignore"`, or a function receiving the list. Not part of `onUnsupported`: the text is drawn, in a fallback face.
+     */
+    onMissingFont?: MissingFontPolicy;
 }
 
 export interface SystemFontOptions {
@@ -40,10 +57,12 @@ export interface SystemFontOptions {
 export class WasmRenderer implements PresentationRenderer {
     readonly #binding: TextPdfBinding;
     readonly #onUnsupported: "error" | "warn";
+    readonly #onMissingFont: MissingFontPolicy;
 
-    constructor(binding: TextPdfBinding, onUnsupported: "error" | "warn" = "error") {
+    constructor(binding: TextPdfBinding, onUnsupported: "error" | "warn" = "error", onMissingFont?: MissingFontPolicy) {
         this.#binding = binding;
         this.#onUnsupported = onUnsupported;
+        this.#onMissingFont = missingFontPolicy(onMissingFont);
     }
 
     /** Parses the profile HTML in WebAssembly; out-of-profile or malformed HTML throws, naming slide, object and property. Images must be data URIs. */
@@ -56,12 +75,22 @@ export class WasmRenderer implements PresentationRenderer {
         if (skipped.length && this.#onUnsupported !== "warn") {
             throw new Error(`The WASM renderer cannot draw everything in this presentation (pass { onUnsupported: "warn" } to render anyway):\n- ${skipped.join("\n- ")}`);
         }
+        reportMissingFonts(this.missingFonts(), this.#onMissingFont);
         return pdf;
     }
 
     /** What the last render could not draw. */
     warnings(): string[] {
         return this.#binding.warnings();
+    }
+
+    /** The font faces the last render asked for that none of the renderer's fonts provides. */
+    missingFonts(): MissingFont[] {
+        return this.#binding.missingFonts().map(entry => {
+            const { face, used, objects } = entry;
+            entry.free();
+            return { face, objects, ...(used ? { usedFace: used } : {}) };
+        });
     }
 }
 
@@ -72,7 +101,7 @@ export async function createWasmRenderer(options: WasmRendererOptions): Promise<
     options.fonts.forEach((font, index) => {
         if (binding.addFont(font) === 0) throw new Error(`Font #${index} contains no usable font faces`);
     });
-    return new WasmRenderer(binding, options.onUnsupported);
+    return new WasmRenderer(binding, options.onUnsupported, options.onMissingFont);
 }
 
 export async function loadSystemFonts(_options?: SystemFontOptions): Promise<Uint8Array[]> {
