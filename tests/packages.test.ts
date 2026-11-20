@@ -12,7 +12,6 @@ const ALLOWED: Record<string, string[]> = {
     wasm: ["@pdflapas/model"],
     pptxgenjs: ["@pdflapas/model", "@pdflapas/puppeteer"],
     react: ["@pdflapas/pptxgenjs"],
-    "puppeteer-pptxgenjs": ["@pdflapas/pptxgenjs", "@pdflapas/react", "@pdflapas/wasm"],
 };
 const NODE_ONLY: Record<string, string[]> = { "@pdflapas/puppeteer": ["pptxgenjs/src/index.ts", "pptxgenjs/src/node.ts"] };
 
@@ -35,7 +34,7 @@ async function imports(): Promise<{ pkg: string; file: string; specifier: string
     return found;
 }
 
-const workspaceName = (specifier: string) => specifier.match(/^(@pdflapas\/[^/]+|puppeteer-pptxgenjs)(\/|$)/)?.[1];
+const workspaceName = (specifier: string) => specifier.match(/^(@pdflapas\/[^/]+)(\/|$)/)?.[1];
 
 describe("workspace packages", () => {
     test("import other workspace packages only in the allowed direction", async () => {
@@ -87,7 +86,7 @@ describe("workspace packages", () => {
         const { compilerOptions } = JSON.parse((await readFile(resolve(import.meta.dir, "../tsconfig.json"), "utf8")).replace(/\/\/.*$/gm, ""));
         const paths = compilerOptions.paths as Record<string, [string]>;
         const expected: Record<string, string> = {};
-        for (const pkg of Object.keys(ALLOWED).filter(pkg => pkg !== "puppeteer-pptxgenjs")) {
+        for (const pkg of Object.keys(ALLOWED)) {
             const manifest = JSON.parse(await readFile(join(PACKAGES_DIR, pkg, "package.json"), "utf8"));
             for (const [subpath, conditions] of Object.entries(manifest.exports as Record<string, { types: string }>)) {
                 expected[manifest.name + subpath.slice(1)] = `./packages/${pkg}/src/${conditions.types.replace(/^\.\/dist\//, "").replace(/\.d\.ts$/, ".ts")}`;

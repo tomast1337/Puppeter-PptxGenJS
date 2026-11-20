@@ -19,14 +19,9 @@ async function workspaceManifests(): Promise<Manifest[]> {
 }
 
 describe("publish:npm", () => {
-    test("publishes the workspace's packages in dependency order, and never the deprecated shim", async () => {
+    test("publishes the workspace's packages in dependency order", async () => {
         const order = publishOrder(await workspaceManifests()).map(batch => batch.map(manifest => manifest.name));
         expect(order).toEqual([["@pdflapas/model"], ["@pdflapas/puppeteer", "@pdflapas/wasm"], ["@pdflapas/pptxgenjs"], ["@pdflapas/react"]]);
-    });
-
-    test("puppeteer-pptxgenjs is private, so npm itself refuses to publish it", async () => {
-        const shim = (await Bun.file(join(PACKAGES_DIR, "puppeteer-pptxgenjs/package.json")).json()) as Manifest & { publishConfig?: unknown };
-        expect([shim.private, shim.publishConfig]).toEqual([true, undefined]);
     });
 
     test("refuses a cycle and a dependency on a package it does not publish", () => {

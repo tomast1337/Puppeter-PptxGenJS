@@ -4,7 +4,7 @@
 //   bun run publish:npm                      dry run: checks, builds, packs, verifies, `npm publish --dry-run`
 //   bun run publish:npm --yes [--otp=123456] [--tag=next]   publishes for real
 //
-// Private packages (the deprecated puppeteer-pptxgenjs shim) are never published. A version that is already
+// Private packages are never published. A version that is already
 // on npm is skipped, so a run that failed half-way can be resumed.
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";

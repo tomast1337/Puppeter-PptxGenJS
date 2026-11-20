@@ -80,7 +80,7 @@ jobs:
           mkdir -p release
           # Built by the previous step, so skip each package's prepack build.
           for package in packages/*/; do
-            # Private packages (the deprecated puppeteer-pptxgenjs shim) are not released.
+            # Private packages are not released.
             bun -e "process.exit((await Bun.file('${package}package.json').json()).private ? 1 : 0)" || continue
             (cd "$package" && bun pm pack --ignore-scripts --destination ../../release)
           done

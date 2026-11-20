@@ -119,8 +119,8 @@ installed browser correctly. The pinned PptxGenJS package is used only while
 developing to audit its API types; the build vendors its declaration file and
 license into `@pdflapas/pptxgenjs`, so consumers neither install nor execute
 PptxGenJS. Package tarballs run this build automatically.
-`bun run test:package` verifies the packed packages, and the
-`puppeteer-pptxgenjs` shim, in clean temporary consumer projects.
+`bun run test:package` verifies the packed packages in clean temporary consumer
+projects.
 
 The visual suite requires LibreOffice, Poppler, and ImageMagick. New or changed
 rendering behavior should include unit coverage and, where useful, a visual
@@ -225,8 +225,7 @@ publishes locally with their own npm login and 2FA, so CI holds no npm token.
 First time only: create the `@pdflapas` organization on npmjs.com (Add
 Organization, free plan for public packages) under the maintainer's account;
 the scope does not exist until then. Then deprecate the old unscoped package,
-which this repository no longer publishes (`packages/puppeteer-pptxgenjs` is
-private and only tests the old import names):
+which this repository no longer contains:
 
 ```bash
 npm deprecate puppeteer-pptxgenjs "Renamed: use @pdflapas/pptxgenjs (and @pdflapas/react, @pdflapas/wasm for the /react and /wasm subpaths)"
