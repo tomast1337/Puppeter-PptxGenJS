@@ -79,15 +79,18 @@ export interface RenderingTargetProfile {
      */
     readonly joinsOpeningBracket: boolean;
     /**
-     * The marks that, in a Chinese run followed by a Han character or ending the line, stay on their line past its end
-     * where they would start the next one (normalize/chineseLineBreak.ts); empty: none hangs.
+     * By a run's primary language subtag, the marks that stay on their line past its end where they would start the
+     * next one, unless another of them or a dash follows (normalize/eastAsianLineBreak.ts); a language without an
+     * entry hangs none.
      */
-    readonly hangingMarks: string;
+    readonly hangingMarks: Readonly<Record<string, string>>;
     /**
-     * Whether a Chinese run has a line break before a left double quote after a Han character and on either side of an
-     * ASCII quote between Han characters (U+200B in the run text), where UAX #14 has none.
+     * Whether a run has line breaks around punctuation next to Han characters where UAX #14 has none (U+200B in the
+     * run text) and none where it has one (U+2060): in a language with `hangingMarks`, before "“" after Han, between
+     * Han and an ASCII quote, and between two dashes but not before them; in any other, on either side of full-width
+     * punctuation next to Han or more of it, and between Han and an ASCII quote.
      */
-    readonly breaksAroundQuotes: boolean;
+    readonly breaksAroundHanPunctuation: boolean;
     /**
      * How a bold run is drawn in a face that has no bold style: the glyphs filled and stroked with a line this fraction
      * of the font size wide. Undefined leaves the browser's own synthesis (Chromium, measured in its PDF output of a

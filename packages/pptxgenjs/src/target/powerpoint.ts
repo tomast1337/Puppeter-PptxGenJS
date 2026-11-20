@@ -8,8 +8,8 @@ const ADVANCE_GRID_PER_INCH = 576;
 const BASELINE_GRID_PER_INCH = 600;
 /** Its font fallback chain (`fallbackFaces`), first to last. */
 const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"]);
-/** The marks measured hanging past a Chinese line's end (`hangingMarks`). */
-const HANGING_MARKS = "），》」”，、。：？)";
+/** The marks measured hanging past a line's end, by language (`hangingMarks`). */
+const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』】〕),.;:!?]}", ja: "，。" });
 
 /**
  * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only from the face's
@@ -112,25 +112,31 @@ const HANGING_MARKS = "），》」”，、。：？)";
  * "word,word", "word;word", "word%word", "word+word" and "word&word" never break and "word-word" breaks after the
  * hyphen in both. Only "(" after ")" and "%" was measured; "[" and "{", and "]" and "}" before them, are the same
  * UAX #14 classes (OP, CP/CL).
- * It breaks Chinese text (runs with `lang` zh-CN or zh-TW, read with the `eaLnBrk="1" latinLnBrk="0"
- * hangingPunct="1"` PptxGenJS writes in `<p:defaultTextStyle>`) as UAX #14 does but in two places, measured against
- * its PDF export of a synthetic deck (tests/chineseBreakCases.ts: SimSun 10pt, margin 0, 30 strings in zh-CN and the
- * same in zh-TW, each in boxes that end the line just before, between and after the two characters of one boundary;
- * both languages break alike). A closing mark that would start the next line stays on its line, past the right edge,
- * when a Han character follows it or the paragraph ends (`hangingMarks`): ）》」”，、。：？ and ASCII ")" after
- * "123(4", drawn at their place outside the box ("这是示例文字内容，" in an 8em box, "他刚才又说「这是示例」" ending
- * "示例」" in a 5em one), where Chromium pulls the character before down with it. Only one hangs: "（第一）。" with "）"
- * one past the edge breaks before "一", and with "。" one past the edge hangs "。". "……" does not hang and is not
- * left at a line's start, as in UAX #14. It breaks before "“" after a Han character ("他刚才又说" | "“这是示例”"), and
- * on either side of an ASCII quote between Han characters ("他刚才又说" | "\"示例项目\"" and "他说\"示例项目" |
- * "\"很好"), where UAX #14 (LB19) has no break (`breaksAroundQuotes`, a U+200B ZERO WIDTH SPACE in the run text).
- * Otherwise the boxes break as Chromium does: an opening bracket or quote never ends a line, a word of ASCII letters,
- * digits and brackets ("Excel", "123(4)", "100%") is kept whole and breaks from Han on either side, and there is no
- * extra space between Han and Latin text.
- * shortcut: measured before a Han character or the paragraph's end and in zh runs only; a mark before another mark or
- * a Latin letter, the other closing marks (！；』】〕 and ASCII ,.;:!?]}) and other languages keep UAX #14 until a deck
- * measures them. "——" breaks between the two dashes and not before them in PowerPoint, the reverse of UAX #14 (LB17),
- * which the target keeps.
+ * It breaks Han text by the run's `lang`, not by its characters, with the `eaLnBrk="1" latinLnBrk="0"
+ * hangingPunct="1"` PptxGenJS writes in `<p:defaultTextStyle>`. Measured against its PDF export of two synthetic
+ * decks (tests/eastAsianBreakCases.ts: SimSun 10pt, margin 0, each string in boxes that end the line just before,
+ * between and after the two characters of one boundary): 30 strings in zh-CN and in zh-TW, then six strings with no
+ * `lang` (PptxGenJS writes en-US), en-US, ja-JP, ko-KR and zh-CN, and the marks, dashes and quotes below in zh-CN.
+ * zh-CN and zh-TW break alike, no `lang` and en-US alike, and ja-JP as zh but for which marks hang.
+ * In zh and ja, a closing mark that would start the next line stays on its line, past the right edge, unless another
+ * one or a dash follows it (`hangingMarks`), drawn at its place outside the box ("这是示例文字内容，" in an 8em box,
+ * "他刚才又说「这是示例」" ending "示例」" in a 5em one), where Chromium pulls the character before down with it. In
+ * zh: ）》」”，、。：？！；』】〕 and ASCII ),.;:!?]}, before Han, a Latin letter, a digit, "（", a soft break, a run
+ * in another size or the paragraph's end; "（第一）。" with "）" one past the edge breaks before "一", and "（甲）——"
+ * with "）" one past the edge breaks before "（". In ja: ，。 (a ja "）" one past the edge breaks before "（"). It
+ * breaks before "“" after Han ("他刚才又说" | "“这是示例”"), between Han and an ASCII quote on either side, also
+ * next to Latin text ("我们使用" | "\"Alpha\"" and "大家都说\"" | "样本\"不错"), and between two dashes but never
+ * before them ("示例结果如" | "下——全部完" in a 6em box, "示例结果如下—" | "—全部完成"), where UAX #14 (LB19,
+ * LB17) has the reverse (`breaksAroundHanPunctuation`: U+200B ZERO WIDTH SPACE and U+2060 WORD JOINER in the run).
+ * In en-US, with no `lang` and in ko-KR nothing hangs, and it breaks on either side of full-width punctuation next to
+ * Han or more of it: "我们今天讨论示例" | "，然后继续", "参考附件材料（" | "甲）", "老师刚刚讲到“" | "样本问题”",
+ * "示例结果如下" | "——全部完成"; between Han and an ASCII quote as in zh. A Han run in Arial with no `lang` breaks so
+ * too. Otherwise the boxes break as Chromium does: "……" is not left at a line's start, a word of ASCII letters,
+ * digits and brackets ("Excel", "123(4)", "100%") is kept whole and breaks from Han on either side, there is no extra
+ * space between Han and Latin text, and Latin punctuation in en-US Latin text does not hang.
+ * shortcut: ko-KR also breaks inside digits ("今年总共有1" | "28个"), which the target does not; ja is measured for
+ * ，。 and "）" only, and the dash in zh only; "、", the ja dash and other marks keep these rules until a deck measures
+ * them.
  * It draws a character the run's face lacks in the first face of one chain that has it, whatever the run's face
  * (`fallbackFaces`): Arial, Cambria Math, Segoe UI Symbol, Yu Gothic, then PMingLiU and SimSun. Measured against its
  * PDF export of a synthetic deck (Arial, Calibri and Times New Roman at 14pt, one character class per line) and each
@@ -165,7 +171,7 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     wrapWidthGridPt: PPTX_DEFAULTS.units.pointsPerInch / ADVANCE_GRID_PER_INCH,
     joinsOpeningBracket: true,
     hangingMarks: HANGING_MARKS,
-    breaksAroundQuotes: true,
+    breaksAroundHanPunctuation: true,
     syntheticBoldStrokeEm: undefined,
     syntheticItalicShear: undefined,
     fallbackFaces: FALLBACK_FACES,
