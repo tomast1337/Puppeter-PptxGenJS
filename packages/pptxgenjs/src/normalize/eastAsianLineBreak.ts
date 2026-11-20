@@ -16,15 +16,16 @@ const DASH = "—";
 const CJK_PUNCTUATION = "(?=\\p{P})[\\u3000-\\u303f\\ufe30-\\ufe4f\\uff00-\\uff65]";
 /** Full-width punctuation: CJK punctuation, and the quotes, dash and ellipsis CJK faces draw 1em wide. */
 const WIDE = `(?:${CJK_PUNCTUATION}|[\\u2014\\u2018-\\u201d\\u2026])`;
-/** In a language with hanging marks: before "“" after Han, between Han and an ASCII quote, between two dashes. */
-const HANGING_LANGUAGE_BREAK = /(?<=\p{Script=Han})(?=[“"])|(?<=")(?=\p{Script=Han})|(?<=—)(?=—)/gu;
+/** In a language with hanging marks: before "“" or "‘" after Han, between Han and an ASCII quote, between two dashes. */
+const HANGING_LANGUAGE_BREAK = /(?<=\p{Script=Han})(?=[“‘"])|(?<=")(?=\p{Script=Han})|(?<=—)(?=—)/gu;
 /** In a language with hanging marks: before a dash after anything but a dash. */
 const DASH_JOIN = /(?<=[^—])(?=—)/gu;
 /**
- * In any other language: on either side of full-width punctuation next to Han, CJK punctuation or a dash after a
- * dash (so not between Latin quotes and a dash in Latin text), and between Han and an ASCII quote.
+ * In any other language: on either side of CJK punctuation next to anything but white space (Han, digits, Latin
+ * letters, ASCII punctuation, more of it; a break next to a space is there already), on either side of the quotes and
+ * dash a CJK face draws 1em wide next to Han, between two dashes, and between Han and an ASCII quote.
  */
-const OTHER_LANGUAGE_BREAK = new RegExp(`(?<=\\p{Script=Han})(?=${WIDE}|")|(?<=${WIDE}|")(?=\\p{Script=Han})|(?<=${CJK_PUNCTUATION})(?=${WIDE})|(?<=${WIDE})(?=${CJK_PUNCTUATION})|(?<=\\u2014)(?=\\u2014)`, "gu");
+const OTHER_LANGUAGE_BREAK = new RegExp(`(?<=\\p{Script=Han})(?=${WIDE}|")|(?<=${WIDE}|")(?=\\p{Script=Han})|(?<=${CJK_PUNCTUATION})(?=\\S)|(?<=\\S)(?=${CJK_PUNCTUATION})|(?<=\\u2014)(?=\\u2014)`, "gu");
 /** The first character from which a mark is taken to be 1em wide when its face's advances are not known. */
 const FULL_WIDTH_FROM = 0x2000;
 
