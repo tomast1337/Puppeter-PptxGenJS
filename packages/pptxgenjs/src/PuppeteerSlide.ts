@@ -13,7 +13,7 @@ import { normalizeSlideNumber } from "./normalize/slideNumber";
 import { innerShadowError, normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
 import { autoPageTableOptions, paginateTableRows } from "./normalize/table/pagination";
-import { collapseTextMargins, normalizeText, type TextInput } from "./normalize/text";
+import { collapseTextMargins, floorTextWrapWidth, normalizeText, type TextInput } from "./normalize/text";
 import type { PageSize } from "./pageLayouts";
 import type { PptxSlide } from "./pptx";
 import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./render/chart";
@@ -276,10 +276,11 @@ export class PuppeteerSlide implements PptxSlide {
             shared: this.context.sharedRunOptions,
         });
         const height = textStyle.geometry.height ?? 0;
-        if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizedText, height) });
+        const width = textStyle.geometry.width ?? 0;
+        if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(floorTextWrapWidth(normalizedText, width, this.context.target), height) });
         // `as`: PptxGenJS writes a text box's shape from its own options object, so normalizeShape reads them as ShapeProps.
         const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
-        const shape = normalizeShape(textOptions.shape, shapeOptions, textStyle.geometry.width ?? 0, height, this.pageSize);
-        return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(normalizeShapeTextBox(normalizedText, shape), height), shape });
+        const shape = normalizeShape(textOptions.shape, shapeOptions, width, height, this.pageSize);
+        return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(floorTextWrapWidth(normalizeShapeTextBox(normalizedText, shape), width, this.context.target), height), shape });
     }
 }

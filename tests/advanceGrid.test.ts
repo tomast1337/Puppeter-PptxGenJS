@@ -7,11 +7,12 @@ import type { GlyphAdvances } from "../packages/pptxgenjs/src/defaults";
 import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
 import { advanceGridWordSpacing, isWord, runPieces } from "../packages/pptxgenjs/src/normalize/advanceGrid";
-import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
+import { floorTextWrapWidth, normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
-import { LAYOUT_UNITS_PER_PX, pointsToPixels } from "@pdflapas/model";
-import { KERN_WRAP_BOX_WIDTH_GAP, type KernWrapCase, kernWrapCases, kernWrapDeck } from "./kernWrapCases";
+import { inchesToPixels, LAYOUT_UNITS_PER_PX, type NormalizedTextBox, pixelsToPoints, pointsToPixels } from "@pdflapas/model";
+import { type BoxFloorCase, boxFloorCases, boxFloorDeck } from "./boxFloorCases";
+import { type KernWrapCase, kernWrapCases, kernWrapDeck } from "./kernWrapCases";
 import { wrapLimitCases, wrapLimitDeck } from "./wrapLimitCases";
 
 afterAll(closeBrowser);
@@ -454,17 +455,69 @@ describe("a kerned line at the wrap limit in Chromium", () => {
     };
     // Measured against PowerPoint's PDF export of the same deck: "A " counts in the line, " T" leaves with the space.
     test.skipIf(!cases.length)("keeps or wraps the last word of each measured box as PowerPoint does", async () => {
-        const measured = cases.filter((_, index) => index !== KERN_WRAP_BOX_WIDTH_GAP);
+        const drawn = await fits(cases);
+        expect(cases.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(cases.map(({ label, fits }) => ({ label, fits })));
+    });
+});
+
+describe("a line in a box whose width inside the insets is off the 1/576 in grid, in Chromium", () => {
+    const font = resolveInstalledGlyphAdvances("Arial", false, false);
+    const cases = font ? boxFloorCases(font) : [];
+    /** Whether the line's last word is on its box's first line, for each case, printed as the PDF is. */
+    const fits = async (selected: readonly BoxFloorCase[]) => {
+        const { html } = await boxFloorDeck(new PuppeteerGenPowerPoint(), selected).toHtml();
+        return withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                await page.setContent(printHtml(html));
+                return await page.evaluate(() =>
+                    Array.from(document.querySelectorAll(".slide-text"), box => {
+                        const words = Array.from(box.querySelectorAll(".text-run span")).filter(word => word.textContent?.trim());
+                        const top = (word: Element | undefined) => word?.getBoundingClientRect().top;
+                        return top(words.at(-2)) === top(words[0]);
+                    }),
+                );
+            } finally {
+                await page.close();
+            }
+        });
+    };
+    // Chromium keeps a line up to a LayoutUnit past the width it is given, and the target's words end within one
+    // below PowerPoint's (advanceGridWordSpacing), so a kerned line that overflows the floored width by less is kept.
+    const layoutUnitPt = pixelsToPoints(1 / LAYOUT_UNITS_PER_PX);
+    const hairline = ({ overflowPt }: BoxFloorCase) => overflowPt > 0 && overflowPt < layoutUnitPt;
+    // Measured against PowerPoint's PDF export of the same deck: the width inside the insets floored to 0.125pt.
+    test.skipIf(!cases.length)("keeps or wraps the last word of each measured box as PowerPoint does", async () => {
+        const measured = cases.filter(box => !hairline(box));
         const drawn = await fits(measured);
         expect(measured.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(measured.map(({ label, fits }) => ({ label, fits })));
     });
-    // shortcut: PowerPoint wraps this box, whose line is 0.05pt narrower than it, where 12pt keeps a line 0.062pt
-    // narrower than its box: consistent with a box width floored to 1/576 or 1/600 in, not measured apart; see
-    // target/powerpoint.ts.
-    (cases.length ? test.failing : test.skip)("wraps the 18pt box 0.05pt wider than its line, as PowerPoint does", async () => {
-        const gap = cases[KERN_WRAP_BOX_WIDTH_GAP];
-        if (!gap) throw new Error("no such case");
-        expect(await fits([gap])).toEqual([gap.fits]);
+    // shortcut: the two 14pt "Dolor sit AVA" boxes overflow the floored width by 0.002pt, under a LayoutUnit
+    // (0.0117pt), and Chromium keeps them; fix it if a renderer ever measures lines finer than a LayoutUnit.
+    (cases.some(hairline) ? test.failing : test.skip)("wraps a line less than a LayoutUnit wider than the floored width, as PowerPoint does", async () => {
+        const narrow = cases.filter(hairline);
+        expect(await fits(narrow)).toEqual(narrow.map(({ fits }) => fits));
+    });
+});
+
+describe("floorTextWrapWidth", () => {
+    const box = (margin: [number, number, number, number], extra: Partial<NormalizedTextBox> = {}): NormalizedTextBox => ({ paragraphs: [], margin, verticalAlign: "top", wrap: true, fit: "none", direction: "horizontal", rtl: false, ...extra });
+    const step = pointsToPixels(GRID);
+
+    test("moves the width's remainder past the 1/576 in grid into the right inset on the PowerPoint target", () => {
+        // 7.2pt insets (0.1 in) leave 100 - 9.6 - 9.6 px, 484.8 steps: 0.8 of a step goes to the end inset.
+        const [top, right, bottom, left] = floorTextWrapWidth(box([0, 9.6, 0, 9.6]), 100, "powerpoint").margin;
+        expect([top, right - 9.6, bottom, left].map(value => Number((value / step).toFixed(9)))).toEqual([0, 0.8, 0, 9.6 / step]);
+        const rtl = floorTextWrapWidth(box([0, 9.6, 0, 9.6], { rtl: true }), 100, "powerpoint").margin;
+        expect(Number(((rtl[3] - 9.6) / step).toFixed(9))).toBe(0.8);
+        expect(rtl[1]).toBe(9.6);
+    });
+    test("keeps a width on the grid, text that does not wrap or runs vertically, and the LibreOffice target", () => {
+        const inches = box([0, 0, 0, 0]);
+        expect(floorTextWrapWidth(inches, inchesToPixels(7.5), "powerpoint")).toBe(inches);
+        expect(floorTextWrapWidth(box([0, 9.6, 0, 9.6], { wrap: false }), 100, "powerpoint").margin).toEqual([0, 9.6, 0, 9.6]);
+        expect(floorTextWrapWidth(box([0, 9.6, 0, 9.6], { direction: "vertical" }), 100, "powerpoint").margin).toEqual([0, 9.6, 0, 9.6]);
+        expect(floorTextWrapWidth(box([0, 9.6, 0, 9.6]), 100, "libreoffice").margin).toEqual([0, 9.6, 0, 9.6]);
     });
 });
 

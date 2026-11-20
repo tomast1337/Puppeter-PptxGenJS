@@ -1,7 +1,8 @@
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { RenderingTargetProfile } from "./index";
 
-// PowerPoint's grid for each glyph's advance width: 1/576 in, 0.125pt (`advanceGridPt`).
+// PowerPoint's grid for each glyph's advance width and for a line's room, 1/576 in, 0.125pt (`advanceGridPt`,
+// `wrapWidthGridPt`).
 const ADVANCE_GRID_PER_INCH = 576;
 // PowerPoint's grid for each line's baseline: 1/600 in, 0.12pt (`baselineGridPerInch`).
 const BASELINE_GRID_PER_INCH = 600;
@@ -69,10 +70,17 @@ const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol"
  * line breaks: measured against its PDF export of a synthetic deck ("Lorem ipsum AVAVA xo" and "... AVAVA To" in
  * Arial at 12 and 18pt, boxes from 0.7pt under the line's width to 0.05pt over it plus "A " and " T"), "A " at the
  * line's end counts in its width, and " T" leaves with the trailing space: the target breaks those 12 boxes as
- * PowerPoint does but one (tests/kernWrapCases.ts), and 34 lines of justified all-caps Arial and 28 of Calibri at
- * 12pt all. shortcut: PowerPoint wraps the 18pt line 0.05pt narrower than its box, where 12pt keeps one 0.062pt
- * narrower, which a box width floored to 1/576 or 1/600 in would explain; measure boxes between those floors
- * before flooring the box.
+ * PowerPoint does (tests/kernWrapCases.ts), and 34 lines of justified all-caps Arial and 28 of Calibri at 12pt all.
+ * It floors a text box's width inside its left and right insets to 1/576 in (`wrapWidthGridPt`) before it tests a line
+ * against it: measured against its PDF export of a synthetic deck (tests/boxFloorCases.ts: Arial at 12, 14, 18 and
+ * 24pt, 47 boxes from 0.1pt under the line to 0.14pt over it, kerned and kern-free lines, insets 0, 1.3 and 7.2pt),
+ * that floor predicts every break, where no floor misses 16 boxes, a 0.056pt tolerance 24, the box width floored to
+ * 1/576 in 9 (its insets off the grid) and either width floored to 1/600 in 18 or more. A kern-free line is on the
+ * grid already, so only a kerned one, or insets off the grid such as the default 0.1 in, wraps sooner. The target
+ * moves the floor's remainder to the end inset (`floorTextWrapWidth`). shortcut: measured on left-aligned text
+ * boxes; a centered or right-aligned line and a shape's text rectangle take the same floor and a table cell none until
+ * a measurement says otherwise. A kerned line less than a LayoutUnit (0.0117pt) wider than the floored width still
+ * fits in Chromium (2 of the 47 boxes, tests/advanceGrid.test.ts), finer than its line measure.
  * Inside a word it draws glyphs at hinted 600 dpi widths, which never moves a word start or a
  * line break, so the PDF does not copy them. Wrapping tests the line without its trailing space against the box, with
  * no tolerance: rounded advances exactly as wide as the box fit, 0.125pt wider wrap. Each word therefore takes its own
@@ -127,6 +135,7 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     fullSizeMark: true,
     advanceGridPt: PPTX_DEFAULTS.units.pointsPerInch / ADVANCE_GRID_PER_INCH,
     baselineGridPerInch: BASELINE_GRID_PER_INCH,
+    wrapWidthGridPt: PPTX_DEFAULTS.units.pointsPerInch / ADVANCE_GRID_PER_INCH,
     joinsOpeningBracket: true,
     syntheticBoldStrokeEm: undefined,
     syntheticItalicShear: undefined,

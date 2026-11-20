@@ -320,7 +320,8 @@ not negative.
 **The advance grid** (`RENDERING_TARGETS.powerpoint.advanceGridPt`, measured against PowerPoint's PDF export of
 synthetic decks). PowerPoint lays an unkerned run out at each glyph's hmtx advance at the font size rounded to
 0.125pt, and keeps a word on a line while the rounded widths up to its end are no wider than the line (the box
-less its insets): exactly as wide fits, 0.125pt wider wraps, and trailing spaces do not count. Under 12pt, when
+less its insets, floored to 0.125pt; the PowerPoint target writes the floor's remainder into the end inset,
+`wrapWidthGridPt`): exactly as wide fits, 0.125pt wider wraps, and trailing spaces do not count. Under 12pt, when
 the face's advances are known, the PowerPoint target therefore puts each word of a run in a word span whose
 `letter-spacing` makes the word end where PowerPoint's does, and gives the run the `letter-spacing` of its
 spaces. Chromium and the WASM renderer round each inline item's width up to a LayoutUnit (1/64 px) and keep a
