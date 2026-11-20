@@ -516,6 +516,9 @@ const CUSTOM_BASELINE_CASES = [
 const COLW_LENGTH_CASE = { page: PARAGRAPH_PAGE + 1, name: "table-colw-shorter-than-columns", x: 5.5, y: 0.3, w: 3, h: 0.3 } as const;
 
 // populateNumberSchemeFixture(): a numbered list whose scheme changes, on the slide after; no WASM deck takes it.
+// A picture's inner shadow: PptxGenJS writes <a:innerShdw> well-formed, and LibreOffice 26.2 draws the bare picture, as
+// the LibreOffice target writes it (drawsPictureInnerShadow); the PowerPoint target draws the shadow over it.
+const IMAGE_INNER_SHADOW_CASE = { page: 11, name: "image-inner-shadow", x: 0.75, y: 4.3, w: 2, h: 1.3 } as const;
 const NUMBER_SCHEME_CASE = { page: PARAGRAPH_PAGE + 3, name: "text-number-scheme-restart", x: 0.5, y: 1, w: 4, h: 1.8 } as const;
 // populateNumberSchemeFixture(): a numbered list over three indent levels, beside the scheme change.
 const NUMBER_LEVELS_CASE = { page: PARAGRAPH_PAGE + 3, name: "text-number-nested-levels", x: 5.2, y: 1, w: 4, h: 1.8 } as const;
@@ -545,6 +548,7 @@ export const PARITY_REGIONS = [
     ...TEXT_CASES,
     { page: 59, name: "html-react-component-bars", x: 1, y: 1, w: 6, h: 2 },
     { page: 12, name: "dashed-arrow-line", x: 6.55, y: 1.6, w: 2.6, h: 0 },
+    IMAGE_INNER_SHADOW_CASE,
     ...[...ARROW_HEAD_CASES, VERTICAL_LINE_CASE].map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.1, y: y - 0.1, w: w + 0.2, h: h + 0.2 })),
     // populateSlidePropertiesFixture(): the slide numbers, own style and inherited one; its hidden slide prints no page.
     { page: 61, name: "slide-number-own-style", x: 7.5, y: 4.6, w: 2, h: 0.8 },
@@ -2173,6 +2177,9 @@ export function populateImageFixture(presentation: Presentation): void {
         sizing: { type: "crop", x: 0.75, y: 0.25, w: 2, h: 1.1 },
         altText: "Cropped rounded rotated image",
     });
+    const { x, y, w, h } = IMAGE_INNER_SHADOW_CASE;
+    imageEffectsSlide.addImage({ data: SAMPLE_IMAGE_DATA, x, y, w, h, shadow: { type: "inner", color: "000000", opacity: 0.75, blur: 8, offset: 6, angle: 45 }, altText: "Image with an inner shadow" });
+    imageEffectsSlide.addText("Inner shadow", { x, y: y + h + 0.1, w, h: 0.4, fontFace: "Arial", fontSize: 14, align: "center", margin: 0 });
 }
 
 /** The parity fixture's chart slides, also the WASM backend's chart deck (tests/visual/wasm/decks.ts). */

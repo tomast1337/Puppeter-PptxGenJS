@@ -386,6 +386,19 @@ is drawn past the box from its anchor, and a shape's outline and line heads reac
 image at the model's box (`left`, `top`, `width`, `height`); `crop` places it at `-offsetX`, `-offsetY`
 with the full scaled size, and the frame clips.
 
+A picture's inner shadow (`addImage` with `shadow: { type: "inner" }`, the one inner shadow PptxGenJS 4.0.1
+writes well-formed, as `<a:innerShdw>`) is `box-shadow: inset <x>px <y>px <blur>px <color>` on the
+`.slide-image`, and only the PowerPoint target writes it (LibreOffice draws none). It is drawn over the
+picture, inside the box and its `border-radius`: the outside of the box, moved by `<x>`, `<y>`, blurred by a
+Gaussian of standard deviation `<blur> / 2` (CSS), in `<color>`. So `<x>`, `<y>` point away from the
+DrawingML `dir`, as PowerPoint darkens the inside edges `dir` points to, and `<blur>` is 2/3 of `blurRad`, as
+PowerPoint's edge is a Gaussian of `blurRad / 3` (`normalizeShadow`). That is not CSS's order, which paints an
+inset shadow under the content; the print step moves it over the picture (Renderer workarounds). An inset
+`box-shadow` on any other object, and `data-shadow-inset` on `svg.shape-svg` or a `.text-run`, is an inner
+shadow no renderer draws: `addShape` and `addText` reject one (PptxGenJS writes it as malformed XML,
+`<a:innerShdw>` closed by `</a:outerShdw>`, and LibreOffice then draws none of the slide), the print step
+throws on hand-written HTML with one, and the WASM renderer reports `inner shadow not rendered`.
+
 ### Table
 
 ```html
@@ -452,7 +465,7 @@ the shared stylesheet (driven by profile classes and attributes) or in the Puppe
 `printHtml(html)` (`packages/puppeteer/src/printWorkarounds.ts`). The print step reads only attributes and
 raw `style` text, never layout, so it is a pure string transform: the Puppeteer renderer passes its output
 to `setContent`, before fonts are awaited, shrink-to-fit and `page.pdf()`. It adds declarations and
-attributes inside start tags and leaves every other byte as it was; the same input gives the same output,
+attributes inside start tags, and an empty box for a picture's inner shadow, and leaves every other byte as it was; the same input gives the same output,
 and HTML outside the profile gets only the print zoom, so it must write out its `<html>` start tag.
 Opening the HTML in a browser shows the stylesheet rules but not the print step; open `printHtml(html)`
 (`@pdflapas/puppeteer`, re-exported by `@pdflapas/pptxgenjs`) to see what Chromium prints, at 12.5% page
@@ -472,6 +485,7 @@ of this profile never sees either.
 | Font fallback  | the faces in `font-family` on `.text-run` and `.text-bullet`       | Print step: appends, after the last face, `"Carlito", "Noto Sans", Arial, "Liberation Sans", sans-serif` to a Calibri face, `"Caladea", Arial, "Liberation Sans", sans-serif` to a Cambria face, `Arial, "Liberation Sans", sans-serif` to any other, since Chromium does not apply LibreOffice's Microsoft-font substitutions; before fonts are awaited                                                                                                                                                                                                                                                            |
 | Table offset   | the first row's top and first column's left `border-*` widths      | Print step: `position: relative; left/top: -<widest / 2>px` on `table.slide-table`, since DrawingML centres borders on the grid and Chromium collapses the outer half of those borders inside the table                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Border stroke  | the `border-*` and `data-border-*-dash-array` of each `td`         | In the page, after shrink-to-fit, as only layout tells where the rows end: `border-color: transparent` on each `td`, so the layout keeps the border widths, and an `svg` after the table with one stroked `path` per run of edges on the cells' edges, measured from the first grid line, which is drawn on the object's corner (the table offset centres only the widest border there), each dash its own subpath. Chromium fills a CSS border as a box floored to whole device px (a 0.5pt border prints 0.47pt high), which viewers anti-alias to a pale line, and prints a dashed SVG stroke as filled outlines |
+| Inner shadow   | `box-shadow: inset …` on `.slide-image`                            | Print step: `box-shadow: none` on the `.slide-image` and, as its last child, an empty `div` with `position: absolute; inset: 0; border-radius: inherit; box-shadow: inset …`, since Chromium paints an inset shadow under the box's content, where the picture hides it. On any other object, or `data-shadow-inset` on a shape or run, the print step throws                                                                                                                                                                                                                                                       |
 | Cell inset     | each `td` side's collapsed width: its or the facing `border-*`     | Print step: on its `.table-cell-text`, `inset: -<top / 2>px …` (absolute) or `margin: -<top / 2>px …; width: calc(100% + <(left + right) / 2>px)` (in flow), since DrawingML measures cell margins from the grid line and Chromium from the inner half of the collapsed border, the wider of the two, which else grows a full row                                                                                                                                                                                                                                                                                   |
 
 Other Chromium-specific details that stay in the markup or stylesheet: `z-index: 0` stacking contexts
@@ -733,7 +747,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedShadow.blur`            | profile | Third length of the shadow value, px.                                                                                                                                       |
 | `NormalizedShadow.offsetX`         | profile | First length of the shadow value, px.                                                                                                                                       |
 | `NormalizedShadow.offsetY`         | profile | Second length of the shadow value, px.                                                                                                                                      |
-| `NormalizedShadow.inset`           | profile | `inset` in `box-shadow`; `data-shadow-inset` on the run, or on `svg.shape-svg` in hand-written HTML only (`addShape` throws on it).                                         |
+| `NormalizedShadow.inset`           | profile | `inset` in a `.slide-image` `box-shadow` (Image); `data-shadow-inset` on a run or shape SVG, never drawn.                                                                   |
 | `NormalizedObjectStyle.objectName` | profile | `data-object-name`.                                                                                                                                                         |
 
 ### Text

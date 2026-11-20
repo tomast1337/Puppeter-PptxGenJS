@@ -298,8 +298,12 @@ glow of text runs are drawn as blurred rasters (a soft-masked image under the
 object), calibrated against the LibreOffice rendering rather than CSS: a
 shadow's Gaussian has sigma = 0.46 x blur, a glow spreads 0.45 x its size with
 sigma = 0.18 x size. A shape or text box casts the silhouette of what it draws
-(fill, stroke, glyphs); an image casts its box, not its PNG alpha. Inner
-shadows are reported through `warnings()`.
+(fill, stroke, glyphs); an image casts its box, not its PNG alpha. A picture's
+inner shadow is drawn over it the same way, from the outside of its box moved by
+the offset, with the CSS blur (sigma = blur / 2) that Chromium uses; the HTML
+already holds the blur and offset measured against PowerPoint's PDF export, as
+LibreOffice draws none. An inner shadow anywhere else, which
+only hand-written HTML can carry, is reported through `warnings()`.
 
 **Hyperlinks:** linked text runs (also in table cells), shapes and images
 become PDF link annotations, like the `<a>` elements Chromium turns into links.

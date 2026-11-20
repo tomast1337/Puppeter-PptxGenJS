@@ -1,4 +1,5 @@
-//! Drop shadows and text glow: a blurred silhouette drawn under what casts it.
+//! Drop shadows and text glow: a blurred silhouette drawn under what casts it; inner shadows: the
+//! blurred outside of the silhouette, kept inside it and drawn over it.
 //!
 //! PDF has no blur, so the effect is a raster. While the object (or text box) is drawn into a
 //! sub-stream, every fill, stroke and glyph run it draws is also flattened into a silhouette; the
@@ -12,6 +13,9 @@
 //!   a Gaussian with sigma 0.46 b (b = 8 px: 3.7 px; b = 16 px: 7.0 px).
 //! - `glow rad` r: the glyph grown by 0.45 r (50% there), then blurred with sigma 0.18 r
 //!   (r = 10.7 px: 4.7 and 2.0 px; r = 21.3 px: 9.8 and 3.8 px).
+//!
+//! LibreOffice draws no inner shadow (the LibreOffice target writes none), so an inner shadow follows
+//! the CSS `box-shadow: inset` the profile writes, as Chromium draws it: a Gaussian of sigma blur / 2.
 
 mod filter;
 mod raster;
@@ -34,6 +38,8 @@ use raster::Line;
 const SHADOW_SIGMA_PER_BLUR: f32 = 0.46;
 const GLOW_SPREAD_PER_RADIUS: f32 = 0.45;
 const GLOW_SIGMA_PER_RADIUS: f32 = 0.18;
+/// CSS: a shadow's blur radius is twice the Gaussian's standard deviation.
+const INNER_SHADOW_SIGMA_PER_BLUR: f32 = 0.5;
 /// A Gaussian is below 0.5% of its peak past three standard deviations.
 const SIGMAS_KEPT: f32 = 3.0;
 /// Mask samples per px: viewers interpolate the image, and a blurred edge has no detail finer than a px.
@@ -43,7 +49,8 @@ const MAX_SIDE: f32 = 4096.0;
 /// Curve flattening tolerance (px).
 const FLATTEN_TOLERANCE: f64 = 0.1;
 
-/// A blurred silhouette: its colour, how far it grows and blurs, and its offset (px).
+/// A blurred silhouette: its colour, how far it grows and blurs, its offset (px), and whether it is
+/// an inner shadow (the outside of the silhouette, drawn inside it) rather than one under it.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct Effect {
     color: Rgba,
@@ -51,27 +58,27 @@ pub(crate) struct Effect {
     sigma: f32,
     dx: f32,
     dy: f32,
+    pub(crate) inner: bool,
 }
 
 impl Effect {
-    /// The object's outer shadow; `Err` names what this backend does not draw.
+    /// The object's shadow; `Err` names what this backend does not draw.
     pub(crate) fn shadow(shadow: &Shadow) -> Option<Result<Self, &'static str>> {
         if !shadow.visible {
             return None;
         }
-        if shadow.kind == ShadowKind::Inner {
-            // shortcut: inner shadows are not drawn; draw one inside the silhouette when a deck needs it.
-            return Some(Err("inner shadow not rendered"));
-        }
+        let inner = shadow.kind == ShadowKind::Inner;
+        let per_blur = if inner { INNER_SHADOW_SIGMA_PER_BLUR } else { SHADOW_SIGMA_PER_BLUR };
         let color = Some(shadow.color).filter(|c| c.3 > 0.0)?;
         let finite = [shadow.blur, shadow.offset_x, shadow.offset_y].iter().all(|v| v.is_finite());
         Some(if finite {
             Ok(Effect {
                 color,
                 spread: 0.0,
-                sigma: shadow.blur.max(0.0) * SHADOW_SIGMA_PER_BLUR,
+                sigma: shadow.blur.max(0.0) * per_blur,
                 dx: shadow.offset_x,
                 dy: shadow.offset_y,
+                inner,
             })
         } else {
             Err("shadow with a non-finite blur or offset not rendered")
@@ -88,6 +95,7 @@ impl Effect {
             sigma: radius * GLOW_SIGMA_PER_RADIUS,
             dx: 0.0,
             dy: 0.0,
+            inner: false,
         })
     }
 }
@@ -113,6 +121,8 @@ pub(crate) struct Effects {
     spare: Vec<Capture>,
     cells: Vec<f32>,
     mask: Vec<f32>,
+    /// An inner shadow's offset silhouette.
+    offset: Vec<f32>,
     scratch: filter::Scratch,
 }
 
@@ -224,7 +234,10 @@ impl Effects {
             let r = kurbo::Rect::new(f64::from(l.x0), f64::from(l.y0), f64::from(l.x1), f64::from(l.y1)).abs();
             Some(b.map_or(r, |b| b.union(r)))
         })?;
-        let margin = f64::from(effect.spread + SIGMAS_KEPT * effect.sigma + 1.0);
+        // An inner shadow is cast by the outside of the offset silhouette: the mask keeps 3 sigma of it
+        // around the silhouette, so the blur's zero past the mask edge never reaches inside.
+        let reach = if effect.inner { effect.dx.abs().max(effect.dy.abs()) } else { 0.0 };
+        let margin = f64::from(effect.spread + SIGMAS_KEPT * effect.sigma + reach + 1.0);
         let area = bounds.inflate(margin, margin);
         if !(area.is_finite() && area.width() > 0.0 && area.height() > 0.0) {
             return None;
@@ -249,8 +262,12 @@ impl Effects {
                 raster::composite(lines, *alpha, w, h, &mut self.cells, &mut self.mask);
             }
         }
-        filter::dilate(&mut self.mask, w, h, effect.spread * scale, &mut self.scratch);
-        filter::gaussian_blur(&mut self.mask, w, h, effect.sigma * scale, &mut self.scratch);
+        if effect.inner {
+            self.inner_shadow(capture, effect, scale, w, h);
+        } else {
+            filter::dilate(&mut self.mask, w, h, effect.spread * scale, &mut self.scratch);
+            filter::gaussian_blur(&mut self.mask, w, h, effect.sigma * scale, &mut self.scratch);
+        }
         let alpha: Vec<u8> = self.mask.iter().map(|a| (a * effect.color.3 * 255.0).round() as u8).collect();
         if alpha.iter().all(|a| *a == 0) {
             return None;
@@ -262,13 +279,46 @@ impl Effects {
             alpha: alpha.into(),
         };
         let image = Image::from_custom(matte, true).ok()?;
+        // An inner shadow's offset is in its mask already.
+        let (dx, dy) = if effect.inner {
+            (0.0, 0.0)
+        } else {
+            (f64::from(effect.dx), f64::from(effect.dy))
+        };
         let at = kurbo::Rect::new(
-            area.x0 + f64::from(effect.dx),
-            area.y0 + f64::from(effect.dy),
-            area.x0 + f64::from(effect.dx) + w as f64 / f64::from(scale),
-            area.y0 + f64::from(effect.dy) + h as f64 / f64::from(scale),
+            area.x0 + dx,
+            area.y0 + dy,
+            area.x0 + dx + w as f64 / f64::from(scale),
+            area.y0 + dy + h as f64 / f64::from(scale),
         );
         Some(EffectImage { image, at })
+    }
+
+    /// Turns `mask`, the silhouette's coverage, into the inner shadow: what lies outside the
+    /// silhouette moved by the offset, blurred, kept inside the silhouette. The outside of a shape is
+    /// unbounded, so it is taken as 1 minus the moved silhouette, blurred. The moved silhouette is
+    /// opaque, so a translucent picture still has no outside within it.
+    fn inner_shadow(&mut self, capture: &mut Capture, effect: &Effect, scale: f32, w: usize, h: usize) {
+        let (dx, dy) = (effect.dx * scale, effect.dy * scale);
+        for l in &mut capture.lines {
+            *l = Line {
+                x0: l.x0 + dx,
+                y0: l.y0 + dy,
+                x1: l.x1 + dx,
+                y1: l.y1 + dy,
+            };
+        }
+        self.offset.clear();
+        self.offset.resize(w * h, 0.0);
+        for (range, _) in &capture.shapes {
+            if let Some(lines) = capture.lines.get(range.clone()) {
+                raster::composite(lines, 1.0, w, h, &mut self.cells, &mut self.offset);
+            }
+        }
+        filter::gaussian_blur(&mut self.offset, w, h, effect.sigma * scale, &mut self.scratch);
+        for (a, moved) in self.mask.iter_mut().zip(&self.offset) {
+            *a *= 1.0 - moved;
+        }
     }
 }
 
@@ -370,7 +420,7 @@ pub(crate) enum EffectSource {
 
 impl Renderer {
     /// Runs `draw` into a sub-stream while capturing the silhouette of what `source` names, draws
-    /// `effect` from the silhouette, then the sub-stream over it.
+    /// `effect` from the silhouette, then the sub-stream over it (under it for an inner shadow).
     pub(crate) fn under_effect(
         &mut self,
         surface: &mut Surface,
@@ -397,17 +447,32 @@ impl Renderer {
         sub.pop();
         sub.finish();
         let stream = builder.finish();
-        if let Some(EffectImage { image, at }) = self.effects.end(effect)
-            && let Some(size) = Size::from_wh(at.width() as f32, at.height() as f32)
-        {
-            surface.push_transform(&Transform::from_translate(at.x0 as f32, at.y0 as f32));
-            surface.draw_image(image, size);
-            surface.pop();
+        let image = self.effects.end(effect);
+        if effect.inner {
+            draw_stream(surface, stream, inverse);
+            draw_effect(surface, image);
+        } else {
+            draw_effect(surface, image);
+            draw_stream(surface, stream, inverse);
         }
-        surface.push_transform(&inverse);
-        surface.draw_graphic(Graphic::new(stream, false));
-        surface.pop();
         drawn
+    }
+}
+
+/// Draws a sub-stream that starts from the page's transform, undone by `inverse`.
+fn draw_stream(surface: &mut Surface, stream: krilla::stream::Stream, inverse: Transform) {
+    surface.push_transform(&inverse);
+    surface.draw_graphic(Graphic::new(stream, false));
+    surface.pop();
+}
+
+fn draw_effect(surface: &mut Surface, image: Option<EffectImage>) {
+    if let Some(EffectImage { image, at }) = image
+        && let Some(size) = Size::from_wh(at.width() as f32, at.height() as f32)
+    {
+        surface.push_transform(&Transform::from_translate(at.x0 as f32, at.y0 as f32));
+        surface.draw_image(image, size);
+        surface.pop();
     }
 }
 
@@ -438,5 +503,35 @@ mod tests {
             panic!("a mask")
         };
         assert!(at.width() > 7e16 && at.height() > 1e17 - 1e10, "{at:?}");
+    }
+
+    #[test]
+    fn casts_an_inner_shadow_inside_the_silhouette_on_the_side_away_from_the_offset() {
+        use kurbo::Shape;
+        let mut effects = Effects::default();
+        effects.begin(None, Affine::IDENTITY);
+        let square = kurbo::Rect::new(0.0, 0.0, 40.0, 40.0).to_path(0.1);
+        effects.capture(Transform::identity(), &square, 1.0, None);
+        // Blur 4 px: sigma 2 px, as CSS; offset 4 px right and down.
+        let Some(Ok(inner)) = Effect::shadow(&crate::model::build::shadow("#000000", 4.0, 4.0, ShadowKind::Inner)) else {
+            panic!("an inner shadow")
+        };
+        assert!(inner.inner);
+        let Some(EffectImage { at, .. }) = effects.end(&inner) else {
+            panic!("a mask")
+        };
+        // The mask keeps 3 sigma + the offset + 1 px around the square, and is not moved by the offset.
+        assert_eq!((at.x0, at.y0, at.x1, at.y1), (-11.0, -11.0, 51.0, 51.0));
+        let alpha = |x: usize, y: usize| effects.mask.get((y + 11) * 62 + x + 11).copied().unwrap_or(f32::NAN);
+        // Dark inside the top and left edges, where the moved square leaves the outside showing.
+        assert!(alpha(0, 20) > 0.9 && alpha(20, 0) > 0.9, "{} {}", alpha(0, 20), alpha(20, 0));
+        // Half at the moved edge (x = 4): the pixels either side of it add up to one.
+        assert!((alpha(3, 20) + alpha(4, 20) - 1.0).abs() < 0.02, "{} {}", alpha(3, 20), alpha(4, 20));
+        // Nothing in the middle, along the bottom and right edges, or outside the square.
+        for (x, y) in [(20, 20), (39, 20), (20, 39)] {
+            assert!(alpha(x, y) < 0.01, "({x}, {y}): {}", alpha(x, y));
+        }
+        let outside: f32 = (0..62).map(|x| effects.mask.get(x).copied().unwrap_or(0.0)).sum();
+        assert_eq!(outside, 0.0);
     }
 }

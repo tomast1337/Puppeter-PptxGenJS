@@ -95,6 +95,11 @@ export interface RenderingTargetProfile {
      * (`NormalizedTextRun.nonBreakingHyphen`); undefined, as any other character.
      */
     readonly nonBreakingHyphen: "hyphen-minus" | undefined;
+    /**
+     * Whether it draws a picture's inner shadow (`<a:innerShdw>` in its `<p:spPr>`, which PptxGenJS writes for
+     * `addImage` with `shadow: { type: "inner" }`), or leaves the picture without it.
+     */
+    readonly drawsPictureInnerShadow: boolean;
 }
 
 /** Every rendering target by the name the `target` option takes. A new target is one file here and one entry below. */
