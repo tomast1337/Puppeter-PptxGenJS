@@ -9,10 +9,16 @@ const BASELINE_GRID_PER_INCH = 600;
 const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"]);
 
 /**
- * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
- * pair kerning it reads (FontWinMetrics `pairKerning`): a font whose only pair kerning is an Apple-format `kern`
- * table plus GPOS comes out of its PDF export unkerned at 12 and 18pt, lines 6-7% wider on kerning-heavy text, while
- * a font with no `kern` table is kerned from GPOS (an OpenType font whose only kerning is GPOS, at 14pt). It
+ * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only from the face's
+ * version 0 `kern` table, never from GPOS (FontWinMetrics `pairKerning`, GlyphAdvances `kerning`): a font whose only
+ * pair kerning is an Apple-format `kern` table plus GPOS comes out of its PDF export unkerned at 12 and 18pt, lines
+ * 6-7% wider on kerning-heavy text, and so does a font with no `kern` table, measured against PowerPoint's PDF export
+ * of decks in GPOS-only faces: at 12pt and above, 0 of 8,861 GPOS pairs applied. Such a run is written with
+ * `font-kerning: none`, as one under 12pt is, so neither renderer kerns it from GPOS. A face with both tables is
+ * kerned by the renderers inside a word from GPOS (Chromium's HarfBuzz and pdf-core's harfrust read the `kern` table
+ * only without a GPOS `kern` feature), and its word ends assume those pairs are the `kern` table's (`advanceGridWordSpacing`): they are
+ * in Liberation Sans and Serif, whose every `kern` table pair has the same GPOS value and whose GPOS-only pairs are
+ * all Hebrew. It
  * adds a paragraph's space after and the next one's space before: measured against its own PDF export of 18pt Arial,
  * `paraSpaceBefore: 6, paraSpaceAfter: 18` gives a 45.6pt pitch (21.6 + 6 + 18), not 39.6. It leaves out the
  * first paragraph's space before: with `paraSpaceBefore: 12` the first baseline is 17.05pt below the top inset,

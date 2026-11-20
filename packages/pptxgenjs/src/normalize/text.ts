@@ -111,12 +111,19 @@ function getVerticalAlign(options: PptxGenJS.TextPropsOptions): "sub" | "super" 
 
 /**
  * Whether `target` kerns a run: PptxGenJS writes `kern="0"` with `charSpacing`, and inherits 12pt otherwise. PowerPoint
- * kerns only a face whose pair kerning it reads; a face `fontMetrics` does not know is kerned.
+ * kerns only from a face's `kern` table, never from GPOS (target/powerpoint.ts): a face whose `pairKerning` is false, or
+ * whose advances in the run's weight and style are read with no `kern` pairs, is drawn unkerned.
+ * shortcut: a face whose advances are not read (its font is not readable) and whose `pairKerning` is not false is
+ * kerned, so the renderers kern it from GPOS where PowerPoint may not; pass its advances or `pairKerning` when a deck
+ * uses one.
  */
 function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup): boolean {
     if (!RENDERING_TARGETS[target].readsKern) return true;
     if (options.charSpacing || (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) < PPTX_DEFAULTS.text.kernMinSizePt) return false;
-    return fontMetrics(options.fontFace ?? PPTX_DEFAULTS.text.fontFace)?.pairKerning !== false;
+    const fontFace = options.fontFace ?? PPTX_DEFAULTS.text.fontFace;
+    if (fontMetrics(fontFace)?.pairKerning === false) return false;
+    const advances = fontMetrics.glyphAdvances?.(fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
+    return advances === undefined || Boolean(advances.kerning?.size);
 }
 
 /**

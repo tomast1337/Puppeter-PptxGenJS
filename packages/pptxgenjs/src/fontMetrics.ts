@@ -135,9 +135,9 @@ const KERN_PAIR_SIZE = 6;
 
 /**
  * A font's head.unitsPerEm and OS/2 usWinAscent and usWinDescent, from TrueType or OpenType (CFF) bytes, for the
- * `fontMetrics` option, and `pairKerning`: whether PowerPoint pair-kerns it. A font with a `kern` table is kerned from
- * that table alone, so true only when it is version 0 with a horizontal format 0 subtable holding pairs (an Apple-format
- * one gives false, whatever GPOS holds); a font without one is kerned from GPOS, so true when it has a GPOS table. A TrueType
+ * `fontMetrics` option, and `pairKerning`: whether PowerPoint pair-kerns it. PowerPoint kerns from the `kern` table alone
+ * and never from GPOS (target/powerpoint.ts), so true only when it is version 0 with a horizontal format 0 subtable
+ * holding pairs: an Apple-format one, or none, gives false whatever GPOS holds. A TrueType
  * collection (.ttc) gives the face at `faceIndex`, the first by default; a single font has only face 0. WOFF and WOFF2
  * are not read: decompress first.
  */
@@ -147,7 +147,7 @@ export function readFontWinMetrics(bytes: Uint8Array, faceIndex = 0): FontWinMet
         unitsPerEm: field("head", HEAD_UNITS_PER_EM, "unitsPerEm"),
         winAscent: field("OS/2", OS2_WIN_ASCENT, "usWinAscent"),
         winDescent: field("OS/2", OS2_WIN_DESCENT, "usWinDescent"),
-        pairKerning: tables.has("kern") ? hasMicrosoftPairKerning(field) : tables.has("GPOS"),
+        pairKerning: tables.has("kern") && hasMicrosoftPairKerning(field),
     };
     if (metrics.unitsPerEm === 0) throw new FontFileError("head.unitsPerEm is 0");
     if (metrics.winAscent + metrics.winDescent === 0) throw new FontFileError("OS/2 usWinAscent and usWinDescent are both 0");

@@ -392,10 +392,10 @@ export interface FontWinMetrics {
     readonly winAscent: number;
     readonly winDescent: number;
     /**
-     * Whether PowerPoint pair-kerns the face: from its `kern` table alone when it has one (version 0 with a horizontal
-     * format 0 subtable), else from GPOS. `false`: PowerPoint does not kern it at any size, as with a font whose only
-     * pair kerning is an Apple-format `kern` table (version 1.0) plus GPOS. Omitted: kerned from `text.kernMinSizePt`,
-     * as for an unknown face.
+     * Whether PowerPoint pair-kerns the face: from its `kern` table alone (version 0 with a horizontal format 0
+     * subtable), never from GPOS. `false`: PowerPoint does not kern it at any size, as with a font whose pair kerning is
+     * GPOS alone or an Apple-format `kern` table (version 1.0). Omitted: kerned from `text.kernMinSizePt`, as for an
+     * unknown face.
      */
     readonly pairKerning?: boolean;
 }

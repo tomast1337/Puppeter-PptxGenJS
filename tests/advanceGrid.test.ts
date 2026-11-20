@@ -347,6 +347,62 @@ describe("resolveGlyphAdvances option", () => {
     });
 });
 
+describe("kerning from the kern table only on the PowerPoint target", () => {
+    // A GPOS-only face: its advances are read, and it has no kern table, so no `kerning`.
+    const GPOS_ONLY: GlyphAdvances = { unitsPerEm: KERNED.unitsPerEm, advances: KERNED.advances };
+    const run = (fontSize: number, target: "libreoffice" | "powerpoint", advances: GlyphAdvances | undefined) =>
+        normalizeText(
+            "A To",
+            { fontFace: "My Brand Sans", fontSize },
+            target,
+            fontMetricsLookup(undefined, null, () => advances),
+        ).paragraphs[0]?.runs[0];
+
+    test("draws a face whose advances carry no kern pairs unkerned at 12pt and above; LibreOffice is unchanged", () => {
+        for (const fontSize of [12, 18]) {
+            expect(run(fontSize, "powerpoint", GPOS_ONLY)?.kerning).toBe(false);
+            // The word grid adds no pair: "A " and " T" leave the words as an unkerned run's.
+            const unkerned = advanceGridWordSpacing("A To", fontSize, KERNED, GRID, 0, false)?.words ?? [];
+            expect(run(fontSize, "powerpoint", GPOS_ONLY)?.wordCharacterSpacing).toEqual(unkerned);
+            expect(run(fontSize, "powerpoint", KERNED)?.wordCharacterSpacing).not.toEqual(unkerned);
+            expect(run(fontSize, "powerpoint", KERNED)).not.toHaveProperty("kerning");
+            for (const advances of [GPOS_ONLY, KERNED, undefined]) expect(run(fontSize, "libreoffice", advances)).not.toHaveProperty("kerning");
+        }
+        // Without advances (a font that cannot be read) the face keeps the default: kerned from 12pt.
+        expect(run(12, "powerpoint", undefined)).not.toHaveProperty("kerning");
+    });
+
+    test("writes font-kerning: none on a GPOS-only run at 12pt", async () => {
+        const presentation = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null, resolveGlyphAdvances: () => GPOS_ONLY });
+        presentation.addSlide().addText("A To", { fontFace: "My Brand Sans", fontSize: 12, margin: 0 });
+        expect((await presentation.toHtml()).html).toMatch(/class="text-run"[^>]*font-kerning: none;/);
+    });
+
+    const arial = resolveInstalledGlyphAdvances("Arial", false, false);
+    test.skipIf(!arial?.kerning?.size)("keeps the installed Arial's kern pairs at 12pt", () => {
+        const kerned = normalizeText(
+            "A To",
+            { fontFace: "Arial", fontSize: 12 },
+            "powerpoint",
+            fontMetricsLookup(undefined, null, () => arial),
+        ).paragraphs[0]?.runs[0];
+        expect(kerned).not.toHaveProperty("kerning");
+    });
+
+    // Noto Sans kerns from GPOS alone (no kern table).
+    const noto = resolveInstalledGlyphAdvances("Noto Sans", false, false);
+    test.skipIf(!noto || noto.kerning !== undefined)("draws the installed Noto Sans, kerned from GPOS alone, unkerned at 12pt", () => {
+        expect(
+            normalizeText(
+                "AVATAR",
+                { fontFace: "Noto Sans", fontSize: 12 },
+                "powerpoint",
+                fontMetricsLookup(undefined, null, () => noto),
+            ).paragraphs[0]?.runs[0]?.kerning,
+        ).toBe(false);
+    });
+});
+
 describe("the PowerPoint advance grid in Chromium", () => {
     const installed = resolveInstalledGlyphAdvances("Liberation Sans", false, false) !== undefined;
     const TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore";
