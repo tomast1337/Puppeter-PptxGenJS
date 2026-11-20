@@ -3,7 +3,7 @@ import { pdfContentStreams } from "./pdfContentStreams";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
-import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
+import { PuppeteerGen, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/node";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
 import { inchesToPixels, inchesToPoints, pixelsToInches } from "@pdflapas/model";
 
@@ -239,15 +239,37 @@ describe("Puppeteer print workarounds", () => {
         expect(() => printHtml(html)).toThrow("Cannot print 'Title': its .text-paragraph has no numeric data-line-baseline");
     });
 
-    // An inner shadow on a shape throws from addShape (tests/shape.test.ts): an outer shadow and a text box's inner
-    // one print.
-    test("prints outer shadows and a text box's inner shadow", async () => {
-        const drawn = new PuppeteerGen();
-        drawn
+    // Chromium paints an inset box-shadow under the box's content, where the <img> would hide it.
+    test("draws a picture's inner shadow on a box laid over the picture, inside its rounded frame", async () => {
+        const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        const presentation = new PuppeteerGenPowerPoint();
+        presentation
             .addSlide()
-            .addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } })
-            .addText("Inset", { x: 3, y: 1, w: 2, h: 1, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } });
-        expect(await printedHtml(drawn)).toContain("Inset");
+            .addImage({ data: PNG, x: 1, y: 1, w: 2, h: 2, rounding: true, shadow: { type: "inner", blur: 3, offset: 3, angle: 45 } })
+            .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
+        const html = (await presentation.toHtml()).html;
+        const inset = html.match(/box-shadow: (inset [^;]+);/)?.[1];
+        expect(inset).toStartWith("inset ");
+        const image = new JSDOM(printHtml(html)).window.document.querySelector<HTMLElement>(".slide-image");
+        expect(image?.style.boxShadow).toBe("none");
+        const overlay = image?.lastElementChild;
+        expect(overlay?.previousElementSibling?.querySelector("img")).toBeTruthy();
+        expect(overlay?.getAttribute("style")).toBe(`position: absolute; inset: 0; border-radius: inherit; box-shadow: ${inset}; pointer-events: none;`);
+        expect(image?.style.borderRadius).toBe("50%");
+    });
+
+    // addText rejects an inner shadow (tests/shape.test.ts): hand-written HTML can still write one on a text box or run,
+    // where Chromium would draw it differently from the WASM renderer, or outside the glyphs.
+    test("fails on an inner shadow on a text box or a run", async () => {
+        const presentation = new PuppeteerGen();
+        presentation.addSlide().addText("Inset", { x: 1, y: 1, w: 2, h: 1, objectName: "Box", shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
+        const html = (await presentation.toHtml()).html;
+        const box = html.replace("box-shadow: ", "box-shadow: inset ");
+        expect(box).not.toBe(html);
+        expect(() => printHtml(box)).toThrow("Cannot print 'Box': its box-shadow is inset, and the profile draws an inner shadow only on a .slide-image");
+        const run = html.replace('<span class="text-run"', '<span class="text-run" data-shadow-inset=""');
+        expect(run).not.toBe(html);
+        expect(() => printHtml(run)).toThrow("Cannot print 'Box': a .text-run has data-shadow-inset");
     });
 
     // Hand-written HTML can still mark a shape's shadow inset; drop-shadow() would draw it outside the shape (#198).

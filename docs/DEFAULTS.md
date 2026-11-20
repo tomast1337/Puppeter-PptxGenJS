@@ -106,6 +106,7 @@ reads no other text option of a slide number.
 | Border options when supplied |                                               Solid, `666666`, 1pt |
 | Shadow when absent           |                                                               None |
 | Enabled object shadow        | Outer, black, 75%, 8pt blur, 270°, 4pt offset (0 also takes these) |
+| Inner shadow edge            |         Gaussian, sigma blur / 3, on the angle's side (PowerPoint) |
 | Enabled text glow            |                                                    White, 75%, 8pt |
 
 ## Text boxes

@@ -445,15 +445,18 @@ describe("SVG shape rendering", () => {
         expect(dashed?.hasAttribute("stroke-dashoffset")).toBe(false);
     });
 
-    // PptxGenJS 4.0.1 writes <a:innerShdw> closed by </a:outerShdw>, which LibreOffice drops, and no renderer draws an
-    // inner shadow on a shape: the call that adds it fails, not the print step. A text box keeps its inner shadow.
-    test("an inner shadow on a shape throws where the shape is added", () => {
+    // PptxGenJS 4.0.1 writes <a:innerShdw> closed by </a:outerShdw> for a shape or text box, and LibreOffice then draws
+    // none of the slide: the call that adds it fails, not the print step. A picture's is well-formed (tests/image.test.ts).
+    test("an inner shadow on a shape or text box throws where it is added", () => {
         const slide = new PuppeteerGen(PAGE).addSlide();
         expect(() => slide.addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } })).toThrow(UnsupportedFeatureError);
         expect(() => slide.addShape("ellipse", { x: 1, y: 1, w: 1, h: 1, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } })).toThrow('shadow: { type: "inner" } on shape "ellipse" is not supported by PuppeteerGen yet.');
         expect(() => slide.addText("Inset", { x: 1, y: 1, w: 2, h: 1, shape: "roundRect" as PptxGenJS.SHAPE_NAME, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } })).toThrow('Use shadow type "outer"');
         expect(() => normalizeShape("rect", { shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } }, 96, 96, PAGE)).toThrow(UnsupportedFeatureError);
-        slide.addText("Inset", { x: 1, y: 1, w: 2, h: 1, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } });
+        expect(() => slide.addText("Inset", { x: 1, y: 1, w: 2, h: 1, shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } })).toThrow('shadow: { type: "inner" } on a text box is not supported by PuppeteerGen yet.');
+        expect(() => slide.addText([{ text: "Inset" }], { x: 1, y: 1, w: 2, h: 1, fill: { color: "FFE699" }, shadow: { type: "inner" } })).toThrow(UnsupportedFeatureError);
+        // A run's own shadow is never written (COMPATIBILITY.text runShadow), so an inner one is ignored like any other.
+        slide.addText([{ text: "Inset", options: { shadow: { type: "inner", color: "000000", blur: 3, offset: 2, angle: 45 } } }], { x: 1, y: 1, w: 2, h: 1 });
     });
 
     test("writes the line, shadow and size values the drawing only shows resolved as data attributes", () => {

@@ -624,6 +624,24 @@ describe("rendering targets", () => {
         expect((await presentation.toHtml()).html).toMatch(/<span class="text-run" data-non-breaking-hyphen="hyphen-minus" style="[^"]*"[^>]*>lorem‑ipsum<\/span>/);
     });
 
+    // PptxGenJS writes <a:innerShdw> well-formed in a picture's <p:spPr>; LibreOffice 26.2's PDF export shows the bare picture.
+    test("the PowerPoint target writes a picture's inner shadow, the LibreOffice target the picture without it", async () => {
+        const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        const html = async (presentation: PuppeteerGen) => {
+            presentation
+                .addSlide()
+                .addImage({ data: PNG, x: 1, y: 1, w: 2, h: 2, shadow: { type: "inner", color: "000000", opacity: 0.75, blur: 8, offset: 6, angle: 45 } })
+                .addImage({ data: PNG, x: 4, y: 1, w: 2, h: 2, shadow: { type: "outer", color: "000000", opacity: 0.75, blur: 8, offset: 6, angle: 45 } });
+            return [...(await presentation.toHtml()).html.matchAll(/box-shadow: ([^;]*);/g)].map(match => match[1]);
+        };
+        // 8pt blur, a 6pt (8px) offset at 45 degrees, 75% black, in px as the outer shadow; the inner one's offset points
+        // the other way and its CSS blur is 2/3 of it (normalizeShadow).
+        const [x, y] = [Math.cos(Math.PI / 4) * 8, Math.sin(Math.PI / 4) * 8];
+        const shadow = `${x}px ${y}px ${32 / 3}px rgba(0, 0, 0, 0.75)`;
+        expect(await html(new PuppeteerGenPowerPoint())).toEqual([`inset ${-x}px ${-y}px ${((32 / 3) * 2) / 3}px rgba(0, 0, 0, 0.75)`, shadow]);
+        expect(await html(new PuppeteerGenLibreOffice())).toEqual([shadow]);
+    });
+
     test("an unknown target throws and names the valid ones", () => {
         expect(() => new PuppeteerGen(undefined, { target: "keynote" as "powerpoint" })).toThrow('`target` must be one of "libreoffice", "powerpoint", got "keynote"');
     });

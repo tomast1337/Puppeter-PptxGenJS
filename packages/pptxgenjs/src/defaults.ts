@@ -93,6 +93,9 @@ export const PPTX_DEFAULTS = Object.freeze({
             opacity: 0.75,
         }),
         textColorWhenEnabled: "000000",
+        // An inner shadow's edge is a Gaussian of standard deviation blurRad / 3: PowerPoint's PDF export of a synthetic
+        // deck (a 2.5in picture, blurRad 8pt, dist 6pt, dir 45) fits sigma 3.58px for the 10.67px blur, at 0.0035 rms.
+        innerSigmaPerBlur: 1 / 3,
     }),
     text: Object.freeze({
         color: "000000",

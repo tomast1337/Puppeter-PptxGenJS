@@ -517,6 +517,22 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         expect(renderer.warnings()).toEqual(["inner shadow not rendered"]);
     });
 
+    // The profile draws an inner shadow only on a picture; PptxGenJS writes no other inner shadow well-formed.
+    test("draws a picture's inner shadow from its inset box-shadow, as a soft-masked image", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const deck = (shadow?: PptxGenJS.ShadowProps) => {
+            const pres = new PuppeteerGenPowerPoint(PAGE, { renderer });
+            pres.addSlide().addImage({ data: PNG, x: 1, y: 1, w: 2, h: 2, shadow });
+            return pres;
+        };
+        const shadowed = deck({ type: "inner", color: "000000", opacity: 0.75, blur: 8, offset: 6, angle: 45 });
+        expect((await shadowed.toHtml()).html).toContain("box-shadow: inset ");
+        const masks = (pdf: Uint8Array) => ascii(pdf).split("/SMask").length - 1;
+        const drawn = masks(await shadowed.toPdf());
+        expect(renderer.warnings()).toEqual([]);
+        expect(drawn).toBe(masks(await deck().toPdf()) + 1);
+    });
+
     test("draws SVG images and names the slide, picture and element of one outside the subset", async () => {
         const svg = (body: string) => `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 2">${body}</svg>`)}`;
         const renderer = await createWasmRenderer({ fonts: systemFonts });

@@ -172,6 +172,20 @@ describe("shared object normalization", () => {
         expect<string>(shadow.color).toBe("rgba(0, 0, 0, 0.5)");
     });
 
+    // PowerPoint darkens the inside edges the angle points to (bottom and right at 45, bottom and left at 135); a CSS
+    // inset shadow darkens the edges away from its offset, so the offset is the angle's opposite.
+    test("points an inner shadow's offset away from its angle, so it falls on the side the angle points to", () => {
+        const at45 = normalizeShadow({ type: "inner", angle: 45, offset: 6 });
+        expect(at45.offsetX).toBeCloseTo(-Math.SQRT1_2 * 8, 8);
+        expect(at45.offsetY).toBeCloseTo(-Math.SQRT1_2 * 8, 8);
+        const at135 = normalizeShadow({ type: "inner", angle: 135, offset: 4 });
+        expect(at135.offsetX).toBeCloseTo((Math.SQRT1_2 * 16) / 3, 8);
+        expect(at135.offsetY).toBeCloseTo((-Math.SQRT1_2 * 16) / 3, 8);
+        // sigma = blurRad / 3 in PowerPoint, CSS draws sigma = blur / 2: an 8pt (32/3 px) blur is 64/9 px of CSS blur.
+        expect(normalizeShadow({ type: "inner", blur: 8 }).blur).toBeCloseTo(64 / 9, 8);
+        expect(normalizeShadow({ type: "outer", blur: 8 }).blur).toBeCloseTo(32 / 3, 8);
+    });
+
     test("fills unset and zero shadow values like PptxGenJS's slide XML (blur || 8, offset || 4, angle || 270, opacity || 0.75)", () => {
         for (const value of [{ type: "outer" as const }, { type: "outer" as const, blur: 0, offset: 0, angle: 0, opacity: 0 }]) {
             const shadow = normalizeShadow(value);

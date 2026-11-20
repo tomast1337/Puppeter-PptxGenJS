@@ -95,6 +95,8 @@ const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol"
  * U+002D maps to, and Calibri's hyphen.
  * shortcut: its synthetic bold and italic are left to the browser (Chromium's, see `syntheticBoldStrokeEm`), not
  * measured against PowerPoint's PDF export of a regular-only face; measure them when a deck needs one.
+ * It draws a picture's inner shadow (`drawsPictureInnerShadow`), the Format Picture > Shadow > Inner effect, on the
+ * side its angle points to with a Gaussian of sigma blurRad / 3 (`PPTX_DEFAULTS.shadow.innerSigmaPerBlur`).
  */
 export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     readsKern: true,
@@ -116,4 +118,5 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     syntheticItalicShear: undefined,
     fallbackFaces: FALLBACK_FACES,
     nonBreakingHyphen: "hyphen-minus",
+    drawsPictureInnerShadow: true,
 });

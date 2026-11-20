@@ -19,6 +19,8 @@ const TOP = /(?:^|; )top: ([^;]+)px;/;
 const ROTATE = /rotate\(([^)]+)deg\)/;
 const BORDER_WIDTH = /(?:^|; )border-(top|right|bottom|left): ([^ ;]+)px /g;
 const ABSOLUTE = /(?:^|; )position: absolute;/;
+// An inner shadow as render/style.ts applyShadow writes it on a box.
+const INSET_SHADOW = /(?:^|; )box-shadow: inset ([^;]+);/;
 // A box's line as render/style.ts applyLine writes it: color, width, style.
 const TEXT_BORDER = /(?:^|; )border-color: ([^;]+); border-width: ([^;]+)px; border-style: ([^;]+);/;
 // The face and its fallback faces as the profile writes them: CSS strings, `\` and `"` escaped; group 2 is the face.
@@ -141,9 +143,14 @@ export function printHtml(html: string): string {
     });
     const edits: SourceEdit[] = [];
     for (const element of descendants(parse(masked, { sourceCodeLocationInfo: true }))) {
+        if (hasClass(element, "slide-element")) edits.push(...innerShadowEdits(element));
         if (element.tagName === "html") {
             edits.push(addStyle(element, `zoom: ${PRINT_ZOOM};`));
         } else if (hasClass(element, "text-run") || hasClass(element, "text-bullet")) {
+            // text-shadow has no inset form either: Chromium would draw a run's inner shadow outside its glyphs.
+            if (attribute(element, "data-shadow-inset") !== undefined) {
+                throw new Error(`Cannot print '${objectName(element)}': a .text-run has data-shadow-inset, and the profile draws an inner shadow only on a .slide-image (text-shadow has no inset form); remove data-shadow-inset or the run's shadow (PdfLapas HTML profile)`);
+            }
             // Font fallback: Chromium does not apply LibreOffice's Microsoft-font substitutions to an unknown
             // single-family declaration. Keep the face first, then the metric-compatible sans fallback the
             // fixtures use. Written into the document, so the font loading Puppeteer awaits sees the final families.
@@ -286,6 +293,24 @@ function cellInset(text: Element, half: Readonly<Sides>): SourceEdit {
     const { top, right, bottom, left } = half;
     if (ABSOLUTE.test(attribute(text, "style") ?? "")) return addStyle(text, `inset: ${-top}px ${-right}px ${-bottom}px ${-left}px;`);
     return addStyle(text, `margin: ${-top}px ${-right}px ${-bottom}px ${-left}px; width: calc(100% + ${left + right}px);`);
+}
+
+/**
+ * Inner shadow: the profile draws one only on a picture, over it and inside its frame. Chromium paints an inset
+ * box-shadow under the box's content, where the <img> hides it, so the shadow moves onto an empty box laid over
+ * the frame. On any other box it would be drawn where the WASM renderer draws none ("inner shadow not rendered"):
+ * addShape and addText reject it, so only hand-written HTML gets here, and it fails.
+ */
+function innerShadowEdits(object: Element): SourceEdit[] {
+    const shadow = attribute(object, "style")?.match(INSET_SHADOW)?.[1];
+    if (shadow === undefined) return [];
+    if (!hasClass(object, "slide-image")) {
+        throw new Error(`Cannot print '${objectName(object)}': its box-shadow is inset, and the profile draws an inner shadow only on a .slide-image; remove the shadow or make it an outer one (PdfLapas HTML profile)`);
+    }
+    const end = object.sourceCodeLocation?.endTag;
+    if (!end) throw new Error(`Cannot print '${objectName(object)}': its .slide-image must be written out with an end tag`);
+    const overlay = `<div style="position: absolute; inset: 0; border-radius: inherit; box-shadow: inset ${shadow}; pointer-events: none;"></div>`;
+    return [addStyle(object, "box-shadow: none;"), { start: end.startOffset, end: end.startOffset, text: overlay }];
 }
 
 function shapeEdits(svg: Element): SourceEdit[] {

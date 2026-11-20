@@ -2,6 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { CssColor, NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdflapas/model";
 import { colorToCSS, TRANSPARENT } from "#src/color";
+import { UnsupportedFeatureError } from "#src/UnsupportedFeatureError";
 import { degreesToRadians, millimetersToPixels, pointsToPixels } from "@pdflapas/model";
 
 type ColorValue = string | { color?: string; transparency?: number; alpha?: number; type?: string };
@@ -172,6 +173,19 @@ export function normalizeLine(value?: PptxGenJS.ShapeLineProps, straightLength?:
     };
 }
 
+/**
+ * PptxGenJS 4.0.1 slideObjectToXml writes the inner shadow of a shape or text box as malformed XML (<a:innerShdw>
+ * closed by </a:outerShdw>): LibreOffice 26.2 then draws none of the slide, and there is no drawing to match, so the
+ * call that adds it fails. A picture's inner shadow is written well-formed and kept.
+ */
+export function innerShadowError(object: string): UnsupportedFeatureError {
+    return new UnsupportedFeatureError(
+        `shadow: { type: "inner" } on ${object}`,
+        'PptxGenJS 4.0.1 writes an inner shadow on a shape or text box as malformed XML (<a:innerShdw> closed by </a:outerShdw>), and LibreOffice then draws none of the slide. Use shadow type "outer" or remove the shadow; an image keeps its inner shadow.',
+        "property",
+    );
+}
+
 export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow {
     if (!value || value.type === "none") {
         return { visible: false, color: TRANSPARENT, blur: 0, offsetX: 0, offsetY: 0, inset: false };
@@ -179,15 +193,20 @@ export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow
     // `||`, not `??`: PptxGenJS replaces 0 with the default too (see the defaults).
     const defaults = PPTX_DEFAULTS.shadow.objectWhenEnabled;
     const angle = degreesToRadians(value.angle || defaults.angle);
-    const offset = pointsToPixels(value.offset || defaults.offsetPt);
+    // An inner shadow falls on the side `angle` points to (PowerPoint's PDF export), while CSS's inset shadow is the
+    // outside of the box moved by the offset, which darkens the opposite side: so the inset offset points the other way.
+    const inner = value.type === "inner";
+    const offset = pointsToPixels(value.offset || defaults.offsetPt) * (inner ? -1 : 1);
+    // CSS blurs a shadow with sigma = blur / 2, so the CSS blur of an inner shadow is twice its measured sigma.
+    const blur = pointsToPixels(value.blur || defaults.blurPt) * (inner ? 2 * PPTX_DEFAULTS.shadow.innerSigmaPerBlur : 1);
     const opacity = value.opacity || defaults.opacity;
     const color = normalizeColor({ color: value.color || defaults.color, transparency: (1 - opacity) * 100 });
     return {
         visible: true,
         color,
-        blur: pointsToPixels(value.blur || defaults.blurPt),
+        blur,
         offsetX: Math.cos(angle) * offset,
         offsetY: Math.sin(angle) * offset,
-        inset: value.type === "inner",
+        inset: inner,
     };
 }

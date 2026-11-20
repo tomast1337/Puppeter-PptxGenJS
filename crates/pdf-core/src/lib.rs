@@ -235,6 +235,12 @@ impl Renderer {
             surface.push_opacity(unit(style.transform.opacity));
         }
         let shadow = match style.shadow.as_ref().and_then(Effect::shadow) {
+            // The profile draws an inner shadow only on a picture (docs/HTML_PROFILE.md): PptxGenJS writes a
+            // shape's or text box's as malformed XML, so there is no drawing of one to match.
+            Some(Ok(effect)) if effect.inner && !matches!(object, SlideObject::Image(_)) => {
+                self.warn("inner shadow not rendered");
+                None
+            }
             Some(Ok(effect)) => Some(effect),
             Some(Err(skipped)) => {
                 self.warn(skipped);
@@ -809,6 +815,19 @@ mod tests {
         assert_close(&numbers_after(link, "/QuadPoints"), &[7.5, 315.0, 157.5, 315.0, 157.5, 390.0, 7.5, 390.0]);
     }
 
+    #[test]
+    fn draws_a_pictures_inner_shadow_over_it() {
+        let mut r = Renderer::new();
+        let mut shadowed = picture(build::image(PNG_DATA));
+        if let SlideObject::Image(object) = &mut shadowed {
+            object.style.shadow = Some(build::shadow("rgba(0, 0, 0, 0.75)", 10.67, 4.0, ShadowKind::Inner));
+        }
+        let pdf = render(&mut r, &build::deck(vec![shadowed])).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+        assert!(String::from_utf8_lossy(&pdf).contains("/SMask"), "the shadow is an image with a soft mask");
+    }
+
+    /// The profile draws an inner shadow only on a picture: a shape's is reported.
     #[test]
     fn reports_inner_shadows_and_draws_the_object() {
         let mut r = Renderer::new();

@@ -10,7 +10,7 @@ import { normalizeObjectStyle } from "./normalize/object";
 import { normalizeShape, normalizeShapeTextBox } from "./normalize/shape";
 import { normalizeShapeLine, normalizeTextLine, straightLineLength } from "./normalize/shape/line";
 import { normalizeSlideNumber } from "./normalize/slideNumber";
-import { normalizeColor, normalizeLine } from "./normalize/style";
+import { innerShadowError, normalizeColor, normalizeLine } from "./normalize/style";
 import { normalizeTable } from "./normalize/table";
 import { autoPageTableOptions, paginateTableRows } from "./normalize/table/pagination";
 import { collapseTextMargins, normalizeText, type TextInput } from "./normalize/text";
@@ -20,6 +20,7 @@ import { chartSize, renderChartExtension, renderChartExtensionSvg } from "./rend
 import { renderComponent } from "./render/component";
 import { objectIdScope } from "./render/slide";
 import type { SlideContext } from "./slideContext";
+import { RENDERING_TARGETS } from "./target";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 
 /** A `placeholder` names one on the slide's layout, which only defineSlideMaster() can define. */
@@ -194,7 +195,9 @@ export class PuppeteerSlide implements PptxSlide {
         const image = normalizeImage(options, this.pageSize);
         const { transparency: _imageTransparency, ...opaqueOptions } = options;
         const geometryOptions = options.sizing ? { ...opaqueOptions, w: options.sizing.w, h: options.sizing.h } : opaqueOptions;
-        const style = normalizeObjectStyle(geometryOptions, PPTX_DEFAULTS.image, this.pageSize, this.nextObjectName("Image", options.objectName), {
+        // PptxGenJS writes a picture's inner shadow well-formed, but not every target draws it (drawsPictureInnerShadow).
+        const shadow = options.shadow?.type === "inner" && !RENDERING_TARGETS[this.context.target].drawsPictureInnerShadow ? undefined : options.shadow;
+        const style = normalizeObjectStyle({ ...geometryOptions, shadow }, PPTX_DEFAULTS.image, this.pageSize, this.nextObjectName("Image", options.objectName), {
             shadow: true,
         });
         return this.addObject({ kind: "image", style, image });
@@ -254,6 +257,7 @@ export class PuppeteerSlide implements PptxSlide {
     addText(text: TextInput, options?: PptxGenJS.TextPropsOptions | undefined): PptxGenJS.Slide {
         const textOptions = options ?? {};
         if (textOptions.placeholder !== undefined) throw placeholderError("addText");
+        if (textOptions.shadow?.type === "inner") throw innerShadowError(textOptions.shape ? `shape "${textOptions.shape}"` : "a text box");
         // Text transparency is a run color property, not object opacity.
         const { transparency: _textTransparency, ...boxOptions } = textOptions;
         const textStyle = normalizeObjectStyle(boxOptions, PPTX_DEFAULTS.text, this.pageSize, this.nextObjectName("Text", textOptions.objectName), {

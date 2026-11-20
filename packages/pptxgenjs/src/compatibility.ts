@@ -311,7 +311,9 @@ export const COMPATIBILITY = Object.freeze({
             rectRadius: "implemented",
             rotate: "implemented",
             rtlMode: "implemented",
-            // The text box's shadow (in its <p:spPr>).
+            // The text box's outer shadow (in its <p:spPr>). An inner one throws UnsupportedFeatureError from addText
+            // (normalize/style innerShadowError): PptxGenJS 4.0.1 writes it as malformed XML, and LibreOffice then draws
+            // none of the slide.
             shadow: "implemented",
             // `shadow` on a run (TextProps.options, also in table cells): PptxGenJS 4.0.1 genXmlTextRunProperties
             // writes only `glow` into the run's <a:effectLst>, so PowerPoint and LibreOffice draw no run shadow; neither
@@ -359,6 +361,8 @@ export const COMPATIBILITY = Object.freeze({
             placeholder: "unsupported",
             rotate: "verified",
             rounding: "verified",
+            // An inner shadow is drawn over the picture for the PowerPoint target; LibreOffice draws none, nor does
+            // its target (drawsPictureInnerShadow).
             shadow: "verified",
             transparency: "verified",
             sizing: "verified",
@@ -399,8 +403,9 @@ export const COMPATIBILITY = Object.freeze({
             points: "implemented",
             rectRadius: "implemented",
             rotate: "implemented",
-            // Outer shadows. An inner one throws UnsupportedFeatureError from addShape (normalize/shape): PptxGenJS
-            // 4.0.1 writes it as malformed XML (<a:innerShdw> closed by </a:outerShdw>) that LibreOffice drops.
+            // Outer shadows. An inner one throws UnsupportedFeatureError from addShape (normalize/style innerShadowError):
+            // PptxGenJS 4.0.1 writes it as malformed XML (<a:innerShdw> closed by </a:outerShdw>), and LibreOffice then
+            // draws none of the slide.
             shadow: "partial",
             rectangle: "implemented",
             roundedRectangle: "implemented",
@@ -522,7 +527,8 @@ export const WASM_COMPATIBILITY = Object.freeze({
             // effect options with PNG and JPEG sources (data and path); paths and URLs are resolved to data URIs before rendering.
             // The gif, webp and svg decks (tests/visual/wasm/format-deck.ts, decks.ts) cover the other formats.
             ...COMPATIBILITY.image.options,
-            // The shadow is blurred from the picture box (rounded or cropped), not the PNG alpha.
+            // The shadow is blurred from the picture box (rounded or cropped), not the PNG alpha; an inner one is
+            // drawn over the picture (crates/pdf-core/src/effect/).
             shadow: "partial",
             // A GIF whose first frame does not cover the logical screen throws instead of being composited.
             gifFirstFrame: "verified",
@@ -565,7 +571,7 @@ export const WASM_COMPATIBILITY = Object.freeze({
             ...Object.fromEntries(Object.entries(COMPATIBILITY.text.options).map(([option, status]) => [option, status === "verified" ? "implemented" : status])),
             // Blurred rasters calibrated against LibreOffice (crates/pdf-core/src/effect/), gated by the effects deck.
             glow: "implemented",
-            // Outer shadows only; inner ones are reported through warnings().
+            // Outer shadows; inner ones throw from addText.
             shadow: "partial",
             // Left, right, center and decimal stops plus the 1in default (defTabSz), measured from
             // the left even in right-to-left paragraphs (a warning says so).
