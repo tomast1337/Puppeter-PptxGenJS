@@ -18,48 +18,58 @@ export function createNodeDocument(): Document {
     return new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;
 }
 
-/** `path` with symlinks followed, or the error naming `path` when it cannot be read. */
-async function realImagePath(path: string): Promise<string> {
+/** `path` with symlinks followed, or the error naming `source` when it cannot be read. */
+async function realImagePath(path: string, source: string): Promise<string> {
     try {
         return await realpath(path);
     } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Image file not found: ${path}`, { cause: error }); // `as`: fs errors are ErrnoExceptions
-        throw new Error(`Unable to read image file: ${path}`, { cause: error });
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Image file not found: ${source}`, { cause: error }); // `as`: fs errors are ErrnoExceptions
+        throw new Error(`Unable to read image file: ${source}`, { cause: error });
     }
+}
+
+/** The image media type of `path` by its extension; `source` names it in the error. */
+function imageMime(path: string, source: string): string {
+    const mime = MIME_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream";
+    if (!mime.startsWith("image/")) throw new Error(`Unsupported image type '${mime}': ${source}; an image path must end in .png, .jpg, .jpeg, .gif, .svg or .webp`);
+    return mime;
 }
 
 /**
  * Data URIs and http(s) URLs as in the core, plus file paths and file: URLs relative to the working directory,
- * or to `options.baseDir`, which then confines them.
+ * or to `options.baseDir`, which then confines them. Errors name the path as given, not where it resolves, so
+ * a service that passes them on does not disclose its directory layout.
  */
 export async function resolveImageSource(source: string, options: ImageSourceOptions = {}): Promise<string> {
     if (/^(data:|https?:\/\/)/i.test(source)) return resolveRemoteImageSource(source, options);
+    if (options.allowLocalPaths === false) throw new Error(`Local image paths are not allowed (PuppeteerGen option imageSources.allowLocalPaths is false): ${source}; use a data URI${options.allowRemote === false ? "" : " or an http(s) URL"}`);
 
     const path = source.startsWith("file:") ? fileURLToPath(source) : resolve(options.baseDir ?? process.cwd(), source);
-    const mime = MIME_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream";
-    if (!mime.startsWith("image/")) throw new Error(`Unsupported image type '${mime}': ${path}`);
-    const real = await realImagePath(path);
+    imageMime(path, source);
+    const real = await realImagePath(path, source);
+    // The extension of the file actually read counts too: a symlink named like an image may point at anything.
+    const mime = imageMime(real, source);
     if (options.baseDir !== undefined) {
         const base = await realpath(options.baseDir).catch((error: unknown) => {
             throw new Error(`PuppeteerGen option imageSources.baseDir is not a readable directory: ${options.baseDir}`, { cause: error });
         });
         const inside = relative(base, real);
         if (inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
-            throw new Error(`Image path is outside imageSources.baseDir (${base}): ${source} resolves to ${real}; move the image into the directory or use a data URI`);
+            throw new Error(`Image path is outside imageSources.baseDir: ${source} (symlinks followed); move the image into the directory or use a data URI`);
         }
     }
     let file: FileHandle;
     try {
         file = await open(real);
     } catch (error) {
-        throw new Error(`Unable to read image file: ${path}`, { cause: error });
+        throw new Error(`Unable to read image file: ${source}`, { cause: error });
     }
     try {
         // The size is checked on the opened file, so it cannot be swapped for a larger one before the read.
         const info = await file.stat();
-        if (!info.isFile()) throw new Error(`Image path is not a file: ${path}`);
+        if (!info.isFile()) throw new Error(`Image path is not a file: ${source}`);
         const maxBytes = options.maxBytes ?? IMAGE_SOURCE_LIMITS.maxBytes;
-        if (info.size > maxBytes) throw imageTooLargeError(path, info.size, maxBytes);
+        if (info.size > maxBytes) throw imageTooLargeError(source, info.size, maxBytes);
         return dataUri(await file.readFile(), mime);
     } finally {
         await file.close();

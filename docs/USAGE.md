@@ -13,6 +13,7 @@ PuppeteerGen is a library that implements the PptxGenJS interface to generate PD
 - [Multiple Slides](#multiple-slides)
 - [Custom Layouts](#custom-layouts)
 - [API Reference](#api-reference)
+- [Running PdfLapas on a server](#running-pdflapas-on-a-server)
 
 ## Installation
 
@@ -349,9 +350,25 @@ new PuppeteerGen(undefined, {
 });
 ```
 
+| `imageSources` key | Default                   | Effect                                                                                |
+| ------------------ | ------------------------- | ------------------------------------------------------------------------------------- |
+| `baseDir`          | none (any readable path)  | relative paths resolve here; a path outside it, symlinks followed, throws             |
+| `allowLocalPaths`  | `true`                    | `false` rejects file paths and `file:` URLs                                           |
+| `allowRemote`      | `true`                    | `false` rejects http(s) URLs                                                          |
+| `allowedHosts`     | none (any host)           | fetch only from these host names (exact, case-insensitive), checked on every redirect |
+| `maxRedirects`     | 20 (the Fetch standard's) | redirects one image follows; `0` follows none                                         |
+| `timeoutMs`        | 30 000                    | per fetch, headers and body                                                           |
+| `maxBytes`         | 50 MiB                    | per image, remote body or file                                                        |
+
+A file path must name an image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`), and so must the file
+it resolves to when it is a symlink. Errors name the path or URL as the deck gave it, not where it
+resolved.
+
 `imageSources` configures the default resolver only, so it cannot be combined with `resolveImage`. The
-default resolver does not filter hosts: to fetch remote images while blocking internal addresses, pass
-your own `resolveImage`.
+default resolver checks host names, not addresses: `allowedHosts` keeps fetches to hosts you trust, but
+without it a URL can name an internal host or a cloud metadata address. To fetch from arbitrary hosts
+while blocking internal addresses, pass your own `resolveImage` that resolves and checks the address
+before it connects.
 
 `PuppeteerGenLibreOffice` and `PuppeteerGenPowerPoint` are `PuppeteerGen` subclasses with the target set,
 taking the same arguments: use them to match LibreOffice or PowerPoint rendering. They can be extended
@@ -608,6 +625,24 @@ This will generate several PDF files demonstrating different features:
 - `example-tables.pdf` - Table formatting examples
 - `example-multiple-slides.pdf` - Multi-slide presentation
 - `example-custom-layout.pdf` - Custom page dimensions
+
+## Running PdfLapas on a server
+
+PdfLapas keeps PptxGenJS's defaults, which suit a script that renders its own decks. When the deck's text,
+image sources, options or component props come from users, set these at the service's boundary:
+
+- **Image sources.** Confine the default resolver with `imageSources` (above): `baseDir` or
+  `allowLocalPaths: false` for files, `allowRemote: false` or `allowedHosts` for URLs, and lower
+  `maxBytes` and `timeoutMs` to what your decks need. Or pass a `resolveImage` that only looks images up
+  in your own storage.
+- **Renderer.** The Puppeteer renderer prints offline with scripts off; run Chromium with its sandbox
+  where you can (see the Puppeteer backend section of [BACKENDS.md](./BACKENDS.md)).
+- **Components.** Component renderers are trusted code: escape user data in their markup
+  ([COMPONENTS.md](./COMPONENTS.md)).
+- **Input size.** PdfLapas, like PptxGenJS, has no global limit on slides, objects or text length, and
+  rendering time grows with them. Cap the deck size your service accepts before you build the deck.
+- **Errors.** Error messages name the input that failed (a path, a URL, an object name). Log them, and
+  return a generic message to users who should not see your inputs.
 
 ## Tips and Best Practices
 
