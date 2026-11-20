@@ -14,7 +14,7 @@ import type { PageSize } from "./pageLayouts";
 import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES, pageSize } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { PuppeteerSlide } from "./PuppeteerSlide";
-import { type HtmlPresentationDocument, lazyDocument, modelToHtml, type PresentationRenderer } from "./render/document";
+import { type HtmlPresentationDocument, lazyDocument, type PresentationRenderer, trustedModelToHtml } from "./render/document";
 import { createBrowserDocument } from "./render/slide";
 import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
 
@@ -330,7 +330,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     /** The complete self-contained HTML document (images inlined as data URIs). Does not launch a browser. */
     async toHtml(): Promise<HtmlPresentationDocument> {
-        return modelToHtml(this.getModel(), { components: this.components, resolveImage: this.resolveImage, createDocument: this.createDocument });
+        return trustedModelToHtml(this.getModel(), { components: this.components, resolveImage: this.resolveImage, createDocument: this.createDocument });
     }
 
     /** PDF bytes from the configured renderer; nothing is written to disk. */

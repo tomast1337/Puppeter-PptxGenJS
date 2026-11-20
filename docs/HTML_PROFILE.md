@@ -48,7 +48,9 @@ both backends read only the HTML.
 
 - **The model is the only source of truth.** Each `add*` call writes only the model. `toHtml()` is
   `modelToHtml(getModel())` (`render/document.ts`), exported from `@pdflapas/pptxgenjs/html` for producers
-  that build the model themselves: it writes the whole document at once as strings, without a DOM,
+  that build the model themselves. Their JSON is untrusted, so `modelToHtml` checks it with `parseModel`
+  (`modelSchema.ts`, also exported) and throws `InvalidModelError` with each wrong value's JSON path;
+  `toHtml()` skips the check. It writes the whole document at once as strings, without a DOM,
   inlines images through `resolveImage`, and renders components with the caller's registry. Only a
   component that reads `context.document` gets a document, from the caller's `createDocument`.
 - **HTML is also an input.** A stored, edited or hand-written document enters at the HTML stage:

@@ -1,4 +1,5 @@
 import type { DataUri, HtmlPresentationDocument, NormalizedPresentation } from "@pdflapas/model";
+import { parseModel } from "#src/modelSchema";
 import { IMAGE_SOURCE_LIMITS, resolvedImageDataUri, resolveRemoteImageSource } from "#src/normalize/image";
 import { componentImageSources } from "./component";
 import { type ComponentLookup, createBrowserDocument, presentationHtml, renderComponents } from "./slide";
@@ -35,9 +36,16 @@ export function unresolvedModelHtml(model: NormalizedPresentation, components?: 
 
 /**
  * The model's self-contained HTML document (images inlined as data URIs), the same bytes for the same model.
- * Written as strings: only a component that reads `context.document` needs a DOM. The model is not modified.
+ * Model JSON from another producer is untrusted, so it is checked first (parseModel(), InvalidModelError); plain
+ * JSON is accepted. Written as strings: only a component that reads `context.document` needs a DOM. The model is
+ * not modified.
  */
-export async function modelToHtml(model: NormalizedPresentation, options: ModelToHtmlOptions = {}): Promise<HtmlPresentationDocument> {
+export async function modelToHtml(model: unknown, options: ModelToHtmlOptions = {}): Promise<HtmlPresentationDocument> {
+    return trustedModelToHtml(parseModel(model), options);
+}
+
+/** modelToHtml() without the check, for a model our own normalizer built (toHtml()): its values are already branded. */
+export async function trustedModelToHtml(model: NormalizedPresentation, options: ModelToHtmlOptions = {}): Promise<HtmlPresentationDocument> {
     const resolveImage = options.resolveImage ?? resolveRemoteImageSource;
     const components = renderComponents(model, options.components, lazyDocument(options.createDocument ?? createBrowserDocument));
     const modelSources = model.slides.flatMap(slide => (slide.hidden ? [] : slide.objects).flatMap(object => (object.kind === "image" && object.image.sourceKind !== "data" ? [object.image.source] : [])));
