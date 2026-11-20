@@ -16,13 +16,20 @@ without touching the filesystem; `writeFile()` is `toPdf()` plus a file write.
 which values it loses today.
 
 The HTML is derived from the model alone: `toHtml()` is `modelToHtml(pres.getModel(), ...)`, and
-`modelToHtml` is exported for producers that build the model JSON themselves.
+`modelToHtml` is exported for producers that build the model JSON themselves. That JSON is untrusted
+input, so `modelToHtml` first checks it with `parseModel`, which accepts plain JSON and throws an
+`InvalidModelError` naming each wrong value's path (`model.slides[0].background: is not a CssColor ...`).
+Colors must be in the forms `colorToCSS` writes, page sizes finite and positive, links http(s), mailto or
+`#slide-<n>`, data images `data:image/...;base64,` URIs, and objects carry no unknown keys. `toHtml()` skips
+the check: its model comes from the normalizer.
 
 ```typescript
-import { modelToHtml } from "@pdflapas/pptxgenjs/html";
+import { modelToHtml, parseModel } from "@pdflapas/pptxgenjs/html";
 
 // Optional dependencies: { components, resolveImage, createDocument }, with the /html defaults below.
-const { html } = await modelToHtml(model);
+const { html } = await modelToHtml(JSON.parse(stored));
+// Or check without rendering: the typed model, or InvalidModelError.
+const model = parseModel(JSON.parse(stored));
 ```
 
 ```typescript

@@ -5,7 +5,7 @@ import type { NormalizedTextLink } from "@pdflapas/model";
  * Schemes a link may open. PptxGenJS writes any `url` into the slide relationships; a PDF link that
  * runs `javascript:` or opens `file:` is a hazard in a shared document, so other schemes are rejected.
  */
-const URL_SCHEME = /^(?:https?|mailto):/i;
+export const URL_SCHEME = /^(?:https?|mailto):/i;
 
 /** The model link of a text run, shape or image `hyperlink` option: its `url`, else a jump to its 1-based `slide`. */
 export function normalizeHyperlink(hyperlink: PptxGenJS.HyperlinkProps | undefined): NormalizedTextLink | undefined {

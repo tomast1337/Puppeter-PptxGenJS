@@ -12,6 +12,7 @@ import { alignToCSS, valignToCSS } from "./alignment";
 import { colorToCSS } from "./color";
 import { generatePageCSS } from "./pageCss";
 import { completeProfileHtml, pptxHtmlDocument } from "./render/completion";
+import { InvalidModelError, parseModel } from "./modelSchema";
 import { modelToHtml } from "./render/document";
 import { IMAGE_SOURCE_LIMITS, UnresolvedImageError } from "./normalize/image";
 import { inchesToPixels, percentageToPixels, pointsToPixels } from "@pdflapas/model";
@@ -32,9 +33,13 @@ export {
     // The default image resolvers' timeout, size and concurrency limits (#149).
     IMAGE_SOURCE_LIMITS,
     inchesToPixels,
-    // The model -> HTML step for producers that build the JSON model themselves (#69).
+    // What parseModel() and modelToHtml() throw for model JSON that is not a valid model (#282).
+    InvalidModelError,
+    // The model -> HTML step for producers that build the JSON model themselves (#69); checks the model first.
     modelToHtml,
     PAGE_SIZES,
+    // Checks model JSON from another producer and returns the typed model (#282).
+    parseModel,
     // For @pdflapas/react, which applies component schemas the same way as the registry.
     parseComponentProps,
     PPTX_DEFAULTS,

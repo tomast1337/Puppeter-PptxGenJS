@@ -68,8 +68,10 @@ async function checkConsumer(consumerDirectory: string, dependencies: string[], 
 
     const consumerSource = `
 import PuppeteerGen, {
+    InvalidModelError,
     modelToHtml,
     PAGE_SIZES,
+    parseModel,
     PuppeteerGenLibreOffice,
     PuppeteerGenPowerPoint,
     type PuppeteerSlide,
@@ -98,6 +100,10 @@ if (html.split('class="slide-element slide-chart"').length - 1 !== 1) {
     throw new Error("Built package did not render the consumer chart");
 }
 if (typeof modelToHtml !== "function") throw new Error("Built package does not export modelToHtml");
+const stored = JSON.parse(JSON.stringify(presentation.getModel()));
+if ((await modelToHtml(parseModel(stored))).html !== html) throw new Error("Built package: modelToHtml(parseModel(getModel() JSON)) is not toHtml()");
+stored.slides[0].background = "red;background:url(x)";
+if (!(await modelToHtml(stored).then(() => false, error => error instanceof InvalidModelError))) throw new Error("Built package: modelToHtml accepted a color that adds CSS declarations");
 class ConsumerDeck extends PuppeteerGenPowerPoint {}
 for (const [Target, unkerned] of [[ConsumerDeck, true], [PuppeteerGenLibreOffice, false]] as const) {
     const deck = new Proxy(new Target(), {});

@@ -161,7 +161,7 @@ async function fetchImage(source: string, options: ImageSourceOptions): Promise<
 }
 
 // What both renderers decode: an image media type and base64 data, as imageDataUri() and dataUri() write it.
-const RESOLVED_IMAGE = /^data:image\/[\w.+-]+;base64,[a-z\d+/=\s]+$/i;
+export const RESOLVED_IMAGE = /^data:image\/[\w.+-]+;base64,[a-z\d+/=\s]+$/i;
 
 /** A `resolveImage` result that is not a `data:image/…;base64,` URI, such as a URL or a path the PDF would have to fetch. */
 export class UnresolvedImageError extends Error {
