@@ -56,11 +56,14 @@ export const IMAGE_SOURCE_LIMITS = Object.freeze({
     maxBytes: 50 * 1024 * 1024,
     /** Image sources modelToHtml() resolves at once. */
     concurrency: 8,
+    /** Redirects one fetch follows: the Fetch standard's limit, which fetch() applies without imageSources. */
+    maxRedirects: 20,
 });
 
 /**
  * How the default resolvers treat image paths and URLs (PuppeteerGen option `imageSources`). Unset, they accept
- * what PptxGenJS accepts, any readable path and any http(s) URL, within IMAGE_SOURCE_LIMITS.
+ * what PptxGenJS accepts, any readable image path and any http(s) URL, within IMAGE_SOURCE_LIMITS. A server that
+ * renders decks built from user input narrows them (docs/USAGE.md, "Running PdfLapas on a server").
  */
 export interface ImageSourceOptions {
     /** Abort a fetch (headers and body) after this many milliseconds. Default IMAGE_SOURCE_LIMITS.timeoutMs. */
@@ -71,9 +74,15 @@ export interface ImageSourceOptions {
     baseDir?: string;
     /** false rejects http(s) URLs. Default true. */
     allowRemote?: boolean;
+    /** Node entry: false rejects file paths and file: URLs, leaving data URIs and (when allowed) http(s) URLs. Default true. */
+    allowLocalPaths?: boolean;
+    /** Fetch http(s) URLs only from these host names (exact, case-insensitive), checked again on every redirect. */
+    allowedHosts?: readonly string[];
+    /** Follow at most this many redirects per image. Default IMAGE_SOURCE_LIMITS.maxRedirects; 0 follows none. */
+    maxRedirects?: number;
 }
 
-const IMAGE_SOURCE_KEYS: ReadonlySet<string> = new Set(["timeoutMs", "maxBytes", "baseDir", "allowRemote"]);
+const IMAGE_SOURCE_KEYS: ReadonlySet<string> = new Set(["timeoutMs", "maxBytes", "baseDir", "allowRemote", "allowLocalPaths", "allowedHosts", "maxRedirects"]);
 
 function checkPositive(name: string, value: unknown, integer: boolean): void {
     if (value === undefined || (typeof value === "number" && value > 0 && Number.isFinite(value) && (!integer || Number.isInteger(value)))) return;
@@ -86,11 +95,18 @@ function imageSourceOptions(options: unknown): ImageSourceOptions {
     if (typeof options !== "object" || options === null) throw new TypeError(`PuppeteerGen option \`imageSources\` must be an object, got ${JSON.stringify(options)}`);
     const unknownKey = Object.keys(options).find(key => !IMAGE_SOURCE_KEYS.has(key));
     if (unknownKey) throw new TypeError(`PuppeteerGen option \`imageSources\` has unknown key "${unknownKey}"; expected one of ${[...IMAGE_SOURCE_KEYS].join(", ")}`);
-    const { timeoutMs, maxBytes, baseDir, allowRemote } = options as Record<string, unknown>; // `as`: checked it is a non-null object
+    const { timeoutMs, maxBytes, baseDir, allowRemote, allowLocalPaths, allowedHosts, maxRedirects } = options as Record<string, unknown>; // `as`: checked it is a non-null object
     checkPositive("timeoutMs", timeoutMs, false);
     checkPositive("maxBytes", maxBytes, true);
     if (baseDir !== undefined && (typeof baseDir !== "string" || !baseDir)) throw new TypeError(`PuppeteerGen option \`imageSources.baseDir\` must be a non-empty directory path, got ${JSON.stringify(baseDir)}`);
     if (allowRemote !== undefined && typeof allowRemote !== "boolean") throw new TypeError(`PuppeteerGen option \`imageSources.allowRemote\` must be a boolean, got ${JSON.stringify(allowRemote)}`);
+    if (allowLocalPaths !== undefined && typeof allowLocalPaths !== "boolean") throw new TypeError(`PuppeteerGen option \`imageSources.allowLocalPaths\` must be a boolean, got ${JSON.stringify(allowLocalPaths)}`);
+    if (allowedHosts !== undefined && !(Array.isArray(allowedHosts) && allowedHosts.every(host => typeof host === "string" && host.length > 0))) {
+        throw new TypeError(`PuppeteerGen option \`imageSources.allowedHosts\` must be an array of host names, got ${JSON.stringify(allowedHosts)}`);
+    }
+    if (maxRedirects !== undefined && !(typeof maxRedirects === "number" && Number.isInteger(maxRedirects) && maxRedirects >= 0)) {
+        throw new TypeError(`PuppeteerGen option \`imageSources.maxRedirects\` must be a whole number from 0, got ${JSON.stringify(maxRedirects)}`);
+    }
     return options as ImageSourceOptions; // `as`: every key was checked above
 }
 
@@ -137,16 +153,50 @@ function isTimeout(error: unknown): boolean {
     return error instanceof Error && error.name === "TimeoutError";
 }
 
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
+/** Throws unless `url`, `source` itself or a redirect from it, is an http(s) URL on an allowed host. */
+function checkRemoteUrl(url: URL, source: string, allowedHosts: readonly string[] | undefined): void {
+    if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`Image fetch redirected to a ${url.protocol} URL: ${source}`);
+    if (allowedHosts && !allowedHosts.some(host => host.toLowerCase() === url.hostname)) {
+        throw new Error(`Image host '${url.hostname}' is not in the PuppeteerGen option imageSources.allowedHosts: ${source}; add the host or embed the image as a data URI`);
+    }
+}
+
+/**
+ * `source` fetched, following redirects. Without allowedHosts or maxRedirects fetch() follows them itself, as
+ * PptxGenJS does; with either, each hop is checked here (`redirect: "manual"`).
+ */
+async function fetchFollowingRedirects(source: string, options: ImageSourceOptions, signal: AbortSignal): Promise<Response> {
+    const { allowedHosts, maxRedirects } = options;
+    if (allowedHosts === undefined && maxRedirects === undefined) return fetch(source, { signal });
+    let url = new URL(source);
+    for (let redirects = 0; ; redirects++) {
+        checkRemoteUrl(url, source, allowedHosts);
+        const response = await fetch(url, { signal, redirect: "manual" });
+        // A browser hides a manual redirect's target (an opaque redirect), so it cannot be checked.
+        if (response.type === "opaqueredirect") throw new Error(`Image fetch was redirected and this runtime cannot check the target against imageSources: ${source}`);
+        const location = response.headers.get("location");
+        if (!REDIRECT_STATUSES.has(response.status) || location === null) return response;
+        await response.body?.cancel();
+        const limit = maxRedirects ?? IMAGE_SOURCE_LIMITS.maxRedirects;
+        if (redirects >= limit) throw new Error(`Image fetch was redirected more than ${limit} times: ${source}; raise the PuppeteerGen option imageSources.maxRedirects`);
+        url = new URL(location, url);
+    }
+}
+
 async function fetchImage(source: string, options: ImageSourceOptions): Promise<string> {
     if (options.allowRemote === false) throw new Error(`Remote image URLs are not allowed (PuppeteerGen option imageSources.allowRemote is false): ${source}`);
     const timeoutMs = options.timeoutMs ?? IMAGE_SOURCE_LIMITS.timeoutMs;
     const timeoutError = (error: unknown) => new Error(`Image fetch timed out after ${timeoutMs} ms: ${source}; check the server or raise the PuppeteerGen option imageSources.timeoutMs`, { cause: error });
     let response: Response;
     try {
-        // shortcut: redirects are followed and any host is fetched, as PptxGenJS does; a service that must block internal addresses passes its own resolveImage.
-        response = await fetch(source, { signal: AbortSignal.timeout(timeoutMs) });
+        // shortcut: without allowedHosts any host is fetched, as PptxGenJS does, and addresses are not filtered (no
+        // private-range check after DNS); a service that must block internal addresses sets allowedHosts or passes its own resolveImage.
+        response = await fetchFollowingRedirects(source, options, AbortSignal.timeout(timeoutMs));
     } catch (error) {
         if (isTimeout(error)) throw timeoutError(error);
+        if (error instanceof Error && error.message.includes(source)) throw error;
         throw new Error(`Unable to fetch image: ${source}`, { cause: error });
     }
     if (!response.ok) throw new Error(`Unable to fetch image (${response.status}): ${source}`);

@@ -15,12 +15,16 @@ const PNG_DATA = "data:image/png;base64,iVBORw==";
 let server: ReturnType<typeof Bun.serve>;
 let base = "";
 let dir = "";
+const requests: string[] = [];
 
 beforeAll(async () => {
     server = Bun.serve({
         port: 0,
         fetch(request) {
-            const path = new URL(request.url).pathname;
+            const url = new URL(request.url);
+            const path = url.pathname;
+            requests.push(path);
+            if (path === "/redirect") return new Response(null, { status: 302, headers: { location: url.searchParams.get("to") ?? "/" } });
             const image = { "content-type": "image/png" };
             if (path === "/hang") return new Promise<Response>(() => {});
             if (path === "/large-declared") return new Response(new Uint8Array(64), { headers: image });
@@ -50,6 +54,8 @@ beforeAll(async () => {
     await writeFile(join(dir, "tenant", "logo.png"), PNG_BYTES);
     await writeFile(join(dir, "other.png"), PNG_BYTES);
     await symlink(join(dir, "other.png"), join(dir, "tenant", "escape.png"));
+    await writeFile(join(dir, "tenant", "notes.txt"), "not an image");
+    await symlink(join(dir, "tenant", "notes.txt"), join(dir, "tenant", "disguised.png"));
     await writeFile(join(dir, "tenant", "big.png"), new Uint8Array(64));
 });
 
@@ -62,7 +68,7 @@ describe("image source limits (#149)", () => {
     test("defaults keep PptxGenJS sources working", async () => {
         expect(await resolveImageSource(`${base}/ok.png`)).toBe(PNG_DATA);
         expect(await resolveImageSource(join(dir, "other.png"))).toBe(PNG_DATA);
-        expect(IMAGE_SOURCE_LIMITS).toEqual({ timeoutMs: 30_000, maxBytes: 50 * 1024 * 1024, concurrency: 8 });
+        expect(IMAGE_SOURCE_LIMITS).toEqual({ timeoutMs: 30_000, maxBytes: 50 * 1024 * 1024, concurrency: 8, maxRedirects: 20 });
     });
 
     test("times out a server that does not answer, or stalls the body", async () => {
@@ -92,8 +98,52 @@ describe("image source limits (#149)", () => {
         expect(await resolveImageSource(join(baseDir, "logo.png"), { baseDir })).toBe(PNG_DATA);
         await expect(resolveImageSource("../other.png", { baseDir })).rejects.toThrow("Image path is outside imageSources.baseDir");
         await expect(resolveImageSource(join(dir, "other.png"), { baseDir })).rejects.toThrow("outside imageSources.baseDir");
-        await expect(resolveImageSource("escape.png", { baseDir })).rejects.toThrow("escape.png resolves to");
-        await expect(resolveImageSource("logo.png", { baseDir: join(dir, "missing") })).rejects.toThrow("Image file not found");
+        await expect(resolveImageSource("escape.png", { baseDir })).rejects.toThrow("outside imageSources.baseDir: escape.png (symlinks followed)");
+        await expect(resolveImageSource("logo.png", { baseDir: join(dir, "missing") })).rejects.toThrow("Image file not found: logo.png");
+    });
+
+    test("errors name the path as given, never where it resolves", async () => {
+        const baseDir = join(dir, "tenant");
+        for (const [source, message] of [
+            ["escape.png", "outside imageSources.baseDir"],
+            ["missing.png", "Image file not found: missing.png"],
+        ] as const) {
+            const error = await resolveImageSource(source, { baseDir }).catch((caught: unknown) => caught);
+            expect(error).toBeInstanceOf(Error);
+            expect((error as Error).message).toContain(message); // `as`: checked above
+            expect((error as Error).message).not.toContain(dir); // `as`: checked above
+        }
+    });
+
+    test("reads a symlink only when its target has an image extension too", async () => {
+        await expect(resolveImageSource("disguised.png", { baseDir: join(dir, "tenant") })).rejects.toThrow("Unsupported image type 'application/octet-stream': disguised.png");
+    });
+
+    test("allowLocalPaths: false rejects paths and file: URLs, not data URIs or URLs", async () => {
+        await expect(resolveImageSource(join(dir, "other.png"), { allowLocalPaths: false })).rejects.toThrow("imageSources.allowLocalPaths is false");
+        await expect(resolveImageSource(`file://${join(dir, "other.png")}`, { allowLocalPaths: false })).rejects.toThrow("imageSources.allowLocalPaths is false");
+        expect(await resolveImageSource(PNG_DATA, { allowLocalPaths: false })).toBe(PNG_DATA);
+        expect(await resolveImageSource(`${base}/ok.png`, { allowLocalPaths: false })).toBe(PNG_DATA);
+    });
+
+    test("allowedHosts limits the hosts fetched, redirects included", async () => {
+        expect(await resolveImageSource(`${base}/ok.png`, { allowedHosts: ["LOCALHOST"] })).toBe(PNG_DATA);
+        expect(await resolveImageSource(`${base}/redirect?to=/ok.png`, { allowedHosts: ["localhost"] })).toBe(PNG_DATA);
+        requests.length = 0;
+        await expect(resolveImageSource(`${base}/ok.png`, { allowedHosts: ["cdn.example.com"] })).rejects.toThrow("Image host 'localhost' is not in the PuppeteerGen option imageSources.allowedHosts");
+        expect(requests).toEqual([]);
+        // The redirect target is checked before it is requested.
+        const other = `http://127.0.0.1:${server.port}/ok.png`;
+        await expect(resolveImageSource(`${base}/redirect?to=${encodeURIComponent(other)}`, { allowedHosts: ["localhost"] })).rejects.toThrow("Image host '127.0.0.1' is not in");
+        expect(requests).toEqual(["/redirect"]);
+        await expect(resolveImageSource(`${base}/redirect?to=${encodeURIComponent("file:///etc/hosts")}`, { allowedHosts: ["localhost"] })).rejects.toThrow("redirected to a file: URL");
+    });
+
+    test("maxRedirects caps the redirects one image follows", async () => {
+        const twice = `${base}/redirect?to=${encodeURIComponent("/redirect?to=/ok.png")}`;
+        expect(await resolveImageSource(twice, { maxRedirects: 2 })).toBe(PNG_DATA);
+        await expect(resolveImageSource(twice, { maxRedirects: 1 })).rejects.toThrow("Image fetch was redirected more than 1 times");
+        await expect(resolveImageSource(`${base}/redirect?to=/ok.png`, { maxRedirects: 0 })).rejects.toThrow("raise the PuppeteerGen option imageSources.maxRedirects");
     });
 
     test("the constructor checks imageSources and applies it to the default resolver", async () => {
@@ -102,6 +152,9 @@ describe("image source limits (#149)", () => {
         expect(() => new PuppeteerGen(PAGE, { imageSources: { baseDIR: "x" } as never })).toThrow('unknown key "baseDIR"');
         expect(() => new PuppeteerGen(PAGE, { imageSources: {}, resolveImage: async () => PNG_DATA })).toThrow("cannot be combined");
         expect(() => new CorePuppeteerGen(PAGE, { imageSources: { allowRemote: "no" } as never })).toThrow("must be a boolean");
+        expect(() => new PuppeteerGen(PAGE, { imageSources: { allowLocalPaths: 0 } as never })).toThrow("`imageSources.allowLocalPaths` must be a boolean");
+        expect(() => new PuppeteerGen(PAGE, { imageSources: { allowedHosts: "cdn.example.com" } as never })).toThrow("must be an array of host names");
+        expect(() => new PuppeteerGen(PAGE, { imageSources: { maxRedirects: -1 } })).toThrow("must be a whole number from 0");
 
         const confined = new PuppeteerGen(PAGE, { imageSources: { baseDir: join(dir, "tenant") } });
         confined.addSlide().addImage({ path: "logo.png" });

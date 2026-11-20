@@ -258,12 +258,12 @@ frame.onload = () => frame.contentWindow?.print();
 
 Constructor options (both entries): `new PuppeteerGen(pageSize?, options?)`
 
-| Option                                               | Node entry default                                                    | `/html` default                         |
-| ---------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------- |
-| `renderer?: PresentationRenderer`                    | `PuppeteerPdfRenderer`                                                | none: `toPdf()` throws                  |
-| `resolveImage?: (source: string) => Promise<string>` | data URIs, http(s), file paths relative to `process.cwd()`            | data URIs and http(s); file paths throw |
-| `imageSources?: ImageSourceOptions`                  | 30 s fetch timeout, 50 MiB per image; opt-in `baseDir`, `allowRemote` | same limits and `allowRemote`; no paths |
-| `createDocument?: () => Document`                    | jsdom                                                                 | global `document`; throws without a DOM |
+| Option                                               | Node entry default                                                                                                       | `/html` default                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `renderer?: PresentationRenderer`                    | `PuppeteerPdfRenderer`                                                                                                   | none: `toPdf()` throws                                               |
+| `resolveImage?: (source: string) => Promise<string>` | data URIs, http(s), file paths relative to `process.cwd()`                                                               | data URIs and http(s); file paths throw                              |
+| `imageSources?: ImageSourceOptions`                  | 30 s fetch timeout, 50 MiB per image; opt-in `baseDir`, `allowLocalPaths`, `allowRemote`, `allowedHosts`, `maxRedirects` | same limits, `allowRemote`, `allowedHosts`, `maxRedirects`; no paths |
+| `createDocument?: () => Document`                    | jsdom                                                                                                                    | global `document`; throws without a DOM                              |
 
 In `/html`, `writeFile()` downloads the PDF in a browser, as PptxGenJS downloads its `.pptx`; without a
 global `document` it throws, so use `toPdf()`.
