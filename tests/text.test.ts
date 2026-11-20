@@ -375,6 +375,167 @@ describe("text normalization", () => {
             expect(normalizeText(sequence.map(paragraph), {}, "powerpoint").paragraphs.map(({ bullet }) => bullet?.marker)).toEqual([...expected]);
         });
     });
+
+    // #344: the per-level rule holds for every number type and for startAt on a level a shallower paragraph ended,
+    // which starts again at its startAt. Each step is [level, `bullet.style` (PptxGenJS 4.0.1 reads no `numberType`)
+    // or a bullet or no marker, numberStartAt]. Markers from PowerPoint's PDF export of a synthetic deck, one text box
+    // per sequence, all 12 as predicted.
+    describe("numbers each level on its own whatever its number type and startAt", () => {
+        type Step = readonly [level: number, style: string, startAt?: number];
+        const paragraph = ([indentLevel, style, numberStartAt]: Step): PptxGenJS.TextProps => ({
+            text: `Lorem ${indentLevel} ${style}`,
+            options: { breakLine: true, indentLevel, bullet: style === "bullet" ? true : style === "none" ? false : { type: "number", style, ...(numberStartAt === undefined ? {} : { numberStartAt }) } },
+        });
+        const B = PPTX_DEFAULTS.bullet.character;
+        const CASES: ReadonlyArray<[string, readonly Step[], ReadonlyArray<string | undefined>]> = [
+            [
+                "romanUcPeriod at 0, alphaUcParenBoth at 1",
+                [
+                    [0, "romanUcPeriod"],
+                    [0, "romanUcPeriod"],
+                    [1, "alphaUcParenBoth"],
+                    [1, "alphaUcParenBoth"],
+                    [0, "romanUcPeriod"],
+                    [1, "alphaUcParenBoth"],
+                ],
+                ["I.", "II.", "(A)", "(B)", "III.", "(A)"],
+            ],
+            [
+                "three types on three levels",
+                [
+                    [0, "arabicParenR"],
+                    [1, "romanLcPeriod"],
+                    [2, "alphaLcPeriod"],
+                    [1, "romanLcPeriod"],
+                    [2, "alphaLcPeriod"],
+                    [0, "arabicParenR"],
+                ],
+                ["1)", "i.", "a.", "ii.", "a.", "2)"],
+            ],
+            [
+                "startAt 5 at level 1, ended by level 0",
+                [
+                    [0, "arabicPeriod"],
+                    [1, "arabicPeriod", 5],
+                    [1, "arabicPeriod", 5],
+                    [0, "arabicPeriod"],
+                    [1, "arabicPeriod", 5],
+                    [1, "arabicPeriod", 5],
+                ],
+                ["1.", "5.", "6.", "2.", "5.", "6."],
+            ],
+            [
+                "startAt 3, then none, then 3 at level 1",
+                [
+                    [0, "romanUcPeriod"],
+                    [1, "alphaLcParenR", 3],
+                    [0, "romanUcPeriod"],
+                    [1, "alphaLcParenR"],
+                    [1, "alphaLcParenR", 3],
+                ],
+                ["I.", "c)", "II.", "a)", "c)"],
+            ],
+            [
+                "startAt 4 at level 0 across a deeper paragraph, then 7",
+                [
+                    [0, "arabicPeriod", 4],
+                    [1, "romanLcParenBoth"],
+                    [0, "arabicPeriod", 4],
+                    [0, "arabicPeriod", 7],
+                    [0, "arabicPeriod", 7],
+                ],
+                ["4.", "(i)", "5.", "7.", "8."],
+            ],
+            [
+                "a type change at level 1",
+                [
+                    [0, "arabicPeriod"],
+                    [1, "alphaLcParenR"],
+                    [1, "romanLcPeriod"],
+                    [1, "romanLcPeriod"],
+                    [0, "arabicPeriod"],
+                    [1, "romanLcPeriod"],
+                ],
+                ["1.", "a)", "i.", "ii.", "2.", "i."],
+            ],
+            [
+                "a skipped level",
+                [
+                    [0, "alphaUcPeriod"],
+                    [2, "arabicPlain"],
+                    [1, "romanUcParenR"],
+                    [2, "arabicPlain"],
+                    [2, "arabicPlain"],
+                    [0, "alphaUcPeriod"],
+                ],
+                ["A.", "1", "I)", "1", "2", "B."],
+            ],
+            [
+                "a type change at level 0 after a deeper list",
+                [
+                    [0, "arabicPeriod"],
+                    [1, "arabicPeriod"],
+                    [0, "alphaUcPeriod"],
+                    [1, "arabicPeriod"],
+                    [0, "arabicPeriod"],
+                ],
+                ["1.", "1.", "A.", "1.", "1."],
+            ],
+            [
+                "a bullet and an unnumbered paragraph inside a level-1 list",
+                [
+                    [0, "romanUcParenR"],
+                    [1, "arabicParenBoth"],
+                    [1, "bullet"],
+                    [1, "arabicParenBoth"],
+                    [1, "none"],
+                    [1, "arabicParenBoth"],
+                    [0, "romanUcParenR"],
+                ],
+                ["I)", "(1)", B, "(1)", undefined, "(1)", "II)"],
+            ],
+            [
+                "startAt 2 then 9 on a reopened level 1",
+                [
+                    [0, "alphaUcParenR"],
+                    [1, "romanLcParenR", 2],
+                    [1, "romanLcParenR", 2],
+                    [0, "alphaUcParenR"],
+                    [1, "romanLcParenR", 9],
+                    [1, "romanLcParenR", 9],
+                ],
+                ["A)", "ii)", "iii)", "B)", "ix)", "x)"],
+            ],
+            [
+                "romanUcParenBoth, alphaLcParenBoth and romanUcParenR",
+                [
+                    [0, "romanUcParenBoth"],
+                    [1, "alphaLcParenBoth"],
+                    [1, "alphaLcParenBoth"],
+                    [0, "romanUcParenBoth"],
+                    [1, "romanUcParenR"],
+                    [1, "romanUcParenR"],
+                    [0, "romanUcParenBoth"],
+                ],
+                ["(I)", "(a)", "(b)", "(II)", "I)", "II)", "(III)"],
+            ],
+            [
+                "a deeper list with startAt first",
+                [
+                    [1, "alphaUcPeriod", 4],
+                    [1, "alphaUcPeriod", 4],
+                    [0, "romanLcPeriod", 3],
+                    [1, "alphaUcPeriod", 4],
+                    [0, "romanLcPeriod", 3],
+                ],
+                ["D.", "E.", "iii.", "D.", "iv."],
+            ],
+        ];
+
+        test.each(CASES)("%s", (_name, sequence, expected) => {
+            expect(normalizeText(sequence.map(paragraph), {}, "powerpoint").paragraphs.map(({ bullet }) => bullet?.marker)).toEqual([...expected]);
+        });
+    });
 });
 
 describe("text DOM rendering", () => {
