@@ -1,6 +1,6 @@
 // Draws a laid-out text box: highlights, glyphs, decorations, links and bullets, on the profile's line boxes.
 import { type Effect, sameEffect } from "#src/effect/index";
-import { assertLinkUrl } from "@pdflapas/model";
+import { assertLinkUrl, CSS_PX_PER_INCH } from "@pdflapas/model";
 import { type Face, fallbackFamily } from "#src/fonts";
 import { captureFill, captureGlyphs, fill, glyphs, type Paint, stroke, useFace } from "#src/paint";
 import { type BoxLayout, type Fragment, layoutText } from "./layout";
@@ -77,6 +77,22 @@ const WAVE_HEIGHT = 1;
 const WAVE_THICKNESS = 0.5;
 /** The thinnest decoration band, px, as pdf-core draws it. */
 const MIN_THICKNESS = 0.5;
+// PowerPoint's underline shapes around the face's `post` band (top P, thickness T): pdf-core's (text/draw.rs), measured
+// against PowerPoint's PDF export of a synthetic deck. Double: two T/2 lines from P - T to P + T. Heavy: 1.5T from
+// P - T. Wavy: a zigzag of 45-degree slopes, one 1/600 in grid step tall, filling 2T from P - T/2, in whole half-waves.
+const PPT_DOUBLE_LINE = 0.5;
+const PPT_HEAVY = 1.5;
+const PPT_WAVE_BAND = 2;
+/** PowerPoint's device grid in its PDF export, steps per inch (the PowerPoint target's advance and baseline grid). */
+const PPT_GRID_PER_INCH = 600;
+/** The wave's vertical thickness: one grid step, in px. */
+const PPT_WAVE_LINE = CSS_PX_PER_INCH / PPT_GRID_PER_INCH;
+
+/** A `post` underline band: its top `position` px below the baseline, `thickness` px tall. */
+interface UnderlineBand {
+    readonly position: number;
+    readonly thickness: number;
+}
 
 /** `on`-long pieces of the band `top`..`top + t`, `off` apart, from `x`; the last one cut at the end. */
 function dashes(doc: PDFKit.PDFDocument, x: number, top: number, width: number, t: number, on: number, off: number): void {
@@ -136,7 +152,48 @@ function strike(paint: Paint, decoration: Decoration, x: number, width: number, 
     });
 }
 
-function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: number): void {
+/**
+ * The band PowerPoint underlines a line's from-font runs with: their `post` bands averaged by width, as pdf-core's
+ * `line_underline_band`. Undefined when the line has none.
+ */
+function lineUnderlineBand(fragments: readonly Fragment[]): UnderlineBand | undefined {
+    let [width, position, thickness] = [0, 0, 0];
+    for (const { run, face, size, width: advance } of fragments) {
+        if (!run.underline?.fromFont) continue;
+        const m = metrics(face, size);
+        width += advance;
+        position += advance * m.underlinePosition;
+        thickness += advance * m.underlineThickness;
+    }
+    return width > 0 ? { position: position / width, thickness: thickness / width } : undefined;
+}
+
+/** A zigzag PPT_WAVE_LINE tall filling `band` px from `top`, from `x` down first, over whole half-waves covering `width`. */
+function zigzag(doc: PDFKit.PDFDocument, x: number, top: number, width: number, band: number): void {
+    const reach = Math.max(band - PPT_WAVE_LINE, PPT_WAVE_LINE);
+    const halves = Math.max(1, Math.ceil(width / reach));
+    const edge = (index: number) => (index % 2 === 0 ? top : top + reach);
+    doc.moveTo(x, top);
+    for (let index = 0; index <= halves; index++) doc.lineTo(x + reach * index, edge(index) + PPT_WAVE_LINE);
+    for (let index = halves; index >= 0; index--) doc.lineTo(x + reach * index, edge(index));
+    doc.closePath();
+}
+
+/** PowerPoint's underline of `decoration` around the `post` band `thickness` px tall from `top`, as pdf-core's `powerpoint_underline_path`. */
+function decoratePowerPoint(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
+    const t = Math.max(thickness, MIN_THICKNESS);
+    // shortcut: PowerPoint's dotted and dashed underlines were not measured, so they keep LibreOffice's patterns (#397).
+    if (decoration.style === "dotted" || decoration.style === "dashed") return decorate(paint, decoration, x, width, top, thickness);
+    const trace = (pen: PDFKit.PDFDocument) => {
+        if (decoration.style === "double") pen.rect(x, top - t, width, PPT_DOUBLE_LINE * t).rect(x, top + t - PPT_DOUBLE_LINE * t, width, PPT_DOUBLE_LINE * t);
+        else if (decoration.style === "wavy") zigzag(pen, x, top - t / 2, width, PPT_WAVE_BAND * t);
+        else if (decoration.heavy) pen.rect(x, top - t, width, PPT_HEAVY * t);
+        else pen.rect(x, top, width, t);
+    };
+    fillBands(paint, decoration, trace);
+}
+
+function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: number, lineBand: UnderlineBand | undefined): void {
     const { run, face, size } = fragment;
     const doc = paint.doc;
     const x = left + fragment.x;
@@ -166,7 +223,10 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
         glyphs(paint, fragment.text, x, y, { ...options, fill: false, stroke: true });
     }
     doc.restore();
-    if (run.underline) decorate(paint, run.underline, x, fragment.width, y + m.underlinePosition, m.underlineThickness);
+    if (run.underline?.fromFont) {
+        const band = lineBand ?? { position: m.underlinePosition, thickness: m.underlineThickness };
+        decoratePowerPoint(paint, run.underline, x, fragment.width, y + band.position, band.thickness);
+    } else if (run.underline) decorate(paint, run.underline, x, fragment.width, y + m.underlinePosition, m.underlineThickness);
     if (run.strike) strike(paint, run.strike, x, fragment.width, y + m.strikePosition, m.strikeThickness);
     const link = run.link;
     // A slide link carries href="#slide-N" too: data-slide decides, as in pdf-core.
@@ -191,7 +251,10 @@ export function drawLayout(paint: Paint, layout: BoxLayout, left: number, top: n
     }
     if (glows.length > MAX_GLOWS_PER_BOX) paint.report(`${glows.length - MAX_GLOWS_PER_BOX} glows past the first ${MAX_GLOWS_PER_BOX} in one text box are not drawn`);
     const draw = () => {
-        for (const line of layout.lines) for (const fragment of line.fragments) drawFragment(paint, fragment, left, top + line.baseline);
+        for (const line of layout.lines) {
+            const band = lineUnderlineBand(line.fragments);
+            for (const fragment of line.fragments) drawFragment(paint, fragment, left, top + line.baseline, band);
+        }
         for (const { bullet, face, size, x, baseline } of layout.bullets) {
             useFace(paint, face, size);
             fill(paint, bullet.color);

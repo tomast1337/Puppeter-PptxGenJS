@@ -57,6 +57,7 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
     return [
         ["data-double-strike", run.decoration.doubleStrike ? "" : undefined],
         ["data-underline-style", run.decoration.doubleStrike ? run.decoration.underlineStyle : undefined],
+        ["data-underline-heavy", run.decoration.underlineHeavy ? "" : undefined],
         ["data-vertical-align", run.verticalAlign !== "baseline" ? run.verticalAlign : undefined],
         ["data-synthetic-bold", run.syntheticBold === undefined ? undefined : String(run.syntheticBold)],
         ["data-synthetic-italic", run.syntheticItalic === undefined ? undefined : String(run.syntheticItalic)],

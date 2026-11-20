@@ -234,6 +234,8 @@ impl Renderer {
             underline: false,
             underline_style: UnderlineStyle::Solid,
             underline_color: None,
+            underline_from_font: false,
+            underline_heavy: false,
             strike: false,
             double_strike: false,
             baseline_offset: 0.0,

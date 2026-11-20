@@ -417,14 +417,20 @@ pub(crate) struct Decoration {
     pub(crate) underline: bool,
     pub(crate) underline_style: UnderlineStyle,
     pub(crate) underline_color: Option<Rgba>,
+    /// `text-decoration-thickness: from-font` (the PowerPoint target's): the underline takes PowerPoint's shapes
+    /// around the `post` band, averaged over the line's runs; otherwise LibreOffice's patterns.
+    pub(crate) underline_from_font: bool,
+    /// `data-underline-heavy`: PowerPoint's heavy band, 1.5 times the `post` band's thickness.
+    pub(crate) underline_heavy: bool,
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
 }
 
 /// `NormalizedTextDecoration.underlineStyle`: the CSS `text-decoration-style` the PptxGenJS style maps to.
-// shortcut: the HTML carries only these five styles, so `heavy` variants draw at the normal thickness and
+// shortcut: the HTML carries only these five styles and `data-underline-heavy` (plain `heavy` on the PowerPoint
+// target), so the other `heavy` variants, and every one on the LibreOffice target, draw at the normal thickness and
 // `dashLong`, `dotDash` and `dotDotDash` as plain dashes in both renderers; carry the OOXML style in the
-// profile when a fixture needs them.
+// profile when a fixture needs them (#397).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum UnderlineStyle {
     Solid,
@@ -578,6 +584,8 @@ pub(crate) mod build {
                 underline: false,
                 underline_style: UnderlineStyle::Solid,
                 underline_color: None,
+                underline_from_font: false,
+                underline_heavy: false,
                 strike: false,
                 double_strike: false,
             },

@@ -1073,6 +1073,35 @@ mod tests {
     }
 
     #[test]
+    fn a_line_of_from_font_underlines_takes_their_post_bands_averaged_by_width() {
+        let run = |text, size| {
+            let mut run = build::run(text, "Liberation Sans", size);
+            run.decoration.underline = true;
+            run.decoration.underline_from_font = true;
+            run
+        };
+        let text = build::text_box(vec![build::paragraph(vec![run("Small run ", 16.0), run("Large run", 32.0)], 40.0, 32.0)]);
+        let Some(layout) = laid_out(&text) else {
+            return eprintln!("Liberation Sans not installed: the line's underline band not checked");
+        };
+        let line = layout.paras[0].layout.lines().next().expect("one line");
+        let runs: Vec<_> = line
+            .items()
+            .filter_map(|item| match item {
+                parley::PositionedLayoutItem::GlyphRun(run) => Some((run.advance(), *run.run().font_metrics())),
+                parley::PositionedLayoutItem::InlineBox(_) => None,
+            })
+            .collect();
+        let [(small, s), (large, l)] = runs[..] else { panic!("two glyph runs") };
+        let band = crate::text::draw::line_underline_band(&line, &layout.paints).expect("an underlined line");
+        let mean = |a: f32, b: f32| (small * a + large * b) / (small + large);
+        assert!((band.size - mean(s.underline_size, l.underline_size)).abs() < 1e-4);
+        assert!((band.offset - mean(s.underline_offset, l.underline_offset)).abs() < 1e-4);
+        // Between the two runs' own bands, nearer the wider run's.
+        assert!(s.underline_size < band.size && band.size < l.underline_size && large > small);
+    }
+
+    #[test]
     fn stacked_text_puts_every_character_on_its_own_line() {
         let mut text = text_box(&[(&["Ab c", "d"], 36.0, 30.0)]);
         text.direction = TextDirection::Stacked;

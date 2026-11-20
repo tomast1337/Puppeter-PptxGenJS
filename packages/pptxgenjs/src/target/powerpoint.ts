@@ -167,9 +167,14 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * each within one 1/600 in step: 12pt Arial 0.84pt thick (post 0.879), bold 1.2 (1.26), Calibri 0.84 (0.785), Times
  * New Roman 0.6 (0.586), tops 1.27pt below the baseline (1.271, 1.359, 1.307); Chromium drew 1.125pt for each at
  * 0.66pt. The underline colour is used when set.
- * shortcut: double, wavy and heavy keep each renderer's pattern around that band (PowerPoint's double is two lines of
- * 2/3 the thickness filling twice it above the band's bottom, its heavy about 1.6 times it), and a line mixing sizes
- * gets one underline per run where PowerPoint draws one for the line averaged by width (#379).
+ * Around that band (top P, thickness T), in the same export: double is two T/2 lines from P - T to P + T (12pt Arial
+ * 0.48pt lines 0.72pt apart from 0.43pt below the baseline, T 0.84), heavy one 1.5T band from P - T (12pt Arial 1.32pt
+ * from 0.48pt, 24pt 2.76pt from 0.70pt; `underlineHeavy`), wavy a 1/600 in zigzag of 45-degree slopes filling 2T from
+ * P - T/2. A line's underlined runs share one band, their P and T averaged by width: a 12pt then a 24pt Arial run gets
+ * 1.44pt from 2.06pt below the baseline, where 12pt alone is 0.84 from 1.27 and 24pt alone 1.80 from 2.42.
+ * shortcut: pdf-core and the PDFKit renderer draw those shapes and the line's band; Chromium cannot from the HTML
+ * alone (its explicit thickness at least 1px, its double gap 1px, its wave at least 5px tall) and keeps its own
+ * double and wavy, a normal-thickness heavy and a band per run (#396).
  */
 export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     readsKern: true,

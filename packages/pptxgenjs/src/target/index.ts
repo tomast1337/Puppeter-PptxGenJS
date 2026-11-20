@@ -128,7 +128,8 @@ export interface RenderingTargetProfile {
     /**
      * Whether it draws an underline as the face's `post` table band (underlineThickness tall, its top
      * underlinePosition below the baseline) unbroken under descenders (`NormalizedTextDecoration.underlineFromFont`),
-     * or the renderer's own underline.
+     * with PowerPoint's double, wavy and heavy shapes around it and one band per line (docs/HTML_PROFILE.md), or the
+     * renderer's own underline.
      */
     readonly underlineFromFont: boolean;
 }

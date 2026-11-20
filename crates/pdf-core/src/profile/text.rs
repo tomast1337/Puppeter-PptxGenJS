@@ -63,6 +63,7 @@ const RUN_ATTRS: &[&str] = &[
     "data-slide",
     "data-double-strike",
     "data-underline-style",
+    "data-underline-heavy",
     "data-vertical-align",
     "data-synthetic-bold",
     "data-synthetic-italic",
@@ -348,6 +349,13 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
             one_of(&format!("CSS property '{property}'"), given, &[value])?;
         }
     }
+    let underline_from_font = style.get("text-decoration-thickness").is_some();
+    let underline_heavy = element.has_attr("data-underline-heavy");
+    if underline_heavy && !underline_from_font {
+        return Err(
+            "attribute 'data-underline-heavy' needs 'text-decoration-thickness: from-font': the heavy band is PowerPoint's, around the face's post band".into(),
+        );
+    }
     let outline = match style.get("-webkit-text-stroke") {
         Some(stroke) => {
             let (width, color) = stroke
@@ -373,6 +381,8 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
             underline: lines.split_ascii_whitespace().any(|l| l == "underline"),
             underline_style: underline_style(element, &style)?,
             underline_color: style.color("text-decoration-color")?,
+            underline_from_font,
+            underline_heavy,
             strike: lines.split_ascii_whitespace().any(|l| l == "line-through"),
             double_strike: element.has_attr("data-double-strike"),
         },
@@ -494,7 +504,7 @@ mod tests {
     #[test]
     fn reads_paragraphs_bullets_and_runs() {
         let html = format!(
-            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; text-decoration-thickness: from-font; text-underline-position: from-font; text-decoration-skip-ink: none; position: relative; top: -4.5px; letter-spacing: 1.5px; font-kerning: none; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
+            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" data-underline-heavy="" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; text-decoration-thickness: from-font; text-underline-position: from-font; text-decoration-skip-ink: none; position: relative; top: -4.5px; letter-spacing: 1.5px; font-kerning: none; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
         );
         let object = text_object(&html).unwrap();
         let text = object.text.expect("text");
@@ -516,6 +526,7 @@ mod tests {
             ("a & b", "Calibri", 4.5, 1.5)
         );
         assert!(a.decoration.underline && a.decoration.strike && a.decoration.double_strike);
+        assert!(a.decoration.underline_from_font && a.decoration.underline_heavy);
         // The double strike took text-decoration-style; the underline keeps data-underline-style.
         assert_eq!(
             (a.decoration.underline_style, c.decoration.underline_style),
@@ -666,6 +677,10 @@ mod tests {
                 "attribute 'data-synthetic-bold': -0.1 is negative",
             ),
             (run(" data-synthetic-italic=\"slanted\"", "", "x"), "attribute 'data-synthetic-italic'"),
+            (
+                run(" data-underline-heavy=\"\"", " text-decoration-line: underline;", "x"),
+                "attribute 'data-underline-heavy' needs 'text-decoration-thickness: from-font'",
+            ),
             (
                 run(" data-non-breaking-hyphen=\"en-dash\"", "", "x"),
                 "attribute 'data-non-breaking-hyphen': 'en-dash' is not hyphen-minus",
