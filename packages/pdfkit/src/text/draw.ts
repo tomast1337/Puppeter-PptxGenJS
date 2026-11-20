@@ -1,6 +1,7 @@
 // Draws a laid-out text box: highlights, glyphs, decorations, links and bullets, on the profile's line boxes.
+import { type Effect, sameEffect } from "#src/effect/index";
 import { type Face, fallbackFamily } from "#src/fonts";
-import { fill, glyphs, type Paint, stroke, useFace } from "#src/paint";
+import { captureFill, captureGlyphs, fill, glyphs, type Paint, stroke, useFace } from "#src/paint";
 import { type BoxLayout, type Fragment, layoutText } from "./layout";
 import type { Decoration, Run, TextBox } from "./read";
 import { features } from "./shaper";
@@ -89,36 +90,49 @@ function wave(doc: PDFKit.PDFDocument, x: number, middle: number, width: number,
     const reach = WAVE_HEIGHT * t;
     const band = (WAVE_THICKNESS * t) / 2;
     const control = (index: number) => (index % 2 === 0 ? -reach : reach);
+    // Each half-wave as the cubic with the quadratic's curve, its controls two thirds of the way to the quadratic's
+    // (PDFKit's quadraticCurveTo writes another curve, see `record` in path.ts).
+    const halfWave = (index: number, y: number, from: number, to: number) => {
+        const [cx, cy] = [x + half * index + half / 2, y + control(index)];
+        doc.bezierCurveTo(from + (2 / 3) * (cx - from), y + (2 / 3) * (cy - y), to + (2 / 3) * (cx - to), y + (2 / 3) * (cy - y), to, y);
+    };
     doc.moveTo(x, middle - band);
-    for (let index = 0; index < halves; index++) doc.quadraticCurveTo(x + half * index + half / 2, middle - band + control(index), x + half * (index + 1), middle - band);
+    for (let index = 0; index < halves; index++) halfWave(index, middle - band, x + half * index, x + half * (index + 1));
     doc.lineTo(x + width, middle + band);
-    for (let index = halves - 1; index >= 0; index--) doc.quadraticCurveTo(x + half * index + half / 2, middle + band + control(index), x + half * index, middle + band);
+    for (let index = halves - 1; index >= 0; index--) halfWave(index, middle + band, x + half * (index + 1), x + half * index);
     doc.closePath();
 }
 
 /** The filled band of a decoration of `style` whose straight form is `thickness` px tall from `top`, as pdf-core's `underline_path`. */
 function decorate(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
-    const doc = paint.doc;
     const t = Math.max(thickness, MIN_THICKNESS);
-    if (decoration.style === "solid") doc.rect(x, top, width, t);
-    else if (decoration.style === "double") {
-        const [line, gap] = [DOUBLE_LINE * t, DOUBLE_GAP * t];
-        const first = top + t / 2 - gap / 2 - line;
-        doc.rect(x, first, width, line).rect(x, first + line + gap, width, line);
-    } else if (decoration.style === "dotted") dashes(doc, x, top, width, t, DOT_ON * t, DOT_OFF * t);
-    else if (decoration.style === "dashed") dashes(doc, x, top, width, t, DASH_ON * t, DASH_OFF * t);
-    else wave(doc, x, top + t / 2, width, t);
+    const trace = (pen: PDFKit.PDFDocument) => {
+        if (decoration.style === "solid") pen.rect(x, top, width, t);
+        else if (decoration.style === "double") {
+            const [line, gap] = [DOUBLE_LINE * t, DOUBLE_GAP * t];
+            const first = top + t / 2 - gap / 2 - line;
+            pen.rect(x, first, width, line).rect(x, first + line + gap, width, line);
+        } else if (decoration.style === "dotted") dashes(pen, x, top, width, t, DOT_ON * t, DOT_OFF * t);
+        else if (decoration.style === "dashed") dashes(pen, x, top, width, t, DASH_ON * t, DASH_OFF * t);
+        else wave(pen, x, top + t / 2, width, t);
+    };
+    fillBands(paint, decoration, trace);
+}
+
+function fillBands(paint: Paint, decoration: Decoration, trace: (pen: PDFKit.PDFDocument) => void): void {
+    trace(paint.doc);
     fill(paint, decoration.color);
-    doc.fill();
+    paint.doc.fill();
+    captureFill(paint, decoration.color.alpha, trace);
 }
 
 /** A strikethrough band of `thickness` from `top`, or two (double) one thickness above and below it, as pdf-core draws them. */
 function strike(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
     const t = Math.max(thickness, MIN_THICKNESS);
     const tops = decoration.style === "double" ? [top - t, top + t] : [top];
-    for (const y of tops) paint.doc.rect(x, y, width, t);
-    fill(paint, decoration.color);
-    paint.doc.fill();
+    fillBands(paint, decoration, pen => {
+        for (const y of tops) pen.rect(x, y, width, t);
+    });
 }
 
 function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: number): void {
@@ -129,7 +143,10 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
     const m = metrics(face, size);
     if (run.highlight) {
         fill(paint, run.highlight);
-        doc.rect(x, y - m.ascent, fragment.width, m.ascent + m.descent).fill();
+        const trace = (pen: PDFKit.PDFDocument) => pen.rect(x, y - m.ascent, fragment.width, m.ascent + m.descent);
+        trace(doc);
+        doc.fill();
+        captureFill(paint, run.highlight.alpha, trace);
     }
     useFace(paint, face, size);
     // The face lacks the run's bold or italic style: synthesize it as the HTML says (pdf-core's text/draw.rs).
@@ -141,6 +158,8 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
     fill(paint, run.color);
     if (embolden) stroke(paint, run.color, size * run.synthesis.boldStroke);
     glyphs(paint, fragment.text, x, y, { ...options, fill: true, stroke: embolden });
+    // The silhouette is the filled glyphs, without the synthetic-bold or outline strokes, as pdf-core captures it.
+    captureGlyphs(paint, face, size, fragment.text, x, y, { ...options, alpha: run.color.alpha, ...(run.glow ? { glow: run.glow } : {}) });
     if (run.outline) {
         stroke(paint, run.outline.color, run.outline.width);
         glyphs(paint, fragment.text, x, y, { ...options, fill: false, stroke: true });
@@ -153,12 +172,30 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
     else if (link?.slide !== undefined) doc.goTo(x, y - m.ascent, fragment.width, m.ascent + m.descent, `slide-${link.slide}`);
 }
 
-/** Draws `layout` with its content box's left edge at `left` and top at `top`. */
+/** pdf-core's cap on distinct glows per text box: each one is a mask of the whole box. */
+const MAX_GLOWS_PER_BOX = 16;
+
+/**
+ * Draws `layout` with its content box's left edge at `left` and top at `top`, each distinct run glow under the
+ * runs that glow with it (pdf-core's `draw_layout`).
+ */
 export function drawLayout(paint: Paint, layout: BoxLayout, left: number, top: number): void {
-    for (const line of layout.lines) for (const fragment of line.fragments) drawFragment(paint, fragment, left, top + line.baseline);
-    for (const { bullet, face, size, x, baseline } of layout.bullets) {
-        useFace(paint, face, size);
-        fill(paint, bullet.color);
-        glyphs(paint, bullet.text, left + x, top + baseline, { features: features(true, 0), letterSpacing: 0, fill: true, stroke: false });
+    const glows: Effect[] = [];
+    for (const line of layout.lines) {
+        for (const { run } of line.fragments) if (run.glow && !glows.some(glow => run.glow && sameEffect(glow, run.glow))) glows.push(run.glow);
     }
+    if (glows.length > MAX_GLOWS_PER_BOX) paint.report(`${glows.length - MAX_GLOWS_PER_BOX} glows past the first ${MAX_GLOWS_PER_BOX} in one text box are not drawn`);
+    const draw = () => {
+        for (const line of layout.lines) for (const fragment of line.fragments) drawFragment(paint, fragment, left, top + line.baseline);
+        for (const { bullet, face, size, x, baseline } of layout.bullets) {
+            useFace(paint, face, size);
+            fill(paint, bullet.color);
+            const options = { features: features(true, 0), letterSpacing: 0 };
+            glyphs(paint, bullet.text, left + x, top + baseline, { ...options, fill: true, stroke: false });
+            captureGlyphs(paint, face, size, bullet.text, left + x, top + baseline, { ...options, alpha: bullet.color.alpha });
+        }
+    };
+    // Each glow captures only its own runs, so the glows nest around one drawing of the text.
+    const nested = glows.slice(0, MAX_GLOWS_PER_BOX).reduce((inner, glow) => () => paint.effects.under(paint.doc, glow, true, paint.opacity, paint.report, inner), draw);
+    nested();
 }

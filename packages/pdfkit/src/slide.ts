@@ -2,14 +2,20 @@
 // (docs/HTML_PROFILE.md "Slide objects"): position, size, rotation, flips, opacity, fill and line.
 import { color, px, readStyle, type Style, take } from "./css";
 import { attribute, children, type Element, hasClass } from "./dom";
+import { type Effect, shadowEffect } from "./effect/index";
 import { drawImage } from "./image";
-import { dash, fill, type Paint, stroke, transformBox } from "./paint";
+import { captureFill, captureStroke, dash, fill, type Paint, stroke, transformBox } from "./paint";
 import { drawShapeSvg } from "./shape";
 import { drawTable } from "./table";
 import { drawLayout, type Frame, layoutBox } from "./text/draw";
 import { readTextBox, reportUnread } from "./text/read";
 
 const TRANSFORM_PART = /(rotate|scaleX|scaleY)\(([^)]*)\)/g;
+const DROP_SHADOW = /^drop-shadow\((.*)\)$/;
+/** pdf-core's warning for an inner shadow it does not draw (on anything but a picture). */
+const INNER_SHADOW_NOT_DRAWN = "inner shadow not rendered";
+/** PDF's initial miter limit, which a box line keeps. */
+const PDF_MITER_LIMIT = 10;
 /** Object-box properties the renderer does not need to draw: `toHtml()` states them for Chromium's layout. */
 const BOX_LAYOUT: ReadonlySet<string> = new Set(["transform-origin", "position", "overflow", "box-sizing", "white-space", "overflow-wrap"]);
 /** Object classes whose kind the renderer does not draw yet, reported as a whole. */
@@ -43,9 +49,35 @@ function readBox(style: Style, report: (what: string) => void): Box {
         else if (name === "scaleY") flipV = value === "-1";
     }
     const opacity = Number(take(style, "opacity") ?? 1);
-    const shadow = take(style, "box-shadow");
-    if (shadow !== undefined) report(shadow.startsWith("inset ") ? "inner shadows are not drawn" : "object shadows are not drawn");
     return { x, y, width: px(take(style, "width")) ?? 0, height, rotation, flipH, flipV, opacity };
+}
+
+/**
+ * The object's shadow: `box-shadow` on the box (`inset`, a picture's inner shadow), or `filter: drop-shadow()` on a
+ * shape's svg. pdf-core draws an inner shadow on pictures only and reports it on anything else.
+ */
+function readShadow(element: Element, style: Style, report: (what: string) => void): Effect | undefined {
+    const box = take(style, "box-shadow");
+    const svg = children(element).find(child => hasClass(child, "shape-svg"));
+    const svgStyle = svg ? readStyle(svg) : new Map<string, string>();
+    const filter = take(svgStyle, "filter");
+    take(svgStyle, "overflow"); // `visible`, so Chromium does not clip the strokes and heads past the viewBox
+    for (const [property, value] of svgStyle) report(`CSS property '${property}: ${value}' on <svg> is not drawn`);
+    if (svg && attribute(svg, "data-shadow-inset") !== undefined) {
+        report(INNER_SHADOW_NOT_DRAWN);
+        return undefined;
+    }
+    const inner = box?.startsWith("inset ") ?? false;
+    if (inner && !hasClass(element, "slide-image")) {
+        report(INNER_SHADOW_NOT_DRAWN);
+        return undefined;
+    }
+    const drop = filter === undefined ? undefined : DROP_SHADOW.exec(filter)?.[1];
+    if (filter !== undefined && drop === undefined) report(`filter '${filter}' on a shape is not drawn`);
+    const value = box === undefined ? drop : inner ? box.slice("inset ".length) : box;
+    const effect = value === undefined ? undefined : shadowEffect(value, inner);
+    if (typeof effect === "string") report(effect);
+    return typeof effect === "string" ? undefined : effect;
 }
 
 /** The box's own fill and line (objects without SVG geometry). A text box's line is centred on its edge, as in DrawingML. */
@@ -56,16 +88,21 @@ function drawBoxPaint(element: Element, style: Style, paint: Paint, frame: Frame
     const borderColor = color(take(style, "border-color"));
     const dashArray = attribute(element, "data-line-dash-array");
     const doc = paint.doc;
+    const trace = (pen: PDFKit.PDFDocument) => pen.rect(frame.x, frame.y, frame.width, frame.height);
     if (background && background.alpha > 0) {
         fill(paint, background);
-        doc.rect(frame.x, frame.y, frame.width, frame.height).fill();
+        trace(doc).fill();
+        captureFill(paint, background.alpha, trace);
     }
     if (borderStyle === "none" || !borderColor || borderWidth <= 0) return;
     if (borderStyle !== "solid" && borderStyle !== "dashed") paint.report(`border-style '${borderStyle}' is drawn solid`);
     doc.save();
     stroke(paint, borderColor, borderWidth);
-    const visible = borderStyle === "dashed" && dashArray ? dash(doc, dashArray.split(/[\s,]+/).map(Number)) : true;
-    if (visible) doc.rect(frame.x, frame.y, frame.width, frame.height).stroke();
+    const dashes = borderStyle === "dashed" && dashArray ? dashArray.split(/[\s,]+/).map(Number) : [];
+    if (dash(doc, dashes)) {
+        trace(doc).stroke();
+        captureStroke(paint, borderColor.alpha, { width: borderWidth, cap: "butt", join: "miter", miterLimit: PDF_MITER_LIMIT, dashes }, trace);
+    }
     doc.restore();
 }
 
@@ -90,8 +127,18 @@ function drawObject(element: Element, context: SlideContext, name: string): void
         return;
     }
     const box = readBox(style, report);
+    const shadow = readShadow(element, style, report);
     const paint: Paint = { ...context.paint(name), report, opacity: box.opacity };
+    // The shadow is cast in slide space, outside the object's rotation and flips (DrawingML `rotWithShape="0"`).
+    if (shadow) paint.effects.under(paint.doc, shadow, false, box.opacity, report, () => drawBox(element, style, paint, box));
+    else drawBox(element, style, paint, box);
+    reportUnread(element, style, ["data-object-name", "data-shape", "data-text-fit", "data-text-fit-step", "data-text-fit-max-steps", "data-text-fit-tolerance", "data-text-direction", "data-slide", "data-image-sizing", "data-line-dash-array", "data-line-begin-arrow", "data-line-end-arrow"], report, BOX_LAYOUT);
+}
+
+/** Draws the object `element` in its box, transformed, with its link. */
+function drawBox(element: Element, style: Style, paint: Paint, box: Box): void {
     const doc = paint.doc;
+    const report = paint.report;
     doc.save();
     transformBox(doc, box, box.rotation, box.flipH, box.flipV);
     if (hasClass(element, "slide-text")) drawText(element, style, paint, box);
@@ -112,7 +159,6 @@ function drawObject(element: Element, context: SlideContext, name: string): void
     if (href !== undefined && element.tagName === "a") doc.link(box.x, box.y, box.width, box.height, href);
     else if (slide !== undefined && element.tagName === "a") doc.goTo(box.x, box.y, box.width, box.height, `slide-${slide}`);
     doc.restore();
-    reportUnread(element, style, ["data-object-name", "data-shape", "data-text-fit", "data-text-fit-step", "data-text-fit-max-steps", "data-text-fit-tolerance", "data-text-direction", "data-slide", "data-image-sizing", "data-line-dash-array", "data-line-begin-arrow", "data-line-end-arrow"], report, BOX_LAYOUT);
 }
 
 /** Draws the slide container `slide` on the current page. */

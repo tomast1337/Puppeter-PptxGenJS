@@ -1,7 +1,9 @@
 // The PDFKit calls every object kind shares, and the state one object is drawn with. PDFKit draws in CSS px: each
 // page starts with a scale to points, so lengths from the HTML go to PDFKit unconverted.
 import type { Color } from "./css";
+import type { Effect, Effects } from "./effect/index";
 import type { Face } from "./fonts";
+import { record, type Segment, type StrokeStyle } from "./path";
 import type { Report } from "./text/read";
 import type { Features, Shaper } from "./text/shaper";
 
@@ -16,6 +18,52 @@ export interface Paint {
     readonly opacity: number;
     /** Faces already registered with this document. */
     readonly registered: Set<string>;
+    /** The document's shadow and glow captures: what is drawn adds to their silhouettes. */
+    readonly effects: Effects;
+}
+
+/** Adds the area the path `trace` builds (filled with `alpha`, drawn now) to the silhouettes being captured. */
+export function captureFill(paint: Paint, alpha: number, trace: (pen: PDFKit.PDFDocument) => void): void {
+    if (paint.effects.capturing()) paint.effects.fill(paint.doc, record(paint.doc, trace), alpha);
+}
+
+/** Adds the area the path `trace` builds paints when stroked with `style` to the silhouettes being captured. */
+export function captureStroke(paint: Paint, alpha: number, style: StrokeStyle, trace: (pen: PDFKit.PDFDocument) => void): void {
+    if (paint.effects.capturing()) paint.effects.stroke(paint.doc, record(paint.doc, trace), style, alpha);
+}
+
+/** The outlines of `text` shaped in `face` at `size` px with its pen at `x` and baseline at `y`, as `glyphs` draws it. */
+function glyphOutlines(face: Face, size: number, text: string, x: number, y: number, features: Features, letterSpacing: number): Segment[] {
+    const run = face.font.layout(text, { ...features });
+    const scale = size / face.font.unitsPerEm;
+    const segments: Segment[] = [];
+    let pen = x;
+    run.glyphs.forEach((glyph, index) => {
+        const position = run.positions[index];
+        const [gx, gy] = [pen + (position?.xOffset ?? 0) * scale, y - (position?.yOffset ?? 0) * scale];
+        const at = (px: number, py: number): [number, number] => [gx + px * scale, gy - py * scale];
+        let current: [number, number] = [gx, gy];
+        for (const { command, args } of glyph.path.commands) {
+            const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0] = args;
+            if (command === "moveTo") segments.push(["M", ...(current = at(a, b))]);
+            else if (command === "lineTo") segments.push(["L", ...(current = at(a, b))]);
+            else if (command === "quadraticCurveTo") {
+                // The cubic with the same curve: each control two thirds of the way to the quadratic's.
+                const [control, end] = [at(a, b), at(c, d)];
+                const third = (from: [number, number]): [number, number] => [from[0] + (2 / 3) * (control[0] - from[0]), from[1] + (2 / 3) * (control[1] - from[1])];
+                segments.push(["C", ...third(current), ...third(end), ...end]);
+                current = end;
+            } else if (command === "bezierCurveTo") segments.push(["C", ...at(a, b), ...at(c, d), ...(current = at(e, f))]);
+            else if (command === "closePath") segments.push(["Z"]);
+        }
+        pen += (position?.xAdvance ?? 0) * scale + letterSpacing;
+    });
+    return segments;
+}
+
+/** Adds the glyph outlines `glyphs` draws for `text` (filled with `alpha`, glowing with `glow`) to the silhouettes being captured. */
+export function captureGlyphs(paint: Paint, face: Face, size: number, text: string, x: number, y: number, options: { features: Features; letterSpacing: number; alpha: number; glow?: Effect }): void {
+    if (paint.effects.capturing()) paint.effects.fill(paint.doc, glyphOutlines(face, size, text, x, y, options.features, options.letterSpacing), options.alpha, options.glow);
 }
 
 export function fill(paint: Paint, color: Color): void {

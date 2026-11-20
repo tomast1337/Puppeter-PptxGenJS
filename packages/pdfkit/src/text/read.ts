@@ -2,6 +2,7 @@
 // property and data-* attribute the renderer does not draw is reported through `report`, never dropped silently.
 import { type Color, color, cssStrings, px, readStyle, type Style, sides, take } from "#src/css";
 import { attribute, children, type Element, hasClass, isElement, textContent } from "#src/dom";
+import { type Effect, glowEffect } from "#src/effect/index";
 import type { FaceRequest } from "#src/fonts";
 
 export interface Decoration {
@@ -26,6 +27,8 @@ export interface Run {
     readonly link?: { readonly href?: string; readonly slide?: number };
     readonly softBreakBefore: boolean;
     readonly synthesis: Synthesis;
+    /** The run's glow: its `text-shadow` entry that `data-text-shadow` names `glow`. */
+    readonly glow?: Effect;
 }
 
 /** How a run is drawn when its face has no bold or italic style (`data-synthetic-bold`, `data-synthetic-italic`). */
@@ -208,6 +211,33 @@ function readOutline(value: string | undefined, report: Report): Run["outline"] 
     return { width, color: outlineColor };
 }
 
+/** `text-shadow` entries: commas inside `rgba(...)` do not separate them. */
+const SHADOW_ENTRY = /[^,(]+(?:\([^)]*\)[^,(]*)*/g;
+
+/**
+ * The run's glow from `text-shadow`, whose entries `data-text-shadow` names in order. The `shadow` entry is the
+ * object's shadow, which slide.ts draws from the box's `box-shadow` (pdf-core skips it the same way).
+ */
+function readGlow(element: Element, value: string | undefined, report: Report): Effect | undefined {
+    if (attribute(element, "data-shadow-inset") !== undefined) report("inner shadow not rendered");
+    if (value === undefined) return undefined;
+    const names = (attribute(element, "data-text-shadow") ?? "").split(/\s+/).filter(Boolean);
+    const entries = (value.match(SHADOW_ENTRY) ?? []).map(entry => entry.trim()).filter(Boolean);
+    if (names.length !== entries.length) {
+        report(`text-shadow '${value}' has ${entries.length} entries but data-text-shadow names ${names.length}; not drawn`);
+        return undefined;
+    }
+    let glow: Effect | undefined;
+    names.forEach((name, index) => {
+        const entry = entries[index] ?? "";
+        if (name === "shadow") return;
+        const effect = name === "glow" ? glowEffect(entry) : `text-shadow entry '${entry}' named '${name}' (not glow or shadow) is not drawn`;
+        if (typeof effect === "string") report(effect);
+        else glow = effect;
+    });
+    return glow;
+}
+
 function readRuns(element: Element, report: Report): Run[] {
     const style = readStyle(element);
     const runColor = requiredColor(take(style, "color"), "a run's color");
@@ -218,6 +248,7 @@ function readRuns(element: Element, report: Report): Run[] {
     if (position !== undefined && position !== "relative") report(`position '${position}' on a run is not drawn`);
     const highlight = readColor(take(style, "background-color"), "background-color", report);
     const letterSpacing = px(take(style, "letter-spacing")) ?? 0;
+    const glow = readGlow(element, take(style, "text-shadow"), report);
     const run: Run = {
         text: textContent(element),
         face: readFace(element, style),
@@ -232,6 +263,7 @@ function readRuns(element: Element, report: Report): Run[] {
         ...(href !== undefined || slide !== undefined ? { link: { ...(href !== undefined ? { href } : {}), ...(slide !== undefined ? { slide: Number(slide) } : {}) } } : {}),
         softBreakBefore: attribute(element, "data-soft-break-before") !== undefined,
         synthesis: readSynthesis(element),
+        ...(glow ? { glow } : {}),
     };
     const read = ["data-double-strike", "data-underline-style", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"];
     reportUnread(element, style, [...read, "data-synthetic-bold", "data-synthetic-italic", "data-non-breaking-hyphen"], report);
