@@ -1,6 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
 import type { ComponentRegistry } from "./components/registry";
-import type { FontMetricsLookup, RenderingTarget } from "./defaults";
+import type { FontMetricsLookup } from "./defaults";
+import type { RenderingTarget } from "./target";
 import type { SharedRunOptions } from "./normalize/sharedRunOptions";
 import type { PageSize } from "./pageLayouts";
 import type { PuppeteerSlide } from "./PuppeteerSlide";

@@ -197,6 +197,7 @@ The generated CSS includes:
 │   │   ├── alignment.ts       # PptxGenJS alignment to CSS
 │   │   ├── pageCss.ts         # Page and slide CSS
 │   │   ├── pptx.ts            # Type definitions
+│   │   ├── target/            # Rendering targets: the profile flags (index.ts), one file per target
 │   │   ├── html.ts            # Browser-safe entry (@pdflapas/pptxgenjs/html)
 │   │   └── index.ts           # Node entry (@pdflapas/pptxgenjs)
 │   ├── puppeteer/src/     # @pdflapas/puppeteer: PuppeteerPdfRenderer and the shared browser

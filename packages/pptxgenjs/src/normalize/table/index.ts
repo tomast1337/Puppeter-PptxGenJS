@@ -1,5 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
-import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, PPTX_DEFAULTS, RENDERING_TARGETS, type RenderingTarget } from "#src/defaults";
+import { type FontMetricsLookup, PPTX_DEFAULTS } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, RENDERING_TARGETS, type RenderingTarget } from "#src/target/index";
 import type { NormalizedTable, NormalizedTableBorder, NormalizedTableRow } from "@pdflapas/model";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";

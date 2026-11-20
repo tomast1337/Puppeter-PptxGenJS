@@ -2,7 +2,8 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { FontFileError, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint, readGlyphAdvances } from "../packages/pptxgenjs/src/index";
-import { type GlyphAdvances, PPTX_DEFAULTS, RENDERING_TARGETS } from "../packages/pptxgenjs/src/defaults";
+import type { GlyphAdvances } from "../packages/pptxgenjs/src/defaults";
+import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
 import { advanceGridSpacing } from "../packages/pptxgenjs/src/normalize/advanceGrid";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
@@ -62,7 +63,6 @@ const CMAP_FORMAT_12 = words(0, 1, 3, 10, 0, 12, 12, 0, 0, 28, 0, 0, 0, 1, 0x1, 
 describe("advanceGridSpacing", () => {
     test("is PowerPoint's 1/576 in grid on the PowerPoint target and none on LibreOffice", () => {
         expect(GRID).toBe(0.125);
-        expect(PPTX_DEFAULTS.units.pointsPerInch / PPTX_DEFAULTS.units.powerPointAdvanceGridPerInch).toBe(0.125);
         expect(RENDERING_TARGETS.libreoffice.advanceGridPt).toBeUndefined();
     });
 
