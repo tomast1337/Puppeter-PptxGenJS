@@ -84,19 +84,46 @@ const FC_MATCH_TIMEOUT_MS = 10_000;
 const FC_FACE_INDEX_MASK = 0xffff;
 // Characters fontconfig's pattern syntax reads (family list, size, properties), escaped to stay part of the name.
 const FC_PATTERN_SPECIAL = /[\\\-:,]/g;
+// fc-list's family names, one font per line, separated by commas (a comma inside a name is escaped).
+const FC_LIST_SEPARATOR = /(?<!\\),/;
+const FC_LIST_ESCAPE = /\\(.)/g;
+
+/**
+ * The lower-case family names of the installed fonts, listed once per process with fc-list (empty without
+ * fontconfig): a face that is not installed then costs a set lookup, not an fc-match spawn, so a deck naming many
+ * made-up faces neither blocks the event loop per name nor grows the caches below. Global for the reasons
+ * installedFontMetrics is; set on the first lookup, never released. A font installed later is seen by a new process.
+ */
+let installedFamilies: ReadonlySet<string> | undefined;
+
+function isInstalledFamily(fontFace: string): boolean {
+    installedFamilies ??= listInstalledFamilies();
+    return installedFamilies.has(fontFace.toLowerCase());
+}
+
+function listInstalledFamilies(): ReadonlySet<string> {
+    let output: string;
+    try {
+        // A line per font file: the default 1 MiB output buffer is too small for large font collections.
+        output = execFileSync("fc-list", ["--format", "%{family}\\n"], { encoding: "utf8", timeout: FC_MATCH_TIMEOUT_MS, stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
+    } catch {
+        return new Set(); // No fontconfig (macOS and Windows without it) or it failed: FONT_WIN_METRICS applies.
+    }
+    return new Set(output.split("\n").flatMap(line => line.split(FC_LIST_SEPARATOR).map(family => family.replace(FC_LIST_ESCAPE, "$1").trim().toLowerCase())));
+}
 
 /**
  * Installed fonts' metrics by lower-case face name, undefined when the face is not installed. Global because the
  * installed fonts are the process's environment, not a deck's, and each lookup spawns fc-match and reads a font file:
- * every presentation in the process shares it. Owned by resolveInstalledFontMetrics(); never released (one small entry
- * per face name the process has used). A font installed after a face was looked up is seen by a new process.
+ * every presentation in the process shares it. Owned by resolveInstalledFontMetrics(); never released, and bounded by
+ * the installed families: only a face fc-list names gets an entry. A font installed later is seen by a new process.
  */
 const installedFontMetrics = new Map<string, FontWinMetrics | undefined>();
 
 /**
  * Installed fonts' advances by weight, style and lower-case face name, undefined when the face is not installed. Global
  * for the reasons installedFontMetrics is, owned by resolveInstalledGlyphAdvances(); never released (one entry of a few
- * thousand advances per face, weight and style the process has used).
+ * thousand advances per installed face, weight and style the process has used).
  */
 const installedGlyphAdvances = new Map<string, GlyphAdvances | undefined>();
 
@@ -105,6 +132,7 @@ const installedGlyphAdvances = new Map<string, GlyphAdvances | undefined>();
  * family is `fontFace` itself (not a substitute); undefined otherwise.
  */
 function installedFontFile(fontFace: string, properties = ""): { file: string; index: number } | undefined {
+    if (!isInstalledFamily(fontFace)) return undefined;
     let output: string;
     try {
         output = execFileSync("fc-match", ["-f", FC_MATCH_FORMAT, `${fontFace.replace(FC_PATTERN_SPECIAL, "\\$&")}${properties}`], { encoding: "utf8", timeout: FC_MATCH_TIMEOUT_MS, stdio: ["ignore", "pipe", "ignore"] });
@@ -125,6 +153,7 @@ function installedFontFile(fontFace: string, properties = ""): { file: string; i
  */
 export function resolveInstalledFontMetrics(fontFace: string): FontWinMetrics | undefined {
     const key = fontFace.toLowerCase();
+    if (!isInstalledFamily(fontFace)) return undefined;
     if (installedFontMetrics.has(key)) return installedFontMetrics.get(key);
     const font = installedFontFile(fontFace);
     let metrics: FontWinMetrics | undefined;
@@ -147,6 +176,7 @@ export function resolveInstalledFontMetrics(fontFace: string): FontWinMetrics | 
 export function resolveInstalledGlyphAdvances(fontFace: string, bold: boolean, italic: boolean): GlyphAdvances | undefined {
     const properties = `${bold ? ":bold" : ""}${italic ? ":italic" : ""}`;
     const key = `${properties}:${fontFace.toLowerCase()}`;
+    if (!isInstalledFamily(fontFace)) return undefined;
     if (installedGlyphAdvances.has(key)) return installedGlyphAdvances.get(key);
     const font = installedFontFile(fontFace, properties);
     let advances: GlyphAdvances | undefined;

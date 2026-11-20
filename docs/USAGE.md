@@ -446,8 +446,11 @@ the face. Pass your own to look fonts up elsewhere, or `null` to turn the lookup
 const pres = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null });
 ```
 
-The default resolver caches each face's result for the life of the process (a font installed later is seen
-by a new process). It needs fontconfig's `fc-match` on the `PATH`: Linux has it; on macOS and Windows
+The default resolver lists the installed families once per process (`fc-list`), so a face that is not
+installed costs a lookup in that list and is not cached; it runs `fc-match` only for an installed face and
+caches that face's result for the life of the process (a font installed later is seen by a new process). The
+lookups are synchronous; on a server, the first deck after start pays for the list. It needs fontconfig's
+`fc-list` and `fc-match` on the `PATH`: Linux has them; on macOS and Windows
 without fontconfig every face falls through to `FONT_WIN_METRICS`. A font file it cannot read (truncated,
 WOFF) is skipped with a `console.warn` naming the face and file, and the face falls through the same way.
 The `@pdflapas/pptxgenjs/html` entry has no default resolver.
