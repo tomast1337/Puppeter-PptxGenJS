@@ -6,7 +6,7 @@ import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, Normali
 import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { inch2EmuToPixels } from "#src/units";
 import { advanceGridWordSpacing, runPieces } from "./advanceGrid";
-import { breakAroundQuotes, chineseLineBreak, hangingMarkRuns, hangingSegments } from "./chineseLineBreak";
+import { breakAroundHanPunctuation, hangingMarkRuns, hangingSegments, languageHangingMarks } from "./eastAsianLineBreak";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { recordSharedRun, type SharedRunOptions, sharedRunOptions } from "./sharedRunOptions";
@@ -343,9 +343,9 @@ function paragraphFromPieces(
     const runless = pieces.every(piece => piece.noRun);
     const pieceOptions = (piece: TextPiece) => inheritedOptions(parent, runless ? { ...piece.options, fontSize: markFontSizePt ?? PPTX_DEFAULTS.text.fontSizePt } : piece.options);
     const normalizedRuns = pieces.flatMap((piece, index) => pieceRuns(piece, pieces[index + 1], pieceOptions(piece), target, fontMetrics));
-    const { joinsOpeningBracket, breaksAroundQuotes } = RENDERING_TARGETS[target];
+    const { joinsOpeningBracket, breaksAroundHanPunctuation, hangingMarks } = RENDERING_TARGETS[target];
     const joinedRuns = joinsOpeningBracket ? joinOpeningBrackets(normalizedRuns) : normalizedRuns;
-    const runs = breaksAroundQuotes ? quoteBreaks(joinedRuns) : joinedRuns;
+    const runs = breaksAroundHanPunctuation ? hanPunctuationBreaks(joinedRuns, hangingMarks) : joinedRuns;
     // The mark of a paragraph whose <a:p> ends here, at its last run's size before a super/subscript reduction
     // (RENDERING_TARGETS.fullSizeMark); a line feed ends its line in the run's own font.
     const lastPiece = pieces.at(-1);
@@ -375,15 +375,15 @@ function paragraphFromPieces(
 }
 
 /**
- * The runs of `piece`: one, or on a target with `hangingMarks` in a Chinese run, one per stretch around each mark that
- * hangs (normalize/chineseLineBreak.ts); `next` is the piece after it in the paragraph.
+ * The runs of `piece`: one, or in a language with the target's `hangingMarks`, one per stretch around each mark that
+ * hangs (normalize/eastAsianLineBreak.ts); `next` is the piece after it in the paragraph.
  */
 function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup): NormalizedTextRun[] {
-    const { hangingMarks } = RENDERING_TARGETS[target];
-    if (!hangingMarks || !chineseLineBreak(options.lang ?? PPTX_DEFAULTS.theme.language)) return [normalizeTextRun(piece.text, options, target, fontMetrics)];
+    const marks = languageHangingMarks(options.lang ?? PPTX_DEFAULTS.theme.language, RENDERING_TARGETS[target].hangingMarks);
+    if (!marks) return [normalizeTextRun(piece.text, options, target, fontMetrics)];
     const after = next && !next.options.softBreakBefore ? [...next.text][0] : undefined;
     const font = fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
-    return hangingSegments(piece.text, after, hangingMarks).flatMap(({ text, hangs }, index) => {
+    return hangingSegments(piece.text, after, marks).flatMap(({ text, hangs }, index) => {
         const run = normalizeTextRun(text, options, target, fontMetrics);
         // Only the piece's first stretch starts after its soft break.
         const segment = index ? { ...run, softBreakBefore: false } : run;
@@ -391,14 +391,13 @@ function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxG
     });
 }
 
-/** `runs` with breakAroundQuotes in each Chinese run, also at a quote on a run's edge. */
-function quoteBreaks(runs: NormalizedTextRun[]): NormalizedTextRun[] {
+/** `runs` with breakAroundHanPunctuation in each run, also at a mark on a run's edge. */
+function hanPunctuationBreaks(runs: NormalizedTextRun[], hangingMarks: Readonly<Record<string, string>>): NormalizedTextRun[] {
     return runs.map((run, index) => {
-        if (!chineseLineBreak(run.language)) return run;
         const previous = run.softBreakBefore ? "" : (runs[index - 1]?.text.at(-1) ?? "");
         const following = runs[index + 1];
         const next = following && !following.softBreakBefore ? following.text.charAt(0) : "";
-        const text = breakAroundQuotes(run.text, previous, next);
+        const text = breakAroundHanPunctuation(run.text, previous, next, languageHangingMarks(run.language, hangingMarks) !== undefined);
         return text === run.text ? run : { ...run, text };
     });
 }

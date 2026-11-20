@@ -289,14 +289,19 @@ PowerPoint's 0.125pt grid, so its lines break where PowerPoint's do, and
 U+2060 WORD JOINER in run text between `)`, `]`, `}` or `%` and a following `(`, `[` or `{`, where
 PowerPoint has no line break and UAX #14 has one. Renderers draw it as nothing, give it no
 `letter-spacing`, and still break there when the word alone overflows its line (`overflow-wrap`).
-In a run whose `lang` is Chinese (`zh`, `zh-CN`, `zh-TW`) the PowerPoint target writes two more:
-U+200B ZERO WIDTH SPACE before a `“` after a Han character and on either side of an ASCII `"` between
-Han characters, where PowerPoint breaks and UAX #14 does not; and a closing mark that PowerPoint hangs
-past the line's end (`）》」”，、。：？)` before a Han character or the line's end) as a run of its own
-whose `letter-spacing` cancels its advance, followed by a run of one U+3000 IDEOGRAPHIC SPACE whose
-`letter-spacing` makes it as wide as the mark was. Mid-line the pair is as wide as the mark; at a line's
-end the U+3000 hangs as preserved white space does under `white-space: pre-wrap`, so the mark is drawn
-past the edge, as in PowerPoint. Both characters are in the text a PDF reader extracts.
+Around Han text the PowerPoint target writes more, by the run's `lang`
+(`RENDERING_TARGETS.powerpoint.hangingMarks` and `breaksAroundHanPunctuation`). In every run it writes
+U+200B ZERO WIDTH SPACE between a Han character and an ASCII `"` on either side, where PowerPoint breaks and
+UAX #14 does not. In a Chinese or Japanese run (`zh`, `ja`) it also writes U+200B before a `“` after a Han
+character and between two `—`, and U+2060 WORD JOINER before a `—` after any other character. A closing mark
+that PowerPoint hangs past the line's end (in `zh` `）》」”，、。：？！；』】〕),.;:!?]}`, in `ja` `，。`,
+unless another one or a dash follows) becomes a run of its own whose `letter-spacing` cancels its advance,
+followed by a run of one U+3000 IDEOGRAPHIC SPACE whose `letter-spacing` makes it as wide as the mark was.
+Mid-line the pair is as wide as the mark; at a line's end the U+3000 hangs as preserved white space does
+under `white-space: pre-wrap`, so the mark is drawn past the edge, as in PowerPoint. In any other run
+(`en-US`, PptxGenJS's default, `ko`) it writes U+200B on either side of full-width punctuation next to a Han
+character or CJK punctuation, where PowerPoint breaks and UAX #14 does not. U+200B and U+3000 are in the text
+a PDF reader extracts.
 
 **Fallback faces.** On the PowerPoint target a run's (and its bullet's) `font-family` lists, after the face,
 the faces PowerPoint draws a character in when the face lacks it, the first that has it:
