@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@pdflapas/pptxgenjs": "workspace:*",
-    "zod": "4.4.3"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "react": "^19.0.0",
