@@ -603,11 +603,41 @@ type LineBoxInput = Pick<NormalizedTextParagraph, "runs"> & { readonly spacing?:
  * single spacing from the runs' fonts (RENDERING_TARGETS.fontLineBaseline), where the paragraph mark and soft breaks,
  * set in `markFontFace` and `themeFontFace`, may move the last line and the lines ending in a break (`markBaseline`,
  * `breakBaseline`). `markFontSize` is the mark's size when it is not the last run's (RENDERING_TARGETS.fullSizeMark):
- * it counts in the line's height as well. Each baseline then goes on the target's grid
+ * it counts in the line's height as well. A raised or lowered run grows the line where it sticks out of it
+ * (RENDERING_TARGETS.escapementGrowsLine). Each baseline then goes on the target's grid
  * (RENDERING_TARGETS.baselineGridPerInch).
  */
 export function paragraphLineBox(paragraph: LineBoxInput, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, themeFontFace: string = PPTX_DEFAULTS.theme.bodyFontFace, markFontFace: string = themeFontFace, markFontSize?: number): NormalizedTextParagraph["lineBox"] {
-    return baselinesOnGrid(fontLineBox(paragraph, target, fontMetrics, themeFontFace, markFontFace, markFontSize), target);
+    const box = fontLineBox(paragraph, target, fontMetrics, themeFontFace, markFontFace, markFontSize);
+    // An exact line height (`<a:spcPts>`) is fixed whatever the line holds.
+    const exact = paragraph.spacing !== undefined && "exact" in paragraph.spacing;
+    return baselinesOnGrid(RENDERING_TARGETS[target].escapementGrowsLine && !exact ? escapementLineBox(box, paragraph.runs) : box, target);
+}
+
+/**
+ * `box` grown by what the paragraph's raised or lowered runs stick out of it: each reaches the font-independent line
+ * box at its drawn size, 1em above and `text.lineDescentEm` below its baseline, moved by its `baselineOffset`
+ * (RENDERING_TARGETS.libreoffice). An empty run draws nothing and grows nothing, as in #294.
+ * shortcut: one line box per paragraph, so the growth applies to every line of the paragraph, not only the one holding
+ * the run; split it per line when the model gets a line box per line.
+ * shortcut: with `lineSpacingMultiple` the growth is added to the spaced line unscaled, which LibreOffice's export was
+ * not measured for; measure it when a deck combines the two.
+ */
+function escapementLineBox(box: NormalizedTextParagraph["lineBox"], runs: readonly NormalizedTextRun[]): NormalizedTextParagraph["lineBox"] {
+    const { singleLineEm, lineDescentEm } = PPTX_DEFAULTS.text;
+    const ascentEm = singleLineEm - lineDescentEm;
+    const drawn = runs.filter(run => run.text !== "");
+    const size = Math.max(0, ...drawn.map(run => run.fontSize));
+    const above = Math.max(0, ...drawn.map(run => ascentEm * run.fontSize + run.baselineOffset - ascentEm * size));
+    const below = Math.max(0, ...drawn.map(run => lineDescentEm * run.fontSize - run.baselineOffset - lineDescentEm * size));
+    if (!above && !below) return box;
+    const { height, baseline, markBaseline, breakBaseline } = box;
+    return {
+        height: height + above + below,
+        baseline: baseline + above,
+        ...(markBaseline === undefined ? {} : { markBaseline: markBaseline + above }),
+        ...(breakBaseline === undefined ? {} : { breakBaseline: breakBaseline + above }),
+    };
 }
 
 /** `lineBox` with each baseline on the target's grid, a mark or break baseline kept only where it still differs. */

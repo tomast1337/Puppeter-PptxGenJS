@@ -1179,34 +1179,21 @@ mod tests {
     }
 
     #[test]
-    fn a_lowered_subscript_grows_its_line_below_the_baseline() {
-        let mut text = text_box(&[(&["Base", "sub"], 36.0, 30.0)]);
+    fn a_raised_or_lowered_run_keeps_its_line_box() {
+        // On a 36px line box (baseline 30): "Base" and a 20px subscript lowered 8px, a 30px "x" raised 12px, and an
+        // empty run raised 4px. The line box already holds what the target grows a line by for an escapement
+        // (normalization, #298), so every line is the box's, as Chromium lays out a relatively positioned run.
+        let mut text = text_box(&[(&["Base", "sub"], 36.0, 30.0), (&["x"], 36.0, 30.0), (&[""], 36.0, 30.0)]);
         let sub = &mut text.paragraphs[0].runs[1];
-        // A 20px subscript lowered 40%, as normalization resolves it.
         (sub.baseline_offset, sub.font_size, sub.soft_break_before) = (-8.0, 20.0, false);
+        text.paragraphs[1].runs[0].baseline_offset = 12.0;
+        text.paragraphs[2].runs[0].baseline_offset = 4.0;
         let Some(layout) = laid_out(&text) else {
-            return eprintln!("Liberation Sans not installed: subscript line growth not checked");
+            return eprintln!("Liberation Sans not installed: escapement line box not checked");
         };
-        // The baseline stays 1.0em below the top; only the descent grows past its 0.2em (6px).
-        assert_eq!(layout.baselines, [30.0]);
-        assert!(layout.height > 36.5, "{}", layout.height);
-    }
-
-    #[test]
-    fn a_superscript_grows_its_line_unless_its_paragraph_is_empty() {
-        // Two paragraphs on a 36px line box (baseline 30), each with one 30px run raised 4px: "x", then an empty run.
-        let mut text = text_box(&[(&["x"], 36.0, 30.0), (&[""], 36.0, 30.0)]);
-        for p in &mut text.paragraphs {
-            p.runs[0].baseline_offset = 4.0;
-        }
-        let Some(layout) = laid_out(&text) else {
-            return eprintln!("Liberation Sans not installed: superscript line growth not checked");
-        };
-        // "x" lifts its line 4px above the box (LibreOffice's escapement); the empty paragraph has no glyph to lift,
-        // so its line stays the mark's 36px, as Chromium lays out an empty relatively positioned run.
         // Baselines are below their paragraph's top.
-        assert_eq!(layout.baselines, [34.0, 30.0]);
-        assert_eq!(layout.height, 76.0);
+        assert_eq!(layout.baselines, [30.0, 30.0, 30.0]);
+        assert_eq!(layout.height, 108.0);
     }
 
     #[test]

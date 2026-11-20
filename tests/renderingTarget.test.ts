@@ -409,8 +409,10 @@ describe("rendering targets", () => {
         for (const escapement of [{ superscript: true }, { subscript: true }]) {
             const line: Input = [{ text: "Text " }, { text: "2", options: { fontSize: 24, ...escapement } }, { text: " more" }];
             expect(baselines(line, "powerpoint")[0]! - plain).toBeCloseTo(4.3, 0);
-            // 0.58 gave 2.21.
-            expect(baselines(line, "libreoffice")[0]! - baselines("Text more", "libreoffice")[0]!).toBeCloseTo(13.92 - 12, 2);
+            // 0.58 gave 2.21. LibreOffice grows the line above by the superscript's 7.2pt raise (escapementGrowsLine); the
+            // subscript grows it below, which leaves the baseline.
+            const raise = escapement.superscript ? 7.2 : 0;
+            expect(baselines(line, "libreoffice")[0]! - baselines("Text more", "libreoffice")[0]!).toBeCloseTo(13.92 - 12 + raise, 2);
         }
 
         const alone: Input = [{ text: "Before", options: { breakLine: true } }, { text: "X", options: { superscript: true, fontSize: 24, breakLine: true } }, { text: "After" }];
@@ -431,7 +433,59 @@ describe("rendering targets", () => {
             return [...page.matchAll(/class="text-paragraph"[^>]*?line-height: ([^;]*);[^>]*>(?:<span class="text-run"[^>]*?font-size: ([^;]*);)?/g)].map(match => match.slice(1).join(" "));
         };
         expect(await html(new PuppeteerGenPowerPoint())).toEqual(["19.2px 16px", "38.4px 21.333333333333332px", "19.2px 16px"]);
-        expect(await html(new PuppeteerGenLibreOffice())).toEqual(["19.2px 16px", expect.stringMatching(/^22\.272\d*px 18\.56\d*px$/), "19.2px 16px"]);
+        // LibreOffice: 1.2 x 18.56px and the 9.6px raise above it.
+        expect(await html(new PuppeteerGenLibreOffice())).toEqual(["19.2px 16px", expect.stringMatching(/^31\.87\d*px 18\.56\d*px$/), "19.2px 16px"]);
+    });
+
+    // #298, measured in LibreOffice 26.2's PDF export (Arial 40pt, top-anchored, "H" + an escaped "x" + "H"): how much a
+    // run's escapement moves the first baseline down (above) and makes the line taller below it (below), in pt. PowerPoint's
+    // PDF export (Arial 20 and 40pt, middle-anchored) keeps the line for every one of them.
+    test("LibreOffice grows a line where a raised or lowered run sticks out of it, PowerPoint does not", async () => {
+        type Input = Parameters<typeof normalizeText>[0];
+        const pt = (px: number) => px * 0.75;
+        const lineBox = (x: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint", options: PptxGenJS.TextPropsOptions = {}) => {
+            const input: Input = [{ text: "H" }, { text: "x", options: x }, { text: "H" }];
+            return normalizeText(input, { fontFace: "Arial", fontSize: 40, ...options }, target).paragraphs[0]!.lineBox;
+        };
+        const growth = (x: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint", options?: PptxGenJS.TextPropsOptions) => {
+            const [plain, escaped] = [lineBox({}, target, options), lineBox(x, target, options)];
+            const above = pt(escaped.baseline - plain.baseline);
+            return { above, below: pt(escaped.height - plain.height) - above };
+        };
+        for (const [x, above, below] of [
+            [{ baseline: 600 }, 0, 0],
+            [{ superscript: true }, 0, 0],
+            [{ baseline: 1000 }, 3.17, 0],
+            [{ baseline: 2000 }, 23.19, 0],
+            [{ baseline: -600 }, 0, 8.62],
+            [{ subscript: true }, 0, 12.61],
+            [{ baseline: -1000 }, 0, 16.61],
+            [{ baseline: -2000 }, 0, 36.62],
+        ] as const) {
+            const { above: up, below: down } = growth(x, "libreoffice");
+            // The formula gives 0.03pt more than the export: 3.2, 23.2, 8.64, 12.64, 16.64, 36.64.
+            expect({ x, above: up, below: down }).toEqual({ x, above: expect.closeTo(above, 1), below: expect.closeTo(below, 1) });
+            expect(growth(x, "powerpoint")).toEqual({ above: 0, below: 0 });
+        }
+        // An exact line height stays what it says; a line spaced by a multiple grows as a single one.
+        expect(growth({ baseline: -1000 }, "libreoffice", { lineSpacing: 50 })).toEqual({ above: 0, below: 0 });
+        expect(growth({ baseline: -1000 }, "libreoffice", { lineSpacingMultiple: 1.5 }).below).toBeCloseTo(16.64, 2);
+        // An empty raised run draws nothing and grows nothing.
+        expect(normalizeText([{ text: "", options: { baseline: -2000 } }], { fontSize: 40 }, "libreoffice").paragraphs[0]!.lineBox).toEqual(normalizeText([{ text: "", options: { superscript: true } }], { fontSize: 40 }, "libreoffice").paragraphs[0]!.lineBox);
+
+        // The HTML says it: line-height and data-line-baseline, the run moved by its relative top on both targets.
+        const html = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText([{ text: "H" }, { text: "x", options: { baseline: -1000 } }], { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 40, margin: 0 });
+            const page = (await presentation.toHtml()).html;
+            return page
+                .match(/data-line-baseline="([^"]*)"[^>]*?line-height: ([^;]*)px;.*?top: ([^;]*)px;/)
+                ?.slice(1)
+                .map(Number);
+        };
+        // 40pt Arial: PowerPoint's 1.2 x 53.33px line, its baseline from Arial's win metrics on the 0.12pt grid.
+        expect(await html(new PuppeteerGenPowerPoint())).toEqual([51.84, expect.closeTo(64, 6), expect.closeTo(26.667, 3)]);
+        // LibreOffice's 64px line grows 22.19px (16.64pt) below; the baseline stays 1em down.
+        expect(await html(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(53.333, 3), expect.closeTo(64 + 22.187, 3), expect.closeTo(26.667, 3)]);
     });
 
     // Measured against PowerPoint's PDF export: 18pt Arial in a cell sits where an Arial mark puts it (0.08pt above

@@ -735,7 +735,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextDecoration.strike`               | profile | `line-through` in `text-decoration-line`.                                                                                  |
 | `NormalizedTextDecoration.doubleStrike`         | profile | `data-double-strike` on the run (`text-decoration-style: double` draws it).                                                |
 | `NormalizedTextRun.verticalAlign`               | profile | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |
-| `NormalizedTextRun.baselineOffset`              | profile | `position: relative; top: <-offset>px`, omitted at 0.                                                                      |
+| `NormalizedTextRun.baselineOffset`              | profile | `position: relative; top: <-offset>px`, omitted at 0; it moves the glyphs only, the line box is the paragraph's.           |
 | `NormalizedTextRun.characterSpacing`            | profile | `letter-spacing`, omitted at 0.                                                                                            |
 | `NormalizedTextRun.kerning`                     | profile | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
 | `NormalizedTextRun.syntheticBold`               | profile | `data-synthetic-bold` on a bold run (LibreOffice target), omitted for the renderer's own synthetic bold.                   |

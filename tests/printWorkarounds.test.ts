@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { inflateSync } from "node:zlib";
+import { pdfContentStreams } from "./pdfContentStreams";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
@@ -291,20 +291,6 @@ describe("Puppeteer print workarounds", () => {
 /** The text baselines of a one-page Chromium PDF, in drawing order and PRINT_ZOOM device px from the page top (each `Tm`'s y). */
 function textBaselines(pdf: Uint8Array): number[] {
     return pdfContentStreams(pdf).flatMap(content => [...content.matchAll(/(?:^|\n)1 0 0 -1 [\d.]+ ([\d.]+) Tm(?=\n)/g)].map(match => Number(match[1])));
-}
-
-/** The decoded Flate streams of a Chromium PDF, in file order. */
-function pdfContentStreams(pdf: Uint8Array): string[] {
-    const bytes = Buffer.from(pdf);
-    const streams: string[] = [];
-    for (let at = bytes.indexOf("stream\n"); at >= 0; at = bytes.indexOf("stream\n", at + 1)) {
-        try {
-            streams.push(inflateSync(bytes.subarray(at + "stream\n".length, bytes.indexOf("endstream", at))).toString("latin1"));
-        } catch {
-            // Not a Flate stream (fonts are, but images may not be); content streams always are.
-        }
-    }
-    return streams;
 }
 
 /**

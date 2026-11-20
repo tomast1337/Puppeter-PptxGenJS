@@ -4,8 +4,8 @@ use std::ops::Range;
 
 use parley::setting::{FontFeature, Tag};
 use parley::{
-    Alignment, AlignmentOptions, BaseDirection, BreakReason, CHROMIUM_LINE_BREAK_OVERRIDE, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem,
-    StyleProperty, TextWrapMode, WhiteSpaceCollapse, YieldData,
+    Alignment, AlignmentOptions, BaseDirection, BreakReason, CHROMIUM_LINE_BREAK_OVERRIDE, FontStyle, FontWeight, Layout, OverflowWrap, StyleProperty,
+    TextWrapMode, WhiteSpaceCollapse, YieldData,
 };
 
 use krilla::paint::Stroke;
@@ -177,8 +177,7 @@ impl Renderer {
                 spans.push(start..s.len());
             }
             let first = paragraph.runs.first();
-            let empty = s.is_empty();
-            if empty {
+            if s.is_empty() {
                 s.push('\u{200B}');
                 spans.clear();
                 spans.push(0..s.len());
@@ -363,14 +362,7 @@ impl Renderer {
             y += paragraph.space_before;
             width = width.max(x + layout.width());
             let first = out.baselines.len();
-            let height = stack_lines(
-                &layout,
-                line_box,
-                paragraph.runs.iter().fold(0.0, |m, r| r.font_size.max(m)) * scale,
-                // An empty paragraph's line is its mark's alone: no glyph to raise, as in Chromium and the profile.
-                if empty { &[] } else { paints },
-                &mut out.baselines,
-            );
+            let height = stack_lines(&layout, line_box, &mut out.baselines);
             out.paras.push(ParaLayout {
                 text: s,
                 layout,
@@ -425,14 +417,12 @@ fn stack_break(s: &mut String, stacked: bool) {
     }
 }
 
-/// Stacks the lines of `layout` on LibreOffice's font-independent line box and pushes each line's
-/// baseline (below the paragraph top) onto `baselines`; returns the paragraph height. `line_box` is
-/// sized for the paragraph's largest font, `max_size`. A run raised or lowered off the baseline
-/// (super/subscript) carries its own box, `line_box` scaled to its font size, and grows its line where
-/// that box sticks out, as LibreOffice's escapement does (a 13pt subscript under 20pt text adds ~5 px). The last line
-/// takes `line_box.mark_baseline` and a line ending in a soft break `line_box.break_baseline`. A run with
-/// no paint in `paints` keeps its `baseline_offset` out of the line box.
-fn stack_lines(layout: &Layout<Brush>, line_box: LineBox, max_size: f32, paints: &[RunPaint], baselines: &mut Vec<f32>) -> f32 {
+/// Stacks the lines of `layout` on the paragraph's line box and pushes each line's baseline (below
+/// the paragraph top) onto `baselines`; returns the paragraph height. The last line takes
+/// `line_box.mark_baseline` and a line ending in a soft break `line_box.break_baseline`. A raised or
+/// lowered run moves only its glyphs: the line box already holds whatever the rendering target grows
+/// a line by for it (normalization, `escapementGrowsLine`).
+fn stack_lines(layout: &Layout<Brush>, line_box: LineBox, baselines: &mut Vec<f32>) -> f32 {
     let mut top = 0.0;
     for (index, line) in layout.lines().enumerate() {
         let baseline = if index + 1 == layout.len() {
@@ -442,18 +432,8 @@ fn stack_lines(layout: &Layout<Brush>, line_box: LineBox, max_size: f32, paints:
         } else {
             line_box.baseline
         };
-        let (ascent, descent) = (baseline, line_box.height - baseline);
-        let (mut above, mut below) = (ascent, descent);
-        for item in line.items() {
-            let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
-            let paint = paints.get(glyph_run.style().brush.0 as usize);
-            let raise = line.metrics().baseline - glyph_run.baseline() + paint.map_or(0.0, |p| p.baseline_offset);
-            let ratio = if max_size > 0.0 { glyph_run.run().font_size() / max_size } else { 1.0 };
-            above = above.max(ascent * ratio + raise);
-            below = below.max(descent * ratio - raise);
-        }
-        baselines.push(top + above);
-        top += above + below;
+        baselines.push(top + baseline);
+        top += line_box.height;
     }
     top
 }
