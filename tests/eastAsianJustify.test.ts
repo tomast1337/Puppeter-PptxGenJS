@@ -107,9 +107,8 @@ describe("the measured justified boxes, in both renderers", () => {
             await rm(directory, { recursive: true, force: true });
         }
     };
-    const check = (pages: Awaited<ReturnType<typeof drawnLines>>, skipped: readonly string[] = []) =>
+    const check = (pages: Awaited<ReturnType<typeof drawnLines>>) =>
         CASES.forEach(({ label, lines, justified }, index) => {
-            if (skipped.includes(label)) return;
             const drawn = pages[index] ?? [];
             // Without spaces: pdftotext also splits words at the U+200B the target writes around full-width punctuation.
             expect({ label, lines: drawn.map(words => words.map(({ text }) => text).join("")) }).toEqual({ label, lines: lines.map(line => line.replaceAll(" ", "")) });
@@ -129,9 +128,8 @@ describe("the measured justified boxes, in both renderers", () => {
         "widens only the spaces of each line, in the WASM renderer",
         async () => {
             const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
-            // shortcut: its second line fills the box to 0.01pt over four run boundaries, and WASM breaks it one character
-            // early (#370); check it here once that is fixed.
-            check(await drawnLines(await deck(new PuppeteerGenPowerPoint(undefined, { renderer })).toPdf()), ["Arial and SimSun runs"]);
+            // The second line of "Arial and SimSun runs" fills its box to 0.01pt over four run boundaries (#370).
+            check(await drawnLines(await deck(new PuppeteerGenPowerPoint(undefined, { renderer })).toPdf()));
         },
         60_000,
     );
