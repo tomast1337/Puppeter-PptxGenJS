@@ -3,7 +3,7 @@
 use parley::{Alignment, BreakReason, Cluster, InlineBox, InlineBoxKind, Layout, Line, VerticalAlign};
 
 use crate::model::{TabAlign, TabStop};
-use crate::text::layout::Brush;
+use crate::text::layout::{Brush, break_lines};
 
 /// Stands in for a tab in the laid-out text: parley sizes an in-flow inline box at each one.
 pub(crate) const TAB_PLACEHOLDER: char = '\u{FFFC}';
@@ -156,7 +156,7 @@ pub(crate) fn place_tabs(layout: &mut Layout<Brush>, text: &str, tabs: &[usize],
             let overflows = ruler.max_w.is_some_and(|w| end_x + shift > w - OVERFLOW_SLACK);
             if (reshapes || overflows) && !done.capped {
                 if done.rebreaks < budget {
-                    layout.break_all_lines(ruler.max_w);
+                    break_lines(layout, ruler.max_w);
                     done.rebreaks += 1;
                     unsettled = false;
                     // Measure the line of the next tab again: the breaks after this tab may have moved.
@@ -167,7 +167,7 @@ pub(crate) fn place_tabs(layout: &mut Layout<Brush>, text: &str, tabs: &[usize],
         }
     }
     if unsettled {
-        layout.break_all_lines(ruler.max_w);
+        break_lines(layout, ruler.max_w);
     }
     done
 }
@@ -208,7 +208,7 @@ mod tests {
                 ..AlignmentOptions::default()
             },
         );
-        layout.break_all_lines(max_w);
+        break_lines(&mut layout, max_w);
         Some((layout, s, tabs))
     }
 
@@ -248,7 +248,7 @@ mod tests {
             };
             let width = (stop.position - pos - lead).max(0.0);
             layout.edit_inline_box(k, |b| b.width = width);
-            layout.break_all_lines(ruler.max_w);
+            break_lines(layout, ruler.max_w);
         }
     }
 

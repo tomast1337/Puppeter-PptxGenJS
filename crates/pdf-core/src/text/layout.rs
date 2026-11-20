@@ -5,7 +5,7 @@ use std::ops::Range;
 use parley::setting::{FontFeature, Tag};
 use parley::{
     Alignment, AlignmentOptions, BaseDirection, BreakReason, CHROMIUM_LINE_BREAK_OVERRIDE, FontStyle, FontWeight, Layout, OverflowWrap, PositionedLayoutItem,
-    StyleProperty, TextWrapMode, WhiteSpaceCollapse,
+    StyleProperty, TextWrapMode, WhiteSpaceCollapse, YieldData,
 };
 
 use krilla::paint::Stroke;
@@ -16,6 +16,10 @@ use crate::effect::Effect;
 use crate::model::{LineBox, ParagraphAlign, Synthesis, TextBox, TextDirection, TextFit, UnderlineStyle};
 use crate::text::font::family_stack;
 use crate::text::tabs::{MAX_TAB_REBREAK_BYTES, TAB_PLACEHOLDER, TabRuler, place_tabs, tab_box};
+
+/// Blink's `LayoutUnit`, the grid its line breaker measures on: 1/64 CSS px (`kFractionalBits` = 6 in
+/// third_party/blink/renderer/platform/geometry/layout_unit.h).
+const LAYOUT_UNIT: f32 = 1.0 / 64.0;
 
 /// `font-kerning: none`: the OpenType `kern` feature off.
 const NO_KERNING: [FontFeature; 1] = [FontFeature::new(Tag::new(b"kern"), 0)];
@@ -280,7 +284,7 @@ impl Renderer {
                     ..AlignmentOptions::default()
                 },
             );
-            layout.break_all_lines(max_w);
+            break_lines(&mut layout, max_w);
             if !tabs.is_empty() {
                 if paragraph.rtl {
                     // shortcut: stops are measured from the left; mirror them for RTL paragraphs when a deck needs it.
@@ -375,6 +379,34 @@ impl Renderer {
     }
 }
 
+/// Breaks `layout` into lines no wider than `max_w` (unwrapped when None) by Blink's fit test, and aligns
+/// them in `max_w`. Blink truncates the available width to a `LayoutUnit` (`LayoutUnit(float)`), rounds
+/// the text's width up to one (`ShapeResult::SnappedWidth`, shape_result.h) and keeps it on the line while
+/// `position_ <= AvailableWidth().AddEpsilon()` (`LineBreaker::CanFitOnLine`, core/layout/inline/
+/// line_breaker.h): one `LayoutUnit` of slack. The limit is on the grid, so parley's float position
+/// passes it exactly when its rounded-up value does, and a line as wide as its box stays one line
+/// whatever float noise the box width or the advances carry.
+/// shortcut: Blink rounds up each inline item (style run) on its own, so a line of many runs can take
+/// up to one `LayoutUnit` per run less here; sum snapped run widths if a deck shows that.
+pub(crate) fn break_lines(layout: &mut Layout<Brush>, max_w: Option<f32>) {
+    let Some(max_w) = max_w else {
+        return layout.break_all_lines(None);
+    };
+    let fit = (max_w / LAYOUT_UNIT).floor() * LAYOUT_UNIT + LAYOUT_UNIT;
+    let mut lines = layout.break_lines();
+    lines.state_mut().set_layout_max_advance(fit);
+    lines.state_mut().set_line_max_advance(fit);
+    while let Some(data) = lines.break_next() {
+        match data {
+            // As `break_remaining` does: no box here is out of flow, but place one at zero size so the loop ends.
+            YieldData::InlineBoxBreak(b) => lines.state_mut().append_inline_box_to_line(b.advance, 0.0, 0.0),
+            // Align in the box, as Blink does, not in the box plus the fit slack.
+            _ => lines.set_prior_line_width(max_w),
+        }
+    }
+    lines.finish();
+}
+
 /// Stacked (`wordArtVert`) text, as LibreOffice draws it: every character on a line of its own (a
 /// space is an empty line), aligned and anchored like horizontal text. Breaks before the next
 /// character unless it starts the paragraph or follows a break already.
@@ -417,4 +449,67 @@ fn stack_lines(layout: &Layout<Brush>, line_box: LineBox, max_size: f32, paints:
         top += above + below;
     }
     top
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use parley::fontique::{Blob, Collection, CollectionOptions};
+    use parley::{FontContext, LayoutContext};
+
+    /// "mmmm mmmm" in 32px Liberation Sans (Arial's metrics), `letter_spacing` px apart, aligned
+    /// `alignment` and not yet broken; None when the font is not installed.
+    fn mmmm(letter_spacing: f32, alignment: Alignment) -> Option<Layout<Brush>> {
+        let mut fonts = FontContext {
+            collection: Collection::new(CollectionOptions {
+                shared: false,
+                system_fonts: false,
+            }),
+            ..FontContext::default()
+        };
+        fonts.collection.register_fonts(Blob::from(crate::tests::liberation_sans()?), None);
+        let text = "mmmm mmmm";
+        let mut layout_cx = LayoutContext::new();
+        let mut builder = layout_cx.ranged_builder(&mut fonts, text, 1.0, false);
+        builder.push_default(StyleProperty::TextWrapMode(TextWrapMode::Wrap));
+        builder.push_default(StyleProperty::FontFamily("Liberation Sans".into()));
+        builder.push_default(StyleProperty::FontSize(32.0));
+        builder.push_default(StyleProperty::LetterSpacing(letter_spacing));
+        let mut layout: Layout<Brush> = builder.build(text);
+        layout.set_alignment(
+            alignment,
+            AlignmentOptions {
+                align_when_overflowing: true,
+                ..AlignmentOptions::default()
+            },
+        );
+        Some(layout)
+    }
+
+    #[test]
+    fn keeps_a_line_as_wide_as_its_box_on_one_line() {
+        for spacing in [0.0, 0.3] {
+            let Some(mut layout) = mmmm(spacing, Alignment::Left) else { return };
+            layout.break_all_lines(None);
+            let width = layout.width();
+            // Exactly as wide, and a float hair narrower, as a box width computed in f32 can come out.
+            for max_w in [width, width - 1e-4] {
+                break_lines(&mut layout, Some(max_w));
+                assert_eq!(layout.len(), 1, "letter spacing {spacing}: {width} in {max_w}");
+            }
+            // Two LayoutUnits narrower does not fit in Chromium either.
+            break_lines(&mut layout, Some(width - 2.0 * LAYOUT_UNIT));
+            assert_eq!(layout.len(), 2, "letter spacing {spacing}");
+        }
+    }
+
+    #[test]
+    fn aligns_in_the_box_not_in_the_fit_slack() {
+        let Some(mut layout) = mmmm(0.0, Alignment::Right) else { return };
+        layout.break_all_lines(None);
+        let width = layout.width();
+        break_lines(&mut layout, Some(width + 10.0));
+        let offset = layout.lines().next().map(|line| line.metrics().offset);
+        assert_eq!(offset, Some(10.0));
+    }
 }

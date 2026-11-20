@@ -454,6 +454,7 @@
     "p8-textkerning8pt": 0.0299,
     "p8-textkerning10pt": 0.0411,
     "p8-textkerning14pt": 0.0435,
+    "p8-textexactfitinset": 0.0017,
     "p9-textunderlinesng": 0.0913,
     "p9-textunderlinedbl": 0.1143,
     "p9-textunderlineheavy": 0.0905,
