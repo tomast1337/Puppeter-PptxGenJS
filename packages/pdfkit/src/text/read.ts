@@ -103,6 +103,12 @@ const BROWSER_SYNTHESIS: Synthesis = Object.freeze({ boldStroke: 1 / 32, italicS
 /** U+002D then U+2060 WORD JOINER: a U+2011 in a run with `data-non-breaking-hyphen`, drawn with the face's hyphen and still unbreakable. */
 const HYPHEN_MINUS_NO_BREAK = "-\u2060";
 const NON_BREAKING_HYPHEN = /\u2011/g;
+/** The value of each underline geometry property that the renderer draws. */
+const UNDERLINE_FROM_FONT = Object.freeze([
+    ["text-decoration-thickness", "from-font"],
+    ["text-underline-position", "from-font"],
+    ["text-decoration-skip-ink", "none"],
+] as const);
 /** Layout CSS that `toHtml()` writes for Chromium and that states no drawn value of its own. */
 const LAYOUT_ONLY: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
     content: new Set(["width"]),
@@ -185,6 +191,11 @@ function readDecorations(element: Element, style: Style, textColor: Color, repor
     const lines = (take(style, "text-decoration-line") ?? "").split(/\s+/);
     const cssStyle = take(style, "text-decoration-style") ?? "solid";
     const decorationColor = readColor(take(style, "text-decoration-color"), "text-decoration-color", report) ?? textColor;
+    // The underline is always drawn from the face's post table, over the descenders (draw.ts); any other value is reported.
+    for (const [property, drawn] of UNDERLINE_FROM_FONT) {
+        const value = take(style, property);
+        if (value !== undefined && value !== drawn) report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
+    }
     const doubleStrike = attribute(element, "data-double-strike") !== undefined;
     // A double strike takes text-decoration-style; the underline's own style is then in data-underline-style.
     const underlineStyle = (doubleStrike ? attribute(element, "data-underline-style") : cssStyle) ?? "solid";

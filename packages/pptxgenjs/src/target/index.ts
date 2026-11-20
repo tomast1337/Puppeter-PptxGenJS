@@ -119,6 +119,12 @@ export interface RenderingTargetProfile {
      * `addImage` with `shadow: { type: "inner" }`), or leaves the picture without it.
      */
     readonly drawsPictureInnerShadow: boolean;
+    /**
+     * Whether it draws an underline as the face's `post` table band (underlineThickness tall, its top
+     * underlinePosition below the baseline) unbroken under descenders (`NormalizedTextDecoration.underlineFromFont`),
+     * or the renderer's own underline.
+     */
+    readonly underlineFromFont: boolean;
 }
 
 /** Every rendering target by the name the `target` option takes. A new target is one file here and one entry below. */
