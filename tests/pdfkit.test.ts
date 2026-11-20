@@ -18,6 +18,8 @@ const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const PAGE_HEIGHT_PT = 405;
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+/** A 2x1 lossless WebP (ImageMagick 7.1), pdf-core's test picture. */
+const WEBP = "data:image/webp;base64,UklGRhwAAABXRUJQVlA4TA8AAAAvAQAAAAcQ/Y/+ByKi/wEA";
 const createDocument = () => new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;
 const systemFonts = await loadSystemFonts();
 
@@ -165,10 +167,62 @@ describe("PDFKit renderer", () => {
         });
     });
 
-    test("reports image formats PDFKit cannot embed", async () => {
-        const renderer = await createPdfkitRenderer({ fonts: systemFonts, onUnsupported: "warn" });
-        await render(renderer, pres => pres.addSlide().addImage({ data: GIF, x: 1, y: 1, w: 1, h: 1 }));
-        expect(renderer.warnings()).toEqual(["slide 1: object 'Image 0': image format 'image/gif' is not drawn (PDFKit embeds PNG and JPEG)"]);
+    describe("pictures", () => {
+        test("draws a GIF's and a WebP's first frame, embedded as PNG", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const pdf = await render(renderer, pres => {
+                pres.addSlide().addImage({ data: GIF, x: 1, y: 1, w: 1, h: 1 });
+                pres.addSlide().addImage({ data: WEBP, x: 1, y: 1, w: 2, h: 1 });
+            });
+            expect(
+                imageObjects(pdf)
+                    .map(image => [/\/Width (\d+)/.exec(image)?.[1], /\/Height (\d+)/.exec(image)?.[1]])
+                    .sort(),
+            ).toEqual([
+                ["1", "1"],
+                ["2", "1"],
+            ]);
+            expect(pageContents(pdf).every(content => /\/I\d+ Do/.test(content))).toBe(true);
+            expect(renderer.warnings()).toEqual([]);
+        });
+
+        test("refuses a GIF whose first frame does not fill its screen, as pdf-core does", async () => {
+            // GIF89a: a 2x1 screen, a two-colour table, then a 1x1 first frame at (1, 0).
+            const gif = Buffer.concat([Buffer.from("GIF89a\x02\x00\x01\x00\x80\x00\x00\xff\x00\x00\x00\x00\xff", "latin1"), Buffer.from([0x2c, 1, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 0x44, 0x0a, 0, 0x3b])]);
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            await expect(render(renderer, pres => pres.addSlide().addImage({ data: `data:image/gif;base64,${gif.toString("base64")}`, x: 1, y: 1, w: 1, h: 1 }))).rejects.toThrow("the GIF's first frame (1x1 at 1,0) does not fill its 2x1 screen; save it with a full first frame");
+        });
+
+        test("draws an SVG picture as vector paths and reports what is outside the SVG subset", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts, onUnsupported: "warn" });
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><title>t</title><rect width="10" height="10" fill="red"/><circle cx="15" cy="5" r="4" fill="none" stroke="#0000FF" stroke-width="2"/><text>no</text></svg>`;
+            const pdf = await render(renderer, pres => pres.addSlide().addImage({ data: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`, x: 1, y: 1, w: 2, h: 1 }));
+            expect(imageObjects(pdf)).toEqual([]);
+            const [content = ""] = pageContents(pdf);
+            // The viewBox maps 20 x 10 units onto the 192 x 96 px picture: 9.6 px per unit.
+            expect(content).toContain("9.6 0 0 9.6 96 96 cm");
+            expect(content).toContain("1 0 0 scn\n/Gs1 gs\n0 0 10 10 re\nf");
+            expect(content).toContain("0 0 1 SCN");
+            expect(renderer.warnings()).toEqual(["slide 1: object 'Image 0': <text> in an SVG image is not drawn"]);
+        });
+
+        test("fades a translucent SVG picture as one group, as Chromium composites an img", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/><circle cx="5" cy="5" r="3" fill="white"/></svg>`;
+            const pdf = await render(renderer, pres => pres.addSlide().addImage({ data: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`, x: 1, y: 1, w: 1, h: 1, transparency: 50 }));
+            const [content = ""] = pageContents(pdf);
+            // Both shapes are in the group, painted once with the picture's alpha: the circle hides the rect under it.
+            expect(content).toContain("/FG1 Do");
+            expect(content).not.toContain("0 0 10 10 re");
+            expect(Buffer.from(pdf).toString("latin1")).toMatch(/\/Subtype \/Form\n\/BBox \[[^\]]*\]\n\/Group <<\n\/Type \/Group\n\/S \/Transparency\n>>/);
+            expect(renderer.warnings()).toEqual([]);
+        });
+
+        test("reports image formats it does not decode", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts, onUnsupported: "warn" });
+            await render(renderer, pres => pres.addSlide().addImage({ data: "data:image/bmp;base64,Qk0=", x: 1, y: 1, w: 1, h: 1 }));
+            expect(renderer.warnings()).toEqual(["slide 1: object 'Image 0': image format 'image/bmp' is not drawn (not a PNG, JPEG, GIF, WebP or SVG image)"]);
+        });
     });
 
     test("records a quadratic as the cubic with its curve, not PDFKit's `v`", () => {
