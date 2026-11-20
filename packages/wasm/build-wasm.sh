@@ -60,7 +60,8 @@ root=$PWD
 # +2,288 B: the caller's Creator, Producer, Keywords and dates (pdfMetadata: the profile's ISO date reader and krilla's date and keyword writers, Info and XMP, now reachable), 1,054,877 -> 1,057,165 B measured; budget = that size.
 # +411 B: a line as wide as its box stays on it, by Blink's LayoutUnit fit test (#288: the line breaking loop with its own fit and alignment widths), 1,057,165 -> 1,057,576 B measured; budget = that size.
 # +351 B: a character the run's face lacks takes the Noto Sans CJK face of the run's lang, as Chromium's fontconfig fallback does (#289: the lang read from the run and the lang-to-face table), 1,057,576 -> 1,057,927 B measured; budget = that size.
-GZIP_BUDGET=1057927
+# -427 B: a raised or lowered run no longer grows its line in pdf-core; the line box comes grown or not from the HTML, per target (#298: stack_lines loses the per-run loop), 1,057,927 -> 1,057,500 B measured; budget = that size.
+GZIP_BUDGET=1057500
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

@@ -238,12 +238,16 @@ async function prepareForPrint(): Promise<string[]> {
             }
         }
 
-        /** The vertical centre of the character at `offset` in `node`, in client px; undefined when it draws no box. */
+        /**
+         * The vertical centre of the character at `offset` in `node`, in client px, where its line puts it: without the
+         * `top` that raises or lowers its run (#298), which moves the glyph and not the line. Undefined when it draws no box.
+         */
         function centre(node: Text, offset: number): number | undefined {
             range.setStart(node, offset);
             range.setEnd(node, offset + 1);
             const rect = range.getClientRects()[0];
-            return rect && rect.top + rect.height / 2;
+            const shift = node.parentElement ? parseFloat(getComputedStyle(node.parentElement).top) || 0 : 0;
+            return rect && rect.top + rect.height / 2 - shift * zoom;
         }
 
         /**

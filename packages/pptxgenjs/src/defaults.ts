@@ -400,6 +400,8 @@ export const COMPONENT_DEFAULTS = Object.freeze({ overflow: "hidden" });
  * `text.lineDescentEm` above its bottom whatever the font.
  * `escapementSizeRatio`: the fraction of its font size a superscript or subscript run is drawn at; its baseline still
  * moves by `text.superscriptBaseline` or `text.subscriptBaseline` of the full size.
+ * `escapementGrowsLine`: whether a run raised or lowered off the baseline (super/subscript, custom `baseline`) grows its
+ * line where it sticks out of it, or only its glyphs move and the line box stays where it would be without it.
  * `fullSizeMark`: whether the paragraph mark takes its last run's size before that reduction and counts in its line's
  * height, so a paragraph ending in a large superscript, or the empty one after its last line feed, has a full line.
  * `spacingWholePoints`: whether `paraSpaceBefore`, `paraSpaceAfter` and point `lineSpacing` (`<a:spcPts>`) are rounded
@@ -427,6 +429,12 @@ export const RENDERING_TARGETS = Object.freeze({
      * Its synthetic styles, read from its PDF export of a regular-only face (Droid Sans Mono, 72pt): bold fills and
      * strokes the glyphs (`2 Tr`) with a line 1/30 of the size wide (`2.39996 w`); italic shears them
      * (`1 0 0.3462535606 1 x y Tm`).
+     * It grows a line by what a raised or lowered run sticks out of it (`escapementGrowsLine`, #298): measured in its
+     * PDF export (Arial 40pt, top-anchored, "H" + an escaped "x" + "H", then "H"), each run reaches the font-independent
+     * line box at its drawn size `s`, `1.0 s` above and `0.2 s` below its baseline, shifted by its escapement `e`: the
+     * line's ascent is the largest `1.0 s + e`, its descent the largest `0.2 s - e`. `baseline: 1000` (+20pt) puts the
+     * first baseline 3.17pt lower (20 + 23.2 - 40 = 3.2), `baseline: -600` (-12pt) makes the line 8.62pt taller
+     * (12 + 4.64 - 8 = 8.64), `subscript` 12.61pt, `baseline: 600` and `superscript` (+12pt) nothing.
      */
     libreoffice: Object.freeze({
         readsKern: false,
@@ -439,6 +447,7 @@ export const RENDERING_TARGETS = Object.freeze({
         lineFeedParagraph: "run",
         spacingWholePoints: false,
         escapementSizeRatio: 0.58,
+        escapementGrowsLine: true,
         fullSizeMark: false,
         advanceGridPt: undefined,
         baselineGridPerInch: undefined,
@@ -487,6 +496,10 @@ export const RENDERING_TARGETS = Object.freeze({
      * the line's baseline 4.3pt below a plain line's (2/3 gives 4.24, 0.58 gave 2.21). The paragraph mark keeps the
      * full size (`fullSizeMark`): a paragraph whose only run is a 24pt superscript is 28.8pt tall (12pt lines around it
      * 43.2pt apart), and the empty paragraph left after a 12pt superscript run ending in a line feed is 14.4pt tall.
+     * It does not grow a line for a raised or lowered run (`escapementGrowsLine`, #298): measured against its PDF export
+     * (Arial, middle-anchored 2.2in boxes, 20pt and 40pt "Hxg" then a shifted "Hxg"), the base line is at the same place,
+     * 107.66pt and 301.90pt, for `baseline` 600, -600, 200 and -1000 (10pt and 20pt down), superscript and
+     * subscript.
      * It lays text out with each glyph's advance width rounded to 1/576 in, 0.125pt (`advanceGridPt`), spaces included,
      * at the run's font size, then places word starts on a 1/600 in grid: measured against its PDF export of synthetic
      * decks (Arial and Calibri, 8, 9, 10 and 12pt, regular and bold, lines about 700pt long), word starts fit the rounded
@@ -528,6 +541,7 @@ export const RENDERING_TARGETS = Object.freeze({
         lineFeedParagraph: "paragraph",
         spacingWholePoints: true,
         escapementSizeRatio: 2 / 3,
+        escapementGrowsLine: false,
         fullSizeMark: true,
         advanceGridPt: PPTX_DEFAULTS.units.pointsPerInch / PPTX_DEFAULTS.units.powerPointAdvanceGridPerInch,
         baselineGridPerInch: PPTX_DEFAULTS.units.powerPointBaselineGridPerInch,

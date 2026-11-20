@@ -217,6 +217,14 @@ size: `baseline: 600` moves the run 30% of its size, so 6pt at 20pt and 12pt at
 40pt. It is drawn as a superscript or subscript, at the same reduced size;
 LibreOffice's PDF export shows both at 20pt and 40pt.
 
+A raised or lowered run that sticks out of its line grows the line in
+LibreOffice, and so on the LibreOffice target: the line reaches 1em of each
+run's drawn size above its baseline and 0.2em below, moved by its shift, so
+a 40pt line holding a run lowered 20pt (`baseline: -1000`, drawn at 23.2pt) is
+16.64pt taller. PowerPoint keeps the line where it would be without the shift,
+and so does the PowerPoint target. A line with an exact `lineSpacing` keeps
+its height on both.
+
 A text option set to `null` is unset, as in PptxGenJS, which reads options by
 truthiness: a run's `null` takes the box's value, and a box's the default.
 PptxGenJS's `addText` itself writes `lineSpacing: null` and

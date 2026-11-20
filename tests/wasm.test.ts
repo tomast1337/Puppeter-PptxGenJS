@@ -16,7 +16,9 @@ import { completeProfileHtml, pptxHtmlDocument } from "../packages/pptxgenjs/src
 import { loadSystemFonts as browserLoadSystemFonts, type MissingFontBinding, type TextPdfBinding, WasmRenderer, type WasmSource } from "../packages/wasm/src/browser";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
+import { inchesToPoints, pointsToPixels } from "@pdflapas/model";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
+import { pdfContentStreams } from "./pdfContentStreams";
 import { EXTRA_CELL_ROW_TOPS_IN, extraCellTable } from "./extraCellTable";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
@@ -361,6 +363,41 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         expect(await stroke(new PuppeteerGenPowerPoint(PAGE, { renderer }))).toBeCloseTo(48 / 32, 5);
         expect(await shear(new PuppeteerGenLibreOffice(PAGE, { renderer }))).toBeCloseTo(0.3462535606, 5);
         expect(await shear(new PuppeteerGenPowerPoint(PAGE, { renderer }))).toBeCloseTo(0.25, 5);
+    });
+
+    // #298: PowerPoint keeps the line where a lowered run sticks out of it, LibreOffice grows it. Middle-anchored 20pt
+    // Arial "Hxg" then "Hxg" at baseline -1000 (10pt down, drawn at the target's escapement size), beside a plain box.
+    test("puts the base line of a line with a lowered run where the target does, in Chromium and in WASM", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const pageTopPt = inchesToPoints(PAGE.height);
+        /** Each text object's baseline in CSS px from the page top, in drawing order, from both renderers' PDFs. */
+        const baselines = async (pres: PuppeteerGen) => {
+            const options = { y: 0.4, w: 4, h: 2.2, fontFace: "Arial", fontSize: 20, valign: "middle" } as const;
+            pres.addSlide()
+                .addText([{ text: "Hxg" }, { text: "Hxg" }], { ...options, x: 0.5 })
+                .addText([{ text: "Hxg" }, { text: "Hxg", options: { baseline: -1000 } }], { ...options, x: 5 });
+            // The presentation's own renderer is Puppeteer's.
+            const chromium = pdfContentStreams(await pres.toPdf());
+            // Chromium draws in 1/PRINT_ZOOM CSS px from the page top; WASM in CSS px from a `cm` origin in pt from the bottom.
+            const fromChromium = chromium.flatMap(content => [...content.matchAll(/\n1 0 0 -1 [\d.]+ ([\d.]+) Tm\n/g)].map(([, y]) => Number(y) / PRINT_ZOOM));
+            const fromWasm = pdfContentStreams(await renderer.render(await pres.toHtml())).flatMap(content => [...content.matchAll(/ -0\.75 [\d.]+ ([\d.]+) cm[^\n]*\nBT [^\n]*? 1 0 0 -1 [\d.]+ ([\d.]+) Tm/g)].map(([, origin, y]) => pointsToPixels(pageTopPt - Number(origin)) + Number(y)));
+            return { chromium: fromChromium, wasm: fromWasm };
+        };
+        for (const [pres, growth] of [
+            [new PuppeteerGenPowerPoint(PAGE), 0],
+            // LibreOffice: the 11.6pt run reaches 0.2 x 11.6 + 10pt below its line's baseline, 8.32pt past the 20pt
+            // line's 4pt; the middle-anchored line moves up by half of that.
+            [new PuppeteerGenLibreOffice(PAGE), pointsToPixels((0.2 * 11.6 + 10 - 4) / 2)],
+        ] as const) {
+            const { chromium, wasm } = await baselines(pres);
+            // Plain box, then the box with the lowered run: each draws its two runs.
+            expect(chromium).toHaveLength(4);
+            expect(wasm).toHaveLength(4);
+            const [plain = 0, , escaped = 0] = chromium;
+            expect(plain - escaped).toBeCloseTo(growth, 1);
+            // WASM draws what Chromium does: within Chromium's 1/8 px text grid.
+            wasm.forEach((y, index) => expect(Math.abs(y - (chromium[index] ?? 0))).toBeLessThan(1 / PRINT_ZOOM + 0.05));
+        }
     });
 
     test("throws on unsupported objects by default and lists them", async () => {
