@@ -127,9 +127,11 @@ pub(crate) fn decode(raw: &str) -> Result<Cow<'_, str>, String> {
     let mut out = String::with_capacity(raw.len());
     out += head;
     while let Some(after) = rest.strip_prefix('&') {
+        // By byte: the window can end inside a character after the reference ("&nbsp;b" then U+2009).
         let end = after
-            .get(..after.len().min(MAX_REFERENCE_LEN + 1))
-            .and_then(|window| window.find(';'))
+            .bytes()
+            .take(MAX_REFERENCE_LEN + 1)
+            .position(|b| b == b';')
             .ok_or_else(|| format!("unterminated character reference '&{}'", preview(after)))?;
         let (name, tail) = after.split_at_checked(end).ok_or("internal: reference end")?;
         out.push(reference(name)?);
@@ -406,6 +408,7 @@ mod tests {
     #[test]
     fn decodes_the_serializers_references_and_rejects_others() {
         assert_eq!(decode("a&nbsp;&lt;b&gt;&quot;&#39;&#x1F600;&apos;").unwrap(), "a\u{a0}<b>\"'\u{1F600}'");
+        assert_eq!(decode("a&nbsp;bcdef\u{2009}g").unwrap(), "a\u{a0}bcdef\u{2009}g");
         for bad in ["&copy;", "&#0;", "&#xD800;", "&#99999999999;", "& ", "&amp", "&#x;"] {
             assert!(decode(bad).is_err(), "{bad}");
         }
