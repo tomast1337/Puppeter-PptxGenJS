@@ -63,7 +63,8 @@ root=$PWD
 # -427 B: a raised or lowered run no longer grows its line in pdf-core; the line box comes grown or not from the HTML, per target (#298: stack_lines loses the per-run loop), 1,057,927 -> 1,057,500 B measured; budget = that size.
 # +1,363 B: each word of a run takes its own letter-spacing from a span inside the run (wordCharacterSpacing: the word span reader and the per-word letter spacing), 1,057,500 -> 1,058,863 B measured; budget = that size.
 # -35 B: a character reference is found by byte, so one before a multibyte character no longer fails (the window no longer slices a str), 1,058,863 -> 1,058,828 B measured; budget = that size.
-GZIP_BUDGET=1058828
+# +778 B: the PowerPoint target's fallback faces and non-breaking hyphen (#289: the font-family list reader, the chain and the registered-face check in family_stack, the U+2011 rewrite of a run's text), 1,058,828 -> 1,059,606 B measured; budget = that size.
+GZIP_BUDGET=1059606
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

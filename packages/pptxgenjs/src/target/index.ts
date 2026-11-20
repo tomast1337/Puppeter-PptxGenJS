@@ -85,6 +85,16 @@ export interface RenderingTargetProfile {
      * unit of height above the baseline. Undefined leaves the browser's own synthesis (see `syntheticBoldStrokeEm`).
      */
     readonly syntheticItalicShear: number | undefined;
+    /**
+     * The faces a character the run's face lacks is drawn in, the first that has it, before the renderer's own
+     * fallback (`NormalizedTextRun.fallbackFaces`); empty leaves it to the renderer.
+     */
+    readonly fallbackFaces: readonly string[];
+    /**
+     * How U+2011 NON-BREAKING HYPHEN is drawn: "hyphen-minus", with the run's face's U+002D glyph, still unbreakable
+     * (`NormalizedTextRun.nonBreakingHyphen`); undefined, as any other character.
+     */
+    readonly nonBreakingHyphen: "hyphen-minus" | undefined;
 }
 
 /** Every rendering target by the name the `target` option takes. A new target is one file here and one entry below. */

@@ -357,6 +357,13 @@ your own `resolveImage`.
 taking the same arguments: use them to match LibreOffice or PowerPoint rendering. They can be extended
 and wrapped like `PuppeteerGen`. See "Choosing a rendering target" in [MIGRATION.md](./MIGRATION.md).
 
+**Fallback fonts for the PowerPoint target.** PowerPoint draws a character the run's font lacks in the
+first of Arial, Cambria Math, Segoe UI Symbol, Yu Gothic, PMingLiU and SimSun that has it, whatever the run's
+font, and the PowerPoint target writes that list after each run's face in the HTML. These are Microsoft fonts
+that PdfLapas does not ship: install them where you render to get PowerPoint's glyphs for arrows, check marks,
+enclosed numbers or Han text in a Latin run. Where one is missing, both renderers skip it and fall back as on
+the LibreOffice target. It draws U+2011 (non-breaking hyphen) with the font's own hyphen, as PowerPoint does.
+
 **Font metrics for the PowerPoint target.** PowerPoint places a single-spaced line's baseline from its
 font's `head.unitsPerEm` and `OS/2` `usWinAscent` and `usWinDescent`, read from the installed font the
 face name resolves to. The Node entry does the same by default: for each face a deck's text uses, it asks

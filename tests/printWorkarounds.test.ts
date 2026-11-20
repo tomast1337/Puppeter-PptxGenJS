@@ -221,6 +221,17 @@ describe("Puppeteer print workarounds", () => {
         expect(family(".text-run:nth-of-type(4)")).toBe('"Cambria", "Caladea", Arial, "Liberation Sans", sans-serif');
     });
 
+    test("appends Chromium's fallback list after the run's fallback faces, which keep their order", () => {
+        const html = `<html><body><span class="text-run" style="font-family: &quot;Calibri&quot;, &quot;Arial&quot;, &quot;Cambria Math&quot;; font-size: 16px;">x</span></body></html>`;
+        expect(printHtml(html)).toContain("font-family: &quot;Calibri&quot;, &quot;Arial&quot;, &quot;Cambria Math&quot;, &quot;Carlito&quot;, &quot;Noto Sans&quot;, Arial, &quot;Liberation Sans&quot;, sans-serif;");
+    });
+
+    test("prints U+2011 as U+002D and a word joiner in a run with data-non-breaking-hyphen, word spans included", () => {
+        const run = (attrs: string, text: string) => `<html><body><span class="text-run"${attrs} style="font-family: &quot;Arial&quot;;">${text}</span></body></html>`;
+        expect(printHtml(run(' data-non-breaking-hyphen="hyphen-minus"', 'a‑b&#8209;c <span style="letter-spacing: 1px;">d&#x2011;e</span>'))).toContain('>a-⁠b-⁠c <span style="letter-spacing: 1px;">d-⁠e</span></span>');
+        expect(printHtml(run("", "a‑b"))).toContain(">a‑b</span>");
+    });
+
     test("names the object when a paragraph has no line box", async () => {
         const presentation = new PuppeteerGen();
         presentation.addSlide().addText("Text", { x: 1, y: 1, w: 4, h: 1, objectName: "Title" });

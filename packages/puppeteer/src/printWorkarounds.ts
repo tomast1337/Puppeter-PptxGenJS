@@ -21,8 +21,12 @@ const BORDER_WIDTH = /(?:^|; )border-(top|right|bottom|left): ([^ ;]+)px /g;
 const ABSOLUTE = /(?:^|; )position: absolute;/;
 // A box's line as render/style.ts applyLine writes it: color, width, style.
 const TEXT_BORDER = /(?:^|; )border-color: ([^;]+); border-width: ([^;]+)px; border-style: ([^;]+);/;
-// The face as the profile writes it: one CSS string, `\` and `"` escaped.
-const FONT_FAMILY = /((?:^|; )font-family: "((?:[^"\\]|\\.)*)")/;
+// The face and its fallback faces as the profile writes them: CSS strings, `\` and `"` escaped; group 2 is the face.
+const FONT_FAMILY = /((?:^|; )font-family: "((?:[^"\\]|\\.)*)"(?:, "(?:[^"\\]|\\.)*")*)/;
+// U+2011 NON-BREAKING HYPHEN in a run's source text, literal or as a character reference.
+const NON_BREAKING_HYPHEN = /\u2011|&#(?:8209|x2011);/gi;
+// U+002D, which draws the face's hyphen, then U+2060 WORD JOINER, which keeps U+2011's no-break after it.
+const HYPHEN_MINUS_NO_BREAK = "-\u2060";
 // The payload of a `src="data:…"` attribute. Inlined images make up most of a large deck's HTML, and no print
 // step reads or writes them. It stops at `<` too, so text that only looks like one never spans markup.
 const DATA_URI_PAYLOAD = /(\ssrc="data:[^,"<]*,)[^"<]*/g;
@@ -150,6 +154,9 @@ export function printHtml(html: string): string {
             const substitute = metricSubstitute(face);
             const fallback = substitute === "Carlito" ? CALIBRI_FALLBACK : substitute === "Caladea" ? CAMBRIA_FALLBACK : SANS_FALLBACK;
             edits.push(setAttribute(element, "style", style.replace(FONT_FAMILY, `$1, ${fallback}`)));
+            // data-non-breaking-hyphen="hyphen-minus": Chromium picks a face by the character, so it draws U+2011 in a
+            // fallback face where the run's face lacks it; U+002D is in the face. No break opportunity is added.
+            if (attribute(element, "data-non-breaking-hyphen") === "hyphen-minus") edits.push(...nonBreakingHyphenEdits(element, masked));
         } else if (hasClass(element, "text-paragraph")) {
             // Line box: the paragraph's 0px-font strut (stylesheet) puts the baseline about the middle of `line-height`
             // (strutBaseline); moving the paragraph puts it at data-line-baseline, where LibreOffice puts it.
@@ -176,6 +183,16 @@ export function printHtml(html: string): string {
     }
     let next = 0;
     return applySourceEdits(masked, edits).replace(DATA_URI_PAYLOAD, (head: string) => `${head}${payloads[next++] ?? ""}`);
+}
+
+/** Each U+2011 in the text of `run` and its word spans, in `source`, as U+002D and a word joiner. */
+function nonBreakingHyphenEdits(run: Element, source: string): SourceEdit[] {
+    return run.childNodes.flatMap(child => {
+        if (isElement(child)) return nonBreakingHyphenEdits(child, source);
+        const at = child.nodeName === "#text" ? child.sourceCodeLocation : undefined;
+        if (!at) return [];
+        return Array.from(source.slice(at.startOffset, at.endOffset).matchAll(NON_BREAKING_HYPHEN), match => ({ start: at.startOffset + match.index, end: at.startOffset + match.index + match[0].length, text: HYPHEN_MINUS_NO_BREAK }));
+    });
 }
 
 type Sides = Record<"top" | "right" | "bottom" | "left", number>;

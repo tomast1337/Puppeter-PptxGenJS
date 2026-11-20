@@ -72,6 +72,7 @@ const textRun = z
     .strictObject({
         text: z.string(),
         fontFace,
+        fallbackFaces: z.array(fontFace).optional(),
         fontSize: nonNegative,
         color: cssColor,
         bold: z.boolean(),
@@ -90,6 +91,7 @@ const textRun = z
         kerning: z.literal(false).optional(),
         syntheticBold: nonNegative.optional(),
         syntheticItalic: finite.optional(),
+        nonBreakingHyphen: z.literal("hyphen-minus").optional(),
         highlight: cssColor.optional(),
         outline: z.strictObject({ color: cssColor, width: nonNegative }).optional(),
         glow: shadow.optional(),

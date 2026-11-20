@@ -21,8 +21,10 @@ export async function createWasmRenderer(options: WasmRendererOptions): Promise<
 }
 
 // The metric-compatible faces the renderer's fallback chain maps Office fonts to (Calibri->Carlito,
-// Cambria->Caladea, Arial->Liberation Sans, ... then DejaVu Sans, Liberation Sans), emoji/CJK fallbacks, plus the Office faces themselves.
-const DEFAULT_FONT_FILES = /^(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?|NotoColorEmoji|NotoSansCJK-(?:Regular|Bold)|calibri.*|cambria.*|arial.*|times.*|cour.*)\.(?:ttf|otf|ttc)$/i;
+// Cambria->Caladea, Arial->Liberation Sans, ... then DejaVu Sans, Liberation Sans), emoji/CJK fallbacks, plus the Office faces themselves
+// and, where installed, the PowerPoint target's fallback faces (Cambria Math is in cambria.ttc; Segoe UI Symbol, Yu Gothic regular
+// and bold, SimSun, PMingLiU in mingliu.ttc).
+const DEFAULT_FONT_FILES = /^(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?|NotoColorEmoji|NotoSansCJK-(?:Regular|Bold)|calibri.*|cambria.*|arial.*|times.*|cour.*|seguisym|YuGoth[RB]|simsun|mingliu)\.(?:ttf|otf|ttc)$/i;
 
 function systemFontDirs(): string[] {
     if (process.platform === "win32") return [join(process.env.WINDIR ?? "C:\\Windows", "Fonts"), join(process.env.LOCALAPPDATA ?? "", "Microsoft/Windows/Fonts")];

@@ -676,6 +676,6 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const render = (object: string) => renderer.render({ html: completeProfileHtml(handWrittenDocument(object)), pageSize: PAGE });
         await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-variant: small-caps;"))).rejects.toThrow("invalid PdfLapas HTML: slide 1: object 'Title': paragraph 1: run 1: CSS property 'font-variant' on <span> is not in profile v2");
-        await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-family: &quot;Calibri&quot;, Arial;"))).rejects.toThrow("font-family '\"Calibri\", Arial' is not one quoted family");
+        await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-family: &quot;Calibri&quot;, Arial;"))).rejects.toThrow("font-family '\"Calibri\", Arial' is not a list of quoted families");
     });
 });

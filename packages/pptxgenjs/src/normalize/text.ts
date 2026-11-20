@@ -18,6 +18,8 @@ export type TextInput = string | number | PptxGenJS.TextProps[];
 const WORD_JOINER = "⁠";
 /** The point between a closing bracket or "%" and an opening bracket (RENDERING_TARGETS.joinsOpeningBracket). */
 const BEFORE_OPENING_BRACKET = /(?<=[)\]}%])(?=[([{])/gu;
+/** U+2011 NON-BREAKING HYPHEN (RENDERING_TARGETS.nonBreakingHyphen). */
+const NON_BREAKING_HYPHEN = "\u2011";
 
 interface TextPiece {
     text: string;
@@ -128,7 +130,9 @@ function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: 
     const charSpacing = options.charSpacing ?? 0;
     const sizePt = (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) * (escaped ? escapementSizeRatio : 1);
     const font = advanceGridPt === undefined ? undefined : fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
-    const spacing = advanceGridWordSpacing(text, sizePt, font, advanceGridPt, charSpacing);
+    // A U+2011 drawn with the hyphen-minus glyph takes its advance.
+    const drawn = RENDERING_TARGETS[target].nonBreakingHyphen === "hyphen-minus" ? text.replaceAll(NON_BREAKING_HYPHEN, "-") : text;
+    const spacing = advanceGridWordSpacing(drawn, sizePt, font, advanceGridPt, charSpacing);
     if (!spacing) return { characterSpacing: pointsToPixels(charSpacing) };
     const [word, ...others] = spacing.words;
     if (word !== undefined && !others.length && runPieces(text).length === 1) return { characterSpacing: word };
@@ -153,11 +157,14 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
     const bold = options.bold ?? PPTX_DEFAULTS.text.bold;
     const italic = options.italic ?? PPTX_DEFAULTS.text.italic;
-    const { syntheticBoldStrokeEm, syntheticItalicShear } = RENDERING_TARGETS[target];
+    const { syntheticBoldStrokeEm, syntheticItalicShear, fallbackFaces, nonBreakingHyphen } = RENDERING_TARGETS[target];
+    const fontFace = options.fontFace ?? PPTX_DEFAULTS.text.fontFace;
+    const fallbacks = fallbackFaces.filter(face => face.toLowerCase() !== fontFace.toLowerCase());
 
     return {
         text,
-        fontFace: options.fontFace ?? PPTX_DEFAULTS.text.fontFace,
+        fontFace,
+        ...(fallbacks.length ? { fallbackFaces: fallbacks } : {}),
         fontSize: escapement === undefined ? fontSize : fontSize * RENDERING_TARGETS[target].escapementSizeRatio,
         color: normalizeColor({ color: options.color ?? defaultColor, transparency: options.transparency }),
         bold,
@@ -176,6 +183,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         ...(kerned(options, target, fontMetrics) ? {} : { kerning: false as const }),
         ...(bold && syntheticBoldStrokeEm !== undefined ? { syntheticBold: syntheticBoldStrokeEm } : {}),
         ...(italic && syntheticItalicShear !== undefined ? { syntheticItalic: syntheticItalicShear } : {}),
+        ...(nonBreakingHyphen && text.includes(NON_BREAKING_HYPHEN) ? { nonBreakingHyphen } : {}),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
         outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(options.outline.size) } : undefined,
         glow: textShadow(options),
