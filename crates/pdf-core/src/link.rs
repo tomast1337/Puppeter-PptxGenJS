@@ -14,7 +14,7 @@ use krilla::surface::Surface;
 use crate::Renderer;
 use crate::model::Link;
 
-/// The schemes the compatibility layer lets through (packages/pptxgenjs/src/normalize/link.ts).
+/// The schemes every renderer lets through (`LINK_URL_SCHEME`, packages/model/src/link.ts).
 const URL_SCHEMES: [&str; 3] = ["http:", "https:", "mailto:"];
 
 fn map(t: &Transform, x: f32, y: f32) -> Point {

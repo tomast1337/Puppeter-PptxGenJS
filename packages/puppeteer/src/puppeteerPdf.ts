@@ -1,4 +1,4 @@
-import { assertHtmlPresentationDocument, type HtmlPresentationDocument, inchesToPixels, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
+import { assertHtmlPresentationDocument, assertLinkUrl, type HtmlPresentationDocument, inchesToPixels, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOptions";
@@ -77,7 +77,9 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
         missing.filter(({ face, usedFace }) => !usedFace || usedFace !== metricSubstitute(face)),
         onMissingFont,
     );
-    const uris = await page.evaluate(placeLinkPlaceholders, LINK_PLACEHOLDER);
+    const links = await page.evaluate(placeLinkPlaceholders, LINK_PLACEHOLDER);
+    for (const { href, object } of links) assertLinkUrl(href, object);
+    const uris = links.map(({ href }) => href);
 
     const pdf = await page.pdf({
         width: `${pageSize.width}in`,
@@ -448,12 +450,14 @@ function documentInfo(): DocumentInfo {
     };
 }
 
-/** Points each external link at `placeholder` and its index (see `withLinkUris`), and returns the links' URLs. */
-function placeLinkPlaceholders(placeholder: string): string[] {
+/** Points each external link at `placeholder` and its index (see `withLinkUris`), and returns the links' URLs and objects. */
+function placeLinkPlaceholders(placeholder: string): { href: string; object: string }[] {
     return Array.from(document.querySelectorAll('a[href]:not([href^="#"])'), (link, index) => {
         const href = link.getAttribute("href") ?? "";
         link.setAttribute("href", `${placeholder}${index}`);
-        return href;
+        const slide = link.closest(".slide-container")?.id.replace(/^slide-/, "") ?? "?";
+        const name = link.closest<HTMLElement>("[data-object-name]")?.dataset.objectName;
+        return { href, object: name === undefined ? `an object on slide ${slide}` : `'${name}' on slide ${slide}` };
     });
 }
 
