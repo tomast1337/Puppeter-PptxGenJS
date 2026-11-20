@@ -370,7 +370,7 @@ Docker when it is missing; see [CONTRIBUTING.md](../CONTRIBUTING.md)) copies it 
 `packages/wasm/src/`, and `bun run build` ships it in `packages/wasm/dist/`.
 Tests that need it skip with a message when it is not built, except in CI.
 
-## PDFKit backend (`@pdflapas/pdfkit`, experimental, text, images and simple shapes)
+## PDFKit backend (`@pdflapas/pdfkit`, experimental, text, images, simple shapes and tables)
 
 A third renderer in pure JavaScript on [PDFKit](https://pdfkit.org): no Chromium and no WebAssembly, so it runs
 wherever JavaScript does. It is a first version (#310); the WASM backend covers far more. Like the others it
@@ -380,11 +380,13 @@ parse5 and draws the [profile](HTML_PROFILE.md) with PDFKit, so HTML outside the
 
 **Drawn:**
 
-- Text boxes: runs with their face, size, bold, italic, color, letter spacing, kerning (`font-kerning: none`),
-  underline (single, double, dashed, dotted; wavy is drawn solid and reported), strike and double strike,
+- Text boxes: runs with their face and its fallback families, size, bold, italic (synthesized when the face has
+  none, with the profile's stroke and shear), color, letter spacing (per-word spans included), kerning
+  (`font-kerning: none`, and pairs across a break opportunity shaped as one run, as `crates/pdf-core` does),
+  underline (single, double, heavy, dotted, dashed, dot-dash and wavy, the bands pdf-core draws), strike and double strike,
   superscript and subscript (the profile's baseline offset and size), highlight, outline, hyperlinks and slide
   links; paragraph alignment (left, center, right, justify), line spacing, space before and after, indents,
-  bullets and numbers, default tab stops; insets, vertical anchor, `fit: shrink` and `fit: resize`, rotation and
+  bullets and numbers, default and explicit tab stops (left, right, center, decimal), right-to-left paragraphs; insets, vertical anchor, `fit: shrink` and `fit: resize`, rotation and
   flips. Lines break where Chromium breaks them: UAX #14 opportunities from `linebreak`, with the same overrides as
   `crates/pdf-core` (after a run of spaces, a minus before a digit, Blink's ASCII pair table), and words wider than
   the box break between characters. Every line sits on the profile's line box and baseline
@@ -393,10 +395,14 @@ parse5 and draws the [profile](HTML_PROFILE.md) with PDFKit, so HTML outside the
 - Images: PNG and JPEG, every sizing mode (stretch, contain, cover, crop), rounding, transparency, rotation and flips.
 - Shapes whose geometry is a `rect`, `ellipse` or untransformed `path`, and multi-face presets (their faces and
   outline): fill, stroke, transparency and dashes, and the fill and line of text boxes.
+- Tables: the HTML's column widths and row heights, merged cells, each row grown until its cells' text fits,
+  cell fills, margins and anchor, cell text through the text box layout, and solid and dashed borders, each grid
+  edge drawn once (the steps of `crates/pdf-core`'s `table.rs`); vertical cell text is reported.
 
-**Reported** (an error by default, a `warnings()` line under `onUnsupported: "warn"`): tables, charts and
-components; GIF, WebP and SVG images; line heads; shape, text and object shadows and glow; vertical text, explicit
-tab stops and right-to-left text (drawn left to right); and any CSS property or `data-*` attribute of the profile
+**Reported** (an error by default, a `warnings()` line under `onUnsupported: "warn"`): charts and
+components; GIF, WebP and SVG images; line heads; shape, text and object shadows and glow; vertical text; a
+paragraph that mixes directions (there is no bidi algorithm, so its words run in the paragraph's direction) and
+tabs in a right-to-left paragraph; and any CSS property or `data-*` attribute of the profile
 it does not read, so nothing is dropped silently.
 
 **Fonts:** as with WASM, you pass font files (TTF/OTF/TTC bytes), parsed once when the renderer is created; at
