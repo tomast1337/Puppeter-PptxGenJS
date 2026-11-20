@@ -16,6 +16,9 @@ afterAll(() => closeBrowser());
 
 const warn = spyOn(console, "warn").mockImplementation(() => {});
 afterEach(() => warn.mockClear());
+// Bun's spies outlive the file: left in place, this one would swallow later files' warnings and hand its calls to
+// their spyOn(console, "warn").
+afterAll(() => warn.mockRestore());
 
 describe("missing font policy", () => {
     test('"warn" (the default) names each face, the face drawn instead and the objects asking for it', () => {
