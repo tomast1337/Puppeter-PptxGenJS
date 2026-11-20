@@ -18,6 +18,8 @@ import type { RenderingTargetProfile } from "./index";
  * line's ascent is the largest `1.0 s + e`, its descent the largest `0.2 s - e`. `baseline: 1000` (+20pt) puts the
  * first baseline 3.17pt lower (20 + 23.2 - 40 = 3.2), `baseline: -600` (-12pt) makes the line 8.62pt taller
  * (12 + 4.64 - 8 = 8.64), `subscript` 12.61pt, `baseline: 600` and `superscript` (+12pt) nothing.
+ * It justifies Han text by widening every character too (`justifiesAtSpaces` off): in its PDF export of a synthetic
+ * deck (SimSun 10pt, 3.33in boxes), a justified Han line with one space has 10.2pt Han steps and a 5.49pt space.
  * It draws no inner shadow on a picture (`drawsPictureInnerShadow`): in its PDF export a 2in picture with
  * `<a:innerShdw blurRad="101600" dist="76200" dir="2700000">` (75% black) is the bare picture, while the same
  * picture beside it with the outer shadow has one.
@@ -44,6 +46,7 @@ export const LIBREOFFICE: RenderingTargetProfile = Object.freeze({
     joinsOpeningBracket: false,
     hangingMarks: {},
     breaksAroundHanPunctuation: false,
+    justifiesAtSpaces: false,
     syntheticBoldStrokeEm: 1 / 30,
     syntheticItalicShear: 0.3462535606,
     fallbackFaces: [],

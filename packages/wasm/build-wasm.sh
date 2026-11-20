@@ -67,7 +67,8 @@ root=$PWD
 # +143 B: a picture's inner shadow is drawn over it (#205: the blurred outside of the moved silhouette, kept inside it), 1,059,606 -> 1,059,749 B measured; budget = that size.
 # -243 B: a row a merged cell ends in reads its height from its cells' text min-height (the CSS property and the fold into the row height), 1,059,749 -> 1,059,506 B measured; budget = that size.
 # +167 B: an underlined run states its geometry for Chromium, and the reader accepts only the band it draws (#378: text-decoration-thickness and text-underline-position from-font, text-decoration-skip-ink none, and their errors), 1,059,506 -> 1,059,673 B measured; budget = that size.
-GZIP_BUDGET=1059673
+# +30 B: a paragraph's text-justify is read, inter-word or an error (the allow-list entry, the check and its error message), 1,059,673 -> 1,059,703 B measured; budget = that size.
+GZIP_BUDGET=1059703
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
