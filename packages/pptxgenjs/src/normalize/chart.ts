@@ -3,6 +3,7 @@ import { UnsupportedChartError } from "#src/chart/errors";
 import { isSupportedChartNumberFormat } from "#src/chart/format";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import type { NormalizedChart, NormalizedChartSeries, NormalizedChartType } from "@pdflapas/model";
+import { checkedSize } from "./size";
 import { normalizeColor } from "./style";
 
 const SUPPORTED_TYPES = new Set<NormalizedChartType>(["area", "bar", "bar3D", "bubble", "doughnut", "line", "mixed", "pie", "radar", "scatter"]);
@@ -368,12 +369,12 @@ function chartTextOptions(options: PptxGenJS.IChartOpts) {
         fontFace: PPTX_DEFAULTS.chart.fontFace,
         fontSize: PPTX_DEFAULTS.chart.fontSizePt,
         titleFontFace: options.titleFontFace ?? PPTX_DEFAULTS.chart.fontFace,
-        titleFontSize: options.titleFontSize ?? PPTX_DEFAULTS.chart.titleFontSizePt,
+        titleFontSize: checkedSize(options.titleFontSize ?? PPTX_DEFAULTS.chart.titleFontSizePt, "titleFontSize", PPTX_DEFAULTS.limits.fontSizePt),
         titleBold: options.titleBold ?? false,
         titleColor: normalizeColor(options.titleColor ?? PPTX_DEFAULTS.text.color),
         // PptxGenJS never applies fontFace/fontSize to the legend.
         legendFontFace: options.legendFontFace ?? PPTX_DEFAULTS.theme.bodyFontFace,
-        legendFontSize: options.legendFontSize ?? PPTX_DEFAULTS.chart.legendFontSizePt,
+        legendFontSize: checkedSize(options.legendFontSize ?? PPTX_DEFAULTS.chart.legendFontSizePt, "legendFontSize", PPTX_DEFAULTS.limits.fontSizePt),
         legendColor: normalizeColor(options.legendColor ?? PPTX_DEFAULTS.text.color),
     };
 }
@@ -398,8 +399,8 @@ function chartSpecialOptions(options: PptxGenJS.IChartOpts) {
         radarStyle: options.radarStyle ?? PPTX_DEFAULTS.chart.radarStyle,
         lineSmooth: options.lineSmooth ?? PPTX_DEFAULTS.chart.lineSmooth,
         lineSymbol: options.lineDataSymbol ?? PPTX_DEFAULTS.chart.lineDataSymbol,
-        lineSymbolSize: options.lineDataSymbolSize ?? PPTX_DEFAULTS.chart.lineDataSymbolSize,
-        lineSize: options.lineSize ?? PPTX_DEFAULTS.chart.lineSizePt,
+        lineSymbolSize: checkedSize(options.lineDataSymbolSize ?? PPTX_DEFAULTS.chart.lineDataSymbolSize, "lineDataSymbolSize", PPTX_DEFAULTS.limits.chartMarkerSizePt),
+        lineSize: checkedSize(options.lineSize ?? PPTX_DEFAULTS.chart.lineSizePt, "lineSize", PPTX_DEFAULTS.limits.lineWidthPt),
         altText: options.altText ?? "",
     };
 }

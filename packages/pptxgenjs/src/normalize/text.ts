@@ -11,6 +11,7 @@ import { fallbackChain, fallbackSegments } from "./fallback";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { recordSharedRun, type SharedRunOptions, sharedRunOptions } from "./sharedRunOptions";
+import { checkedSize } from "./size";
 import { normalizeColor, normalizeShadow } from "./style";
 import { OOXML_PERCENT } from "./shape/path";
 
@@ -98,7 +99,7 @@ function textShadow(options: PptxGenJS.TextPropsOptions): NormalizedShadow | und
             color: options.glow.color ?? PPTX_DEFAULTS.text.glowWhenEnabled.color,
             transparency: (1 - clamp(options.glow.opacity, 0, 1)) * 100,
         }),
-        blur: pointsToPixels(options.glow.size),
+        blur: pointsToPixels(checkedSize(options.glow.size ?? PPTX_DEFAULTS.text.glowWhenEnabled.sizePt, "glow.size", PPTX_DEFAULTS.limits.glowSizePt)),
         offsetX: 0,
         offsetY: 0,
         inset: false,
@@ -151,7 +152,7 @@ function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: 
 
 /** A run's font size in px, before any superscript or subscript reduction. */
 function runFontSize(options: PptxGenJS.TextPropsOptions): number {
-    return pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt);
+    return pointsToPixels(checkedSize(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt, "fontSize", PPTX_DEFAULTS.limits.fontSizePt));
 }
 
 /**
@@ -204,7 +205,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         ...(italic && syntheticItalicShear !== undefined ? { syntheticItalic: syntheticItalicShear } : {}),
         ...(nonBreakingHyphen && text.includes(NON_BREAKING_HYPHEN) ? { nonBreakingHyphen } : {}),
         highlight: options.highlight ? normalizeColor(options.highlight) : undefined,
-        outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(options.outline.size) } : undefined,
+        outline: options.outline ? { color: normalizeColor(options.outline.color), width: pointsToPixels(checkedSize(options.outline.size || PPTX_DEFAULTS.text.outlineSizePt, "outline.size", PPTX_DEFAULTS.limits.lineWidthPt)) } : undefined,
         glow: textShadow(options),
         shadow: options.shadow ? normalizeShadow(options.shadow) : undefined,
         language: options.lang ?? PPTX_DEFAULTS.theme.language,

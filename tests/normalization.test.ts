@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { px } from "@pdflapas/model";
+import type PptxGenJS from "pptxgenjs";
+import { pointsToPixels, px } from "@pdflapas/model";
 import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { normalizeGeometry, normalizeTransform } from "../packages/pptxgenjs/src
 import { PuppeteerGen, resolveImageSource } from "../packages/pptxgenjs/src/node";
 import { arrowHeadPath, arrowShaftStart, normalizeColor, normalizeFill, normalizeLine, normalizeShadow, shaftDashes, startDashAt } from "../packages/pptxgenjs/src/normalize/style";
 import { normalizeShapeLine } from "../packages/pptxgenjs/src/normalize/shape/line";
+import { normalizeTextRun } from "../packages/pptxgenjs/src/normalize/text";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 
 describe("shared object normalization", () => {
@@ -66,6 +68,49 @@ describe("shared object normalization", () => {
         await expect(draw(slide => slide.addShape("rect", { x: 0, y: 0, w: 1, h: 1, fill: { color: bad } }))).rejects.toThrow("is not a valid color");
         await expect(draw(slide => (slide.background = { color: bad }))).rejects.toThrow("is not a valid color");
         await expect(draw(slide => slide.addChart("bar", [{ name: "s", labels: ["a"], values: [1] }], { x: 0, y: 0, w: 2, h: 2, chartColors: [bad] }))).rejects.toThrow("is not a valid color");
+    });
+
+    // GHSA-fmx3-qwqc-h37c: a negative outline or font size reached the WASM renderer as a negative stroke width and
+    // trapped it; an unbounded glow or shadow cost it about a second per object.
+    test("rejects a negative, non-finite or out-of-range size in every size option, naming it", async () => {
+        const box = { x: 0, y: 0, w: 2, h: 1 };
+        const draw = async (add: (slide: ReturnType<PuppeteerGen["addSlide"]>) => void) => {
+            const pres = new PuppeteerGen();
+            add(pres.addSlide());
+            return pres.toHtml();
+        };
+        // `falsy`: PptxGenJS reads the option with `||` (a cell its own way, `missing`), so NaN takes the default.
+        const cases: ReadonlyArray<[string, number, (slide: ReturnType<PuppeteerGen["addSlide"]>, value: number) => void, falsy?: boolean]> = [
+            ["fontSize", 4000, (slide, value) => slide.addText("a", { ...box, fontSize: value, bold: true })],
+            ["fontSize", 4000, (slide, value) => slide.addText([{ text: "a", options: { fontSize: value, bold: true } }], box)],
+            ["fontSize", 4000, (slide, value) => slide.addTable([[{ text: "a", options: { fontSize: value, bold: true } }]], box), true],
+            ["outline.size", 1584, (slide, value) => slide.addText("a", { ...box, outline: { color: "FF0000", size: value } }), true],
+            ["glow.size", 150, (slide, value) => slide.addText("a", { ...box, glow: { size: value, opacity: 1, color: "FF0000" } })],
+            ["line.width", 1584, (slide, value) => slide.addShape("rect", { ...box, line: { color: "000000", width: value } })],
+            ["line.width", 1584, (slide, value) => slide.addShape("line", { ...box, lineSize: value })],
+            ["line.width", 1584, (slide, value) => slide.addText("a", { ...box, line: { color: "000000", width: value } }), true],
+            ["border.pt", 1584, (slide, value) => slide.addTable([[{ text: "a", options: { border: { type: "solid", pt: value, color: "000000" } } }]], box)],
+            ["shadow.blur", 100, (slide, value) => slide.addShape("rect", { ...box, shadow: { type: "outer", blur: value } }), true],
+            ["shadow.offset", 200, (slide, value) => slide.addText("a", { ...box, shadow: { type: "outer", offset: value } }), true],
+            ["lineSize", 1584, (slide, value) => slide.addChart("line", [{ name: "s", labels: ["a", "b"], values: [1, 2] }], { ...box, lineSize: value })],
+            ["lineDataSymbolSize", 72, (slide, value) => slide.addChart("line", [{ name: "s", labels: ["a", "b"], values: [1, 2] }], { ...box, lineDataSymbolSize: value })],
+            ["titleFontSize", 4000, (slide, value) => slide.addChart("bar", [{ name: "s", labels: ["a"], values: [1] }], { ...box, showTitle: true, titleFontSize: value })],
+            ["legendFontSize", 4000, (slide, value) => slide.addChart("bar", [{ name: "s", labels: ["a"], values: [1] }], { ...box, showLegend: true, legendFontSize: value })],
+        ];
+        for (const [name, max, add, falsy] of cases) {
+            for (const value of [-1, ...(falsy ? [] : [Number.NaN]), Number.POSITIVE_INFINITY, max + 1]) {
+                await expect(
+                    draw(slide => add(slide, value)),
+                    `${name} ${value}`,
+                ).rejects.toThrow(`${name} must be a number of points from 0 to ${max}, got ${value}`);
+            }
+            await draw(slide => add(slide, max));
+        }
+    });
+
+    test("an outline or glow without a size takes PptxGenJS's 0.75pt and 8pt", () => {
+        expect(normalizeTextRun("a", { outline: { color: "FF0000" } as PptxGenJS.TextPropsOptions["outline"] }).outline?.width).toBe(pointsToPixels(0.75));
+        expect(normalizeTextRun("a", { glow: { opacity: 1 } as PptxGenJS.TextGlowProps }).glow?.blur).toBe(pointsToPixels(8));
     });
 
     // PptxGenJS 4.0.1 copies only width, dashType and the arrow types from a line object (addShapeDefinition,
