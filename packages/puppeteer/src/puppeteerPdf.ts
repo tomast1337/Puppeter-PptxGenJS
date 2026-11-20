@@ -30,14 +30,34 @@ export class PuppeteerPdfRenderer implements PresentationRenderer {
     async render(document: HtmlPresentationDocument): Promise<Uint8Array> {
         assertHtmlPresentationDocument(document);
         return withBrowser(async browser => {
-            const page = await browser.newPage();
+            // A browser context per document: no cache, storage or cookies shared with another render.
+            const context = await browser.createBrowserContext();
             try {
+                const page = await context.newPage();
+                await isolatePage(page);
                 return await printPdf(page, document, this.onMissingFont);
             } finally {
-                await page.close();
+                await context.close();
             }
         }, this.launchOptions);
     }
+}
+
+// The print page loads only inline content: resolveDocumentImages has turned every image into a data: URI.
+const ALLOWED_REQUEST = /^(?:data:|about:blank$)/;
+
+/**
+ * Cuts the print page off from the network and turns off its scripts, so markup that names a URL (a CSS url(), an
+ * iframe, a link, a script) reaches no host from the server. page.evaluate runs through the DevTools protocol, which
+ * these settings do not stop, so the print steps below still run.
+ */
+async function isolatePage(page: Page): Promise<void> {
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on("request", request => {
+        if (ALLOWED_REQUEST.test(request.url())) void request.continue();
+        else void request.abort("blockedbyclient");
+    });
 }
 
 async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument, onMissingFont: MissingFontPolicy): Promise<Uint8Array> {

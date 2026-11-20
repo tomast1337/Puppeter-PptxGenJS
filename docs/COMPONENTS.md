@@ -63,7 +63,9 @@ so global selectors can affect other elements. `<img src>` paths and URLs enter
 the normal image-resolution pipeline before PDF generation. Use embedded images
 for portability. `srcset` is rejected; CSS background URLs, external stylesheets,
 SVG external references and web fonts are not bundled by this API and should be
-embedded or supplied by the application.
+embedded or supplied by the application. The Puppeteer renderer prints with
+JavaScript off and fetches no URL from the HTML, so scripts in component markup
+do not run and such references stay empty.
 
 The `pptx-serializer` workspace package in `icap-dev-tools` records the same
 `addComponent(input, options)` contract. Its document contains only type,

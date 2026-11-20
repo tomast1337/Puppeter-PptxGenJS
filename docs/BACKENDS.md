@@ -128,8 +128,23 @@ import { closeBrowser } from "@pdflapas/pptxgenjs";
 await closeBrowser();
 ```
 
+Each document prints in its own browser context (no cache, cookies or storage
+shared with another render) on a page that has JavaScript turned off and no
+network: every request other than a `data:` URI is aborted. Images are inlined
+before the page loads, so the HTML needs nothing else. A URL left in the HTML
+(a CSS `url()`, an `<iframe>`, a `<link>`, an `<img>` that a component wrote
+after image resolution) is therefore never fetched from the server; an `<img>`
+that names one fails with "Image failed to decode".
+
 Chromium launches with Puppeteer's `{ headless: "shell", args: ["--no-sandbox", "--disable-setuid-sandbox"] }`:
-its sandbox refuses to start as root, the usual user in a container. Pass your own
+its sandbox refuses to start as root, the usual user in a container. Without
+the sandbox, a bug in Chromium's renderer that the printed HTML triggers runs
+with the server process's rights. When the decks hold content from untrusted
+users, run Chromium sandboxed: run the service as a non-root user (in Docker,
+add a `USER` and keep the default seccomp profile, or use Puppeteer's
+[sandbox guide](https://pptr.dev/troubleshooting#setting-up-chrome-linux-sandbox)),
+pass `launchOptions: { args: [] }` as below, and keep Puppeteer up to date for
+Chromium's security fixes. Pass your own
 [Puppeteer launch options](https://pptr.dev/api/puppeteer.launchoptions)
 (`executablePath`, `args`, `headless`, `timeout`, `protocolTimeout`,
 `userDataDir`, `env`; the `PuppeteerLaunchOptions` type) to the renderer; they
