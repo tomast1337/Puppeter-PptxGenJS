@@ -15,15 +15,15 @@ function shadowCSS(shadow?: NormalizedShadow): string | undefined {
     return `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${shadow.color}`;
 }
 
-export function fontFamilyCSS(fontFace: string): string {
-    // The face alone; the Puppeteer print step appends Chromium's fallback list (docs/HTML_PROFILE.md).
-    return `"${fontFace.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+/** The face, then the run's fallback faces; the Puppeteer print step appends Chromium's own fallback list (docs/HTML_PROFILE.md). */
+export function fontFamilyCSS(fontFace: string, fallbackFaces: readonly string[] = []): string {
+    return [fontFace, ...fallbackFaces].map(face => `"${face.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`).join(", ");
 }
 
 /** The run's attributes after its link, in the order the profile writes them. */
 function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
     const css: InlineStyle = new Map([
-        ["font-family", fontFamilyCSS(run.fontFace)],
+        ["font-family", fontFamilyCSS(run.fontFace, run.fallbackFaces)],
         ["font-size", `${run.fontSize}px`],
         ["color", run.color],
         ["font-weight", run.bold ? "bold" : "normal"],
@@ -54,6 +54,7 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
         ["data-vertical-align", run.verticalAlign !== "baseline" ? run.verticalAlign : undefined],
         ["data-synthetic-bold", run.syntheticBold === undefined ? undefined : String(run.syntheticBold)],
         ["data-synthetic-italic", run.syntheticItalic === undefined ? undefined : String(run.syntheticItalic)],
+        ["data-non-breaking-hyphen", run.nonBreakingHyphen],
         // Names the text-shadow entries in order, so one entry still says whether it is the glow or the shadow.
         ["data-text-shadow", glow || shadow ? [glow && "glow", shadow && "shadow"].filter(Boolean).join(" ") : undefined],
         styleAttribute(css),
@@ -139,7 +140,7 @@ function renderBulletMarker(paragraph: NormalizedTextParagraph & { bullet: NonNu
     ]);
     const firstRun = paragraph.runs[0];
     if (firstRun) {
-        css.set("font-family", fontFamilyCSS(firstRun.fontFace));
+        css.set("font-family", fontFamilyCSS(firstRun.fontFace, firstRun.fallbackFaces));
         css.set("font-size", `${firstRun.fontSize}px`);
         css.set("color", firstRun.color);
     }

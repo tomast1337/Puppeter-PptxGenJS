@@ -5,6 +5,8 @@ import type { RenderingTargetProfile } from "./index";
 const ADVANCE_GRID_PER_INCH = 576;
 // PowerPoint's grid for each line's baseline: 1/600 in, 0.12pt (`baselineGridPerInch`).
 const BASELINE_GRID_PER_INCH = 600;
+/** Its font fallback chain (`fallbackFaces`), first to last. */
+const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"]);
 
 /**
  * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only in a face whose
@@ -80,6 +82,17 @@ const BASELINE_GRID_PER_INCH = 600;
  * "word,word", "word;word", "word%word", "word+word" and "word&word" never break and "word-word" breaks after the
  * hyphen in both. Only "(" after ")" and "%" was measured; "[" and "{", and "]" and "}" before them, are the same
  * UAX #14 classes (OP, CP/CL).
+ * It draws a character the run's face lacks in the first face of one chain that has it, whatever the run's face
+ * (`fallbackFaces`): Arial, Cambria Math, Segoe UI Symbol, Yu Gothic, then PMingLiU and SimSun. Measured against its
+ * PDF export of a synthetic deck (Arial, Calibri and Times New Roman at 14pt, one character class per line) and each
+ * font's cmap, the chain predicts every character: in Arial, U+2010, U+2083, U+21D2, U+2460 and U+2461 are drawn in
+ * Cambria Math, U+2713, U+2717, U+2605, U+2606 and U+24B6 in Segoe UI Symbol and U+2189 in Yu Gothic; in Calibri,
+ * U+25A0 in Arial (ahead of Cambria Math, which has it too), U+21D2 in Cambria Math and U+2189 in Yu Gothic. Han
+ * characters in a Latin run are drawn in Yu Gothic, in the run's weight, and those it lacks in PMingLiU or SimSun;
+ * the order of those two was not measured. The run's face is left out of the chain where it is in it.
+ * It draws U+2011 NON-BREAKING HYPHEN with the face's U+002D glyph (`nonBreakingHyphen`), even in Times New Roman,
+ * which has a U+2011 glyph of its own: in the same export it is glyph 16 in Arial and Times New Roman, the one
+ * U+002D maps to, and Calibri's hyphen.
  * shortcut: its synthetic bold and italic are left to the browser (Chromium's, see `syntheticBoldStrokeEm`), not
  * measured against PowerPoint's PDF export of a regular-only face; measure them when a deck needs one.
  */
@@ -101,4 +114,6 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     joinsOpeningBracket: true,
     syntheticBoldStrokeEm: undefined,
     syntheticItalicShear: undefined,
+    fallbackFaces: FALLBACK_FACES,
+    nonBreakingHyphen: "hyphen-minus",
 });

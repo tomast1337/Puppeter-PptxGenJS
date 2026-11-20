@@ -4,7 +4,7 @@ use super::allow;
 
 use super::dom::{Dom, Element, Node, decode};
 use super::object::link;
-use super::style::{Style, font_family, integer, keyword, number, px, shadow, split_top_level};
+use super::style::{Style, font_families, integer, keyword, number, px, shadow, split_top_level};
 use crate::color::parse_color;
 use crate::model::{
     Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, Synthesis, TabAlign, TabStop, TextBox, TextDirection,
@@ -52,6 +52,8 @@ const PARAGRAPH_CSS: &[&str] = &[
     "padding-left",
     "text-indent",
 ];
+/// U+002D, which the face has, then U+2060 WORD JOINER: a U+2011 in a run with `data-non-breaking-hyphen`.
+const HYPHEN_MINUS_NO_BREAK: &str = "-\u{2060}";
 const BULLET_CSS: &[&str] = &["display", "width", "font-family", "font-size", "color"];
 const RUN_ATTRS: &[&str] = &[
     "lang",
@@ -63,6 +65,7 @@ const RUN_ATTRS: &[&str] = &[
     "data-vertical-align",
     "data-synthetic-bold",
     "data-synthetic-italic",
+    "data-non-breaking-hyphen",
     "data-text-shadow",
     "data-shadow-inset",
     "data-empty",
@@ -279,7 +282,7 @@ fn bullet(dom: &Dom<'_>, paragraph: &Element<'_>, marker: &Element<'_>) -> Resul
     allow(marker, &style, &[], &[BULLET_CSS])?;
     // A copy of the first run's face: checked like the run's, not read.
     if let Some(family) = style.get("font-family") {
-        font_family(family).map_err(|e| format!("span.text-bullet: CSS property 'font-family': {e}"))?;
+        font_families(family).map_err(|e| format!("span.text-bullet: CSS property 'font-family': {e}"))?;
     }
     let text = dom.text_of(marker)?;
     let level = paragraph.attr("data-bullet-level")?.ok_or("attribute 'data-bullet-level' is missing")?;
@@ -299,7 +302,18 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
     }
     let style = Style::of(element)?;
     allow(element, &style, &[RUN_ATTRS], &[RUN_CSS])?;
-    let (content, word_spacing) = run_text(dom, element)?;
+    // U+2011 drawn with the face's U+002D glyph: parley picks a face by the character, so it would draw U+2011 in a
+    // fallback face where the run's face lacks it. The word joiner keeps its no-break.
+    let hyphen_minus = match element.attr("data-non-breaking-hyphen")?.as_deref() {
+        None => false,
+        Some("hyphen-minus") => true,
+        Some(other) => return Err(format!("attribute 'data-non-breaking-hyphen': '{other}' is not hyphen-minus")),
+    };
+    let (content, word_spacing) = run_text(dom, element, hyphen_minus)?;
+    let mut families = font_families(style.require("font-family")?)
+        .map_err(|e| format!("CSS property 'font-family': {e}"))?
+        .into_iter();
+    let font_face = families.next().ok_or("CSS property 'font-family' names no family")?;
     let text = if element.has_attr("data-empty") {
         if content != EMPTY_RUN_TEXT || !word_spacing.is_empty() {
             return Err("a run with data-empty must hold only U+200B".into());
@@ -326,7 +340,8 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
     };
     Ok(Run {
         text,
-        font_face: font_family(style.require("font-family")?).map_err(|e| format!("CSS property 'font-family': {e}"))?,
+        font_face,
+        fallback_faces: families.collect(),
         language: element.attr("lang")?.map(String::from),
         font_size: style.require_px("font-size")?,
         color: style.require_color("color")?,
@@ -360,12 +375,16 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
 
 /// A run's text and the byte range of each word wrapped in a `<span>` of its own `letter-spacing`
 /// (`wordCharacterSpacing`), with that spacing. A word span holds text only and has no other attribute or CSS.
-fn run_text(dom: &Dom<'_>, run: &Element<'_>) -> Result<(String, Vec<WordSpacing>), String> {
+fn run_text(dom: &Dom<'_>, run: &Element<'_>, hyphen_minus: bool) -> Result<(String, Vec<WordSpacing>), String> {
     let mut text = String::new();
     let mut words = Vec::new();
+    let push = |text: &mut String, piece: &str| match hyphen_minus {
+        true => text.push_str(&piece.replace('\u{2011}', HYPHEN_MINUS_NO_BREAK)),
+        false => text.push_str(piece),
+    };
     for node in &run.children {
         match *node {
-            Node::Text(id) => text += &decode(dom.raw_text(id)?)?,
+            Node::Text(id) => push(&mut text, &decode(dom.raw_text(id)?)?),
             Node::Element(id) => {
                 let word = dom.element(id)?;
                 if word.name != "span" {
@@ -378,7 +397,7 @@ fn run_text(dom: &Dom<'_>, run: &Element<'_>) -> Result<(String, Vec<WordSpacing
                 }
                 let spacing = style.px("letter-spacing")?.ok_or("word span: CSS property 'letter-spacing' is missing")?;
                 let start = text.len();
-                text += &dom.text_of(word).map_err(|e| format!("word span: {e}"))?;
+                push(&mut text, &dom.text_of(word).map_err(|e| format!("word span: {e}"))?);
                 words.push((start..text.len(), spacing));
             }
         }
@@ -532,6 +551,24 @@ mod tests {
     }
 
     #[test]
+    fn reads_the_fallback_faces_and_draws_u2011_as_hyphen_minus() {
+        let style = RUN_STYLE.replace("&quot;Calibri&quot;", "&quot;Calibri&quot;, &quot;Arial&quot;, &quot;Cambria Math&quot;");
+        let html = format!(
+            r#"<div class="text-paragraph" data-line-baseline="16" style="{PARAGRAPH_STYLE}"><span class="text-run" data-non-breaking-hyphen="hyphen-minus" style="{style}">a&#8209;b <span style="letter-spacing: 1px;">c‑d</span></span><span class="text-run" style="{RUN_STYLE}">e‑f</span></div>"#
+        );
+        let text = text_object(&html).unwrap().text.expect("text");
+        let [a, b] = &text.paragraphs[0].runs[..] else { panic!("two runs") };
+        assert_eq!(
+            (a.font_face.as_str(), &a.fallback_faces[..]),
+            ("Calibri", &["Arial".to_string(), "Cambria Math".to_string()][..])
+        );
+        // The word span's range covers its text as drawn.
+        assert_eq!(a.text, "a-\u{2060}b c-\u{2060}d");
+        assert_eq!(a.word_spacing, [(7..13, 1.0)]);
+        assert_eq!((b.text.as_str(), b.fallback_faces.is_empty()), ("e\u{2011}f", true));
+    }
+
+    #[test]
     fn reads_the_synthetic_styles_and_falls_back_to_the_browsers() {
         let html = format!(
             r#"<div class="text-paragraph" data-line-baseline="16" style="{PARAGRAPH_STYLE}"><span class="text-run" data-synthetic-bold="0.03333333333333333" data-synthetic-italic="0.3462535606" style="{RUN_STYLE}">a</span><span class="text-run" style="{RUN_STYLE}">b</span></div>"#
@@ -584,6 +621,10 @@ mod tests {
             ),
             (run(" data-synthetic-italic=\"slanted\"", "", "x"), "attribute 'data-synthetic-italic'"),
             (
+                run(" data-non-breaking-hyphen=\"en-dash\"", "", "x"),
+                "attribute 'data-non-breaking-hyphen': 'en-dash' is not hyphen-minus",
+            ),
+            (
                 run("", "", "x").replace("text-decoration-style: solid", "text-decoration-style: groove"),
                 "CSS property 'text-decoration-style': 'groove'",
             ),
@@ -612,7 +653,7 @@ mod tests {
             (run("", "", "x").replace("&quot;Calibri&quot;", "Calibri"), "font-family"),
             (
                 run("", "", "x").replace("&quot;Calibri&quot;", "&quot;Calibri&quot;, Arial"),
-                "one quoted family",
+                "not a list of quoted families",
             ),
             ("<div class=\"text-paragraph\">text</div>".into(), "unexpected text"),
         ] {

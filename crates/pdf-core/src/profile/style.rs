@@ -229,20 +229,29 @@ pub(crate) fn shadow(text: &str, kind: ShadowKind) -> Result<Shadow, String> {
     })
 }
 
-/// The one family of a `font-family` value: a CSS string with `\\` and `\"` escapes, as `toHtml()`
-/// writes it. Fallback lists are the Puppeteer print step's, not the profile's.
-pub(crate) fn font_family(text: &str) -> Result<String, String> {
-    let invalid = || format!("font-family '{text}' is not one quoted family (write it as \"Calibri\", without fallbacks)");
-    let mut chars = text.strip_prefix('"').ok_or_else(invalid)?.chars();
-    let mut family = String::new();
+/// The families of a `font-family` value, the face first, then its fallback faces: CSS strings with `\\` and `\"`
+/// escapes, separated by `, `, as `toHtml()` writes them. A bare name (`Arial`, `sans-serif`) is the Puppeteer print
+/// step's, not the profile's.
+pub(crate) fn font_families(text: &str) -> Result<Vec<String>, String> {
+    let invalid = || format!("font-family '{text}' is not a list of quoted families (write it as \"Calibri\" or \"Calibri\", \"Arial\")");
+    let mut families = Vec::new();
+    let mut rest = text;
     loop {
-        match chars.next().ok_or_else(invalid)? {
-            '"' => break,
-            '\\' => family.push(chars.next().ok_or_else(invalid)?),
-            c => family.push(c),
+        let mut chars = rest.strip_prefix('"').ok_or_else(invalid)?.chars();
+        let mut family = String::new();
+        loop {
+            match chars.next().ok_or_else(invalid)? {
+                '"' => break,
+                '\\' => family.push(chars.next().ok_or_else(invalid)?),
+                c => family.push(c),
+            }
+        }
+        families.push(family);
+        match chars.as_str() {
+            "" => return Ok(families),
+            more => rest = more.strip_prefix(", ").ok_or_else(invalid)?,
         }
     }
-    if chars.as_str().is_empty() { Ok(family) } else { Err(invalid()) }
 }
 
 #[cfg(test)]
@@ -302,18 +311,24 @@ mod tests {
             (3.0, -2.5, 4.0, Rgba(0, 0, 0, 0.35), ShadowKind::Inner)
         );
         assert!(shadow("3px 4px rgba(0,0,0,1)", ShadowKind::Outer).is_err());
-        assert_eq!(font_family(r#""Calibri""#).unwrap(), "Calibri");
-        assert_eq!(font_family(r#""a\"b\\c""#).unwrap(), r#"a"b\c"#);
+        assert_eq!(font_families(r#""Calibri""#).unwrap(), ["Calibri"]);
+        assert_eq!(font_families(r#""a\"b\\c""#).unwrap(), [r#"a"b\c"#]);
+        assert_eq!(
+            font_families(r#""Calibri", "Arial", "Cambria Math""#).unwrap(),
+            ["Calibri", "Arial", "Cambria Math"]
+        );
         for bad in [
             "Arial",
             r#""open"#,
             r#""a" b"#,
             r#""a\"#,
             r#""Calibri", Arial"#,
+            r#""Calibri","Arial""#,
             r#""Calibri" "#,
             r#""Calibri","#,
+            r#""Calibri", "#,
         ] {
-            assert!(font_family(bad).is_err(), "{bad}");
+            assert!(font_families(bad).is_err(), "{bad}");
         }
         assert_eq!(
             split_top_level("1px 1px 1px rgba(0, 0, 0, 1), 0px 0px 2px #FFF", ','),

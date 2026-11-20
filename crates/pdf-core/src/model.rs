@@ -361,6 +361,9 @@ pub(crate) type WordSpacing = (Range<usize>, f32);
 pub(crate) struct Run {
     pub(crate) text: String,
     pub(crate) font_face: String,
+    /// The faces a character `font_face` lacks is drawn in, the first that has it, ahead of the renderer's own
+    /// fallbacks (`text::font::family_stack`).
+    pub(crate) fallback_faces: Vec<String>,
     /// The run's `lang`, which picks the CJK fallback face (`text::font::family_stack`).
     pub(crate) language: Option<String>,
     pub(crate) font_size: f32,
@@ -565,6 +568,7 @@ pub(crate) mod build {
         Run {
             text: text.into(),
             font_face: font_face.into(),
+            fallback_faces: Vec::new(),
             language: None,
             font_size,
             color: Rgba(0, 0, 0, 1.0),

@@ -113,6 +113,8 @@ export interface NormalizedTextLink {
 export interface NormalizedTextRun {
     text: string;
     fontFace: string;
+    /** Faces a character `fontFace` lacks is drawn in, the first that has it, before the renderer's own fallback; omitted: only the renderer's. */
+    fallbackFaces?: readonly string[];
     fontSize: number;
     color: CssColor;
     bold: boolean;
@@ -136,6 +138,8 @@ export interface NormalizedTextRun {
     syntheticBold?: number;
     /** On an italic run: the shear that slants a face with no italic (x per unit of height); omitted: the renderer's own. */
     syntheticItalic?: number;
+    /** On a run whose text has U+2011: "hyphen-minus" draws it with the face's U+002D glyph, still unbreakable; omitted: as any character. */
+    nonBreakingHyphen?: "hyphen-minus";
     highlight?: CssColor;
     outline?: { color: CssColor; width: number };
     glow?: NormalizedShadow;

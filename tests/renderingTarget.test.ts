@@ -592,6 +592,38 @@ describe("rendering targets", () => {
         expect(texts("word)\n(word", "powerpoint")).toEqual([["word)"], ["(word"]]);
     });
 
+    // Measured against PowerPoint's PDF export of a synthetic deck (RENDERING_TARGETS.powerpoint.fallbackFaces).
+    test("the PowerPoint target writes its fallback chain after each run's and bullet's face, without the face; LibreOffice the face alone", async () => {
+        const html = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText(
+                [
+                    { text: "a", options: { fontFace: "Calibri" } },
+                    { text: "b", options: { fontFace: "arial" } },
+                ],
+                { x: 1, y: 1, w: 3, h: 1, bullet: true },
+            );
+            return [...(await presentation.toHtml()).html.matchAll(/class="text-(?:run|bullet)"[^>]*?style="[^"]*?font-family: (.*?); font-size/g)].map(match => match[1]?.replaceAll("&quot;", '"'));
+        };
+        const chain = '"Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"';
+        expect(await html(new PuppeteerGenPowerPoint())).toEqual([`"Calibri", "Arial", ${chain}`, `"Calibri", "Arial", ${chain}`, `"arial", ${chain}`]);
+        expect(await html(new PuppeteerGenLibreOffice())).toEqual(['"Calibri"', '"Calibri"', '"arial"']);
+        expect(normalizeText("x", { fontFace: "Times New Roman" }, "libreoffice").paragraphs[0]?.runs[0]).not.toHaveProperty("fallbackFaces");
+    });
+
+    // Measured against PowerPoint's PDF export of a synthetic deck: U+2011 is drawn with glyph 16 in Arial and Times New
+    // Roman, the face's U+002D, though Times New Roman has a U+2011 glyph (RENDERING_TARGETS.powerpoint.nonBreakingHyphen).
+    test("the PowerPoint target keeps U+2011 in the text and marks its run to draw it as U+002D, with U+002D's advance", async () => {
+        const run = (text: string, target: "libreoffice" | "powerpoint") => normalizeText(text, { fontFace: "Arial", fontSize: 8 }, target).paragraphs[0]?.runs[0];
+        expect(run("lorem‑ipsum", "powerpoint")).toMatchObject({ text: "lorem‑ipsum", nonBreakingHyphen: "hyphen-minus" });
+        expect(run("lorem-ipsum", "powerpoint")).not.toHaveProperty("nonBreakingHyphen");
+        expect(run("lorem‑ipsum", "libreoffice")).not.toHaveProperty("nonBreakingHyphen");
+        // The word ends where "lorem-ipsum"'s rounded advances do.
+        expect(run("lorem‑ipsum", "powerpoint")?.characterSpacing).toBe(run("lorem-ipsum", "powerpoint")?.characterSpacing ?? Number.NaN);
+        const presentation = new PuppeteerGenPowerPoint();
+        presentation.addSlide().addText("lorem‑ipsum", { x: 1, y: 1, w: 3, h: 1 });
+        expect((await presentation.toHtml()).html).toMatch(/<span class="text-run" data-non-breaking-hyphen="hyphen-minus" style="[^"]*"[^>]*>lorem‑ipsum<\/span>/);
+    });
+
     test("an unknown target throws and names the valid ones", () => {
         expect(() => new PuppeteerGen(undefined, { target: "keynote" as "powerpoint" })).toThrow('`target` must be one of "libreoffice", "powerpoint", got "keynote"');
     });

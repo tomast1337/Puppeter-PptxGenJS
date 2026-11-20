@@ -288,6 +288,24 @@ U+2060 WORD JOINER in run text between `)`, `]`, `}` or `%` and a following `(`,
 PowerPoint has no line break and UAX #14 has one. Renderers draw it as nothing, give it no
 `letter-spacing`, and still break there when the word alone overflows its line (`overflow-wrap`).
 
+**Fallback faces.** On the PowerPoint target a run's (and its bullet's) `font-family` lists, after the face,
+the faces PowerPoint draws a character in when the face lacks it, the first that has it:
+`"Calibri", "Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"`, without the face
+itself (`RENDERING_TARGETS.powerpoint.fallbackFaces`, measured against PowerPoint's PDF export of a synthetic
+deck). Both renderers try them in order, then their own fallbacks: Chromium the print step's list and
+fontconfig, the WASM renderer `family_stack`'s (the face of the run's `lang`, DejaVu Sans, Liberation Sans,
+Noto Sans CJK JP). These are Microsoft fonts PdfLapas cannot ship: where one is not installed (the visual
+image has none), it is skipped, and a character falls to the next face or to the renderer's own fallback as on
+the LibreOffice target. Arial's metric alias, Liberation Sans, stands in for it in both renderers.
+
+**Non-breaking hyphen.** PowerPoint draws U+2011 with the face's U+002D glyph, even in a face with a U+2011
+glyph of its own. On the PowerPoint target a run whose text holds U+2011 has
+`data-non-breaking-hyphen="hyphen-minus"`, the only value; the text keeps U+2011. Both renderers draw it as
+U+002D followed by U+2060 WORD JOINER, so it takes the face's hyphen and still allows no line break: the print
+step rewrites the run's text (word spans included), since Chromium picks a face per character before shaping,
+and the WASM renderer does the same when it reads the run. Its `letter-spacing` (the advance grid) is computed
+with U+002D's advance.
+
 A bold or italic run whose face has no bold or italic style is drawn with a synthetic one. The LibreOffice
 target writes how on the run: `data-synthetic-bold` (on a bold run) is the width of the stroke drawn
 around the filled glyphs as a fraction of the font size, `0.03333333333333333` (1/30), and `data-synthetic-italic` (on an
@@ -451,7 +469,7 @@ of this profile never sees either.
 | Print snap     | `left`, `top` and `transform` of the object around `svg.shape-svg` | Print step: `transform: translate(…)` on the svg, undoing Chromium's snap of SVG roots to a whole device px (1/8 CSS px under the print zoom) in print (issue #42), in the object's pre-transform space                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Dash rewrite   | `stroke-dasharray` that starts with a zero-length dash             | Print step: the same pattern shifted by `stroke-dashoffset`, since Chromium's PDF keeps the zero-length dash and poppler paints it as a hairline                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Text outline   | `border-color`, `border-width`, `border-style` on `.slide-text`    | Print step: `border-style: none; outline: <width>px <style> <color>; outline-offset: -<width / 2>px`, since DrawingML centres a text box's line on its edge and measures the inset from the edge, while a CSS border lies inside the box and moves the text                                                                                                                                                                                                                                                                                                                                                         |
-| Font fallback  | the face in `font-family` on `.text-run` and `.text-bullet`        | Print step: appends `"Carlito", "Noto Sans", Arial, "Liberation Sans", sans-serif` to a Calibri face, `"Caladea", Arial, "Liberation Sans", sans-serif` to a Cambria face, `Arial, "Liberation Sans", sans-serif` to any other, since Chromium does not apply LibreOffice's Microsoft-font substitutions; before fonts are awaited                                                                                                                                                                                                                                                                                  |
+| Font fallback  | the faces in `font-family` on `.text-run` and `.text-bullet`       | Print step: appends, after the last face, `"Carlito", "Noto Sans", Arial, "Liberation Sans", sans-serif` to a Calibri face, `"Caladea", Arial, "Liberation Sans", sans-serif` to a Cambria face, `Arial, "Liberation Sans", sans-serif` to any other, since Chromium does not apply LibreOffice's Microsoft-font substitutions; before fonts are awaited                                                                                                                                                                                                                                                            |
 | Table offset   | the first row's top and first column's left `border-*` widths      | Print step: `position: relative; left/top: -<widest / 2>px` on `table.slide-table`, since DrawingML centres borders on the grid and Chromium collapses the outer half of those borders inside the table                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Border stroke  | the `border-*` and `data-border-*-dash-array` of each `td`         | In the page, after shrink-to-fit, as only layout tells where the rows end: `border-color: transparent` on each `td`, so the layout keeps the border widths, and an `svg` after the table with one stroked `path` per run of edges on the cells' edges, measured from the first grid line, which is drawn on the object's corner (the table offset centres only the widest border there), each dash its own subpath. Chromium fills a CSS border as a box floored to whole device px (a 0.5pt border prints 0.47pt high), which viewers anti-alias to a pale line, and prints a dashed SVG stroke as filled outlines |
 | Cell inset     | each `td` side's collapsed width: its or the facing `border-*`     | Print step: on its `.table-cell-text`, `inset: -<top / 2>px …` (absolute) or `margin: -<top / 2>px …; width: calc(100% + <(left + right) / 2>px)` (in flow), since DrawingML measures cell margins from the grid line and Chromium from the inner half of the collapsed border, the wider of the two, which else grows a full row                                                                                                                                                                                                                                                                                   |
@@ -479,9 +497,9 @@ backend.
   for it and reads each value from its one place. The [renderer workarounds](#renderer-workarounds) are
   not in the profile, so they are errors too. Any other attribute, property, element, enumerated value or a
   repeated property is an error. Numbers are JSON numbers with their unit (`px`, `deg`, `in`); `NaN`,
-  infinities and values outside `f32` are errors. `font-family` is exactly one quoted family
-  (`"Calibri"`), as `toHtml()` writes it: a fallback list is an error, since fallbacks are the print
-  step's. A run's `font-kerning` is `none`, `normal` or `auto`; `none` turns the font's `kern` feature off
+  infinities and values outside `f32` are errors. `font-family` is one or more quoted families
+  separated by `, ` (`"Calibri"`, or `"Calibri", "Arial"` with the target's fallback faces), as `toHtml()`
+  writes it: a bare name such as `Arial` or `sans-serif` is an error, since those are the print step's. A run's `font-kerning` is `none`, `normal` or `auto`; `none` turns the font's `kern` feature off
   in the layout.
 - **Images are `data:` URIs.** The parser fetches nothing; a path or URL in `src` is an error (`toHtml()`
   always inlines images). PNG, JPEG, GIF and WebP are recognized by their bytes, whatever the media type
@@ -751,7 +769,8 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextBullet.start`                    | profile | `data-bullet-start`; the marker text is already numbered from it.                                                          |
 | `NormalizedTextBullet.numberType`               | profile | `data-bullet-number-type`, the PptxGenJS name (`arabicPeriod`, `romanLcParenR`, …), omitted when unset.                    |
 | `NormalizedTextRun.text`                        | profile | Run text content. An empty run holds U+200B and has `data-empty`; the PowerPoint target's U+2060 is in the model text.     |
-| `NormalizedTextRun.fontFace`                    | profile | `font-family`: only the face, a CSS string (unescape `\\` and `\"`); fallbacks are a [workaround](#renderer-workarounds).  |
+| `NormalizedTextRun.fontFace`                    | profile | `font-family`: its first CSS string (unescape `\\` and `\"`); bare names are a [workaround](#renderer-workarounds).        |
+| `NormalizedTextRun.fallbackFaces`               | profile | The CSS strings after the face in `font-family` (PowerPoint target), omitted when none.                                    |
 | `NormalizedTextRun.fontSize`                    | profile | `font-size: <n>px` (already the sub/superscript size).                                                                     |
 | `NormalizedTextRun.color`                       | profile | `color`.                                                                                                                   |
 | `NormalizedTextRun.bold`                        | profile | `font-weight: bold\|normal`.                                                                                               |
@@ -769,6 +788,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextRun.kerning`                     | profile | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
 | `NormalizedTextRun.syntheticBold`               | profile | `data-synthetic-bold` on a bold run (LibreOffice target), omitted for the renderer's own synthetic bold.                   |
 | `NormalizedTextRun.syntheticItalic`             | profile | `data-synthetic-italic` on an italic run (LibreOffice target), omitted for the renderer's own synthetic italic.            |
+| `NormalizedTextRun.nonBreakingHyphen`           | profile | `data-non-breaking-hyphen="hyphen-minus"` on a run with U+2011 (PowerPoint target), omitted otherwise.                     |
 | `NormalizedTextRun.highlight`                   | profile | `background-color` on the run.                                                                                             |
 | `NormalizedTextRun.outline`                     | profile | `-webkit-text-stroke: <width>px <color>`.                                                                                  |
 | `NormalizedTextRun.outline.color`               | profile | Color of `-webkit-text-stroke`.                                                                                            |

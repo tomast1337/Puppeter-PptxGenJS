@@ -14,7 +14,6 @@ use crate::Renderer;
 use crate::color::Rgba;
 use crate::effect::Effect;
 use crate::model::{LineBox, ParagraphAlign, Synthesis, TextBox, TextDirection, TextFit, UnderlineStyle};
-use crate::text::font::family_stack;
 use crate::text::tabs::{MAX_TAB_REBREAK_BYTES, TAB_PLACEHOLDER, TabRuler, place_tabs, tab_box};
 
 /// Blink's `LayoutUnit`, the grid its line breaker measures on: 1/64 CSS px (`kFractionalBits` = 6 in
@@ -119,9 +118,10 @@ impl Renderer {
 
     /// One unwrapped line of `text` in one face, every glyph with brush 0: a chart SVG `<text>`.
     pub(crate) fn layout_line(&mut self, text: &str, face: &str, size: f32, weight: FontWeight, style: FontStyle) -> Layout<Brush> {
+        let family = self.run_family_stack(face, &[], None);
         let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, text, 1.0, false);
         builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
-        builder.push_default(StyleProperty::FontFamily(family_stack(face, None).as_str().into()));
+        builder.push_default(StyleProperty::FontFamily(family.as_str().into()));
         builder.push_default(StyleProperty::FontSize(size));
         builder.push_default(StyleProperty::FontWeight(weight));
         builder.push_default(StyleProperty::FontStyle(style));
@@ -199,6 +199,11 @@ impl Renderer {
                 mark_baseline: if horizontal { mark_baseline } else { baseline } * scale,
                 break_baseline: if horizontal { break_baseline } else { baseline } * scale,
             };
+            let mut families = std::mem::take(&mut self.span_families);
+            families.clear();
+            for run in paragraph.runs.iter().take(spans.len()) {
+                families.push(self.run_family_stack(&run.font_face, &run.fallback_faces, run.language.as_deref()));
+            }
             let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, &s, 1.0, false);
             builder.set_base_direction(if paragraph.rtl { BaseDirection::Rtl } else { BaseDirection::Ltr });
             // Break where Chromium does (PowerPoint agrees): after every space run, even before "." or a closing
@@ -211,15 +216,6 @@ impl Renderer {
             builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
             builder.push_default(StyleProperty::OverflowWrap(OverflowWrap::BreakWord));
             builder.push_default(StyleProperty::TextWrapMode(if text.wrap { TextWrapMode::Wrap } else { TextWrapMode::NoWrap }));
-            let mut families = std::mem::take(&mut self.span_families);
-            families.clear();
-            families.extend(
-                paragraph
-                    .runs
-                    .iter()
-                    .take(spans.len())
-                    .map(|run| family_stack(&run.font_face, run.language.as_deref())),
-            );
             for (r, ((range, run), family)) in (0u32..).zip(spans.iter().zip(&paragraph.runs).zip(&families)) {
                 let index = paints.len() as u32;
                 paints.push(RunPaint {
@@ -337,6 +333,8 @@ impl Renderer {
 
             let marker = match (&paragraph.bullet, first) {
                 (Some(b), Some(run)) => {
+                    // The span.text-bullet sits outside the run, so it has no `lang` in Chromium either.
+                    let family = self.run_family_stack(&run.font_face, &run.fallback_faces, None);
                     let mut mb = self.layout_cx.ranged_builder(&mut self.fonts, &b.marker, 1.0, false);
                     let index = paints.len() as u32;
                     paints.push(RunPaint {
@@ -353,8 +351,7 @@ impl Renderer {
                         link: None,
                         glow: None,
                     });
-                    // The span.text-bullet sits outside the run, so it has no `lang` in Chromium either.
-                    mb.push_default(StyleProperty::FontFamily(family_stack(&run.font_face, None).as_str().into()));
+                    mb.push_default(StyleProperty::FontFamily(family.as_str().into()));
                     mb.push_default(StyleProperty::FontSize(run.font_size * scale));
                     mb.push_default(StyleProperty::Brush(Brush(index)));
                     let mut ml: Layout<Brush> = mb.build(&b.marker);

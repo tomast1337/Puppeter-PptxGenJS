@@ -43,21 +43,31 @@ const CJK_FALLBACK_BY_LANG: [(&str, &str); 5] = [
     ("zh-hk", "Noto Sans CJK HK"),
 ];
 
-/// Requested face first, then its metric alias, then the CJK face of the run's `lang` (`CJK_FALLBACK_BY_LANG`),
-/// then `FALLBACK_FAMILIES`. Emoji clusters additionally fall through to the registered `emoji` generic family
+/// Requested face first, then its metric alias, then the run's fallback faces from the HTML (the PowerPoint
+/// target's chain), each followed by its metric alias, then the CJK face of the run's `lang`
+/// (`CJK_FALLBACK_BY_LANG`), then `FALLBACK_FAMILIES`. A face's alias is left out where `registered` says the face
+/// has a font: fontconfig gives Chromium the alias only for a face it has no font for, so an installed Arial's
+/// missing U+2010 goes down the chain (Cambria Math), not to Liberation Sans. Parley skips a fallback face without
+/// a font, as Chromium does. Emoji clusters additionally fall through to the registered `emoji` generic family
 /// (see `add_font`).
-pub(crate) fn family_stack(face: &str, lang: Option<&str>) -> String {
+pub(crate) fn family_stack(face: &str, fallback_faces: &[String], lang: Option<&str>, mut registered: impl FnMut(&str) -> bool) -> String {
     let quote = |s: &str| format!("\"{}\"", s.replace('"', ""));
     // shortcut: serif and monospace faces without their alias fall back to sans faces, where
     // fontconfig would pick a serif/mono default; add per-class fallbacks when a deck needs them.
-    // shortcut: HarfBuzz draws U+2011 with the face's U+2010 glyph when the face lacks it (hb-ot-shape-normalize.cc,
-    // harfrust's normalize.rs), so Chromium keeps an Arial run's U+2011 in Liberation Sans; parley picks a face by
-    // cmap coverage first and takes DejaVu Sans. Map it before font selection when parley lets a caller steer it (#289).
+    // shortcut: without data-non-breaking-hyphen, HarfBuzz draws U+2011 with the face's U+2010 glyph when the face
+    // lacks it (hb-ot-shape-normalize.cc, harfrust's normalize.rs), so Chromium keeps an Arial run's U+2011 in
+    // Liberation Sans; parley picks a face by cmap coverage first and takes DejaVu Sans (#289).
+    let mut with_alias = |family: &str| match metric_alias(family) {
+        alias if alias == family || registered(family) => format!("{}, ", quote(family)),
+        alias => format!("{}, {}, ", quote(family), quote(alias)),
+    };
+    let head = with_alias(face);
+    let chain: String = fallback_faces.iter().map(|family| with_alias(family)).collect();
     let [dejavu, liberation, cjk] = FALLBACK_FAMILIES.map(quote);
     let by_lang = lang
         .and_then(|lang| CJK_FALLBACK_BY_LANG.iter().find(|(tag, _)| tag.eq_ignore_ascii_case(lang)))
         .map_or(String::new(), |(_, family)| format!("{}, ", quote(family)));
-    format!("{}, {}, {by_lang}{dejavu}, {liberation}, {cjk}", quote(face), quote(metric_alias(face)))
+    format!("{head}{chain}{by_lang}{dejavu}, {liberation}, {cjk}")
 }
 
 /// A run face the renderer had no font for, neither the face nor its metric alias: its text was
@@ -124,6 +134,11 @@ impl Renderer {
         }
     }
 
+    /// `family_stack` with the faces registered here.
+    pub(crate) fn run_family_stack(&mut self, face: &str, fallback_faces: &[String], lang: Option<&str>) -> String {
+        family_stack(face, fallback_faces, lang, |family| self.has_family(family))
+    }
+
     /// Whether a registered font has the family `name` (case-insensitive, as parley matches it).
     fn has_family(&mut self, name: &str) -> bool {
         self.fonts.collection.family_id(&name.replace('"', "")).is_some()
@@ -147,18 +162,22 @@ mod tests {
             ("Calibri", "Carlito"),
             ("calibri light", "Carlito"),
             ("Cambria", "Caladea"),
-            ("Georgia", "Georgia"),
         ] {
             assert_eq!(
-                family_stack(face, None),
+                family_stack(face, &[], None, |_| false),
                 format!("\"{face}\", \"{alias}\", \"DejaVu Sans\", \"Liberation Sans\", \"Noto Sans CJK JP\"")
             );
         }
+        // A face without an alias is named once.
+        assert_eq!(
+            family_stack("Georgia", &[], None, |_| false),
+            "\"Georgia\", \"DejaVu Sans\", \"Liberation Sans\", \"Noto Sans CJK JP\""
+        );
     }
 
     #[test]
     fn strips_quotes_from_face_names() {
-        assert!(family_stack("A\"rial", None).starts_with("\"Arial\", "));
+        assert!(family_stack("A\"rial", &[], None, |_| false).starts_with("\"Arial\", "));
     }
 
     #[test]
@@ -176,7 +195,11 @@ mod tests {
             (Some("en-US"), ""),
             (None, ""),
         ] {
-            assert_eq!(family_stack("Arial", lang), format!("\"Arial\", \"Liberation Sans\", {cjk}{tail}"), "{lang:?}");
+            assert_eq!(
+                family_stack("Arial", &[], lang, |_| false),
+                format!("\"Arial\", \"Liberation Sans\", {cjk}{tail}"),
+                "{lang:?}"
+            );
         }
     }
 
@@ -198,19 +221,61 @@ mod tests {
                 language: lang.map(String::from),
                 ..build::run("中", "Arial", 30.0)
             };
-            let mut layout = BoxLayout::default();
-            r.fit_text(&build::text_box(vec![build::paragraph(vec![run], 36.0, 30.0)]), 400.0, 100.0, &mut layout);
-            let line = layout.paras[0].layout.lines().next().expect("one line");
-            let Some(parley::PositionedLayoutItem::GlyphRun(glyph_run)) = line.items().next() else {
-                panic!("the line starts with a glyph run");
-            };
-            let font = glyph_run.run().font();
-            let name = FontRef::from_index(font.data.as_ref(), font.index)
-                .ok()
-                .and_then(|f| f.localized_strings(StringId::FAMILY_NAME).english_or_first())
-                .map(|name| name.to_string());
-            assert_eq!(name.as_deref(), Some(family), "{lang:?}");
+            assert_eq!(first_glyph_family(&mut r, run).as_deref(), Some(family), "{lang:?}");
         }
+    }
+
+    /// The family of the face `r` draws the first glyph of `run` in.
+    fn first_glyph_family(r: &mut Renderer, run: Run) -> Option<String> {
+        let mut layout = BoxLayout::default();
+        r.fit_text(&build::text_box(vec![build::paragraph(vec![run], 36.0, 30.0)]), 400.0, 100.0, &mut layout);
+        let line = layout.paras[0].layout.lines().next().expect("one line");
+        let Some(parley::PositionedLayoutItem::GlyphRun(glyph_run)) = line.items().next() else {
+            panic!("the line starts with a glyph run");
+        };
+        let font = glyph_run.run().font();
+        FontRef::from_index(font.data.as_ref(), font.index)
+            .ok()
+            .and_then(|f| f.localized_strings(StringId::FAMILY_NAME).english_or_first())
+            .map(|name| name.to_string())
+    }
+
+    #[test]
+    fn puts_the_run_fallback_faces_after_its_face_with_their_aliases() {
+        let chain = ["Arial", "Cambria Math"].map(String::from);
+        assert_eq!(
+            family_stack("Calibri", &chain, Some("zh-CN"), |_| false),
+            r#""Calibri", "Carlito", "Arial", "Liberation Sans", "Cambria Math", "Noto Sans CJK SC", "DejaVu Sans", "Liberation Sans", "Noto Sans CJK JP""#
+        );
+        // An installed face takes no alias: what it lacks goes down the chain, as in Chromium.
+        let chain = ["Cambria Math"].map(String::from);
+        assert_eq!(
+            family_stack("Arial", &chain, None, |family| family == "Arial"),
+            r#""Arial", "Cambria Math", "DejaVu Sans", "Liberation Sans", "Noto Sans CJK JP""#
+        );
+    }
+
+    #[test]
+    fn draws_a_character_in_the_first_fallback_face_that_has_a_font() {
+        let (Some(sans), Some(cjk)) = (liberation_sans(), noto_sans_cjk()) else {
+            return eprintln!("Liberation Sans or Noto Sans CJK not installed: fallback faces not checked");
+        };
+        let mut r = Renderer::new();
+        r.add_font(sans);
+        r.add_font(cjk);
+        // No font for Yu Gothic or PMingLiU: the chain falls through to its next face, ahead of the lang's.
+        let run = Run {
+            fallback_faces: ["Yu Gothic", "PMingLiU", "Noto Sans CJK KR"].map(String::from).to_vec(),
+            language: Some("zh-CN".into()),
+            ..build::run("中", "Arial", 30.0)
+        };
+        assert_eq!(first_glyph_family(&mut r, run).as_deref(), Some("Noto Sans CJK KR"));
+        // No face of the chain has a font: the renderer's own fallback, as without a chain.
+        let run = Run {
+            fallback_faces: ["Yu Gothic", "PMingLiU"].map(String::from).to_vec(),
+            ..build::run("中", "Arial", 30.0)
+        };
+        assert_eq!(first_glyph_family(&mut r, run).as_deref(), Some("Noto Sans CJK JP"));
     }
 
     #[test]
