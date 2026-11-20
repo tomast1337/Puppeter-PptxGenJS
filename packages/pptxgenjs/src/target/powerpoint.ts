@@ -27,7 +27,9 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * first paragraph's space before: with `paraSpaceBefore: 12` the first baseline is 17.05pt below the top inset,
  * as without it. With explicit line spacing it puts each baseline at 0.75 of the line height H, whatever the font
  * and size: a least-squares fit of its PDF export (Arial and Calibri, 12 and 18pt, x0.8 to x2.0 and exact 12 to
- * 30pt) gives 0.7524 H, every baseline within 0.1pt. With single spacing the line is 1.2x its largest size and each
+ * 30pt) gives 0.7524 H, every baseline within 0.1pt. The text then ends at the last baseline plus the fonts'
+ * single-spaced descent, not at the bottom of the last line, which sizes a table row to its text (normalize/text.ts
+ * spacedLineEndOffset); a line spacing exactly as tall as the single line is single spacing. With single spacing the line is 1.2x its largest size and each
  * run reaches 1.2x its size split by its font's winAscent : winDescent (FONT_WIN_METRICS) above and below the
  * baseline; the baseline is the largest ascent, scaled down with the largest descent when the two overflow the line.
  * Measured: Arial 0.972-0.975em (predicted 0.9724), Calibri 0.936-0.939em (0.936), an Arial and a Calibri run of

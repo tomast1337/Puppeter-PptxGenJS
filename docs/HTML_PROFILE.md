@@ -786,7 +786,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextParagraph.lineBox.markBaseline`  | profile | `data-mark-baseline` on the paragraph (px from the last line's top), verbatim; omitted when absent.                        |
 | `NormalizedTextParagraph.lineBox.breakBaseline` | profile | `data-break-baseline` on the paragraph (px from the top of a line ending in a soft break), verbatim; omitted when absent.  |
 | `NormalizedTextParagraph.spaceBefore`           | profile | `margin-top`; the PowerPoint target adds the previous paragraph's space after, and has `0px` on the first paragraph.       |
-| `NormalizedTextParagraph.spaceAfter`            | profile | `margin-bottom`; `0px` on a box's last paragraph, and on every paragraph with the PowerPoint target, which adds the two.   |
+| `NormalizedTextParagraph.spaceAfter`            | profile | `margin-bottom`; `0px` on a box's last paragraph (PowerPoint: on all, but below 0 where spaced text ends early).           |
 | `NormalizedTextParagraph.tabStops`              | profile | `data-tab-stops="<position>:<alignment>,…"`, omitted when empty.                                                           |
 | `NormalizedTextParagraph.tabStops[].position`   | profile | `<position>` in `data-tab-stops`, px.                                                                                      |
 | `NormalizedTextParagraph.tabStops[].alignment`  | profile | `<alignment>` in `data-tab-stops`.                                                                                         |

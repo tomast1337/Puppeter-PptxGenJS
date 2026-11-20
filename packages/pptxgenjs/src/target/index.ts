@@ -25,7 +25,8 @@ export interface RenderingTargetProfile {
     readonly spacedLineBaseline: number | undefined;
     /**
      * Whether a single-spaced line's baseline comes from its fonts' FONT_WIN_METRICS, or sits `text.lineDescentEm` above
-     * its bottom whatever the font.
+     * its bottom whatever the font. With it, spaced text also ends at its last baseline plus those fonts' descent, and a
+     * line spacing as tall as the single line is single spacing.
      */
     readonly fontLineBaseline: boolean;
     /**

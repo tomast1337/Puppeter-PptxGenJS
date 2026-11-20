@@ -253,8 +253,13 @@ spacing.
 
 With explicit line spacing (`lineSpacing`, or a `lineSpacingMultiple` other
 than 1), PowerPoint puts each line's baseline at 0.75 of the line height,
-whatever the font and size, and so does the PowerPoint target. The LibreOffice
-target keeps LibreOffice's baseline, 0.2em above the line's bottom.
+whatever the font and size, and so does the PowerPoint target. The text ends
+at the last baseline plus the fonts' single-spaced descent, not at the last
+line's bottom, so a table row sized to its text is that much shorter: 8pt Arial
+in 12pt lines makes a 10.82pt row. A `lineSpacing` exactly as tall as the
+single line (12pt at 10pt) is single spacing. The LibreOffice target keeps
+LibreOffice's baseline, 0.2em above the line's bottom, and ends at the line's
+bottom.
 
 With single spacing, PowerPoint makes each line 1.2x its largest run's size
 and splits each run's 1.2x between ascent and descent in its font's OS/2

@@ -244,18 +244,40 @@ describe("rendering targets", () => {
         expect(cell(new PuppeteerGenLibreOffice())).toEqual([0, 0]);
 
         // Shape text: 13pt = 17.333px lines; 2pt = 2.667px on the second paragraph with PowerPoint, 1.5pt = 2px after the
-        // first with LibreOffice.
+        // first with LibreOffice. PowerPoint ends the text 0.08pt (0.149px) above the last line's bottom, at its baseline
+        // (9.75pt) plus Calibri's single-spaced descent (3.17pt).
         const margins = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText("One\nTwo", { shape: "rect", x: 1, y: 1, w: 3, h: 2, fontSize: 12, paraSpaceAfter: 1.5, lineSpacing: 12.5 });
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*?margin-top: ([^;]*); margin-bottom: ([^;]*); line-height: ([^;]*);/g)].map(match => match.slice(1).join(" "));
         };
-        expect(await margins(new PuppeteerGenPowerPoint())).toEqual([expect.stringMatching(/^0px 0px 17\.333\d*px$/), expect.stringMatching(/^2\.666\d*px 0px 17\.333\d*px$/)]);
+        expect(await margins(new PuppeteerGenPowerPoint())).toEqual([expect.stringMatching(/^0px 0px 17\.333\d*px$/), expect.stringMatching(/^2\.666\d*px -0\.149\d*px 17\.333\d*px$/)]);
         expect(await margins(new PuppeteerGenLibreOffice())).toEqual([expect.stringMatching(/^0px 2px 16\.666\d*px$/), expect.stringMatching(/^0px 0px 16\.666\d*px$/)]);
     });
 
     // Measured against PowerPoint's PDF export (#234; baseline below the line top): Arial 0.972-0.975em, Calibri
     // 0.936-0.939em, Arial 12/32/18 on one line 31.1pt, an Arial and a Calibri 18pt run on one line 17.04pt. Each value
     // is the rule's (in the comments) on the 0.12pt baseline grid.
+    // Measured against PowerPoint's PDF export of a synthetic deck (one-line Arial cells in rows sized to their text,
+    // margin 0, the row's height is where the text ends): 8pt in 12pt lines 10.82pt with its baseline 9pt down, 10pt at
+    // 1.2x 13.08 and 10.8, 10pt in 12pt lines (the single line's height) 12 and 9.72, as single spaced.
+    test("the PowerPoint target ends spaced text at its last baseline plus the fonts' single-spaced descent; LibreOffice at the line's bottom", () => {
+        const end = (options: Parameters<typeof normalizeText>[1], target: "powerpoint" | "libreoffice") => {
+            const { lineBox, spaceAfter } = normalizeText("Line", { fontFace: "Arial", ...options }, target).paragraphs[0]!;
+            return [lineBox.baseline, lineBox.height + spaceAfter].map(px => Math.round(px * 0.75 * 100) / 100);
+        };
+        const cases: [Parameters<typeof normalizeText>[1], number[], number[]][] = [
+            // options, PowerPoint [baseline, end] (pt), LibreOffice [baseline, end]
+            [{ fontSize: 8, lineSpacing: 12 }, [9, 10.82], [10.4, 12]],
+            [{ fontSize: 10, lineSpacingMultiple: 1.2 }, [10.8, 13.08], [12.4, 14.4]],
+            [{ fontSize: 10, lineSpacing: 12 }, [9.72, 12], [10, 12]],
+            [{ fontSize: 10 }, [9.72, 12], [10, 12]],
+        ];
+        for (const [options, powerPoint, libreOffice] of cases) {
+            expect(end(options, "powerpoint")).toEqual(powerPoint);
+            expect(end(options, "libreoffice")).toEqual(libreOffice);
+        }
+    });
+
     test("with single spacing the PowerPoint target puts the baseline at the fonts' winAscent share of the line; LibreOffice at 1em", async () => {
         expect(FONT_WIN_METRICS.arial).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
         expect(FONT_WIN_METRICS.calibri).toEqual({ unitsPerEm: 2048, winAscent: 1950, winDescent: 550, pairKerning: true });
