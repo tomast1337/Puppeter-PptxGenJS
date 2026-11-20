@@ -121,22 +121,23 @@ function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fo
 
 /**
  * The letter-spacing in px of a run's spaces and of each of its words: `charSpacing`, plus on a target with an advance
- * grid the rounding of the run's advances to it (advanceGridWordSpacing) at the size it is drawn at, reduced when
- * `escaped`. A run of one word takes that word's; without a grid, or advances for the run's face, weight and style,
+ * grid the rounding of the run's advances to it, and its pair kerning when `kerned` (advanceGridWordSpacing), at the
+ * size it is drawn at, reduced when `escaped`. A run of one word takes that word's; without a grid, or advances for the run's face, weight and style,
  * every character takes `charSpacing`.
  */
-function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: boolean, target: RenderingTarget, fontMetrics: FontMetricsLookup): Pick<NormalizedTextRun, "characterSpacing" | "wordCharacterSpacing"> {
+function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: boolean, target: RenderingTarget, fontMetrics: FontMetricsLookup): Pick<NormalizedTextRun, "characterSpacing" | "wordCharacterSpacing" | "spaceCharacterSpacing"> {
     const { advanceGridPt, escapementSizeRatio } = RENDERING_TARGETS[target];
     const charSpacing = options.charSpacing ?? 0;
     const sizePt = (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) * (escaped ? escapementSizeRatio : 1);
     const font = advanceGridPt === undefined ? undefined : fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
     // A U+2011 drawn with the hyphen-minus glyph takes its advance.
     const drawn = RENDERING_TARGETS[target].nonBreakingHyphen === "hyphen-minus" ? text.replaceAll(NON_BREAKING_HYPHEN, "-") : text;
-    const spacing = advanceGridWordSpacing(drawn, sizePt, font, advanceGridPt, charSpacing);
+    const spacing = advanceGridWordSpacing(drawn, sizePt, font, advanceGridPt, charSpacing, kerned(options, target, fontMetrics));
     if (!spacing) return { characterSpacing: pointsToPixels(charSpacing) };
     const [word, ...others] = spacing.words;
     if (word !== undefined && !others.length && runPieces(text).length === 1) return { characterSpacing: word };
-    return { characterSpacing: spacing.space, ...(spacing.words.length ? { wordCharacterSpacing: spacing.words } : {}) };
+    if (!spacing.words.length) return { characterSpacing: spacing.space };
+    return { characterSpacing: spacing.space, wordCharacterSpacing: spacing.words, ...(spacing.spaces ? { spaceCharacterSpacing: spacing.spaces } : {}) };
 }
 
 /** A run's font size in px, before any superscript or subscript reduction. */

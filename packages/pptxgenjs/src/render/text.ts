@@ -1,6 +1,6 @@
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "#src/defaults";
-import { isWord, runPieces } from "#src/normalize/advanceGrid";
+import { isSpaces, isWord, runPieces } from "#src/normalize/advanceGrid";
 import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, escapeText, type Html, voidElement } from "./markup";
 import { shadowInsetAttribute } from "./style";
@@ -65,17 +65,25 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
 
 /**
  * The run's text, each word in a span of its own letter-spacing when the run has `wordCharacterSpacing`; the spaces
- * and tabs between stay in the run, with its letter-spacing.
+ * and tabs between stay in the run, with its letter-spacing, except a stretch of spaces whose `spaceCharacterSpacing`
+ * differs from it, in a span of its own.
  */
 function runContent(run: NormalizedTextRun): Html | Html[] {
     const spacings = run.wordCharacterSpacing;
     if (!spacings) return escapeText(run.text || EMPTY_RUN_TEXT);
+    const span = (spacing: number, piece: string) => element("span", [styleAttribute(new Map([["letter-spacing", `${spacing}px`]]))], escapeText(piece));
     let word = 0;
+    let spaces = 0;
     return runPieces(run.text).map(piece => {
+        if (isSpaces(piece) && run.spaceCharacterSpacing) {
+            const spacing = run.spaceCharacterSpacing[spaces++];
+            if (spacing === undefined) throw new Error(`A text run has ${run.spaceCharacterSpacing.length} spaceCharacterSpacing values but more stretches of spaces: "${run.text}"; give one value per stretch`);
+            return spacing === run.characterSpacing ? escapeText(piece) : span(spacing, piece);
+        }
         if (!isWord(piece)) return escapeText(piece);
         const spacing = spacings[word++];
         if (spacing === undefined) throw new Error(`A text run has ${spacings.length} wordCharacterSpacing values but more words: "${run.text}"; give one value per word`);
-        return element("span", [styleAttribute(new Map([["letter-spacing", `${spacing}px`]]))], escapeText(piece));
+        return span(spacing, piece);
     });
 }
 

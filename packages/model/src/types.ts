@@ -132,6 +132,12 @@ export interface NormalizedTextRun {
      * without a space (U+0020) or tab. Omitted: `characterSpacing` spaces every character.
      */
     wordCharacterSpacing?: readonly number[];
+    /**
+     * The extra advance in px on each stretch of spaces between words of `text` (a tab ends one), in order, in place
+     * of `characterSpacing`: the PowerPoint target's pairs kerned on a space (Arial's " T"), with `wordCharacterSpacing`.
+     * Omitted: `characterSpacing` spaces them.
+     */
+    spaceCharacterSpacing?: readonly number[];
     /** `false`: drawn without the font's pair kerning (PowerPoint, below the run's `kern` size); omitted: kerned. */
     kerning?: false;
     /** On a bold run: the stroke width, as a fraction of `fontSize`, that emboldens a face with no bold; omitted: the renderer's own. */
