@@ -22,10 +22,18 @@ describe("Han next to Latin text on the advance grid", () => {
         expect(fullWidthStretches("根据条款(ii)将会执行", LATIN)).toEqual(["根据条款", "(ii)", "将会执行"]);
         expect(fullWidthStretches("参见Alpha「Beta」，1999", LATIN)).toEqual(["参见", "Alpha", "「", "Beta", "」，", "1999"]);
         expect(fullWidthStretches("Alpha Beta", LATIN)).toEqual(["Alpha Beta"]);
+        expect(fullWidthStretches("", LATIN)).toEqual([""]);
         // A break marker stays with the stretch before it, and a face that maps Han draws it itself: no cut.
         expect(fullWidthStretches("​参见​1999​（", LATIN)).toEqual(["​参见​", "1999​", "（"]);
         const han: GlyphAdvances = { ...LATIN, advances: new Map([...LATIN.advances, ["参".codePointAt(0) ?? 0, 2048]]) };
         expect(fullWidthStretches("参1999", han)).toEqual(["参1999"]);
+    });
+
+    test("keeps an empty paragraph's run when the face's advances are known", async () => {
+        const pres = new PuppeteerGenPowerPoint(undefined, { resolveGlyphAdvances: () => LATIN });
+        pres.addSlide().addText("1\n\n2", { x: 1, y: 1, w: 4, h: 1, fontFace: "Arial", fontSize: 10 });
+        const paragraphs = pres.getModel().slides[0]?.objects.flatMap(object => (object.kind === "text" ? object.text.paragraphs : []));
+        expect(paragraphs?.map(paragraph => paragraph.runs.map(run => run.text))).toEqual([["1"], [""], ["2"]]);
     });
 
     test("counts Han and full-width marks the face does not map as 1em, as the fallback face draws them", () => {
