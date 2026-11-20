@@ -99,9 +99,9 @@ describe("advanceGridWordSpacing", () => {
         expect(laidOut(natural(455), 1, i ?? 0)).toBe(725 / 64 - 6 - (3 + LAYOUT_UNIT));
     });
 
-    test("keeps every line of a long run within 3/64 px under its rounded width, never over, in Arial and charSpacing", () => {
-        const font = resolveInstalledGlyphAdvances("Arial", false, false);
-        if (!font) return console.warn("Arial is not installed: the long-run sums are not checked");
+    const font = resolveInstalledGlyphAdvances("Arial", false, false);
+    test.skipIf(!font)("keeps every line of a long run within 3/64 px under its rounded width, never over, in Arial and charSpacing", () => {
+        if (!font) throw new Error("unreachable: skipped without Arial");
         const text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         for (const [fontSize, charSpacing] of [
             [7, 0],

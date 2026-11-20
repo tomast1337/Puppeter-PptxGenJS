@@ -275,9 +275,8 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
     // The PowerPoint target lays each word out at its advances rounded to 0.125pt: a last line exactly as wide as its
     // box or 0.125pt narrower fits, 0.125pt wider wraps, as in PowerPoint and Chromium (tests/advanceGrid.test.ts).
-    test("breaks the PowerPoint target's lines at the box's width by the rounded advances, as PowerPoint does", async () => {
-        const arial = (bold: boolean) => resolveInstalledGlyphAdvances("Arial", bold, false);
-        if (!arial(false) || !arial(true)) return console.warn("Arial is not installed: the PowerPoint wrap limit is not checked");
+    const arial = (bold: boolean) => resolveInstalledGlyphAdvances("Arial", bold, false);
+    test.skipIf(!arial(false) || !arial(true))("breaks the PowerPoint target's lines at the box's width by the rounded advances, as PowerPoint does", async () => {
         const cases = wrapLimitCases(bold => arial(bold) ?? { unitsPerEm: 1, advances: new Map() });
         const deck = await wrapLimitDeck(new PuppeteerGenPowerPoint(), cases).toHtml();
         const pdf = Buffer.from(await (await createWasmRenderer({ fonts: systemFonts })).render(deck));
