@@ -25,7 +25,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=22",
+    "node": ">=22.12",
     "bun": ">=1.2.0"
   },
   "repository": {
@@ -52,6 +52,6 @@
   "dependencies": {
     "@pdflapas/model": "workspace:*",
     "parse5": "7.3.0",
-    "puppeteer": "^24.15.0"
+    "puppeteer": "^25.18.1"
   }
 }

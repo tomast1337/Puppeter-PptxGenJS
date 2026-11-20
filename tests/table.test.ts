@@ -249,14 +249,20 @@ describe("table rendering", () => {
             { x: 1, y: 1, w: 4, fontFace: "Arial" },
         );
         slide.addTable([[{ text: "E", options: { border: [dash, { type: "none" }, dash, { type: "none" }] } }]], { x: 1, y: 3, w: 4, fontFace: "Arial" });
-        const content = pdfContent(await presentation.toPdf());
+        const pdf = await presentation.toPdf();
+        const content = pdfContent(pdf);
 
         // Three row lines and three column lines of the grid, then the dashed top and bottom, one subpath per dash.
         const strokes = content.match(/(?:[-\d. ]+ [ml]\n)+S\n/g) ?? [];
         expect(strokes).toHaveLength(8);
         expect(strokes.slice(-2).every(path => (path.match(/ m\n/g) ?? []).length > 1)).toBe(true);
-        // The only filled rectangle is the slide background.
-        expect(content.match(/ re\nf\n/g)).toHaveLength(1);
+        // The only visible filled rectangle is the slide background. Since Chromium 157 Skia still writes the transparent
+        // CSS borders, as fills under a graphics state with /ca 0, so those are left out of the count.
+        const raw = Buffer.from(pdf).toString("latin1");
+        const transparent = new Set([...raw.matchAll(/(\d+) 0 obj\s*<<\/ca 0\b/g)].map(([, id]) => id));
+        const invisible = new Set([...raw.matchAll(/\/(G\d+) (\d+) 0 R/g)].filter(([, , id]) => transparent.has(id)).map(([, name]) => name));
+        const painted = content.split(/\/(G\d+) gs\n/).filter((segment, index, parts) => index % 2 === 0 && !(index > 0 && invisible.has(parts[index - 1] ?? "")));
+        expect(painted.join("").match(/ re\nf\n/g)).toHaveLength(1);
     }, 60_000);
 
     // PptxGenJS writes <a:tr h> and PowerPoint and LibreOffice grow the row to its text, so the text stays in flow.
