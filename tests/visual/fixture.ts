@@ -270,6 +270,8 @@ const GENERATED_ASPECT_CASES = GENERATED_ASPECT_NAMES.flatMap((shape, index) => 
 });
 const TABLE_CASES = [
     { page: 46, name: "table-sizing-spans", x: 0.5, y: 1, w: 9, h: 2.65 },
+    // A merged cell taller than its rows lengthens its last row only (render/table.ts mergedCellEnds).
+    { page: 46, name: "table-merged-row-grow", x: 0.4, y: 3.9, w: 4.6, h: 1.65 },
     { page: 47, name: "table-inheritance", x: 0.5, y: 1, w: 4.25, h: 3.15 },
     { page: 47, name: "table-cell-options", x: 5.25, y: 1, w: 4.25, h: 3.15 },
 ] as const;
@@ -1627,6 +1629,20 @@ export function populateParityFixture(presentation: Presentation): void {
             margin: 0.08,
             border: { type: "solid", color: "7F8C8D", pt: 1 },
         },
+    );
+
+    // Rows sized to their text (19.2pt), the first column merged in pairs holding 3 lines (43.2pt for 38.4): PowerPoint
+    // and LibreOffice make each pair 19.2 and 24.0. A header row first: LibreOffice gives a pair that starts the table
+    // the merged cell's whole height on its last row (19.2 and 43.2), which PowerPoint does not.
+    const mergedMargin: [number, number, number, number] = [3.6, 7.2, 3.6, 7.2];
+    const mergedBorder: [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps] = [{ type: "none" }, { type: "none" }, { type: "solid", pt: 0.6, color: "FFFFFF" }, { type: "none" }];
+    sizingTableSlide.addTable(
+        [0, 1, 2, 3, 4].map(row => {
+            const options = { fill: { color: ["3B3838", "1F4E79", "C55A11", "548235", "7030A0"][row] ?? "1F4E79" }, color: "FFFFFF", margin: mergedMargin, border: mergedBorder };
+            if (row === 0) return ["Head", "Amet", "Tempor"].map(text => ({ text, options: { ...options, bold: true } }));
+            return [...(row % 2 === 1 ? [{ text: "Lorem\nIpsum\nDolor", options: { ...options, rowspan: 2 } }] : []), { text: "Amet", options }, { text: "Tempor", options }];
+        }),
+        { x: 0.5, y: 4, colW: [1.2, 1.6, 1.6], rowH: 0.1, fontFace: "Arial", fontSize: 10, valign: "middle" },
     );
 
     const cellOptionsSlide = presentation.addSlide();
