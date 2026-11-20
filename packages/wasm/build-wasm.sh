@@ -58,7 +58,8 @@ root=$PWD
 # +235 B: synthetic bold and italic follow the run's data-synthetic-bold and data-synthetic-italic, Chromium's 1/32 em stroke and 0.25 shear when omitted (#290: the two attributes and their errors), 1,054,573 -> 1,054,808 B measured; budget = that size.
 # +69 B: a td must have padding 0px, the cell margin being its text's padding (#291: the check and its error message), 1,054,808 -> 1,054,877 B measured; budget = that size.
 # +2,288 B: the caller's Creator, Producer, Keywords and dates (pdfMetadata: the profile's ISO date reader and krilla's date and keyword writers, Info and XMP, now reachable), 1,054,877 -> 1,057,165 B measured; budget = that size.
-GZIP_BUDGET=1057165
+# +411 B: a line as wide as its box stays on it, by Blink's LayoutUnit fit test (#288: the line breaking loop with its own fit and alignment widths), 1,057,165 -> 1,057,576 B measured; budget = that size.
+GZIP_BUDGET=1057576
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

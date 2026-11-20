@@ -237,6 +237,39 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         expect(wasm).toEqual(chromium.map(height => expect.closeTo(height, 1)));
     });
 
+    // Arial 32px "mmmm mmmm" is 222.140625px from its advances. In a box exactly that wide, with or without
+    // letter spacing or insets whose px carry float noise, Chromium keeps one line and WASM wrapped "mmmm" (#288).
+    test("breaks a line as wide as its box where Chromium does", async () => {
+        const renderer = await createWasmRenderer({ fonts: systemFonts });
+        const cases: [string, PptxGenJS.TextPropsOptions][] = [
+            ["exact", { w: 222.140625 / 96, margin: 0 }],
+            ["0.1in insets", { w: (222.140625 + 19.2) / 96, margin: 7.2 }],
+            ["letter spacing", { w: (222.140625 + 9 * 0.4) / 96, margin: 0, charSpacing: 0.3 }],
+            ["a hair narrower", { w: (222.140625 - 0.04) / 96, margin: 0 }],
+        ];
+        for (const [name, options] of cases) {
+            const pres = new PuppeteerGen(PAGE, { renderer });
+            pres.addSlide().addText("mmmm mmmm", { x: 1, y: 1, h: 1, fontFace: "Arial", fontSize: 24, ...options });
+            const deck = await pres.toHtml();
+            const chromium = await withBrowser(async browser => {
+                const page = await browser.newPage();
+                try {
+                    await page.setContent(printHtml(deck.html));
+                    // The run's lines: its client rects' distinct tops (a hanging space can take a rect of its own).
+                    return await page.evaluate(() => new Set([...(document.querySelector(".text-run")?.getClientRects() ?? [])].map(rect => Math.round(rect.top))).size);
+                } finally {
+                    await page.close();
+                }
+            });
+            const pdf = Buffer.from(await renderer.render(deck));
+            const contents = ascii(pdf).match(/\/Contents (\d+) 0 R/)?.[1];
+            const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
+            const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
+            // One text object per drawn line.
+            expect({ name, lines: content.match(/\bBT\b/g)?.length }).toEqual({ name, lines: chromium });
+        }
+    });
+
     test("follows the PowerPoint target's font-kerning: none, so the unkerned runs move", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pdf = async (pres: PuppeteerGen) => {

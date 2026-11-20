@@ -338,6 +338,17 @@ export const KERNING_CASES = [
     text: KERNING_TEXT,
     options: { x: 0.75 + index * 3.125, y: 1.25, w, h: 0.75, fontSize, margin: 0, valign: "top" as const, fill: { color: "F2F2F2" } },
 }));
+/**
+ * A line exactly as wide as its text area: Arial (Liberation Sans) 24pt "mmmm mmmm" is 222.140625px from its
+ * advances, inside 0.1in (9.6px) insets whose px carry float noise. Chromium, PowerPoint and LibreOffice keep it on
+ * one line; WASM wrapped "mmmm" (#288).
+ */
+const EXACT_FIT_CASE = {
+    name: "text-exact-fit-inset",
+    label: "line exactly as wide as the text area, 0.1in insets",
+    text: "mmmm mmmm",
+    options: { x: 0.75, y: 3, w: (222.140625 + 2 * 9.6) / 96, h: 0.75, fontSize: 24, margin: 7.2, valign: "top" as const, fill: { color: "F2F2F2" } },
+};
 const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCase[] }[] = [
     {
         // PptxGenJS 4.0.1 reads a string `line` and lineSize/lineDash/lineHead/lineTail only for shape "line".
@@ -423,7 +434,7 @@ const TEXT_OPTION_SLIDES: readonly { title: string; cases: readonly TextOptionCa
             },
         ],
     },
-    { title: "Kerning-sensitive wrapping", cases: KERNING_CASES },
+    { title: "Kerning-sensitive wrapping", cases: [...KERNING_CASES, EXACT_FIT_CASE] },
     {
         // PptxGenJS 4.0.1 writes `underline.style` as <a:rPr u="...">; the HTML carries it as text-decoration-style.
         title: "Underline styles",
