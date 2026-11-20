@@ -27,7 +27,7 @@ export function createShaper(faces: readonly Face[]): Shaper {
     const advances = new Map<string, number>();
     return {
         chain(request) {
-            const key = `${request.family}\u0000${request.bold}\u0000${request.italic}`;
+            const key = [request.family, ...request.fallbacks, request.lang ?? "", request.bold, request.italic].join("\u0000");
             let chain = chains.get(key);
             if (!chain) {
                 chain = faceChain(faces, request);

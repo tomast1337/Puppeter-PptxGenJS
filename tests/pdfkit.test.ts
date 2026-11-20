@@ -168,11 +168,53 @@ describe("PDFKit renderer", () => {
         const populate = (pres: PuppeteerGen) => pres.addSlide().addText("Same", { x: 1, y: 1, w: 2, h: 1 });
         const pdf = Buffer.from(await render(renderer, populate));
         expect(pdf.equals(Buffer.from(await render(renderer, populate)))).toBe(true);
-        // PDFKit always writes a creation date: the fixed epoch keeps the bytes (and the file ID) stable.
+        // PDFKit derives the file ID from a date: the fixed epoch keeps it stable, and the Info dictionary has no date.
         const source = pdf.toString("latin1");
-        expect(source).toMatch(/\/Producer \d+ 0 R\n\/Creator \d+ 0 R\n\/CreationDate \d+ 0 R/);
+        expect(source).toMatch(/\/Producer \d+ 0 R\n\/Creator \d+ 0 R\n>>/);
         expect(source).toContain("(PdfLapas)");
-        expect(source).toContain("(D:19700101000000Z)");
+        expect(source).not.toContain("/CreationDate");
+    });
+
+    test("writes the deck's PDF properties, a date alone as both dates, and refuses a date that is not UTC ISO", async () => {
+        const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+        const pres = new PuppeteerGen(PAGE, { renderer, createDocument, pdfMetadata: { keywords: "a, b", creator: "Maker", producer: "Press", creationDate: new Date("2026-11-19T12:34:56.789Z") } });
+        pres.addSlide();
+        const source = Buffer.from(await pres.toPdf()).toString("latin1");
+        for (const value of ["(a, b)", "(Maker)", "(Press)"]) expect(source).toContain(value);
+        expect(source.match(/\(D:20261119123456Z\)/g)?.length).toBe(2);
+        const document = await pres.toHtml();
+        const html = document.html.replace("2026-11-19T12:34:56.789Z", "2026-11-19T12:34:56+01:00");
+        await expect(renderer.render({ ...document, html })).rejects.toThrow('"2026-11-19T12:34:56+01:00" is not a UTC date');
+    });
+
+    test("reads the PowerPoint target's word spans, fallback faces and non-breaking hyphen", async () => {
+        const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+        const pres = new PuppeteerGen(PAGE, { renderer, createDocument, target: "powerpoint" });
+        pres.addSlide().addText("Lorem ipsum dolor sit amet non\u2011breaking", { x: 1, y: 1, w: 6, h: 1, fontFace: "Arial", fontSize: 10, margin: 0 });
+        const document = await pres.toHtml();
+        expect(document.html).toContain("font-family: &quot;Arial&quot;, &quot;Cambria Math&quot;");
+        expect(document.html).toContain('data-non-breaking-hyphen="hyphen-minus"');
+        // Word spans as the profile writes them under 12pt for a face whose advances are known.
+        const html = document.html.replace(">Lorem ipsum", '><span style="letter-spacing: 1.5px;">Lorem</span> <span style="letter-spacing: 0.5px;">ipsum</span>');
+        const content = pageContents(await renderer.render({ ...document, html }))[0] ?? "";
+        expect(renderer.warnings()).toEqual([]);
+        // Each word at its own spacing (Tc); PDFKit writes none for the bare text's, the run's 0.
+        expect([...content.matchAll(/([\d.-]+) Tc/g)].map(match => match[1])).toEqual(["1.5", "0.5"]);
+        const doc = new PuppeteerGen(PAGE, { renderer, createDocument, target: "powerpoint" });
+        doc.addSlide().addText("x", { x: 1, y: 1, w: 1, h: 1 });
+        const bare = await doc.toHtml();
+        await expect(renderer.render({ ...bare, html: bare.html.replace("font-family: &quot;", "font-family: Arial, &quot;") })).rejects.toThrow("is not one or more quoted families");
+    });
+
+    test("synthesizes bold and italic where the face has neither, as the HTML says", async () => {
+        const regularOnly = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
+        const renderer = await createPdfkitRenderer({ fonts: regularOnly });
+        const pdf = await render(renderer, pres => pres.addSlide().addText("Bold", { x: 1, y: 1, w: 2, h: 1, fontFace: "Arial", fontSize: 18, bold: true, italic: true, margin: 0 }));
+        const content = pageContents(pdf)[0] ?? "";
+        // The LibreOffice target writes a 1/30 em stroke (24 px / 30) and a 0.3462535606 shear about the baseline.
+        expect(content).toContain("0.8 w");
+        expect(content).toContain("2 Tr");
+        expect(content).toMatch(/1 0 -0\.34625\d* 1 [\d.]+ 0 cm/);
     });
 
     test("needs font bytes, and reads system fonts only under Node/Bun", async () => {

@@ -92,8 +92,26 @@ export function color(value: string | undefined): Color | undefined {
     return { rgb: [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])], alpha: rgb[4] === undefined ? 1 : Number(rgb[4]) };
 }
 
-/** A CSS string (`"Calibri"`) without its quotes and escapes; a bare identifier as written. */
-export function cssString(value: string): string {
-    const quoted = /^"((?:[^"\\]|\\.)*)"$/.exec(value);
-    return quoted?.[1] === undefined ? value : quoted[1].replace(/\\(.)/g, "$1");
+const CSS_STRING = /"((?:[^"\\]|\\.)*)"/y;
+const FAMILY_SEPARATOR = ", ";
+
+/**
+ * The families of a profile `font-family`: one or more CSS strings separated by `, ` (`"Calibri", "Arial"`), without
+ * their quotes and escapes. Undefined for anything else, a bare name included: those are the print step's.
+ */
+export function cssStrings(value: string): string[] | undefined {
+    const families: string[] = [];
+    let index = 0;
+    while (index < value.length) {
+        if (families.length) {
+            if (!value.startsWith(FAMILY_SEPARATOR, index)) return undefined;
+            index += FAMILY_SEPARATOR.length;
+        }
+        CSS_STRING.lastIndex = index;
+        const quoted = CSS_STRING.exec(value)?.[1];
+        if (quoted === undefined) return undefined;
+        families.push(quoted.replace(/\\(.)/g, "$1"));
+        index = CSS_STRING.lastIndex;
+    }
+    return families.length ? families : undefined;
 }

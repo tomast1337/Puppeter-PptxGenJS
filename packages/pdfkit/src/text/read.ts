@@ -1,7 +1,7 @@
 // Reads a text box of the profile (docs/HTML_PROFILE.md "Text") into the values the layout needs. Every inline
 // property and data-* attribute the renderer does not draw is reported through `report`, never dropped silently.
-import { type Color, color, cssString, px, readStyle, type Style, sides, take } from "#src/css";
-import { attribute, children, type Element, hasClass, textContent } from "#src/dom";
+import { type Color, color, cssStrings, px, readStyle, type Style, sides, take } from "#src/css";
+import { attribute, children, type Element, hasClass, isElement, textContent } from "#src/dom";
 import type { FaceRequest } from "#src/fonts";
 
 export interface Decoration {
@@ -25,6 +25,15 @@ export interface Run {
     readonly outline?: { readonly width: number; readonly color: Color };
     readonly link?: { readonly href?: string; readonly slide?: number };
     readonly softBreakBefore: boolean;
+    readonly synthesis: Synthesis;
+}
+
+/** How a run is drawn when its face has no bold or italic style (`data-synthetic-bold`, `data-synthetic-italic`). */
+export interface Synthesis {
+    /** The stroke drawn around the filled glyphs, as a fraction of the font size. */
+    readonly boldStroke: number;
+    /** The shear to the right per unit of height above the baseline. */
+    readonly italicShear: number;
 }
 
 export interface Bullet {
@@ -68,6 +77,14 @@ export type Report = (what: string) => void;
 const ALIGNS: ReadonlySet<string> = new Set(["left", "center", "right", "justify"]);
 const ANCHORS: ReadonlySet<string> = new Set(["flex-start", "center", "flex-end"]);
 const DECORATION_STYLES: ReadonlySet<string> = new Set(["solid", "double", "dashed", "dotted"]);
+/**
+ * Chromium's synthetic styles, the default for HTML that does not state them: pdf-core's
+ * CHROMIUM_SYNTHETIC_BOLD_STROKE_EM and CHROMIUM_SYNTHETIC_ITALIC_SHEAR, measured in Chromium's PDF output.
+ */
+const BROWSER_SYNTHESIS: Synthesis = Object.freeze({ boldStroke: 1 / 32, italicShear: 0.25 });
+/** U+002D then U+2060 WORD JOINER: a U+2011 in a run with `data-non-breaking-hyphen`, drawn with the face's hyphen and still unbreakable. */
+const HYPHEN_MINUS_NO_BREAK = "-\u2060";
+const NON_BREAKING_HYPHEN = /\u2011/g;
 /** Layout CSS that `toHtml()` writes for Chromium and that states no drawn value of its own. */
 const LAYOUT_ONLY: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze({
     content: new Set(["width"]),
@@ -97,8 +114,53 @@ function readColor(value: string | undefined, what: string, report: Report): Col
     return parsed;
 }
 
-function readFace(style: Style): FaceRequest {
-    return { family: cssString(take(style, "font-family") ?? ""), bold: take(style, "font-weight") === "bold", italic: take(style, "font-style") === "italic" };
+function readFace(element: Element, style: Style): FaceRequest {
+    const value = take(style, "font-family") ?? "";
+    const [family, ...fallbacks] = cssStrings(value) ?? [];
+    if (family === undefined) throw new Error(`invalid PdfLapas HTML: font-family '${value}' on <${element.tagName}> is not one or more quoted families separated by ', '`);
+    const lang = attribute(element, "lang");
+    return { family, fallbacks, ...(lang ? { lang } : {}), bold: take(style, "font-weight") === "bold", italic: take(style, "font-style") === "italic" };
+}
+
+function readSynthesis(element: Element): Synthesis {
+    const number = (name: string, fallback: number) => {
+        const value = attribute(element, name);
+        if (value === undefined) return fallback;
+        const parsed = Number(value);
+        if (value.trim() === "" || !Number.isFinite(parsed)) throw new Error(`invalid PdfLapas HTML: attribute '${name}' '${value}' is not a number`);
+        return parsed;
+    };
+    const boldStroke = number("data-synthetic-bold", BROWSER_SYNTHESIS.boldStroke);
+    if (boldStroke < 0) throw new Error(`invalid PdfLapas HTML: attribute 'data-synthetic-bold' ${boldStroke} is negative`);
+    return { boldStroke, italicShear: number("data-synthetic-italic", BROWSER_SYNTHESIS.italicShear) };
+}
+
+/**
+ * A run's text in pieces of one `letter-spacing` each: its bare text at the run's, each word span
+ * (`<span style="letter-spacing: ...">`, text only) at its own. U+2011 becomes U+002D U+2060 under `data-non-breaking-hyphen`.
+ */
+function runPieces(element: Element, letterSpacing: number): { text: string; letterSpacing: number; word: boolean }[] {
+    const hyphen = attribute(element, "data-non-breaking-hyphen");
+    if (hyphen !== undefined && hyphen !== "hyphen-minus") throw new Error(`invalid PdfLapas HTML: attribute 'data-non-breaking-hyphen' '${hyphen}' is not hyphen-minus`);
+    const text = (value: string) => (hyphen === undefined ? value : value.replace(NON_BREAKING_HYPHEN, HYPHEN_MINUS_NO_BREAK));
+    const pieces: { text: string; letterSpacing: number; word: boolean }[] = [];
+    for (const node of element.childNodes) {
+        if (!isElement(node)) {
+            const value = "value" in node ? node.value : "";
+            const last = pieces.at(-1);
+            // Bare text pieces next to each other share the run's spacing.
+            if (last && !last.word) last.text += text(value);
+            else pieces.push({ text: text(value), letterSpacing, word: false });
+            continue;
+        }
+        const style = readStyle(node);
+        const spacing = px(take(style, "letter-spacing"));
+        if (node.tagName !== "span" || node.attrs.length !== 1 || spacing === undefined || style.size || node.childNodes.some(isElement)) {
+            throw new Error(`invalid PdfLapas HTML: <${node.tagName}> inside a run; a run holds text and word spans, <span style="letter-spacing: <n>px;"> with text only`);
+        }
+        pieces.push({ text: text(textContent(node)), letterSpacing: spacing, word: true });
+    }
+    return pieces.filter(piece => piece.text);
 }
 
 function readDecorations(element: Element, style: Style, textColor: Color, report: Report): Pick<Run, "underline" | "strike"> {
@@ -131,7 +193,7 @@ function readOutline(value: string | undefined, report: Report): Run["outline"] 
     return { width, color: outlineColor };
 }
 
-function readRun(element: Element, report: Report): Run {
+function readRuns(element: Element, report: Report): Run[] {
     const style = readStyle(element);
     const runColor = requiredColor(take(style, "color"), "a run's color");
     const href = attribute(element, "href");
@@ -140,12 +202,13 @@ function readRun(element: Element, report: Report): Run {
     const top = px(take(style, "top")) ?? 0;
     if (position !== undefined && position !== "relative") report(`position '${position}' on a run is not drawn`);
     const highlight = readColor(take(style, "background-color"), "background-color", report);
+    const letterSpacing = px(take(style, "letter-spacing")) ?? 0;
     const run: Run = {
         text: textContent(element),
-        face: readFace(style),
+        face: readFace(element, style),
         size: required(px(take(style, "font-size")), "a run's font-size"),
         color: runColor,
-        letterSpacing: px(take(style, "letter-spacing")) ?? 0,
+        letterSpacing,
         kerning: take(style, "font-kerning") !== "none",
         ...readDecorations(element, style, runColor, report),
         shift: top,
@@ -153,16 +216,21 @@ function readRun(element: Element, report: Report): Run {
         ...(style.has("-webkit-text-stroke") ? { outline: readOutline(take(style, "-webkit-text-stroke"), report) } : {}),
         ...(href !== undefined || slide !== undefined ? { link: { ...(href !== undefined ? { href } : {}), ...(slide !== undefined ? { slide: Number(slide) } : {}) } } : {}),
         softBreakBefore: attribute(element, "data-soft-break-before") !== undefined,
+        synthesis: readSynthesis(element),
     };
-    reportUnread(element, style, ["data-double-strike", "data-underline-style", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"], report);
-    return run;
+    const read = ["data-double-strike", "data-underline-style", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"];
+    reportUnread(element, style, [...read, "data-synthetic-bold", "data-synthetic-italic", "data-non-breaking-hyphen"], report);
+    // One run per piece of one letter-spacing; only the first starts after a soft break.
+    const pieces = runPieces(element, letterSpacing);
+    if (!pieces.length) return [run];
+    return pieces.map((piece, index) => ({ ...run, text: piece.text, letterSpacing: piece.letterSpacing, softBreakBefore: run.softBreakBefore && index === 0 }));
 }
 
 function readBullet(element: Element, report: Report): Bullet {
     const style = readStyle(element);
     const bullet: Bullet = {
         text: textContent(element),
-        face: readFace(style),
+        face: readFace(element, style),
         size: required(px(take(style, "font-size")), "a bullet's font-size"),
         color: requiredColor(take(style, "color"), "a bullet's color"),
     };
@@ -184,7 +252,7 @@ function readParagraph(element: Element, report: Report): Paragraph {
     };
     const parts = children(element);
     const bulletElement = parts.find(child => hasClass(child, "text-bullet"));
-    const runs = parts.filter(child => hasClass(child, "text-run")).map(child => readRun(child, report));
+    const runs = parts.filter(child => hasClass(child, "text-run")).flatMap(child => readRuns(child, report));
     for (const child of parts) if (!hasClass(child, "text-run") && !hasClass(child, "text-bullet") && child.tagName !== "br") report(`<${child.tagName}> in a paragraph is not drawn`);
     const paragraph: Paragraph = {
         runs,

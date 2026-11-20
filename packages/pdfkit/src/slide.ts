@@ -43,7 +43,8 @@ function readBox(style: Style, report: (what: string) => void): Box {
         else if (name === "scaleY") flipV = value === "-1";
     }
     const opacity = Number(take(style, "opacity") ?? 1);
-    if (take(style, "box-shadow") !== undefined) report("object shadows are not drawn");
+    const shadow = take(style, "box-shadow");
+    if (shadow !== undefined) report(shadow.startsWith("inset ") ? "inner shadows are not drawn" : "object shadows are not drawn");
     return { x, y, width: px(take(style, "width")) ?? 0, height, rotation, flipH, flipV, opacity };
 }
 
