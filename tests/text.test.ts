@@ -292,6 +292,89 @@ describe("text normalization", () => {
             expect(markers([item("Lorem", "romanUcPeriod", 3), item("Ipsum", "romanUcPeriod", 3), item("Dolor", "romanUcPeriod", 3)])).toEqual(["III.", "IV.", "V."]);
         });
     });
+
+    // Each indent level keeps its own list; a paragraph ends the deeper ones, and a bullet or unnumbered one its own
+    // level's too (sequenceIndex). Markers from PowerPoint's PDF export of a synthetic deck, one text box per sequence.
+    describe("numbers each indent level on its own", () => {
+        type Kind = "num" | "alpha" | "bullet" | "none";
+        const paragraph = ([indentLevel, kind]: readonly [number, Kind]): PptxGenJS.TextProps => ({
+            text: `Lorem ${indentLevel} ${kind}`,
+            options: { breakLine: true, indentLevel, bullet: kind === "num" ? { type: "number" } : kind === "alpha" ? { type: "number", style: "alphaLcParenR" } : kind === "bullet" },
+        });
+        const CASES: ReadonlyArray<[string, ReadonlyArray<readonly [number, Kind]>, ReadonlyArray<string | undefined>]> = [
+            [
+                "levels 0 0 1 1 0 1",
+                [
+                    [0, "num"],
+                    [0, "num"],
+                    [1, "num"],
+                    [1, "num"],
+                    [0, "num"],
+                    [1, "num"],
+                ],
+                ["1.", "2.", "1.", "2.", "3.", "1."],
+            ],
+            [
+                "arabic at 0, alpha at 1",
+                [
+                    [0, "num"],
+                    [1, "alpha"],
+                    [1, "alpha"],
+                    [0, "num"],
+                    [1, "alpha"],
+                ],
+                ["1.", "a)", "b)", "2.", "a)"],
+            ],
+            [
+                "three levels down and back up",
+                [
+                    [0, "num"],
+                    [1, "num"],
+                    [2, "num"],
+                    [1, "num"],
+                    [2, "num"],
+                    [0, "num"],
+                ],
+                ["1.", "1.", "1.", "2.", "1.", "2."],
+            ],
+            [
+                "a bullet at the same level and deeper",
+                [
+                    [0, "num"],
+                    [0, "bullet"],
+                    [0, "num"],
+                    [1, "bullet"],
+                    [0, "num"],
+                ],
+                ["1.", PPTX_DEFAULTS.bullet.character, "1.", PPTX_DEFAULTS.bullet.character, "2."],
+            ],
+            [
+                "an unnumbered paragraph at the same level and deeper",
+                [
+                    [0, "num"],
+                    [0, "none"],
+                    [0, "num"],
+                    [1, "none"],
+                    [0, "num"],
+                ],
+                ["1.", undefined, "1.", undefined, "2."],
+            ],
+            [
+                "a list that starts deeper",
+                [
+                    [1, "num"],
+                    [1, "num"],
+                    [0, "num"],
+                    [1, "num"],
+                ],
+                ["1.", "2.", "1.", "1."],
+            ],
+        ];
+
+        test.each(CASES)("%s", (_name, sequence, expected) => {
+            expect(normalizeText(sequence.map(paragraph), {}, "powerpoint").paragraphs.map(({ bullet }) => bullet?.marker)).toEqual([...expected]);
+        });
+    });
 });
 
 describe("text DOM rendering", () => {
