@@ -75,6 +75,20 @@ jobs:
         working-directory: crates
         run: cargo test
 
+      # RustSec advisories for crates/Cargo.lock. The prebuilt binary is pinned by version and sha256; it reads the
+      # public advisory database, so it needs no secret.
+      - name: Audit Rust dependencies
+        working-directory: crates
+        env:
+          CARGO_AUDIT_VERSION: 0.22.2
+          CARGO_AUDIT_SHA256: ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39
+        run: |
+          archive="cargo-audit-x86_64-unknown-linux-gnu-v${CARGO_AUDIT_VERSION}"
+          curl -fsSL "https://github.com/rustsec/rustsec/releases/download/cargo-audit%2Fv${CARGO_AUDIT_VERSION}/${archive}.tgz" -o "$RUNNER_TEMP/cargo-audit.tgz"
+          echo "${CARGO_AUDIT_SHA256}  $RUNNER_TEMP/cargo-audit.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/cargo-audit.tgz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/${archive}/cargo-audit" audit --file Cargo.lock
+
       # Fails over the gzip budget; prints sha256, raw and gzip sizes.
       - name: Build WASM with pinned tools
         run: sh packages/wasm/build-wasm.sh
