@@ -175,10 +175,14 @@ each pair rounded too. Arial kerns the space ("A ", " T", " Y") where Calibri
 does not; the browser drops a pair at a word's edge, so the PowerPoint target
 gives each pair to the word or the spaces its left character is in. That is
 also where a break leaves it: "A " at a line's end counts in the line's width,
-" T" leaves with the trailing space (measured on Arial at 12 and 18pt, one box
-of twelve still kept where PowerPoint wraps, 0.05pt narrower than its line). A line fits while its rounded
-advances, trailing spaces left out, are no wider than the box less its insets:
-exactly as wide fits, 0.125pt wider wraps. The PowerPoint target gives each word
+" T" leaves with the trailing space (measured on Arial at 12 and 18pt). A line
+fits while its rounded advances, trailing spaces left out, are no wider than the
+box less its left and right insets floored to 0.125pt: exactly as wide fits,
+0.125pt wider wraps. Measured on 47 boxes between 0.1pt under their line and
+0.14pt over it (Arial, 12 to 24pt, insets 0, 1.3 and 7.2pt), that floor predicts
+every break; the box width floored, a 1/600 in floor or a small tolerance do
+not. The PowerPoint target adds the floor's remainder to the right inset (the
+left one in right-to-left text, `RENDERING_TARGETS.powerpoint.wrapWidthGridPt`). The PowerPoint target gives each word
 of a run the `letter-spacing` that ends it where the run's rounded advances up to
 its end do, and each space its rounded width
 (`RENDERING_TARGETS.powerpoint.advanceGridPt`, the HTML profile's advance grid),

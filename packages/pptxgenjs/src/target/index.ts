@@ -69,6 +69,11 @@ export interface RenderingTargetProfile {
      */
     readonly baselineGridPerInch: number | undefined;
     /**
+     * The grid a text box's width inside its left and right insets is floored to before a line is tested against it;
+     * undefined wraps at the width itself.
+     */
+    readonly wrapWidthGridPt: number | undefined;
+    /**
      * Whether there is no line break before an opening bracket that follows a closing one or "%" (a U+2060 WORD JOINER
      * in the run text), where UAX #14 has one.
      */

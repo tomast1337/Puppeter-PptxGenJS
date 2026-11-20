@@ -747,6 +747,26 @@ export function lineBoxOf(fontSize: number, height = PPTX_DEFAULTS.text.singleLi
     return { height, baseline: height - PPTX_DEFAULTS.text.lineDescentEm * fontSize };
 }
 
+/** Steps closer than this to the grid count as on it: well under the 1e-3pt PptxGenJS's EMU keeps. */
+const WRAP_GRID_EPSILON = 1e-6;
+
+/**
+ * The target's floor of the width inside the left and right insets (RENDERING_TARGETS.wrapWidthGridPt), moved into the
+ * end inset so every renderer wraps at it: `width` is the box's, in px. Text that does not wrap, or runs vertically,
+ * keeps its insets.
+ */
+export function floorTextWrapWidth(text: NormalizedTextBox, width: number, target: RenderingTarget): NormalizedTextBox {
+    const grid = RENDERING_TARGETS[target].wrapWidthGridPt;
+    if (grid === undefined || !text.wrap || text.direction !== "horizontal") return text;
+    const [top, right, bottom, left] = text.margin;
+    const step = pointsToPixels(grid);
+    const inner = width - left - right;
+    // A width on the grid in inches comes back a hair under it in px; it is on the grid.
+    const remainder = inner - Math.floor(inner / step + WRAP_GRID_EPSILON) * step;
+    if (inner <= 0 || remainder <= WRAP_GRID_EPSILON * step) return text;
+    return { ...text, margin: text.rtl ? [top, right, bottom, left + remainder] : [top, right + remainder, bottom, left] };
+}
+
 /**
  * A box shorter than its top and bottom insets: PowerPoint collapses the text area onto the box's vertical
  * midline, and the text is drawn from there by its anchor. LibreOffice (26.2, the visual image) draws the

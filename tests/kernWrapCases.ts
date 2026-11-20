@@ -1,7 +1,8 @@
 // Kerned Arial lines at the wrap limit, with the line breaks PowerPoint's PDF export of the same synthetic deck gave:
 // "Lorem ipsum AVAVA" then " xo" or " To", in a box sized from W, the line's advances rounded to 0.125pt plus its
 // pairs unrounded (" A" included), and the pairs at the break, "A " (on the line's last glyph) and " T" (on the space).
-// PowerPoint counts "A " in the line and leaves " T" out with the space (target/powerpoint.ts).
+// PowerPoint counts "A " in the line and leaves " T" out with the space, against the box floored to 0.125pt
+// (target/powerpoint.ts): 18pt "xo", W + "A " + 0.05pt, wraps in a box 161.7199pt wide, which is 161.625pt floored.
 import { type GlyphAdvances, PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import type { PuppeteerGen } from "../packages/pptxgenjs/src/node";
@@ -35,9 +36,6 @@ const BOXES: readonly { fontSize: 12 | 18; next: "xo" | "To"; pairs: readonly st
     { fontSize: 18, next: "To", pairs: ["A "], offsetPt: -0.1, fits: false },
     { fontSize: 18, next: "To", pairs: ["A ", " T"], offsetPt: -0.05, fits: false },
 ];
-
-/** The box PowerPoint wraps 0.05pt wider than its line, which the target keeps: 18pt "xo", W + "A " + 0.05pt. */
-export const KERN_WRAP_BOX_WIDTH_GAP = 8;
 
 /** The measured boxes, or none when `font` (Arial or its twin) does not give the measured deck's widths. */
 export function kernWrapCases(font: GlyphAdvances): KernWrapCase[] {
