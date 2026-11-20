@@ -517,6 +517,8 @@ const COLW_LENGTH_CASE = { page: PARAGRAPH_PAGE + 1, name: "table-colw-shorter-t
 
 // populateNumberSchemeFixture(): a numbered list whose scheme changes, on the slide after; no WASM deck takes it.
 const NUMBER_SCHEME_CASE = { page: PARAGRAPH_PAGE + 3, name: "text-number-scheme-restart", x: 0.5, y: 1, w: 4, h: 1.8 } as const;
+// populateNumberSchemeFixture(): a numbered list over three indent levels, beside the scheme change.
+const NUMBER_LEVELS_CASE = { page: PARAGRAPH_PAGE + 3, name: "text-number-nested-levels", x: 5.2, y: 1, w: 4, h: 1.8 } as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
@@ -555,7 +557,7 @@ export const PARITY_REGIONS = [
     { ...EMPTY_PARAGRAPH_CASE, x: EMPTY_PARAGRAPH_CASE.x - 0.15, y: EMPTY_PARAGRAPH_CASE.y - 0.15, w: EMPTY_PARAGRAPH_CASE.w + 0.3, h: EMPTY_PARAGRAPH_CASE.h + 0.3 },
     { ...SHARED_RUN_OPTIONS_CASE, x: SHARED_RUN_OPTIONS_CASE.x - 0.15, y: SHARED_RUN_OPTIONS_CASE.y - 0.15, w: SHARED_RUN_OPTIONS_CASE.w + 0.3, h: SHARED_RUN_OPTIONS_CASE.h + 0.3 },
     ...CUSTOM_BASELINE_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
-    { ...NUMBER_SCHEME_CASE, x: NUMBER_SCHEME_CASE.x - 0.15, y: NUMBER_SCHEME_CASE.y - 0.15, w: NUMBER_SCHEME_CASE.w + 0.3, h: NUMBER_SCHEME_CASE.h + 0.3 },
+    ...[NUMBER_SCHEME_CASE, NUMBER_LEVELS_CASE].map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
     { ...COLW_LENGTH_CASE, x: COLW_LENGTH_CASE.x - 0.15, y: COLW_LENGTH_CASE.y - 0.15, w: COLW_LENGTH_CASE.w + 0.3, h: COLW_LENGTH_CASE.h + 0.3 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
@@ -1834,6 +1836,14 @@ function populateNumberSchemeFixture(presentation: Presentation): void {
         valign: "top",
         margin: 0,
     });
+    // Each indent level keeps its own list, and a paragraph ends the deeper ones: levels 0 1 2 1 2 0 draw
+    // "1. 1. 1. 2. 1. 2." in PowerPoint's PDF export, not one running "1. 2. 3. 4. 5. 6.". The reference's LibreOffice
+    // 26.2 restarts each paragraph (tdf#168406) and draws "1." six times: two markers differ.
+    const levels = NUMBER_LEVELS_CASE;
+    slide.addText(
+        [0, 1, 2, 1, 2, 0].map((indentLevel, index) => ({ text: `Adipiscing ${index + 1}`, options: { bullet: { type: "number" as const }, indentLevel, breakLine: true } })),
+        { x: levels.x, y: levels.y, w: levels.w, h: levels.h, fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 },
+    );
 }
 
 // PptxGenJS writes a custom baseline as baseline="Math.round(baseline * 50)", thousandths of a percent of the run's size

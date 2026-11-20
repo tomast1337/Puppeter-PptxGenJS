@@ -242,7 +242,7 @@ function numberMarker(type: string, value: number): string {
     return `${core}.`;
 }
 
-/** The numbered list the previous numbered paragraph belongs to, and the index the next one in it takes. */
+/** A numbered list open at one indent level, and the index the next numbered paragraph in it takes. */
 interface NumberSequence {
     readonly level: number;
     readonly numberType: string | undefined;
@@ -251,24 +251,30 @@ interface NumberSequence {
 }
 
 /**
- * The index of a numbered paragraph in its list. PowerPoint starts a new list, at the paragraph's own startAt, when the
- * `<a:buAutoNum>` type or startAt changes at the same level: measured against PowerPoint's PDF export of a synthetic
- * deck, arabicPeriod 1, 1, then alphaUcPeriod 1 x4, then arabicPeriod startAt 2 draws "1. 2. A. B. C. D. 2.".
- * LibreOffice's PPTX import does the same since tdf#173712 (oox ListNumberingState::markParagraph).
- * shortcut: a paragraph at another level keeps counting the one running list, where LibreOffice keeps a list per level
- * and a shallower paragraph ends the deeper ones; follow it when PowerPoint's PDF export of a nested list is measured.
+ * The index of a numbered paragraph in the list open at its level; each level keeps its own (`lists`). PowerPoint
+ * starts a new list, at the paragraph's own startAt, when the `<a:buAutoNum>` type or startAt changes at the same
+ * level: measured against PowerPoint's PDF export of a synthetic deck, arabicPeriod 1, 1, then alphaUcPeriod 1 x4,
+ * then arabicPeriod startAt 2 draws "1. 2. A. B. C. D. 2.". A paragraph ends the lists deeper than its level, and a
+ * bullet or unnumbered one its own level's too: measured against PowerPoint's PDF export of a synthetic deck (Arial
+ * 12pt, one text box per sequence), levels 0 0 1 1 0 1 draw "1 2 1 2 3 1", 0 1 2 1 2 0 "1 1 1 2 1 2", 1 1 0 1
+ * "1 2 1 1", and a bullet between level-0 numbered paragraphs restarts them at level 0 ("1 • 1") but not at level 1
+ * ("1 • 2"). LibreOffice's PPTX import does the same since tdf#173712 (oox ListNumberingState::markParagraph).
  */
-function sequenceIndex(sequence: NumberSequence | undefined, { level, numberType, start }: Pick<NormalizedTextBullet, "level" | "numberType" | "start">): number {
-    if (!sequence) return 0;
-    const restarts = sequence.level === level && (sequence.numberType !== numberType || sequence.start !== start);
-    return restarts ? 0 : sequence.next;
+function sequenceIndex(lists: readonly NumberSequence[], { level, numberType, start }: Pick<NormalizedTextBullet, "level" | "numberType" | "start">): number {
+    const list = lists.find(open => open.level === level);
+    return list && list.numberType === numberType && list.start === start ? list.next : 0;
 }
 
-function normalizeBullet(options: PptxGenJS.TextPropsOptions, sequence: NumberSequence | undefined): NormalizedTextBullet | undefined {
+/** A paragraph's indent level, which PptxGenJS writes as `lvl` with or without a bullet. */
+function paragraphLevel(options: PptxGenJS.TextPropsOptions): number {
+    return Math.max(0, Math.floor(options.indentLevel ?? 0));
+}
+
+function normalizeBullet(options: PptxGenJS.TextPropsOptions, lists: readonly NumberSequence[]): NormalizedTextBullet | undefined {
     if (!options.bullet) return undefined;
 
     const config = typeof options.bullet === "object" ? options.bullet : {};
-    const level = Math.max(0, Math.floor(options.indentLevel ?? 0));
+    const level = paragraphLevel(options);
     const indentPt = config.indent ?? config.marginPt ?? PPTX_DEFAULTS.bullet.indentPt;
     const kind = config.type === "number" ? "number" : "bullet";
     const start = config.numberStartAt ?? config.startAt ?? PPTX_DEFAULTS.bullet.numberStartAt;
@@ -277,7 +283,7 @@ function normalizeBullet(options: PptxGenJS.TextPropsOptions, sequence: NumberSe
 
     let marker: string = PPTX_DEFAULTS.bullet.character;
     if (kind === "number") {
-        marker = numberMarker(numberType, start + sequenceIndex(sequence, { level, numberType, start }));
+        marker = numberMarker(numberType, start + sequenceIndex(lists, { level, numberType, start }));
     } else if (code && /^[0-9a-f]{4,6}$/i.test(code)) {
         marker = String.fromCodePoint(parseInt(code, 16));
     }
@@ -294,7 +300,15 @@ const TAB_ALIGNMENT_MAP: Record<string, "left" | "right" | "center" | "decimal">
     l: "left",
 };
 
-function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFontSize: markFontSizePt }: PieceGroup, parent: PptxGenJS.TextPropsOptions, sequence: NumberSequence | undefined, target: RenderingTarget, fontMetrics: FontMetricsLookup, themeFontFace: string, markFontFace: string): NormalizedTextParagraph {
+function paragraphFromPieces(
+    { pieces: group, paragraph, endsParagraph, markFontSize: markFontSizePt }: PieceGroup,
+    parent: PptxGenJS.TextPropsOptions,
+    lists: readonly NumberSequence[],
+    target: RenderingTarget,
+    fontMetrics: FontMetricsLookup,
+    themeFontFace: string,
+    markFontFace: string,
+): NormalizedTextParagraph & { readonly level: number } {
     // PowerPoint and LibreOffice give the empty text after a run's last line feed no size in a paragraph that holds
     // other text (measured against PowerPoint's PDF export); alone, it is an empty paragraph in the run's font. Without
     // it, the paragraph's properties come from its next run.
@@ -336,7 +350,8 @@ function paragraphFromPieces({ pieces: group, paragraph, endsParagraph, markFont
             }))
             .toSorted((a, b) => a.position - b.position),
         defaultTabStop: inchesToPixels(PPTX_DEFAULTS.text.defaultTabStopIn),
-        bullet: normalizeBullet(first, sequence),
+        bullet: normalizeBullet(first, lists),
+        level: paragraphLevel(first),
     };
 }
 
@@ -559,17 +574,20 @@ export function normalizeText(
     const groups = lines.flatMap((line, index) => splitAtLineFeeds(line, markSizes[index]));
 
     const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
-    let sequence: NumberSequence | undefined;
+    let lists: readonly NumberSequence[] = [];
     const paragraphs = groups.map((group, index) => {
-        const { bullet, ...paragraph } = paragraphFromPieces(group, options, sequence, target, fontMetrics, themeFontFace, markFontFace);
+        const { bullet, level, ...paragraph } = paragraphFromPieces(group, options, lists, target, fontMetrics, themeFontFace, markFontFace);
         // A paragraph PptxGenJS writes without a run gets no marker in PowerPoint or LibreOffice.
         const runless = group.pieces.every(piece => piece.noRun);
         const empty = paragraph.runs.every(run => !run.text);
-        if (bullet?.kind !== "number") sequence = undefined;
+        // Shallower levels' lists stay open; a paragraph ends its own level's and deeper ones, and a numbered one
+        // reopens its own (sequenceIndex).
+        const shallower = lists.filter(open => open.level < level);
+        if (bullet?.kind !== "number") lists = shallower;
         else {
-            const numberIndex = sequenceIndex(sequence, bullet);
+            const numberIndex = sequenceIndex(lists, bullet);
             const next = emptyNumberedParagraph === "skipped" ? numberIndex + (empty ? 0 : 1) : runless ? 0 : numberIndex + 1;
-            sequence = { level: bullet.level, numberType: bullet.numberType, start: bullet.start, next };
+            lists = [...shallower, { level, numberType: bullet.numberType, start: bullet.start, next }];
         }
         // shortcut: PowerPoint's dropped first space before was measured on top-anchored text boxes only; middle and
         // bottom anchors and table cells follow the same rule until a measurement says otherwise.
