@@ -487,6 +487,60 @@ describe("a kerned run on the PowerPoint grid in Chromium", () => {
     });
 });
 
+describe("kerning across a run edge in Chromium", () => {
+    const font = resolveInstalledGlyphAdvances("Arial", false, false);
+    type Piece = { readonly text: string; readonly options?: PptxGenJS.TextPropsOptions };
+    type Case = readonly [name: string, pieces: readonly Piece[], measuredPt: number];
+    const split = (each: (index: number) => PptxGenJS.TextPropsOptions): Piece[] => [..."AVAVAVAV"].map((text, index) => ({ text, options: each(index) }));
+    // Measured against PowerPoint's PDF export of a synthetic deck: "<pieces> xo" in Arial at 24pt, margin 0, the x of
+    // "xo" from the line's start, in pt. A pair split across runs is kerned while both runs keep the face, size and
+    // weight (colour, the same options, underline: within 0.03pt of one run), and not across a bold or size change.
+    const LETTER_CASES: readonly Case[] = [
+        ["one run", [{ text: "AVAVAVAV" }], 122.143],
+        ["colour", split(index => ({ color: index % 2 ? "000000" : "C00000" })), 122.136],
+        ["same options", split(() => ({})), 122.143],
+        ["bold", split(index => ({ bold: index % 2 === 1 })), 134.67],
+        ["size", split(index => ({ fontSize: index % 2 ? 20 : 24 })), 124.08],
+        ["underline", split(index => (index % 2 ? { underline: { style: "sng" } } : {})), 122.16],
+    ];
+    // The same for the space pairs "A " and " T" of "AVA To": PowerPoint kerns them across a run edge too.
+    const SPACE_CASES: readonly Case[] = [
+        ['"A" | " To"', [{ text: "AVA" }, { text: " To", options: { color: "C00000" } }], 81.24],
+        ['"AVA " | "To"', [{ text: "AVA " }, { text: "To", options: { color: "C00000" } }], 81.24],
+        ['"A" | " " | "To"', [{ text: "AVA" }, { text: " ", options: { color: "C00000" } }, { text: "To" }], 81.248],
+    ];
+    /** Whether each case's "xo" starts within 0.1pt of PowerPoint's: word starts on the advance grid are that close (advanceGridWordSpacing). */
+    const matches = async (cases: readonly Case[]) => {
+        const presentation = new PuppeteerGenPowerPoint();
+        const slide = presentation.addSlide();
+        cases.forEach(([, pieces], index) => {
+            const runs = [...pieces, { text: " xo" }].map(({ text, options }) => ({ text, options: { fontFace: "Arial", fontSize: 24, ...options } }));
+            slide.addText(runs, { x: 0.25, y: 0.15 + 0.52 * index, w: 8.3, h: 0.5, margin: 0, valign: "top", fontFace: "Arial", fontSize: 24 });
+        });
+        const { html } = await presentation.toHtml();
+        const starts = await withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                await page.setContent(printHtml(html));
+                return await page.evaluate(() =>
+                    Array.from(document.querySelectorAll(".slide-text"), box => {
+                        const left = box.querySelector(".text-run")?.getBoundingClientRect().left ?? Number.NaN;
+                        const xo = Array.from(box.querySelectorAll(".text-run span")).find(word => word.textContent === "xo");
+                        return (xo?.getBoundingClientRect().left ?? Number.NaN) - left;
+                    }),
+                );
+            } finally {
+                await page.close();
+            }
+        });
+        expect(cases.map(([name, , measured], index) => ({ name, near: Math.abs(pixelsToPoints((starts[index] ?? Number.NaN) / PRINT_ZOOM) - measured) < 0.1 }))).toEqual(cases.map(([name]) => ({ name, near: true })));
+    };
+    test.skipIf(!font)("kerns a pair split across runs of one face, size and weight, as PowerPoint does", () => matches(LETTER_CASES));
+    // shortcut: each run sums its own space pairs (advanceGridWordSpacing), so "xo" lands 0.5 to 1.8pt past
+    // PowerPoint's; give the runs of a line one sum (#398).
+    (font ? test.failing : test.skip)("kerns a space pair split across runs, as PowerPoint does", () => matches(SPACE_CASES));
+});
+
 describe("a kerned line at the wrap limit in Chromium", () => {
     const font = resolveInstalledGlyphAdvances("Arial", false, false);
     const cases = font ? kernWrapCases(font) : [];
