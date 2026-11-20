@@ -46,6 +46,10 @@ const SIGMAS_KEPT: f32 = 3.0;
 const SAMPLES_PER_PX: f32 = 1.0;
 /// Longest mask side; a larger silhouette is sampled more coarsely.
 const MAX_SIDE: f32 = 4096.0;
+/// Mask samples one render may blur, four masks of MAX_SIDE squared: a mask costs time in its
+/// samples, and a deck of huge glows or shadows took a second of CPU each (GHSA-fmx3-qwqc-h37c).
+/// An effect past it is reported and not drawn; an ordinary deck spends a few percent of it.
+pub(crate) const MAX_RENDER_SAMPLES: usize = 4 * 4096 * 4096;
 /// Curve flattening tolerance (px).
 const FLATTEN_TOLERANCE: f64 = 0.1;
 
@@ -124,6 +128,10 @@ pub(crate) struct Effects {
     /// An inner shadow's offset silhouette.
     offset: Vec<f32>,
     scratch: filter::Scratch,
+    /// Mask samples spent in the current render, against MAX_RENDER_SAMPLES.
+    pub(crate) samples: usize,
+    /// Whether an effect of the current render was past the budget.
+    pub(crate) over_budget: bool,
 }
 
 fn affine_of(t: Transform) -> Affine {
@@ -244,6 +252,12 @@ impl Effects {
         }
         let scale = SAMPLES_PER_PX.min(MAX_SIDE / area.width().max(area.height()) as f32);
         let (w, h) = ((area.width() as f32 * scale).ceil() as usize, (area.height() as f32 * scale).ceil() as usize);
+        let samples = self.samples.saturating_add(w * h);
+        if samples > MAX_RENDER_SAMPLES {
+            self.over_budget = true;
+            return None;
+        }
+        self.samples = samples;
         let (ox, oy) = (area.x0 as f32, area.y0 as f32);
         for l in &mut capture.lines {
             *l = Line {
@@ -448,6 +462,9 @@ impl Renderer {
         sub.finish();
         let stream = builder.finish();
         let image = self.effects.end(effect);
+        if self.effects.over_budget {
+            self.warn(format!("shadows and glows past {MAX_RENDER_SAMPLES} mask samples per render not rendered"));
+        }
         if effect.inner {
             draw_stream(surface, stream, inverse);
             draw_effect(surface, image);

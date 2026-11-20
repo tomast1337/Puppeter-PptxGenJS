@@ -167,7 +167,7 @@ fn border(cell: &Element<'_>, style: &Style<'_>, side: &str) -> Result<TableBord
     Ok(TableBorder {
         visible: true,
         color: parse_color(color).map_err(|e| format!("CSS property '{property}': {e}"))?,
-        width: super::style::px(width).map_err(|e| format!("CSS property '{property}': {e}"))?,
+        width: super::style::size_px(width).map_err(|e| format!("CSS property '{property}': {e}"))?,
         dash_array,
     })
 }

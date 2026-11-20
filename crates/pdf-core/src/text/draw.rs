@@ -18,7 +18,7 @@ use crate::effect::Effect;
 use crate::effect::EffectSource;
 use crate::link::page_quad;
 use crate::model::{TextBox, TextDirection, UnderlineStyle, VerticalAlign};
-use crate::path::rect_path;
+use crate::path::{rect_path, stroke_width};
 use crate::text::layout::{BoxLayout, Brush, BulletMarker, RunPaint, RunRef, TextStroke};
 use crate::text::outline::glyph_outlines;
 
@@ -207,20 +207,21 @@ pub(crate) struct LinkQuad {
     pub(crate) quad: Quadrilateral,
 }
 
-fn stroke_of(Rgba(r, g, b, a): Rgba, width: f32) -> Stroke {
-    Stroke {
+/// `None` for a width pdf-writer cannot write (stroke_width).
+fn stroke_of(Rgba(r, g, b, a): Rgba, width: f32) -> Option<Stroke> {
+    Some(Stroke {
         paint: rgb::Color::new(r, g, b).into(),
-        width,
+        width: stroke_width(width)?,
         opacity: unit(a),
         ..Stroke::default()
-    }
+    })
 }
 
-fn outline_stroke(outline: TextStroke) -> Stroke {
-    Stroke {
+fn outline_stroke(outline: TextStroke) -> Option<Stroke> {
+    Some(Stroke {
         miter_limit: outline.miter_limit,
-        ..stroke_of(outline.color, outline.width)
-    }
+        ..stroke_of(outline.color, outline.width)?
+    })
 }
 
 impl Renderer {
@@ -425,10 +426,15 @@ impl Renderer {
         }
         if let Some(outline) = paint.outline.filter(|o| o.under) {
             surface.set_fill(None);
-            surface.set_stroke(Some(outline_stroke(outline)));
+            surface.set_stroke(outline_stroke(outline));
             surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
         }
-        surface.set_stroke(synthesis.embolden().then(|| stroke_of(paint.color, size * paint.synthesis.bold_stroke_em)));
+        surface.set_stroke(
+            synthesis
+                .embolden()
+                .then(|| stroke_of(paint.color, size * paint.synthesis.bold_stroke_em))
+                .flatten(),
+        );
         surface.set_fill(Some(fill_of(paint.color)));
         surface.draw_glyphs(origin, &glyphs, font.clone(), text, size, false);
         if self.effects.capturing() {
@@ -439,7 +445,7 @@ impl Renderer {
         }
         if let Some(outline) = paint.outline.filter(|o| !o.under) {
             surface.set_fill(None);
-            surface.set_stroke(Some(outline_stroke(outline)));
+            surface.set_stroke(outline_stroke(outline));
             surface.draw_glyphs(origin, &glyphs, font, text, size, false);
         }
         surface.set_stroke(None);

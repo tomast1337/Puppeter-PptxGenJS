@@ -15,7 +15,7 @@ use parley::{FontStyle, FontWeight};
 use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
 use crate::model::{Synthesis, UnderlineStyle};
-use crate::path::{rect_path, to_path};
+use crate::path::{rect_path, stroke_width, to_path};
 use crate::text::layout::{RunPaint, TextStroke};
 
 pub(crate) struct Svg {
@@ -169,7 +169,9 @@ impl Renderer {
             Some(Paint::Gradient(index, opacity)) => {
                 // objectBoundingBox units: an element without area has no box and is not filled.
                 let bbox = shape.path.bounding_box();
-                if let (Some(gradient), Some(pdf), true) = (svg.gradients.get(index), to_path(&shape.path), bbox.area() > 0.0) {
+                if let (Some(gradient), Some(pdf), true) = (svg.gradients.get(index), to_path(&shape.path), bbox.area() > 0.0)
+                    && self.placed(surface, &shape.path, None)
+                {
                     self.effects.capture(surface.ctm(), &shape.path, opacity, None);
                     let paint = LinearGradient {
                         x1: gradient.from.0,
@@ -192,7 +194,9 @@ impl Renderer {
             }
             None => {}
         }
-        if let (Some(stroke), Some(pdf)) = (&shape.stroke, to_path(&shape.path)) {
+        if let (Some(stroke), Some(pdf)) = (&shape.stroke, to_path(&shape.path))
+            && self.placed(surface, &shape.path, Some(stroke))
+        {
             self.effects.capture_stroke(surface.ctm(), &shape.path, stroke);
             surface.set_fill(None);
             surface.set_stroke(Some(stroke.clone()));
@@ -263,16 +267,23 @@ pub(crate) fn stop(offset: f32, color: Rgba) -> Stop {
     }
 }
 
-/// The krilla stroke of an SVG path or line.
-pub(crate) fn stroke(color: Rgba, width: f32, cap: krilla::paint::LineCap, join: krilla::paint::LineJoin, miter_limit: f32, dash: Option<Vec<f32>>) -> Stroke {
+/// The krilla stroke of an SVG path or line; `None` for a width pdf-writer cannot write.
+pub(crate) fn stroke(
+    color: Rgba,
+    width: f32,
+    cap: krilla::paint::LineCap,
+    join: krilla::paint::LineJoin,
+    miter_limit: f32,
+    dash: Option<Vec<f32>>,
+) -> Option<Stroke> {
     let Fill { paint, opacity, .. } = fill_of(color);
-    Stroke {
+    Some(Stroke {
         paint,
-        width,
+        width: stroke_width(width)?,
         opacity,
         miter_limit,
         line_cap: cap,
         line_join: join,
         dash: dash.map(|array| krilla::paint::StrokeDash { array, offset: 0.0 }),
-    }
+    })
 }

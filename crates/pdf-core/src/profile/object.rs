@@ -164,7 +164,7 @@ fn box_line(element: &Element<'_>, style: &Style<'_>) -> Result<Option<LineModel
     Ok(Some(LineModel {
         visible: true,
         color: style.require_color("border-color")?,
-        width: style.require_px("border-width")?,
+        width: style.require_size_px("border-width")?,
         dash_array: element.attr("data-line-dash-array")?.map(|d| d.into_owned()),
         begin_arrow: arrow(element, "data-line-begin-arrow")?,
         end_arrow: arrow(element, "data-line-end-arrow")?,

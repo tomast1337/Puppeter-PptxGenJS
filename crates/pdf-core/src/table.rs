@@ -15,7 +15,7 @@ use krilla::surface::Surface;
 use crate::Renderer;
 use crate::color::unit;
 use crate::model::{Table, TableBorder, TableCell, TextBox};
-use crate::path::rect_path;
+use crate::path::{rect_path, stroke_width};
 use crate::shape::dash_of;
 use crate::text::layout::BoxLayout;
 
@@ -310,6 +310,7 @@ fn stroke_grid_line(surface: &mut Surface, table: &Table, cells: &[PlacedCell], 
 /// Solid lines get square caps so they close the corners they share with the lines across them.
 fn stroke_border(surface: &mut Surface, border: &TableBorder, from: (f32, f32), to: (f32, f32)) {
     let color = border.color;
+    let Some(width) = stroke_width(border.width) else { return };
     let dash = border.dash_array.as_deref().and_then(dash_of);
     let mut pb = PathBuilder::new();
     pb.move_to(from.0, from.1);
@@ -318,7 +319,7 @@ fn stroke_border(surface: &mut Surface, border: &TableBorder, from: (f32, f32), 
     surface.set_fill(None);
     surface.set_stroke(Some(Stroke {
         paint: rgb::Color::new(color.0, color.1, color.2).into(),
-        width: border.width,
+        width,
         opacity: unit(color.3),
         line_cap: if dash.is_some() { LineCap::Butt } else { LineCap::Square },
         dash,

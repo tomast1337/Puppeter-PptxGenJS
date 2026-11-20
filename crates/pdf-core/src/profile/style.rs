@@ -72,6 +72,11 @@ impl<'a> Style<'a> {
         self.px(property)?.ok_or_else(|| format!("CSS property '{property}' is missing"))
     }
 
+    /// A px length property that is not negative: a font size or a stroke width.
+    pub(crate) fn require_size_px(&self, property: &str) -> Result<f32, String> {
+        size_px(self.require(property)?).map_err(|e| format!("CSS property '{property}': {e}"))
+    }
+
     pub(crate) fn color(&self, property: &str) -> Result<Option<Rgba>, String> {
         self.get(property)
             .map(|v| parse_color(v).map_err(|e| format!("CSS property '{property}': {e}")))
@@ -204,6 +209,16 @@ pub(crate) fn integer(text: &str) -> Result<u32, String> {
 /// `<n>px`.
 pub(crate) fn px(text: &str) -> Result<f32, String> {
     number(text.strip_suffix("px").ok_or_else(|| format!("'{text}' is not a px length"))?)
+}
+
+/// `<n>px` that is not negative: a font size or a stroke width. A negative one reached pdf-writer as a negative line
+/// width, whose assert aborts the wasm instance (GHSA-fmx3-qwqc-h37c).
+pub(crate) fn size_px(text: &str) -> Result<f32, String> {
+    let value = px(text)?;
+    if value < 0.0 {
+        return Err(format!("'{text}' is negative"));
+    }
+    Ok(value)
 }
 
 /// `<x>px <y>px <blur>px <color>`, the CSS shadow forms `render/style.ts` writes (`box-shadow`
