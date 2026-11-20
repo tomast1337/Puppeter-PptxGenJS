@@ -515,6 +515,9 @@ const CUSTOM_BASELINE_CASES = [
 // populateLineFeedTailFixture() too, beside the title: a `colW` shorter than the column count (#302).
 const COLW_LENGTH_CASE = { page: PARAGRAPH_PAGE + 1, name: "table-colw-shorter-than-columns", x: 5.5, y: 0.3, w: 3, h: 0.3 } as const;
 
+// populateNumberSchemeFixture(): a numbered list whose scheme changes, on the slide after; no WASM deck takes it.
+const NUMBER_SCHEME_CASE = { page: PARAGRAPH_PAGE + 3, name: "text-number-scheme-restart", x: 0.5, y: 1, w: 4, h: 1.8 } as const;
+
 // These tight crops include the stroke but exclude labels and unused slide area.
 // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
 function cropThreshold(name: string): number {
@@ -552,6 +555,7 @@ export const PARITY_REGIONS = [
     { ...EMPTY_PARAGRAPH_CASE, x: EMPTY_PARAGRAPH_CASE.x - 0.15, y: EMPTY_PARAGRAPH_CASE.y - 0.15, w: EMPTY_PARAGRAPH_CASE.w + 0.3, h: EMPTY_PARAGRAPH_CASE.h + 0.3 },
     { ...SHARED_RUN_OPTIONS_CASE, x: SHARED_RUN_OPTIONS_CASE.x - 0.15, y: SHARED_RUN_OPTIONS_CASE.y - 0.15, w: SHARED_RUN_OPTIONS_CASE.w + 0.3, h: SHARED_RUN_OPTIONS_CASE.h + 0.3 },
     ...CUSTOM_BASELINE_CASES.map(({ page, name, x, y, w, h }) => ({ page, name, x: x - 0.15, y: y - 0.15, w: w + 0.3, h: h + 0.3 })),
+    { ...NUMBER_SCHEME_CASE, x: NUMBER_SCHEME_CASE.x - 0.15, y: NUMBER_SCHEME_CASE.y - 0.15, w: NUMBER_SCHEME_CASE.w + 0.3, h: NUMBER_SCHEME_CASE.h + 0.3 },
     { ...COLW_LENGTH_CASE, x: COLW_LENGTH_CASE.x - 0.15, y: COLW_LENGTH_CASE.y - 0.15, w: COLW_LENGTH_CASE.w + 0.3, h: COLW_LENGTH_CASE.h + 0.3 },
 ].map(({ page, name, x, y, w, h }) => ({
     page,
@@ -1807,6 +1811,29 @@ export function populateParityFixture(presentation: Presentation): void {
     populateParagraphFixture(presentation);
     populateLineFeedTailFixture(presentation);
     populateCustomBaselineFixture(presentation);
+    populateNumberSchemeFixture(presentation);
+}
+
+// A change of <a:buAutoNum> type or startAt starts a new list at its own startAt: "1. 2. A. B. C. D. 2.", not
+// "1. 2. B. C. D. E. 7." (normalize/text.ts sequenceIndex). The second item holds only a zero-width space. The
+// reference's LibreOffice 26.2 restarts at every startAt (tdf#168406, fixed by tdf#173712 after it) and draws
+// "1. 1. A. A. A. A. 2.": the crop differs in four markers only, 0.0365 against PowerPoint's markers here.
+function populateNumberSchemeFixture(presentation: Presentation): void {
+    const slide = presentation.addSlide();
+    slide.addText("Numbering schemes", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+    const item = (text: string, style: "arabicPeriod" | "alphaUcPeriod", numberStartAt: number) => ({ text, options: { bullet: { type: "number" as const, style, numberStartAt }, breakLine: true } });
+    const { x, y, w, h } = NUMBER_SCHEME_CASE;
+    slide.addText([item("Lorem ipsum dolor", "arabicPeriod", 1), item("\u200B", "arabicPeriod", 1), ...["a", "b", "c", "d"].map(letter => item(`Consectetur ${letter}`, "alphaUcPeriod", 1)), item("Sit amet elit", "arabicPeriod", 2)], {
+        x,
+        y,
+        w,
+        h,
+        fontFace: "Arial",
+        fontSize: 12,
+        color: "363636",
+        valign: "top",
+        margin: 0,
+    });
 }
 
 // PptxGenJS writes a custom baseline as baseline="Math.round(baseline * 50)", thousandths of a percent of the run's size
