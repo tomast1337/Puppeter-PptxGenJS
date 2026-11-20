@@ -17,7 +17,7 @@ const EXPECTED_SHA256: Record<string, string> = {
     fixture: "fa11dff7728c9f92e188c09b917ba09f923256d5aaf798b2ef50f79c81ab5f5d",
     "cross-runtime": "609bf2598def97b9f3d6481492e5efa94abae5bb485fa811830f38cab5cbc04e",
     "wasm-text": "d1dbb8dbd5fd16f568d3014a17400799bd3da13aba9e392a7e90d77517483762",
-    "wasm-emoji": "db89512f005166d2955193d4635c3cbecc6cec0e2283c26b59b4af422aaba68d",
+    "wasm-emoji": "041e711c8a1912d6a0c73bd32aa2403839987c3929d4cbdfcb0a5115e27e8df1",
     "wasm-layout": "1a866c565c2aefbe0befd5a09d56edf9b5f9faf4e8fdeb57218ba0247704adbd",
     "wasm-shapes": "74ad079c7bdf417daf5b4f8e368ea35b487c607565958ef68bd38ba862d5027c",
     "wasm-tables": "e5efd4c4fac72850c86ff1e4ef8d6a52291e27224e774f4c2208df23d8ce665e",

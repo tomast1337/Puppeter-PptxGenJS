@@ -121,7 +121,7 @@ impl Renderer {
     pub(crate) fn layout_line(&mut self, text: &str, face: &str, size: f32, weight: FontWeight, style: FontStyle) -> Layout<Brush> {
         let mut builder = self.layout_cx.ranged_builder(&mut self.fonts, text, 1.0, false);
         builder.push_default(StyleProperty::WhiteSpaceCollapse(WhiteSpaceCollapse::Preserve));
-        builder.push_default(StyleProperty::FontFamily(family_stack(face).as_str().into()));
+        builder.push_default(StyleProperty::FontFamily(family_stack(face, None).as_str().into()));
         builder.push_default(StyleProperty::FontSize(size));
         builder.push_default(StyleProperty::FontWeight(weight));
         builder.push_default(StyleProperty::FontStyle(style));
@@ -214,7 +214,13 @@ impl Renderer {
             builder.push_default(StyleProperty::TextWrapMode(if text.wrap { TextWrapMode::Wrap } else { TextWrapMode::NoWrap }));
             let mut families = std::mem::take(&mut self.span_families);
             families.clear();
-            families.extend(paragraph.runs.iter().take(spans.len()).map(|run| family_stack(&run.font_face)));
+            families.extend(
+                paragraph
+                    .runs
+                    .iter()
+                    .take(spans.len())
+                    .map(|run| family_stack(&run.font_face, run.language.as_deref())),
+            );
             for (r, ((range, run), family)) in (0u32..).zip(spans.iter().zip(&paragraph.runs).zip(&families)) {
                 let index = paints.len() as u32;
                 paints.push(RunPaint {
@@ -338,7 +344,8 @@ impl Renderer {
                         link: None,
                         glow: None,
                     });
-                    mb.push_default(StyleProperty::FontFamily(family_stack(&run.font_face).as_str().into()));
+                    // The span.text-bullet sits outside the run, so it has no `lang` in Chromium either.
+                    mb.push_default(StyleProperty::FontFamily(family_stack(&run.font_face, None).as_str().into()));
                     mb.push_default(StyleProperty::FontSize(run.font_size * scale));
                     mb.push_default(StyleProperty::Brush(Brush(index)));
                     let mut ml: Layout<Brush> = mb.build(&b.marker);

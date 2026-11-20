@@ -25,14 +25,39 @@ fn metric_alias(face: &str) -> &str {
     }
 }
 
-/// Requested face first, then its metric alias, then `FALLBACK_FAMILIES`. Emoji clusters
-/// additionally fall through to the registered `emoji` generic family (see `add_font`).
-pub(crate) fn family_stack(face: &str) -> String {
+/// The Noto Sans CJK face Chromium on Linux takes, ahead of `FALLBACK_FAMILIES`, for a character the run's face
+/// lacks, by the run's `lang`. Blink asks fontconfig once per character with the run's locale:
+/// `FontCache::PlatformFallbackFontForCharacter` (blink/renderer/platform/fonts/linux/font_cache_linux.cc) passes
+/// `FontDescription::LocaleOrDefault()` to `gfx::GetFallbackFontForChar` (ui/gfx/font_fallback_linux.cc), which
+/// sets `FC_LANG`, runs `FcConfigSubstitute` and takes the first face of `FcFontSort` that has the character.
+/// The run's own family is not in that pattern, so the fallback is sans-serif whatever the face. The docker
+/// image's fonts-noto-cjk rules (/etc/fonts/conf.d/70-fonts-noto-cjk.conf) prepend one face per `lang`, compared
+/// whole and case-insensitively, so `ko-KR`, `ja-JP` or `zh-Hant` match none. Measured with chrome-headless-shell
+/// in that image (pdffonts): a listed `lang` draws Han, Kana, Hangul and even `☆` (which DejaVu Sans has) in its
+/// face; any other `lang` keeps the default order, where Han, Kana and Hangul land on Noto Sans CJK JP.
+const CJK_FALLBACK_BY_LANG: [(&str, &str); 5] = [
+    ("ja", "Noto Sans CJK JP"),
+    ("ko", "Noto Sans CJK KR"),
+    ("zh-cn", "Noto Sans CJK SC"),
+    ("zh-tw", "Noto Sans CJK TC"),
+    ("zh-hk", "Noto Sans CJK HK"),
+];
+
+/// Requested face first, then its metric alias, then the CJK face of the run's `lang` (`CJK_FALLBACK_BY_LANG`),
+/// then `FALLBACK_FAMILIES`. Emoji clusters additionally fall through to the registered `emoji` generic family
+/// (see `add_font`).
+pub(crate) fn family_stack(face: &str, lang: Option<&str>) -> String {
     let quote = |s: &str| format!("\"{}\"", s.replace('"', ""));
     // shortcut: serif and monospace faces without their alias fall back to sans faces, where
     // fontconfig would pick a serif/mono default; add per-class fallbacks when a deck needs them.
+    // shortcut: HarfBuzz draws U+2011 with the face's U+2010 glyph when the face lacks it (hb-ot-shape-normalize.cc,
+    // harfrust's normalize.rs), so Chromium keeps an Arial run's U+2011 in Liberation Sans; parley picks a face by
+    // cmap coverage first and takes DejaVu Sans. Map it before font selection when parley lets a caller steer it (#289).
     let [dejavu, liberation, cjk] = FALLBACK_FAMILIES.map(quote);
-    format!("{}, {}, {dejavu}, {liberation}, {cjk}", quote(face), quote(metric_alias(face)))
+    let by_lang = lang
+        .and_then(|lang| CJK_FALLBACK_BY_LANG.iter().find(|(tag, _)| tag.eq_ignore_ascii_case(lang)))
+        .map_or(String::new(), |(_, family)| format!("{}, ", quote(family)));
+    format!("{}, {}, {by_lang}{dejavu}, {liberation}, {cjk}", quote(face), quote(metric_alias(face)))
 }
 
 /// A run face the renderer had no font for, neither the face nor its metric alias: its text was
@@ -108,8 +133,10 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::build;
-    use crate::tests::liberation_sans;
+    use crate::model::{Run, build};
+    use crate::tests::{liberation_sans, noto_sans_cjk};
+    use crate::text::layout::BoxLayout;
+    use skrifa::{FontRef, MetadataProvider, string::StringId};
 
     #[test]
     fn maps_office_fonts_to_metric_aliases_then_latin_then_cjk() {
@@ -123,7 +150,7 @@ mod tests {
             ("Georgia", "Georgia"),
         ] {
             assert_eq!(
-                family_stack(face),
+                family_stack(face, None),
                 format!("\"{face}\", \"{alias}\", \"DejaVu Sans\", \"Liberation Sans\", \"Noto Sans CJK JP\"")
             );
         }
@@ -131,7 +158,59 @@ mod tests {
 
     #[test]
     fn strips_quotes_from_face_names() {
-        assert!(family_stack("A\"rial").starts_with("\"Arial\", "));
+        assert!(family_stack("A\"rial", None).starts_with("\"Arial\", "));
+    }
+
+    #[test]
+    fn puts_the_cjk_face_of_the_run_lang_before_the_latin_fallbacks() {
+        let tail = "\"DejaVu Sans\", \"Liberation Sans\", \"Noto Sans CJK JP\"";
+        for (lang, cjk) in [
+            (Some("zh-CN"), "\"Noto Sans CJK SC\", "),
+            (Some("zh-tw"), "\"Noto Sans CJK TC\", "),
+            (Some("ZH-HK"), "\"Noto Sans CJK HK\", "),
+            (Some("ja"), "\"Noto Sans CJK JP\", "),
+            (Some("ko"), "\"Noto Sans CJK KR\", "),
+            // No fontconfig rule names these: Chromium keeps the default order.
+            (Some("ko-KR"), ""),
+            (Some("zh-Hant"), ""),
+            (Some("en-US"), ""),
+            (None, ""),
+        ] {
+            assert_eq!(family_stack("Arial", lang), format!("\"Arial\", \"Liberation Sans\", {cjk}{tail}"), "{lang:?}");
+        }
+    }
+
+    #[test]
+    fn draws_han_in_the_face_of_the_run_lang() {
+        let (Some(sans), Some(cjk)) = (liberation_sans(), noto_sans_cjk()) else {
+            return eprintln!("Liberation Sans or Noto Sans CJK not installed: lang fallback not checked");
+        };
+        let mut r = Renderer::new();
+        r.add_font(sans);
+        r.add_font(cjk);
+        for (lang, family) in [
+            (Some("zh-CN"), "Noto Sans CJK SC"),
+            (Some("zh-TW"), "Noto Sans CJK TC"),
+            (Some("ko"), "Noto Sans CJK KR"),
+            (None, "Noto Sans CJK JP"),
+        ] {
+            let run = Run {
+                language: lang.map(String::from),
+                ..build::run("中", "Arial", 30.0)
+            };
+            let mut layout = BoxLayout::default();
+            r.fit_text(&build::text_box(vec![build::paragraph(vec![run], 36.0, 30.0)]), 400.0, 100.0, &mut layout);
+            let line = layout.paras[0].layout.lines().next().expect("one line");
+            let Some(parley::PositionedLayoutItem::GlyphRun(glyph_run)) = line.items().next() else {
+                panic!("the line starts with a glyph run");
+            };
+            let font = glyph_run.run().font();
+            let name = FontRef::from_index(font.data.as_ref(), font.index)
+                .ok()
+                .and_then(|f| f.localized_strings(StringId::FAMILY_NAME).english_or_first())
+                .map(|name| name.to_string());
+            assert_eq!(name.as_deref(), Some(family), "{lang:?}");
+        }
     }
 
     #[test]

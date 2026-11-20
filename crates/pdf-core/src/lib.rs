@@ -1017,6 +1017,16 @@ mod tests {
         .find_map(|p| std::fs::read(p).ok())
     }
 
+    /// The Noto Sans CJK collection (JP, KR, SC, TC and HK faces), at the Debian/Ubuntu or the Arch path.
+    pub(crate) fn noto_sans_cjk() -> Option<Vec<u8>> {
+        [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        ]
+        .iter()
+        .find_map(|p| std::fs::read(p).ok())
+    }
+
     /// A text box of 30px Liberation Sans paragraphs, each a list of runs (every run after the first
     /// starts a new line) and its `lineBox` height and baseline.
     fn text_box(paragraphs: &[(&[&str], f32, f32)]) -> model::TextBox {
@@ -1057,13 +1067,7 @@ mod tests {
 
     #[test]
     fn latin_text_in_a_missing_office_face_falls_back_to_liberation_sans_before_cjk() {
-        let cjk = [
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-        ]
-        .iter()
-        .find_map(|p| std::fs::read(p).ok());
-        let (Some(sans), Some(cjk)) = (liberation_sans(), cjk) else {
+        let (Some(sans), Some(cjk)) = (liberation_sans(), noto_sans_cjk()) else {
             return eprintln!("Liberation Sans or Noto Sans CJK not installed: Latin fallback not checked");
         };
         let mut r = Renderer::new();
