@@ -293,8 +293,11 @@ export function layoutText(box: TextBox, innerWidth: number, scale: number, shap
                 const spaces = draft.pieces.slice(0, -1).reduce((sum, { piece }) => sum + piece.spaces, 0);
                 const extra = justify && spaces > 0 ? (available(index) - draft.inkWidth) / spaces : 0;
                 let spacesBefore = 0;
+                // A right-to-left line mirrors its words in the span they fill, so the first ends at its right edge.
+                const right = left + draft.inkWidth + extra * spaces;
                 const fragments = draft.pieces.flatMap(({ piece, x }) => {
-                    const fragment: Fragment = { run: piece.run, face: piece.face, text: piece.text, size: piece.size, features: piece.features, x: left + x + extra * spacesBefore, width: piece.width };
+                    const ltrX = left + x + extra * spacesBefore;
+                    const fragment: Fragment = { run: piece.run, face: piece.face, text: piece.text, size: piece.size, features: piece.features, x: paragraph.rtl ? left + right - ltrX - piece.width : ltrX, width: piece.width };
                     spacesBefore += piece.spaces;
                     return piece.text ? [fragment] : [];
                 });

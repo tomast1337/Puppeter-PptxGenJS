@@ -258,6 +258,16 @@ describe("PDFKit renderer", () => {
         expect((decimal?.x ?? 0) + width("12")).toBeCloseTo(96 + 288, 2);
     });
 
+    test("runs a right-to-left paragraph's words from the right, and reports mixed directions", async () => {
+        const renderer = await createPdfkitRenderer({ fonts: await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ }), onUnsupported: "warn" });
+        const pdf = await render(renderer, pres => pres.addSlide().addText("שלום עולם", { x: 1, y: 1, w: 5, h: 1, fontFace: "Arial", align: "right", rtlMode: true }));
+        expect(renderer.warnings()).toEqual([]);
+        const [first, second] = texts(pageContents(pdf)[0] ?? "");
+        expect(first?.x ?? 0).toBeGreaterThan(second?.x ?? 0);
+        await render(renderer, pres => pres.addSlide().addText("PDF שלום", { x: 1, y: 1, w: 5, h: 1, fontFace: "Arial", rtlMode: true }));
+        expect(renderer.warnings()).toEqual(["slide 1: object 'Text 0': left-to-right words in a right-to-left paragraph are ordered in the paragraph's direction"]);
+    });
+
     test("synthesizes bold and italic where the face has neither, as the HTML says", async () => {
         const regularOnly = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
         const renderer = await createPdfkitRenderer({ fonts: regularOnly });

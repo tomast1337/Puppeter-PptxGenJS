@@ -53,6 +53,8 @@ export interface TabStop {
 export interface Paragraph {
     readonly runs: readonly Run[];
     readonly align: Align;
+    /** `direction: rtl`: each line's words run right to left. */
+    readonly rtl: boolean;
     readonly lineHeight: number;
     readonly baseline: number;
     readonly markBaseline: number;
@@ -83,6 +85,11 @@ export type Report = (what: string) => void;
 
 const ALIGNS: ReadonlySet<string> = new Set(["left", "center", "right", "justify"]);
 const TAB_ALIGNS: ReadonlySet<string> = new Set(["left", "right", "center", "decimal"]);
+const DIRECTIONS: ReadonlySet<string> = new Set(["ltr", "rtl"]);
+/** Letters of the right-to-left scripts (Hebrew, Arabic, Syriac, Thaana, NKo, …, and their presentation forms). */
+const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+/** A letter of any other script: a strong left-to-right character. */
+const LTR_LETTER = /(?![\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF])\p{L}/u;
 const ANCHORS: ReadonlySet<string> = new Set(["flex-start", "center", "flex-end"]);
 const DECORATION_STYLES: ReadonlySet<string> = new Set(["solid", "double", "dashed", "dotted", "wavy"]);
 /**
@@ -250,7 +257,9 @@ function readParagraph(element: Element, report: Report): Paragraph {
     const style = readStyle(element);
     const align = take(style, "text-align") ?? "left";
     if (!ALIGNS.has(align)) report(`text-align '${align}' is not drawn`);
-    if (take(style, "direction") === "rtl") report("right-to-left paragraphs are drawn left to right");
+    const direction = take(style, "direction") ?? "ltr";
+    if (!DIRECTIONS.has(direction)) throw new Error(`invalid PdfLapas HTML: a paragraph's direction is '${direction}', expected ltr or rtl`);
+    const rtl = direction === "rtl";
     const lineHeight = required(px(take(style, "line-height")), "a paragraph's line-height");
     const baseline = required(Number(attribute(element, "data-line-baseline")), "a paragraph's data-line-baseline");
     const optionalBaseline = (name: string) => {
@@ -261,9 +270,15 @@ function readParagraph(element: Element, report: Report): Paragraph {
     const bulletElement = parts.find(child => hasClass(child, "text-bullet"));
     const runs = parts.filter(child => hasClass(child, "text-run")).flatMap(child => readRuns(child, report));
     for (const child of parts) if (!hasClass(child, "text-run") && !hasClass(child, "text-bullet") && child.tagName !== "br") report(`<${child.tagName}> in a paragraph is not drawn`);
+    const text = runs.map(run => run.text).join("");
+    // shortcut: no Unicode bidi algorithm, so a paragraph's words run in its direction; port one (or take pdf-core's
+    // parley order) when a deck mixes directions.
+    if (rtl ? LTR_LETTER.test(text) : RTL_LETTER.test(text)) report(`${rtl ? "left-to-right words in a right-to-left" : "right-to-left words in a left-to-right"} paragraph are ordered in the paragraph's direction`);
+    if (rtl && text.includes("\t")) report("tab stops in right-to-left paragraphs measured from the left");
     const paragraph: Paragraph = {
         runs,
         align: ALIGNS.has(align) ? (align as Align) : "left", // `as`: checked against ALIGNS
+        rtl,
         lineHeight,
         baseline,
         markBaseline: optionalBaseline("data-mark-baseline"),
@@ -310,7 +325,7 @@ export function readTextBox(box: Element, style: Style, report: Report): TextBox
     const anchor = take(style, "align-items") ?? "center";
     const whiteSpace = take(style, "white-space") ?? "pre-wrap";
     take(style, "overflow-wrap");
-    if (take(style, "direction") === "rtl") report("right-to-left text boxes are drawn left to right");
+    take(style, "direction"); // each paragraph repeats it, and pdf-core reads it there only
     const padding = sides(take(style, "padding")) ?? [0, 0, 0, 0];
     if (direction !== "horizontal") {
         report(`${direction} text is not drawn`);
