@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import DefaultExport, { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/index";
-import { FONT_WIN_METRICS, RENDERING_TARGETS } from "../packages/pptxgenjs/src/defaults";
+import { FONT_WIN_METRICS } from "../packages/pptxgenjs/src/defaults";
+import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { KERNING_CASES } from "./visual/fixture";
 

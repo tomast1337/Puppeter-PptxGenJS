@@ -50,8 +50,9 @@ Use this precedence when behavior is ambiguous:
 4. PptxGenJS type declarations and documentation
 5. Browser defaults only when none of the above defines behavior
 
-All implicit rendering values belong in `packages/pptxgenjs/src/defaults.ts`. Never introduce a
-renderer-specific magic default when a PptxGenJS or Office default exists.
+All implicit rendering values belong in `packages/pptxgenjs/src/defaults.ts`, or, when they depend on the
+rendering target (the application the PDF matches), in that target's `packages/pptxgenjs/src/target/<target>.ts`.
+Never introduce a renderer-specific magic default when a PptxGenJS or Office default exists.
 
 `docs/` holds the committed user guides (usage, quick reference, defaults, implementation notes); keep
 the repository root for README, CONTRIBUTING, AGENTS and LICENSE. `notes/` contains optional local
@@ -71,6 +72,10 @@ PptxGenJS-compatible API        @pdflapas/pptxgenjs  (PuppeteerGen)
 
 - Keep unit conversion, defaults, inheritance, and compatibility quirks out of DOM-building and
   PDF-drawing code. Renderers draw what the HTML says; they do not decide PptxGenJS behavior.
+- A rendering target's quirk is a flag in `RenderingTargetProfile` (`src/target/index.ts`), with its value and the
+  measurement behind it in each target's file (`src/target/libreoffice.ts`, `src/target/powerpoint.ts`).
+  Normalization branches on flags, never on a target's name, so a new target is one new file plus its
+  `RENDERING_TARGETS` entry (`tests/renderingTargetFiles.test.ts`).
 - Render preset shapes with SVG. Do not silently substitute unsupported shapes with rectangles.
 - Reuse the text renderer for text in shapes and rich-text table cells.
 - Resolve images before PDF generation; output must not depend on an accidental browser base URL or

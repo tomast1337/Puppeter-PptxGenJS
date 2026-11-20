@@ -1,6 +1,7 @@
 import type PptxGenJS from "pptxgenjs";
 import type { NormalizedSlideObject } from "@pdflapas/model";
-import { DEFAULT_RENDERING_TARGET, type FontMetricsLookup, PPTX_DEFAULTS, type RenderingTarget } from "#src/defaults";
+import { type FontMetricsLookup, PPTX_DEFAULTS } from "#src/defaults";
+import { DEFAULT_RENDERING_TARGET, type RenderingTarget } from "#src/target/index";
 import type { FourSideMargin } from "#src/defaults";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";

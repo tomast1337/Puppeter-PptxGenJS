@@ -7,6 +7,8 @@ OOXML rather than browser defaults. The contract is pinned to
 Values are confirmed from the installed PptxGenJS source, generated OOXML, and
 the visual parity fixture. Runtime constants live in `packages/pptxgenjs/src/defaults.ts`. That
 module also contains defaults for renderers that have not been implemented yet.
+What depends on the rendering target (LibreOffice or PowerPoint, `RENDERING_TARGETS`
+below) lives in that target's file, `packages/pptxgenjs/src/target/<target>.ts`.
 
 When PptxGenJS deliberately omits an OOXML attribute, the relevant Office/theme
 default is recorded. Options with no PptxGenJS or Office default remain absent
