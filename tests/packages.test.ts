@@ -89,11 +89,34 @@ describe("workspace packages", () => {
         const expected: Record<string, string> = {};
         for (const pkg of Object.keys(ALLOWED)) {
             const manifest = JSON.parse(await readFile(join(PACKAGES_DIR, pkg, "package.json"), "utf8"));
-            for (const [subpath, conditions] of Object.entries(manifest.exports as Record<string, { types: string }>)) {
-                expected[manifest.name + subpath.slice(1)] = `./packages/${pkg}/src/${conditions.types.replace(/^\.\/dist\//, "").replace(/\.d\.ts$/, ".ts")}`;
+            // Bun applies these paths at run time, so a runtime-split package maps to its "bun" entry (#351).
+            for (const [subpath, conditions] of Object.entries(manifest.exports as Record<string, { types: string; bun?: string }>)) {
+                const entry = conditions.bun ?? conditions.types;
+                expected[manifest.name + subpath.slice(1)] = `./packages/${pkg}/src/${entry.replace(/^\.\/dist\//, "").replace(/\.(d\.ts|js)$/, ".ts")}`;
             }
         }
         expect(Object.fromEntries(Object.entries(paths).map(([name, [path]]) => [name, path]))).toEqual(expected);
+    });
+
+    test("Bun scripts in the repo get the Node entry of runtime-split packages", async () => {
+        // A script beside the packages resolves @pdflapas/* through the root tsconfig paths, as a repro does (#351).
+        const script = `import { loadSystemFonts as wasm } from "@pdflapas/wasm"; import { loadSystemFonts as pdfkit } from "@pdflapas/pdfkit"; const missing = { dirs: [] }; for (const load of [wasm, pdfkit]) await load(missing).catch((error: Error) => console.log(error.message));`;
+        const file = resolve(import.meta.dir, `../.bun-resolution-check-${process.pid}.ts`);
+        await Bun.write(file, script);
+        try {
+            const child = Bun.spawnSync([process.execPath, file], { cwd: resolve(import.meta.dir, ".."), stdout: "pipe", stderr: "pipe" });
+            expect({ exitCode: child.exitCode, stderr: child.stderr.toString() }).toEqual({ exitCode: 0, stderr: "" });
+            // The Node entry reports the empty font directory list; the browser entry would say it needs Node/Bun.
+            expect(
+                child.stdout
+                    .toString()
+                    .split("\n")
+                    .filter(Boolean)
+                    .map(line => line.startsWith("No font files matching")),
+            ).toEqual([true, true]);
+        } finally {
+            await Bun.file(file).delete();
+        }
     });
 
     test("@pdflapas/model bundles for the browser without importing anything outside itself", async () => {
