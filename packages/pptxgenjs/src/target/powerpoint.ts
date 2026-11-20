@@ -7,7 +7,14 @@ const ADVANCE_GRID_PER_INCH = 576;
 // PowerPoint's grid for each line's baseline: 1/600 in, 0.12pt (`baselineGridPerInch`).
 const BASELINE_GRID_PER_INCH = 600;
 /** Its font fallback chain (`fallbackFaces`), first to last. */
-const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"]);
+const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol"]);
+/** The East Asian faces it links to Arial and Calibri (`eastAsianFallback`). */
+const LINKED_EAST_ASIAN_FACES = Object.freeze(["MS Gothic", "Yu Gothic", "Microsoft JhengHei", "Microsoft YaHei", "Malgun Gothic"]);
+/** Its East Asian faces by run face, and for any other face, as measured in Times New Roman (`eastAsianFallback`). */
+const EAST_ASIAN_FALLBACK = Object.freeze({
+    byFace: Object.freeze({ arial: LINKED_EAST_ASIAN_FACES, calibri: LINKED_EAST_ASIAN_FACES }),
+    otherFaces: Object.freeze(["Yu Gothic", "PMingLiU", "SimSun", "Malgun Gothic"]),
+});
 /** The marks measured hanging past a line's end, by language (`hangingMarks`). */
 const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』】〕),.;:!?]}", ja: "，。" });
 
@@ -154,8 +161,19 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * font's cmap, the chain predicts every character: in Arial, U+2010, U+2083, U+21D2, U+2460 and U+2461 are drawn in
  * Cambria Math, U+2713, U+2717, U+2605, U+2606 and U+24B6 in Segoe UI Symbol and U+2189 in Yu Gothic; in Calibri,
  * U+25A0 in Arial (ahead of Cambria Math, which has it too), U+21D2 in Cambria Math and U+2189 in Yu Gothic. Han
- * characters in a Latin run are drawn in Yu Gothic, in the run's weight, and those it lacks in PMingLiU or SimSun;
- * the order of those two was not measured. The run's face is left out of the chain where it is in it.
+ * characters in a Latin run are drawn from East Asian faces that depend on the run's face (`eastAsianFallback`). The
+ * run's face is left out of the chain where it is in it. Measured against its PDF export of a synthetic deck (Arial,
+ * Arial bold, Calibri and Times New Roman at 14pt, with and without ja-JP, zh-CN, zh-TW and ko-KR `lang`, which changes
+ * nothing; every face embedded): in Arial and Calibri a Han, kana, bopomofo, Hangul or full-width character comes from
+ * MS Gothic, Yu Gothic, Microsoft JhengHei, Microsoft YaHei or Malgun Gothic, the first that has it, in Times New Roman
+ * from Yu Gothic, PMingLiU, SimSun or Malgun Gothic; bold takes each face's bold where it has one. Such a character
+ * keeps the face of the one before it while that face has it: "够是够是" is all Yu Gothic (MS Gothic lacks 够),
+ * "这是这是" all Microsoft JhengHei, "够这" Yu Gothic then Microsoft JhengHei, "䶶是" Microsoft YaHei; a space, a Latin
+ * letter, a run in another colour or another character ("这 是", "这a是", "↉是") starts over, so 是 is MS Gothic there;
+ * a full-width comma does not ("这，是" stays in Microsoft JhengHei). An emoji (Extended_Pictographic: ❤ ☺ ✔ ⚠ ☀ ⭐ ✅ ❌,
+ * 😀, and a flag such as 🇯🇵) is drawn in Segoe UI Emoji (`emojiFace`), at its 1.373em advance, where ✓ ✗ ☆ Ⓐ stay
+ * in Segoe UI Symbol.
+ * shortcut: faces other than Arial and Calibri take the Times New Roman faces; measure another face when a deck needs it.
  * It draws U+2011 NON-BREAKING HYPHEN with the face's U+002D glyph (`nonBreakingHyphen`), even in Times New Roman,
  * which has a U+2011 glyph of its own: in the same export it is glyph 16 in Arial and Times New Roman, the one
  * U+002D maps to, and Calibri's hyphen.
@@ -202,6 +220,8 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     syntheticBoldStrokeEm: undefined,
     syntheticItalicShear: undefined,
     fallbackFaces: FALLBACK_FACES,
+    eastAsianFallback: EAST_ASIAN_FALLBACK,
+    emojiFace: "Segoe UI Emoji",
     nonBreakingHyphen: "hyphen-minus",
     drawsPictureInnerShadow: true,
     underlineFromFont: true,

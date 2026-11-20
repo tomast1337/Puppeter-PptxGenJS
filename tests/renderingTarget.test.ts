@@ -629,7 +629,7 @@ describe("rendering targets", () => {
             );
             return [...(await presentation.toHtml()).html.matchAll(/class="text-(?:run|bullet)"[^>]*?style="[^"]*?font-family: (.*?); font-size/g)].map(match => match[1]?.replaceAll("&quot;", '"'));
         };
-        const chain = '"Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"';
+        const chain = '"Cambria Math", "Segoe UI Symbol", "MS Gothic", "Yu Gothic", "Microsoft JhengHei", "Microsoft YaHei", "Malgun Gothic"';
         expect(await html(new PuppeteerGenPowerPoint())).toEqual([`"Calibri", "Arial", ${chain}`, `"Calibri", "Arial", ${chain}`, `"arial", ${chain}`]);
         expect(await html(new PuppeteerGenLibreOffice())).toEqual(['"Calibri"', '"Calibri"', '"arial"']);
         expect(normalizeText("x", { fontFace: "Times New Roman" }, "libreoffice").paragraphs[0]?.runs[0]).not.toHaveProperty("fallbackFaces");
