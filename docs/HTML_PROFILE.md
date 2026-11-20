@@ -311,7 +311,7 @@ PowerPoint has no line break and UAX #14 has one. Renderers draw it as nothing, 
 Around Han text the PowerPoint target writes more, by the run's `lang`
 (`RENDERING_TARGETS.powerpoint.hangingMarks` and `breaksAroundHanPunctuation`). In every run it writes
 U+200B ZERO WIDTH SPACE between a Han character and an ASCII `"` on either side, where PowerPoint breaks and
-UAX #14 does not. In a Chinese or Japanese run (`zh`, `ja`) it also writes U+200B before a `“` after a Han
+UAX #14 does not. In a Chinese or Japanese run (`zh`, `ja`) it also writes U+200B before a `“` or `‘` after a Han
 character and between two `—`, and U+2060 WORD JOINER before a `—` after any other character. A closing mark
 that PowerPoint hangs past the line's end (in `zh` `）》」”，、。：？！；』】〕),.;:!?]}`, in `ja` `，。`,
 unless another one or a dash follows) becomes a run of its own whose `letter-spacing` cancels its advance,
@@ -319,7 +319,8 @@ followed by a run of one U+3000 IDEOGRAPHIC SPACE whose `letter-spacing` makes i
 Mid-line the pair is as wide as the mark; at a line's end the U+3000 hangs as preserved white space does
 under `white-space: pre-wrap`, so the mark is drawn past the edge, as in PowerPoint. In any other run
 (`en-US`, PptxGenJS's default, `ko`) it writes U+200B on either side of full-width punctuation next to a Han
-character or CJK punctuation, where PowerPoint breaks and UAX #14 does not. U+200B and U+3000 are in the text
+character, and on either side of CJK punctuation next to anything but white space (digits, Latin letters, ASCII
+punctuation), where PowerPoint breaks and UAX #14 does not. U+200B and U+3000 are in the text
 a PDF reader extracts.
 
 **Justification.** A justified paragraph (`text-align: justify`) on the PowerPoint target also states
