@@ -1,4 +1,4 @@
-import { type HtmlPresentationDocument, inchesToPixels, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
+import { assertHtmlPresentationDocument, type HtmlPresentationDocument, inchesToPixels, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOptions";
@@ -26,7 +26,8 @@ export class PuppeteerPdfRenderer implements PresentationRenderer {
         this.onMissingFont = missingFontPolicy(onMissingFont);
     }
 
-    render(document: HtmlPresentationDocument): Promise<Uint8Array> {
+    async render(document: HtmlPresentationDocument): Promise<Uint8Array> {
+        assertHtmlPresentationDocument(document);
         return withBrowser(async browser => {
             const page = await browser.newPage();
             try {

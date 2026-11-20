@@ -18,3 +18,13 @@ export interface HtmlPresentationDocument {
 export interface PresentationRenderer {
     render(document: HtmlPresentationDocument): Promise<Uint8Array>;
 }
+
+/**
+ * Throws unless `document` carries the HTML string a renderer reads: `render(pptx.toHtml())` without `await` passes
+ * the Promise, which would otherwise fail deep in the renderer (the WASM glue's "undefined is not an object").
+ */
+export function assertHtmlPresentationDocument(document: unknown): asserts document is HtmlPresentationDocument {
+    if (typeof document === "object" && document !== null && "html" in document && typeof document.html === "string") return;
+    const got = document instanceof Promise ? "a Promise: await toHtml() before passing its result" : `${document === null ? "null" : typeof document} without an html string`;
+    throw new TypeError(`render() takes the { html, pageSize } document toHtml() resolves to, got ${got}`);
+}
