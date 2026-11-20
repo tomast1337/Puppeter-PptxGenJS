@@ -100,6 +100,11 @@ export interface NormalizedTextDecoration {
     underline: boolean;
     underlineStyle: "solid" | "double" | "dashed" | "dotted" | "wavy";
     underlineColor?: CssColor;
+    /**
+     * The underline is the face's `post` table band (underlineThickness tall, its top underlinePosition below the
+     * baseline), drawn over descenders; omitted: the renderer's own underline.
+     */
+    underlineFromFont?: boolean;
     strike: boolean;
     doubleStrike: boolean;
 }

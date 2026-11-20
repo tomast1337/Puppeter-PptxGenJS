@@ -494,6 +494,29 @@ describe("text DOM rendering", () => {
         expect(run(2)?.verticalAlign).toBeUndefined();
     });
 
+    test("draws an underline from the face's post table, over descenders, on the PowerPoint target only (#378)", () => {
+        const geometry = (target: "powerpoint" | "libreoffice") => {
+            const presentation = new PuppeteerGen(undefined, { target });
+            presentation.addSlide().addText(
+                [
+                    { text: "gjpqy ", options: { underline: { style: "sng", color: "FF0000" } } },
+                    { text: "plain", options: { strike: "sngStrike" } },
+                ],
+                { x: 1, y: 1, w: 4, h: 1 },
+            );
+            const runs = [...renderedPage(presentation).querySelectorAll<HTMLElement>(".text-run")];
+            return runs.map(run => ["text-decoration-thickness", "text-underline-position", "text-decoration-skip-ink"].map(property => run.style.getPropertyValue(property)));
+        };
+        expect(geometry("powerpoint")).toEqual([
+            ["from-font", "from-font", "none"],
+            ["", "", ""],
+        ]);
+        expect(geometry("libreoffice")).toEqual([
+            ["", "", ""],
+            ["", "", ""],
+        ]);
+    });
+
     test("keeps text transparency off the box and exposes direction and fit", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

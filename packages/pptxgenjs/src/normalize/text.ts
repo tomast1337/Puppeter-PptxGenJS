@@ -166,7 +166,8 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
     const bold = options.bold ?? PPTX_DEFAULTS.text.bold;
     const italic = options.italic ?? PPTX_DEFAULTS.text.italic;
-    const { syntheticBoldStrokeEm, syntheticItalicShear, fallbackFaces, nonBreakingHyphen } = RENDERING_TARGETS[target];
+    const { syntheticBoldStrokeEm, syntheticItalicShear, fallbackFaces, nonBreakingHyphen, underlineFromFont } = RENDERING_TARGETS[target];
+    const underlined = Boolean(underline) && underline !== "none";
     const fontFace = options.fontFace ?? PPTX_DEFAULTS.text.fontFace;
     const fallbacks = fallbackFaces.filter(face => face.toLowerCase() !== fontFace.toLowerCase());
 
@@ -180,9 +181,10 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         italic,
         decoration: {
             // `u=""`, which only the string form writes, is no underline type: it draws none.
-            underline: Boolean(underline) && underline !== "none",
+            underline: underlined,
             underlineStyle: underlineStyle(underline),
             underlineColor: typeof options.underline === "object" && options.underline.color ? normalizeColor(options.underline.color) : undefined,
+            ...(underlined && underlineFromFont ? { underlineFromFont } : {}),
             strike,
             doubleStrike: options.strike === "dblStrike",
         },

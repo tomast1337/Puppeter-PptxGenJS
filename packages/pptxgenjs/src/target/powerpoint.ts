@@ -154,6 +154,16 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * measured against PowerPoint's PDF export of a regular-only face; measure them when a deck needs one.
  * It draws a picture's inner shadow (`drawsPictureInnerShadow`), the Format Picture > Shadow > Inner effect, on the
  * side its angle points to with a Gaussian of sigma blurRad / 3 (`PPTX_DEFAULTS.shadow.innerSigmaPerBlur`).
+ * It draws an underline from the face's `post` table, unbroken under descenders (`underlineFromFont`), where
+ * Chromium's default is about 0.1em thick at its own offset with gaps for descenders: measured against its PDF
+ * export of a synthetic deck (Arial, Calibri and Times New Roman at 8, 10, 12, 18 and 24pt, regular and bold), the
+ * band's top is underlinePosition below the baseline and its height underlineThickness, the bold face's when bold,
+ * each within one 1/600 in step: 12pt Arial 0.84pt thick (post 0.879), bold 1.2 (1.26), Calibri 0.84 (0.785), Times
+ * New Roman 0.6 (0.586), tops 1.27pt below the baseline (1.271, 1.359, 1.307); Chromium drew 1.125pt for each at
+ * 0.66pt. The underline colour is used when set.
+ * shortcut: double, wavy and heavy keep each renderer's pattern around that band (PowerPoint's double is two lines of
+ * 2/3 the thickness filling twice it above the band's bottom, its heavy about 1.6 times it), and a line mixing sizes
+ * gets one underline per run where PowerPoint draws one for the line averaged by width (#379).
  */
 export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     readsKern: true,
@@ -179,4 +189,5 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     fallbackFaces: FALLBACK_FACES,
     nonBreakingHyphen: "hyphen-minus",
     drawsPictureInnerShadow: true,
+    underlineFromFont: true,
 });

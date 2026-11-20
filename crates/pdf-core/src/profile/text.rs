@@ -80,6 +80,9 @@ const RUN_CSS: &[&str] = &[
     "text-decoration-line",
     "text-decoration-style",
     "text-decoration-color",
+    "text-decoration-thickness",
+    "text-underline-position",
+    "text-decoration-skip-ink",
     "position",
     "top",
     "letter-spacing",
@@ -87,6 +90,12 @@ const RUN_CSS: &[&str] = &[
     "background-color",
     "-webkit-text-stroke",
     "text-shadow",
+];
+/// The only value each underline geometry property takes: the one `draw_decorations` draws.
+const UNDERLINE_FROM_FONT: [(&str, &str); 3] = [
+    ("text-decoration-thickness", "from-font"),
+    ("text-underline-position", "from-font"),
+    ("text-decoration-skip-ink", "none"),
 ];
 /// CSS of a word span inside a run (`wordCharacterSpacing`).
 const WORD_CSS: &[&str] = &["letter-spacing"];
@@ -326,6 +335,12 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
     if let Some(line) = lines.split_ascii_whitespace().find(|l| !matches!(*l, "underline" | "line-through")) {
         return Err(format!("CSS property 'text-decoration-line': '{line}' is not underline or line-through"));
     }
+    // The underline is always drawn from the face's post table, over the descenders; these say so for Chromium.
+    for (property, value) in UNDERLINE_FROM_FONT {
+        if let Some(given) = style.get(property) {
+            one_of(&format!("CSS property '{property}'"), given, &[value])?;
+        }
+    }
     let outline = match style.get("-webkit-text-stroke") {
         Some(stroke) => {
             let (width, color) = stroke
@@ -472,7 +487,7 @@ mod tests {
     #[test]
     fn reads_paragraphs_bullets_and_runs() {
         let html = format!(
-            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; position: relative; top: -4.5px; letter-spacing: 1.5px; font-kerning: none; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
+            r#"<div class="text-paragraph" data-line-baseline="16" data-tab-stops="96:left,192.5:decimal" data-bullet-level="1" data-bullet-type="number" data-bullet-indent="27" data-bullet-start="3" style="{PARAGRAPH_STYLE} padding-left: 13.5px; text-indent: 0px;"><span class="text-bullet" style="display: inline-block; width: 13.5px;">3.&nbsp;</span><span class="text-run" lang="en-US" data-vertical-align="super" data-text-shadow="glow shadow" data-double-strike="" data-underline-style="wavy" style="{RUN_STYLE} text-decoration-line: underline line-through; text-decoration-color: #00FF00; text-decoration-thickness: from-font; text-underline-position: from-font; text-decoration-skip-ink: none; position: relative; top: -4.5px; letter-spacing: 1.5px; font-kerning: none; background-color: #FFFF00; -webkit-text-stroke: 0.75px rgba(1, 2, 3, 0.5); text-shadow: 0px 0px 6px rgba(255, 0, 0, 0.6), 2px 2px 3px #000000;">a &amp; b</span><br><a class="text-run" href="https://x.test/?a=1&amp;b=2" title="Tip" data-slide="2" data-soft-break-before="" style="{RUN_STYLE}">c</a><span class="text-run" data-empty="" style="{RUN_STYLE}">&#8203;</span></div>"#
         );
         let object = text_object(&html).unwrap();
         let text = object.text.expect("text");
@@ -615,6 +630,18 @@ mod tests {
             (run("", " text-shadow: 1px 1px 1px red;", "x"), "data-text-shadow"),
             (run("", " text-decoration-line: overline;", "x"), "overline"),
             (run("", " font-kerning: off;", "x"), "font-kerning"),
+            (
+                run("", " text-decoration-thickness: 2px;", "x"),
+                "CSS property 'text-decoration-thickness': '2px'",
+            ),
+            (
+                run("", " text-underline-position: under;", "x"),
+                "CSS property 'text-underline-position': 'under'",
+            ),
+            (
+                run("", " text-decoration-skip-ink: auto;", "x"),
+                "CSS property 'text-decoration-skip-ink': 'auto'",
+            ),
             (
                 run(" data-synthetic-bold=\"-0.1\"", "", "x"),
                 "attribute 'data-synthetic-bold': -0.1 is negative",

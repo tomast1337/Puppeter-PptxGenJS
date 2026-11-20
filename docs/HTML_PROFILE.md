@@ -29,7 +29,9 @@ keeping its own copy (#154); the WASM reader requires them in both versions, and
 [completion](#completion) fills them in a hand-written or older document. The PowerPoint target's
 rounding of glyph advances to the 0.125pt grid moved in place from one `letter-spacing` per run to one per
 word: a run's words are each in a [word span](#text) of their own `letter-spacing`, so a line breaks where
-PowerPoint's does.
+PowerPoint's does. On the PowerPoint target an underlined run gained, in place,
+`text-decoration-thickness: from-font`, `text-underline-position: from-font` and
+`text-decoration-skip-ink: none` ([Text](#text)).
 
 **Meta names.** The project was called pdfdeck when version 1 was frozen, so a version 1 document spells its
 meta names `pdfdeck-profile` and `pdfdeck-page-size`, and readers keep accepting exactly that. Version 2 was
@@ -269,6 +271,13 @@ rejects a shrink box without all three. A soft break is a `<br>` before the run 
 CSS cannot state exactly are `data-*` on the run: `data-vertical-align` (`sub`, `super`),
 `data-text-shadow` (which `text-shadow` entry is the `glow` and which the `shadow`), `data-double-strike`
 with `data-underline-style`, and `data-empty` on an empty run (its text is U+200B).
+
+An underlined run with `NormalizedTextDecoration.underlineFromFont` (the PowerPoint target's) also has
+`text-decoration-thickness: from-font; text-underline-position: from-font; text-decoration-skip-ink: none`,
+their only values: the underline is the face's `post` table band (underlineThickness tall, its top
+underlinePosition below the baseline), drawn over descenders, as PowerPoint draws it. Without them Chromium
+draws its own (about 0.1em, at its own offset, broken around descenders). pdf-core and the PDFKit renderer draw
+the band either way; pdf-core rejects another value and the PDFKit renderer reports it.
 
 A run holds text, or text and **word spans**: `<span style="letter-spacing: 1.35293px;">Lorem</span>`, a
 `span` with no class, no other attribute and no other CSS, whose only child is text with no space or tab.
@@ -812,6 +821,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextDecoration.underline`            | profile | `underline` in `text-decoration-line`.                                                                                     |
 | `NormalizedTextDecoration.underlineStyle`       | profile | `text-decoration-style`; `data-underline-style` when `data-double-strike` replaced it with `double`.                       |
 | `NormalizedTextDecoration.underlineColor`       | profile | `text-decoration-color`.                                                                                                   |
+| `NormalizedTextDecoration.underlineFromFont`    | profile | `text-decoration-thickness`/`text-underline-position: from-font`, `text-decoration-skip-ink: none`.                        |
 | `NormalizedTextDecoration.strike`               | profile | `line-through` in `text-decoration-line`.                                                                                  |
 | `NormalizedTextDecoration.doubleStrike`         | profile | `data-double-strike` on the run (`text-decoration-style: double` draws it).                                                |
 | `NormalizedTextRun.verticalAlign`               | profile | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |
