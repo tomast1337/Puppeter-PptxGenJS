@@ -332,9 +332,12 @@ justifies at spaces either way; Chromium has no `text-justify`, so the print ste
 
 **Fallback faces.** On the PowerPoint target a run's (and its bullet's) `font-family` lists, after the face,
 the faces PowerPoint draws a character in when the face lacks it, the first that has it:
-`"Calibri", "Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"`, without the face
-itself (`RENDERING_TARGETS.powerpoint.fallbackFaces`, measured against PowerPoint's PDF export of a synthetic
-deck). Both renderers try them in order, then their own fallbacks: Chromium the print step's list and
+`"Calibri", "Arial", "Cambria Math", "Segoe UI Symbol", "MS Gothic", "Yu Gothic", "Microsoft JhengHei",
+"Microsoft YaHei", "Malgun Gothic"` for Calibri, without the face itself (`RENDERING_TARGETS.powerpoint`
+`fallbackFaces` and `eastAsianFallback`, measured against PowerPoint's PDF export of a synthetic deck). Where
+PowerPoint keeps an East Asian character in the face of the one before it, or draws an emoji from Segoe UI Emoji,
+the run is cut and that stretch lists its face first (normalize/fallback.ts), so a renderer that takes the first
+face with the character draws what PowerPoint does. Both renderers try them in order, then their own fallbacks: Chromium the print step's list and
 fontconfig, the WASM renderer `family_stack`'s (the face of the run's `lang`, DejaVu Sans, Liberation Sans,
 Noto Sans CJK JP). These are Microsoft fonts PdfLapas cannot ship: where one is not installed (the visual
 image has none), it is skipped, and a character falls to the next face or to the renderer's own fallback as on

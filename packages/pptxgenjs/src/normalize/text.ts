@@ -7,6 +7,7 @@ import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { inch2EmuToPixels } from "#src/units";
 import { advanceGridWordSpacing, type GridCursor, runPieces } from "./advanceGrid";
 import { breakAroundHanPunctuation, hangingMarkRuns, hangingSegments, languageHangingMarks } from "./eastAsianLineBreak";
+import { fallbackChain, fallbackSegments } from "./fallback";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { recordSharedRun, type SharedRunOptions, sharedRunOptions } from "./sharedRunOptions";
@@ -167,10 +168,10 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
     const defaultColor = link && options.color === undefined ? PPTX_DEFAULTS.theme.colors.hyperlink : PPTX_DEFAULTS.text.color;
     const bold = options.bold ?? PPTX_DEFAULTS.text.bold;
     const italic = options.italic ?? PPTX_DEFAULTS.text.italic;
-    const { syntheticBoldStrokeEm, syntheticItalicShear, fallbackFaces, nonBreakingHyphen, underlineFromFont } = RENDERING_TARGETS[target];
+    const { syntheticBoldStrokeEm, syntheticItalicShear, nonBreakingHyphen, underlineFromFont } = RENDERING_TARGETS[target];
     const underlined = Boolean(underline) && underline !== "none";
     const fontFace = options.fontFace ?? PPTX_DEFAULTS.text.fontFace;
-    const fallbacks = fallbackFaces.filter(face => face.toLowerCase() !== fontFace.toLowerCase());
+    const fallbacks = fallbackChain(fontFace, target);
 
     return {
         text,
@@ -393,14 +394,26 @@ function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxG
     // A soft break starts a line, so the sums start again with it, exactly where PowerPoint's line does.
     if (options.softBreakBefore) Object.assign(cursor, { rounded: 0, laidOut: 0 });
     const marks = languageHangingMarks(options.lang ?? PPTX_DEFAULTS.theme.language, RENDERING_TARGETS[target].hangingMarks);
-    if (!marks) return [normalizeTextRun(piece.text, options, target, fontMetrics, cursor)];
+    if (!marks) return fallbackRuns(piece.text, options, target, fontMetrics, cursor);
     const after = next && !next.options.softBreakBefore ? [...next.text][0] : undefined;
     const font = fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
-    return hangingSegments(piece.text, after, marks).flatMap(({ text, hangs }, index) => {
-        const run = normalizeTextRun(text, options, target, fontMetrics, cursor);
-        // Only the piece's first stretch starts after its soft break.
-        const segment = index ? { ...run, softBreakBefore: false } : run;
-        return hangs ? hangingMarkRuns(segment, font) : [segment];
+    return hangingSegments(piece.text, after, marks).flatMap(({ text, hangs }, index) =>
+        fallbackRuns(text, options, target, fontMetrics, cursor).flatMap(run => {
+            // Only the piece's first stretch starts after its soft break.
+            const segment = index ? { ...run, softBreakBefore: false } : run;
+            return hangs ? hangingMarkRuns(segment, font) : [segment];
+        }),
+    );
+}
+
+/** The runs of `text`, one per stretch drawn from its own fallback face (normalize/fallback.ts). */
+function fallbackRuns(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup, cursor: GridCursor): NormalizedTextRun[] {
+    const fontFace = options.fontFace ?? PPTX_DEFAULTS.text.fontFace;
+    const segments = fallbackSegments(text, fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic, target, fontMetrics);
+    return segments.map(({ text: stretch, fallbackFaces }, index) => {
+        const run = normalizeTextRun(stretch, options, target, fontMetrics, cursor);
+        // Only the first stretch starts after the piece's soft break.
+        return { ...run, ...(fallbackFaces.length ? { fallbackFaces } : {}), ...(index ? { softBreakBefore: false } : {}) };
     });
 }
 

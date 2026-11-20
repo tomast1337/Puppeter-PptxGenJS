@@ -381,11 +381,17 @@ taking the same arguments: use them to match LibreOffice or PowerPoint rendering
 and wrapped like `PuppeteerGen`. See "Choosing a rendering target" in [MIGRATION.md](./MIGRATION.md).
 
 **Fallback fonts for the PowerPoint target.** PowerPoint draws a character the run's font lacks in the
-first of Arial, Cambria Math, Segoe UI Symbol, Yu Gothic, PMingLiU and SimSun that has it, whatever the run's
-font, and the PowerPoint target writes that list after each run's face in the HTML. These are Microsoft fonts
-that PdfLapas does not ship: install them where you render to get PowerPoint's glyphs for arrows, check marks,
-enclosed numbers or Han text in a Latin run. Where one is missing, both renderers skip it and fall back as on
-the LibreOffice target. It draws U+2011 (non-breaking hyphen) with the font's own hyphen, as PowerPoint does.
+first of Arial, Cambria Math and Segoe UI Symbol that has it, then of East Asian fonts that depend on the run's
+font: MS Gothic, Yu Gothic, Microsoft JhengHei, Microsoft YaHei and Malgun Gothic after Arial and Calibri, Yu
+Gothic, PMingLiU, SimSun and Malgun Gothic after any other font. An East Asian character keeps the font of the
+one before it while that font has it, and an emoji takes Segoe UI Emoji. The PowerPoint target writes that list
+after each run's face in the HTML, and cuts a run where a character keeps or changes its font so the renderer
+draws each stretch from the same font. These are Microsoft fonts that PdfLapas does not ship: install them
+where you render (copy the `.ttf`/`.ttc` files from a licensed Windows or Office installation into a fontconfig
+directory such as `~/.local/share/fonts` and run `fc-cache`) to get PowerPoint's glyphs and advances for arrows,
+check marks, enclosed numbers, emoji or East Asian text in a Latin run. Where one is missing, both renderers
+skip it and fall back as on the LibreOffice target, and the run is not cut for it. It draws U+2011 (non-breaking
+hyphen) with the font's own hyphen, as PowerPoint does.
 
 **Font metrics for the PowerPoint target.** PowerPoint places a single-spaced line's baseline from its
 font's `head.unitsPerEm` and `OS/2` `usWinAscent` and `usWinDescent`, read from the installed font the

@@ -116,6 +116,15 @@ export interface RenderingTargetProfile {
      */
     readonly fallbackFaces: readonly string[];
     /**
+     * The faces an East Asian character (`isEastAsian`) the run's face lacks is drawn in, after `fallbackFaces`: those
+     * linked to the run's face (`byFace`, keyed by lower-case face), else `otherFaces`. Each such character keeps the
+     * face of the one before it while that face has it, else takes the first of these that has it
+     * (normalize/fallback.ts); empty leaves it to `fallbackFaces`.
+     */
+    readonly eastAsianFallback: { readonly byFace: Readonly<Record<string, readonly string[]>>; readonly otherFaces: readonly string[] };
+    /** The face an emoji (Extended_Pictographic) the run's face lacks is drawn in, ahead of `fallbackFaces`; undefined: none. */
+    readonly emojiFace: string | undefined;
+    /**
      * How U+2011 NON-BREAKING HYPHEN is drawn: "hyphen-minus", with the run's face's U+002D glyph, still unbreakable
      * (`NormalizedTextRun.nonBreakingHyphen`); undefined, as any other character.
      */

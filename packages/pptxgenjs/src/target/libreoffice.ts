@@ -50,6 +50,8 @@ export const LIBREOFFICE: RenderingTargetProfile = Object.freeze({
     syntheticBoldStrokeEm: 1 / 30,
     syntheticItalicShear: 0.3462535606,
     fallbackFaces: [],
+    eastAsianFallback: { byFace: {}, otherFaces: [] },
+    emojiFace: undefined,
     nonBreakingHyphen: undefined,
     drawsPictureInnerShadow: false,
     underlineFromFont: false,
