@@ -370,7 +370,7 @@ Docker when it is missing; see [CONTRIBUTING.md](../CONTRIBUTING.md)) copies it 
 `packages/wasm/src/`, and `bun run build` ships it in `packages/wasm/dist/`.
 Tests that need it skip with a message when it is not built, except in CI.
 
-## PDFKit backend (`@pdflapas/pdfkit`, experimental, text, images, simple shapes and tables)
+## PDFKit backend (`@pdflapas/pdfkit`, experimental, text, images, simple shapes, tables and effects)
 
 A third renderer in pure JavaScript on [PDFKit](https://pdfkit.org): no Chromium and no WebAssembly, so it runs
 wherever JavaScript does. It is a first version (#310); the WASM backend covers far more. Like the others it
@@ -392,15 +392,24 @@ parse5 and draws the [profile](HTML_PROFILE.md) with PDFKit, so HTML outside the
   the box break between characters. Every line sits on the profile's line box and baseline
   (`data-line-baseline`, `data-mark-baseline`, `data-break-baseline`), so only the breaks and x positions are
   measured, with fontkit, shaping each piece exactly as PDFKit draws it.
-- Images: PNG and JPEG, every sizing mode (stretch, contain, cover, crop), rounding, transparency, rotation and flips.
+- Images: PNG, JPEG, GIF and WebP (the first frame, decoded with `image-in-browser` and embedded as PNG; a GIF
+  whose first frame does not fill its screen throws, as in WASM) and SVG (drawn as vectors: `g`, `path`, `rect`,
+  `circle`, `ellipse`, `line`, `polyline` and `polygon` with inherited paint, transforms, `viewBox` and
+  `preserveAspectRatio`, a translucent element faded as one group; any other element is reported), every sizing
+  mode (stretch, contain, cover, crop), rounding, transparency, rotation and flips.
 - Shapes whose geometry is a `rect`, `ellipse` or untransformed `path`, and multi-face presets (their faces and
-  outline): fill, stroke, transparency and dashes, and the fill and line of text boxes.
+  outline): fill, stroke, transparency, dashes and line heads (the profile's markers, sized and turned as
+  `crates/pdf-core` draws them), and the fill and line of text boxes.
+- Shadows and glow: outer shadows of shapes, text boxes and images, the inner shadow of a picture, and the glow of
+  text runs, drawn as `crates/pdf-core` draws them: the object's silhouette blurred with the same box-blur
+  approximation, as a soft-masked image under the object (over it, for an inner shadow).
 - Tables: the HTML's column widths and row heights, merged cells, each row grown until its cells' text fits,
   cell fills, margins and anchor, cell text through the text box layout, and solid and dashed borders, each grid
   edge drawn once (the steps of `crates/pdf-core`'s `table.rs`); vertical cell text is reported.
 
 **Reported** (an error by default, a `warnings()` line under `onUnsupported: "warn"`): charts and
-components; GIF, WebP and SVG images; line heads; shape, text and object shadows and glow; vertical text; a
+components; SVG elements outside that subset; an inner shadow on anything but a picture (as WASM reports it);
+vertical text; a
 paragraph that mixes directions (there is no bidi algorithm, so its words run in the paragraph's direction) and
 tabs in a right-to-left paragraph; and any CSS property or `data-*` attribute of the profile
 it does not read, so nothing is dropped silently.
