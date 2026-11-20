@@ -178,7 +178,7 @@ PowerPoint® for Microsoft 365`), so both renderers write `PDF_PRODUCER` (`@pdfl
   does not change every PDF's bytes.
 - **Dates only when the deck sets them.** PowerPoint writes `/CreationDate` and `/ModDate`; neither
   renderer does unless the document has `pdflapas-creation-date` or `pdflapas-modification-date`, so the same
-  deck gives the same Info dictionary on every run (and the same bytes from WASM). Their content is UTC as
+  deck gives the same Info dictionary on every run, and the same bytes from either renderer. Their content is UTC as
   `Date.prototype.toISOString()` writes it, `YYYY-MM-DDTHH:mm:ss.sssZ` (the milliseconds optional); any
   other form, an offset included, is an error in both renderers. The PDF dates are UTC to the second,
   `D:YYYYMMDDHHmmSSZ`, so they do not depend on the time zone of the machine that renders. With one date,

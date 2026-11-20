@@ -113,6 +113,11 @@ from `@pdflapas/puppeteer`:
 4. Renders HTML to PDF with correct page size
 5. Outputs PDF file
 
+**Deterministic bytes.** Both PDF backends are byte-deterministic: the same HTML and options give the same PDF
+bytes, given the same fonts and, for this backend, the same Chromium version. Chromium dates its own Info
+dictionary with the time of the run; the Info update PdfLapas appends replaces it, blanks the old one in place
+and writes a trailer `/ID` computed from the file's content (ISO 32000-1, 14.4), so no run-specific byte remains.
+
 Concurrent and back-to-back `writeFile()` calls share one browser, which
 skips Chromium startup. The browser closes after 1 second idle, so scripts
 exit on their own. Call `closeBrowser()` to shut it down immediately:
