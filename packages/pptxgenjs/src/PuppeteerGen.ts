@@ -10,6 +10,7 @@ import { fontMetricsLookup } from "./fontMetrics";
 import { normalizePdfMetadata, type PdfMetadataOptions } from "./normalize/pdfMetadata";
 import type { SharedRunOptions } from "./normalize/sharedRunOptions";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
+import type { TableHtmlLimits } from "./normalize/table/htmlLimits";
 import { paginateTableRows } from "./normalize/table/pagination";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
 import type { PageSize, PageSizeInput } from "./pageLayouts";
@@ -421,13 +422,14 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     /**
      * PptxGenJS `tableToSlides()`: the table, paginated over as many slides as it needs. `source` is the id of a
      * <table> in the global document, as in PptxGenJS (in Node, a jsdom `document` you install),
-     * the <table> element itself, or HTML markup holding one (a string starting with `<`).
+     * the <table> element itself, or HTML markup holding one (a string starting with `<`). Markup over
+     * `props.htmlLimits` (default TABLE_HTML_LIMITS) throws before it is parsed.
      */
-    tableToSlides(source: string | HTMLTableElement, props?: PptxTableToSlidesProps | undefined): void {
+    tableToSlides(source: string | HTMLTableElement, props?: (PptxTableToSlidesProps & { htmlLimits?: TableHtmlLimits }) | undefined): void {
         // PptxGenJS takes the built-in layout's 0.5in margins over `slideMargin` (genTableToSlides, step 1).
         const builtInMaster = isBuiltInMaster(props?.masterSlideName, "tableToSlides({ masterSlideName })", "Remove `masterSlideName` and draw what the master held on each generated slide with the `addImage`, `addShape` and `addText` options.");
         const options = builtInMaster ? { ...props, slideMargin: PPTX_DEFAULTS.slide.marginIn } : (props ?? {});
-        const table = normalizeHtmlTable(findHtmlTable(source, this.createDocument), options, this.pageSize);
+        const table = normalizeHtmlTable(findHtmlTable(source, this.createDocument, props?.htmlLimits), options, this.pageSize);
         const firstIndex = this.slides.length;
         const firstSlide = this.addSlide();
         const pages = paginateTableRows(

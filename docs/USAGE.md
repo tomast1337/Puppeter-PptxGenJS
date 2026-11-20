@@ -245,6 +245,12 @@ and its cells keep the styles read from the HTML.
 The markup form needs a document with a window to compute styles: the Node entry's jsdom has one, a
 browser's default does not, so in a browser insert the table into the page and pass the element or its id.
 
+Parsing markup is synchronous, and its time grows with the markup's size (about a millisecond per cell) and
+faster than linearly with its element nesting. So markup over 1 MiB, or nesting elements more than 512 deep
+(where Chromium's parser stops nesting), throws before it is parsed (`TABLE_HTML_LIMITS`). Raise either limit
+per call: `pres.tableToSlides(html, { htmlLimits: { maxLength: 4 * 1024 * 1024, maxDepth: 1024 } })`. When
+the markup holds user data, also cap the row count your service accepts.
+
 **`pres.page` is removed** (#112). `tableToSlides(id)` looks the id up in the global `document` only, as
 PptxGenJS does; a table put into `pres.page` before now goes in the global `document`, or pass the element or
 its HTML.

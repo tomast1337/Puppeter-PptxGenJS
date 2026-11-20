@@ -4,6 +4,7 @@ import type { PageSize } from "#src/pageLayouts";
 import { HEX_COLOR } from "#src/color";
 import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { mapSides, slideMarginInches } from "#src/normalize/margin";
+import { checkTableHtmlLimits, type TableHtmlLimits } from "./htmlLimits";
 
 export interface NormalizedHtmlTable {
     rows: PptxGenJS.TableRow[];
@@ -100,16 +101,18 @@ function tableWithWindow(element: Element | null | undefined): HTMLTableElement 
 /**
  * The tableToSlides() source table. A string is PptxGenJS's element id, looked up in the global document, where
  * PptxGenJS looks, unless it starts with `<`: then it is
- * HTML markup, parsed into a `createDocument()` document, and its first <table> is the source. A <table>
- * element is used as it is. The element and markup forms are PdfLapas's; PptxGenJS 4.0.1 takes only the id.
+ * HTML markup, checked against `limits`, parsed into a `createDocument()` document, and its first <table> is the
+ * source. A <table> element is used as it is. The element and markup forms are PdfLapas's; PptxGenJS 4.0.1 takes
+ * only the id.
  */
-export function findHtmlTable(source: string | HTMLTableElement, createDocument: () => Document): HTMLTableElement {
+export function findHtmlTable(source: string | HTMLTableElement, createDocument: () => Document, limits?: TableHtmlLimits): HTMLTableElement {
     if (typeof source !== "string") {
         const table = tableWithWindow(source);
         if (!table) throw new TypeError("tableToSlides: the element is not a <table> in a document with a window, whose computed styles are read; pass a table of the page (or of a jsdom document), its id, or its HTML");
         return table;
     }
     if (source.trimStart().startsWith("<")) {
+        checkTableHtmlLimits(source, limits);
         const document = createDocument();
         if (!document.defaultView) {
             throw new Error("tableToSlides: parsing an HTML string needs a document with a window to read computed styles, and createDocument() made one without (a browser's createHTMLDocument()); insert the table into the page and pass the element or its id, or pass a createDocument option");

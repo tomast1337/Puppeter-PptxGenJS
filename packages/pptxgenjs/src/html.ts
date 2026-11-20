@@ -15,6 +15,7 @@ import { completeProfileHtml, pptxHtmlDocument } from "./render/completion";
 import { InvalidModelError, parseModel } from "./modelSchema";
 import { modelToHtml } from "./render/document";
 import { IMAGE_SOURCE_LIMITS, UnresolvedImageError } from "./normalize/image";
+import { TABLE_HTML_LIMITS } from "./normalize/table/htmlLimits";
 import { inchesToPixels, percentageToPixels, pointsToPixels } from "@pdflapas/model";
 import { convertToPixels } from "./units";
 
@@ -54,6 +55,8 @@ export {
     readGlyphAdvances,
     pointsToPixels,
     SHAPE_GEOMETRY_COMPATIBILITY,
+    // The size and nesting limits on tableToSlides() HTML markup (#359).
+    TABLE_HTML_LIMITS,
     tableMarginToCSS,
     textMarginToCSS,
     // What toHtml() throws when a resolveImage result is not a data URI (#284).
@@ -74,6 +77,7 @@ export type { MissingFont, MissingFontPolicy, NormalizedPresentation, Normalized
 export { MissingFontError } from "@pdflapas/model";
 export type { ImageSourceOptions } from "./normalize/image";
 export type { PdfMetadataOptions } from "./normalize/pdfMetadata";
+export type { TableHtmlLimits } from "./normalize/table/htmlLimits";
 export type { PuppeteerGenOptions } from "./PuppeteerGen";
 export type { PuppeteerSlide } from "./PuppeteerSlide";
 export type { Orientation, PageLayout, PageSize, PageSizeInput, PageSizeName } from "./pageLayouts";
