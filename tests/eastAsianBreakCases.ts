@@ -1,6 +1,6 @@
 // Han lines around punctuation, quotes, dashes, digits and Latin words, with the line breaks PowerPoint's PDF export of
-// the same synthetic decks gave: SimSun 10pt (every Han character and full-width mark 1em, every ASCII character
-// 0.5em, no kerning), margin 0, top anchored. Each string has one boundary between two characters, and three boxes end
+// the same synthetic decks gave: SimSun 10pt unless a case says otherwise (every Han character and full-width mark
+// 1em, every ASCII character 0.5em, no kerning), margin 0, top anchored. Each string has one boundary between two characters, and three boxes end
 // the line just before, between and just after them (target/powerpoint.ts, `hangingMarks` and
 // `breaksAroundHanPunctuation`).
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
@@ -17,7 +17,9 @@ export interface EastAsianBreakCase {
     /** The text, one run, or two at "|": with a soft break between them (`split` "break") or the second in 14pt ("size"). */
     readonly text: string;
     readonly split: "break" | "size" | undefined;
-    /** The box's width, in em of SIZE_PT. */
+    readonly align: "left" | "justify";
+    readonly sizePt: number;
+    /** The box's width, in em of `sizePt`. */
     readonly widthEm: number;
     /** PowerPoint's lines, each as its number of characters other than spaces. */
     readonly lines: readonly number[];
@@ -956,22 +958,787 @@ const LANGUAGE_CASES: readonly (readonly [string | undefined, string, readonly n
     ],
 ];
 
-/** The measured boxes: the first deck's in zh-CN, then in zh-TW, then the second deck's. */
+// The third deck, all with no lang: align, size, text, the three box widths (em), PowerPoint's line lengths, and
+// whether the text follows a first line of "甲" as wide as the box. Han before and after 《（「“, ASCII quotes, ；
+// and 、, left aligned and justified, at 10 and 8pt: neither the alignment, the size nor the line changes a break.
+const ALIGNMENT_CASES: readonly (readonly ["left" | "justify", number, string, readonly number[], readonly (readonly number[])[], true?])[] = [
+    [
+        "left",
+        10,
+        "我们参考了《示例手册》内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了《示例手册》内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "我们参考了《示例手册》内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "我们参考了《示例手册》内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "我们参考了（示例手册）内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了（示例手册）内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "我们参考了（示例手册）内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "我们参考了（示例手册）内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "我们参考了「示例手册」内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了「示例手册」内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "我们参考了「示例手册」内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "我们参考了「示例手册」内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "我们参考了“示例手册”内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了“示例手册”内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "我们参考了“示例手册”内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "我们参考了“示例手册”内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 1],
+            [5, 5, 3],
+            [6, 6, 1],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "我们参考了《示例手册》内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了《示例手册》内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "我们参考了《示例手册》内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "我们参考了《示例手册》内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "我们参考了（示例手册）内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了（示例手册）内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "我们参考了（示例手册）内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "我们参考了（示例手册）内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "我们参考了「示例手册」内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了「示例手册」内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "我们参考了「示例手册」内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "我们参考了「示例手册」内容",
+        [5, 6, 7],
+        [
+            [5, 5, 3],
+            [6, 6, 1],
+            [7, 6],
+        ],
+    ],
+    [
+        "left",
+        10,
+        '大家都说"样本"不错',
+        [3, 4, 4.5],
+        [
+            [3, 3, 3, 1],
+            [4, 5, 1],
+            [5, 5],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        '大家都说"样本"不错',
+        [3, 4, 4.5],
+        [
+            [3, 3, 3, 1],
+            [4, 5, 1],
+            [5, 5],
+        ],
+    ],
+    [
+        "left",
+        8,
+        '大家都说"样本"不错',
+        [3, 4, 4.5],
+        [
+            [3, 3, 3, 1],
+            [4, 5, 1],
+            [5, 5],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        '大家都说"样本"不错',
+        [3, 4, 4.5],
+        [
+            [3, 3, 3, 1],
+            [4, 5, 1],
+            [5, 5],
+        ],
+    ],
+    [
+        "left",
+        10,
+        '大家都说"样本"不错',
+        [4, 4.5, 5.5],
+        [
+            [4, 5, 1],
+            [5, 5],
+            [6, 4],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        '大家都说"样本"不错',
+        [4, 4.5, 5.5],
+        [
+            [4, 5, 1],
+            [5, 5],
+            [6, 4],
+        ],
+    ],
+    [
+        "left",
+        8,
+        '大家都说"样本"不错',
+        [4, 4.5, 5.5],
+        [
+            [4, 5, 1],
+            [5, 5],
+            [6, 4],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        '大家都说"样本"不错',
+        [4, 4.5, 5.5],
+        [
+            [4, 5, 1],
+            [5, 5],
+            [6, 4],
+        ],
+    ],
+    [
+        "left",
+        10,
+        '大家说"样本"不错',
+        [4.5, 5.5, 6],
+        [
+            [5, 4],
+            [6, 3],
+            [7, 2],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        '大家说"样本"不错',
+        [4.5, 5.5, 6],
+        [
+            [5, 4],
+            [6, 3],
+            [7, 2],
+        ],
+    ],
+    [
+        "left",
+        8,
+        '大家说"样本"不错',
+        [4.5, 5.5, 6],
+        [
+            [5, 4],
+            [6, 3],
+            [7, 2],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        '大家说"样本"不错',
+        [4.5, 5.5, 6],
+        [
+            [5, 4],
+            [6, 3],
+            [7, 2],
+        ],
+    ],
+    [
+        "left",
+        10,
+        '大家说"样本"不错',
+        [5.5, 6, 7],
+        [
+            [6, 3],
+            [7, 2],
+            [8, 1],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        '大家说"样本"不错',
+        [5.5, 6, 7],
+        [
+            [6, 3],
+            [7, 2],
+            [8, 1],
+        ],
+    ],
+    [
+        "left",
+        8,
+        '大家说"样本"不错',
+        [5.5, 6, 7],
+        [
+            [6, 3],
+            [7, 2],
+            [8, 1],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        '大家说"样本"不错',
+        [5.5, 6, 7],
+        [
+            [6, 3],
+            [7, 2],
+            [8, 1],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "示例内容；后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "示例内容；后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "示例内容；后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "示例内容；后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "示例内容；后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "示例内容；后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "示例内容；后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "示例内容；后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "示例内容、后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "示例内容、后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "示例内容、后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "示例内容、后续部分",
+        [3, 4, 5],
+        [
+            [3, 3, 3],
+            [4, 4, 1],
+            [5, 4],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "示例内容、后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "justify",
+        10,
+        "示例内容、后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "left",
+        8,
+        "示例内容、后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "justify",
+        8,
+        "示例内容、后续部分",
+        [4, 5, 6],
+        [
+            [4, 4, 1],
+            [5, 4],
+            [6, 3],
+        ],
+    ],
+    [
+        "left",
+        10,
+        "我们参考了《示例手册》内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 4, 1],
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+        ],
+        true,
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了《示例手册》内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 4, 1],
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+        ],
+        true,
+    ],
+    [
+        "left",
+        10,
+        "我们参考了（示例手册）内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 4, 1],
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+        ],
+        true,
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了（示例手册）内容",
+        [4, 5, 6],
+        [
+            [4, 4, 4, 4, 1],
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+        ],
+        true,
+    ],
+    [
+        "left",
+        10,
+        "我们参考了《示例手册》内容",
+        [5, 6, 7],
+        [
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+            [7, 7, 6],
+        ],
+        true,
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了《示例手册》内容",
+        [5, 6, 7],
+        [
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+            [7, 7, 6],
+        ],
+        true,
+    ],
+    [
+        "left",
+        10,
+        "我们参考了（示例手册）内容",
+        [5, 6, 7],
+        [
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+            [7, 7, 6],
+        ],
+        true,
+    ],
+    [
+        "justify",
+        10,
+        "我们参考了（示例手册）内容",
+        [5, 6, 7],
+        [
+            [5, 5, 5, 3],
+            [6, 6, 6, 1],
+            [7, 7, 6],
+        ],
+        true,
+    ],
+];
+
+/** The measured boxes: the first deck's in zh-CN, then in zh-TW, then the second deck's, then the third's. */
 export function eastAsianBreakCases(): EastAsianBreakCase[] {
     const chinese = (["zh-CN", "zh-TW"] as const).flatMap((lang, language) =>
         CHINESE_CASES.flatMap((entry, index) => {
             const text = entry[language === 0 ? 0 : 1].replace("|", "");
-            return entry[2].map((widthEm, box) => ({ label: `${lang} ${index + 1}${"abc"[box] ?? ""}`, lang, text, split: undefined, widthEm, lines: entry[3][box] ?? [] }));
+            return entry[2].map((widthEm, box) => ({ label: `${lang} ${index + 1}${"abc"[box] ?? ""}`, lang, text, split: undefined, align: "left" as const, sizePt: SIZE_PT, widthEm, lines: entry[3][box] ?? [] }));
         }),
     );
-    const languages = LANGUAGE_CASES.flatMap(([lang, text, widths, lines, split], index) => widths.map((widthEm, box) => ({ label: `${lang ?? "no lang"} ${index + 1}${"abc"[box] ?? ""}`, lang, text, split, widthEm, lines: lines[box] ?? [] })));
-    return [...chinese, ...languages];
+    const languages = LANGUAGE_CASES.flatMap(([lang, text, widths, lines, split], index) => widths.map((widthEm, box) => ({ label: `${lang ?? "no lang"} ${index + 1}${"abc"[box] ?? ""}`, lang, text, split, align: "left" as const, sizePt: SIZE_PT, widthEm, lines: lines[box] ?? [] })));
+    const alignments = ALIGNMENT_CASES.flatMap(([align, sizePt, text, widths, lines, secondLine], index) =>
+        widths.map((widthEm, box) => ({ label: `${align} ${sizePt}pt ${index + 1}${"abc"[box] ?? ""}`, lang: undefined, text: `${secondLine ? "甲".repeat(widthEm) : ""}${text}`, split: undefined, align, sizePt, widthEm, lines: lines[box] ?? [] })),
+    );
+    return [...chinese, ...languages, ...alignments];
 }
 
-/** Each case in a box of its own slide, SimSun 10pt, margin 0, top anchored, as in the measured decks. */
+/** Each case in a box of its own slide, SimSun, margin 0, top anchored, as in the measured decks. */
 export function eastAsianBreakDeck(presentation: PuppeteerGen, cases: readonly EastAsianBreakCase[]): PuppeteerGen {
-    for (const { lang, text, split, widthEm } of cases) {
-        const options = { fontFace: "SimSun", fontSize: SIZE_PT, ...(lang ? { lang } : {}) };
+    for (const { lang, text, split, align, sizePt, widthEm } of cases) {
+        const options = { fontFace: "SimSun", fontSize: sizePt, ...(lang ? { lang } : {}) };
         const [head = "", tail = ""] = text.split("|");
         const runs =
             split === "break"
@@ -985,7 +1752,7 @@ export function eastAsianBreakDeck(presentation: PuppeteerGen, cases: readonly E
                         { text: tail, options: { ...options, fontSize: SPLIT_SIZE_PT } },
                     ]
                   : text;
-        presentation.addSlide().addText(runs, { ...options, x: 0.4, y: 0.2, w: (widthEm * SIZE_PT) / PPTX_DEFAULTS.units.pointsPerInch, h: 1, margin: 0, valign: "top" });
+        presentation.addSlide().addText(runs, { ...options, align, x: 0.4, y: 0.2, w: (widthEm * sizePt) / PPTX_DEFAULTS.units.pointsPerInch, h: 1, margin: 0, valign: "top" });
     }
     return presentation;
 }
