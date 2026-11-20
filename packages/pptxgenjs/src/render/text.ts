@@ -35,10 +35,13 @@ function runStyleAttributes(run: NormalizedTextRun): Attribute[] {
     if (lines.length) css.set("text-decoration-line", lines.join(" "));
     css.set("text-decoration-style", run.decoration.underlineStyle);
     if (run.decoration.underlineColor) css.set("text-decoration-color", run.decoration.underlineColor);
-    // The face's post table band, which Chromium draws only when told (target/powerpoint.ts `underlineFromFont`).
+    // The face's post table band, which Chromium draws only when told (target/powerpoint.ts `underlineFromFont`), or the
+    // caller's band in its place (`underlineBand`): CSS's offset is the band's top below the baseline.
     if (run.decoration.underlineFromFont) {
-        css.set("text-decoration-thickness", "from-font");
-        css.set("text-underline-position", "from-font");
+        const band = run.decoration.underlineBand;
+        css.set("text-decoration-thickness", band ? `${band.thickness}em` : "from-font");
+        if (band) css.set("text-underline-offset", `${-band.position}em`);
+        else css.set("text-underline-position", "from-font");
         css.set("text-decoration-skip-ink", "none");
     }
     // CSS has one decoration style per box, so the underline style the double strike replaces is kept in data-underline-style.

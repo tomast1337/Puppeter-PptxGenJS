@@ -440,6 +440,36 @@ describe("PDFKit renderer", () => {
         expect(renderer.warnings()).toEqual([]);
     });
 
+    test("draws a fontMetrics entry's underline band in place of the face's post band on the PowerPoint target (#391)", async () => {
+        const fonts = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
+        const [file] = fonts;
+        if (!file) throw new Error("Liberation Sans is not installed");
+        const font = createFont(Buffer.from(file)) as Font; // `as`: a .ttf holds one font, not a collection
+        const renderer = await createPdfkitRenderer({ fonts });
+        const arial = { unitsPerEm: font.unitsPerEm, winAscent: 1854, winDescent: 434 };
+        const underlined = async (underline?: { position: number; thickness: number }, style: PptxGenJS.TextPropsOptions["underline"] = { style: "sng" }) => {
+            const fontMetrics = { Arial: { ...arial, ...(underline ? { underline } : {}) } };
+            const pres = new PuppeteerGen(PAGE, { renderer, createDocument, target: "powerpoint", fontMetrics });
+            pres.addSlide().addText("Band", { x: 1, y: 1, w: 8, h: 1, fontFace: "Arial", fontSize: 18, underline: style, margin: 0, valign: "top" });
+            const content = pageContents(await pres.toPdf())[0] ?? "";
+            // The first rect is the slide background.
+            const rects = [...content.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re/g)].slice(1).map(match => match.slice(1).map(Number));
+            return { content, baseline: texts(content)[0]?.baseline ?? 0, tops: rects.map(rect => rect[1] ?? 0), heights: rects.map(rect => rect[3] ?? 0) };
+        };
+        // 45 and 72 of 2048 units at 24px.
+        const [p, t] = [(45 * 24) / font.unitsPerEm, (72 * 24) / font.unitsPerEm];
+        const band = await underlined({ position: -45, thickness: 72 });
+        expect(band.tops).toEqual([expect.closeTo(band.baseline + p, 2)]);
+        expect(band.heights).toEqual([expect.closeTo(t, 2)]);
+        const heavy = await underlined({ position: -45, thickness: 72 }, { style: "heavy" });
+        expect(heavy.tops).toEqual([expect.closeTo(heavy.baseline + p - t, 2)]);
+        expect(heavy.heights).toEqual([expect.closeTo(1.5 * t, 2)]);
+        // The face's own post values, given explicitly, draw what the post band draws.
+        const post = await underlined({ position: font.underlinePosition, thickness: font.underlineThickness });
+        expect(post.content).toBe((await underlined()).content);
+        expect(renderer.warnings()).toEqual([]);
+    });
+
     test("puts text on explicit tab stops: a right stop ends it there, a decimal stop puts its '.' there", async () => {
         const fonts = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
         const [file] = fonts;

@@ -398,6 +398,13 @@ export interface FontWinMetrics {
      * unknown face.
      */
     readonly pairKerning?: boolean;
+    /**
+     * The underline band the PowerPoint target draws for the face, in place of its `post` table's, in font units:
+     * `position` is the band's top above the baseline (negative below, as `post.underlinePosition`), `thickness` its
+     * height (> 0). For a face whose `post` band PowerPoint does not draw (#391): measure it in PowerPoint's PDF export.
+     * Omitted: the `post` band. `readFontWinMetrics` never sets it.
+     */
+    readonly underline?: { readonly position: number; readonly thickness: number };
 }
 /** Font metrics keyed by lower-case face name. */
 export type FontMetricsTable = Readonly<Record<string, FontWinMetrics>>;

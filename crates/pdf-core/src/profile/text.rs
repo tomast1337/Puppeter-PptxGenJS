@@ -7,8 +7,8 @@ use super::object::link;
 use super::style::{Style, font_families, integer, keyword, number, px, shadow, split_top_level};
 use crate::color::parse_color;
 use crate::model::{
-    Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, Synthesis, TabAlign, TabStop, TextBox, TextDirection,
-    TextFit, UnderlineStyle, VerticalAlign, WordSpacing,
+    Bullet, Decoration, EmBand, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, Synthesis, TabAlign, TabStop, TextBox,
+    TextDirection, TextFit, UnderlineStyle, VerticalAlign, WordSpacing,
 };
 
 /// Attributes of the element that holds a text box.
@@ -84,6 +84,7 @@ const RUN_CSS: &[&str] = &[
     "text-decoration-color",
     "text-decoration-thickness",
     "text-underline-position",
+    "text-underline-offset",
     "text-decoration-skip-ink",
     "position",
     "top",
@@ -257,6 +258,25 @@ fn paragraph(dom: &Dom<'_>, element: &Element<'_>) -> Result<Paragraph, String> 
 
 /// The run's `text-decoration-style` (solid when omitted), or `data-underline-style` when a double strike
 /// took the CSS property.
+/// `text-underline-offset` and `text-decoration-thickness` in em, without `text-underline-position`: a band in place of
+/// the face's `post` band (the model's `underlineBand`); None without an offset.
+fn underline_band(style: &Style<'_>) -> Result<Option<EmBand>, String> {
+    let Some(offset) = style.get("text-underline-offset") else {
+        return Ok(None);
+    };
+    let em = |value: Option<&str>| value?.strip_suffix("em").and_then(|n| number(n).ok());
+    match (
+        em(Some(offset)),
+        em(style.get("text-decoration-thickness")),
+        style.get("text-underline-position"),
+    ) {
+        (Some(top), Some(size), None) if size > 0.0 => Ok(Some(EmBand { offset: -top, size })),
+        _ => Err(format!(
+            "CSS property 'text-underline-offset': '{offset}' must be '<n>em', with 'text-decoration-thickness' a positive '<n>em' and no 'text-underline-position'"
+        )),
+    }
+}
+
 fn underline_style(element: &Element<'_>, style: &Style<'_>) -> Result<UnderlineStyle, String> {
     let attr = element.attr("data-underline-style")?;
     let (what, value) = match attr.as_deref() {
@@ -343,8 +363,13 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
     if let Some(line) = lines.split_ascii_whitespace().find(|l| !matches!(*l, "underline" | "line-through")) {
         return Err(format!("CSS property 'text-decoration-line': '{line}' is not underline or line-through"));
     }
-    // The underline is always drawn from the face's post table, over the descenders; these say so for Chromium.
+    let underline_band = underline_band(&style)?;
+    // The underline is always drawn from the face's post table, or the band above, over the descenders; these say so
+    // for Chromium.
     for (property, value) in UNDERLINE_FROM_FONT {
+        if underline_band.is_some() && property == "text-decoration-thickness" {
+            continue;
+        }
         if let Some(given) = style.get(property) {
             one_of(&format!("CSS property '{property}'"), given, &[value])?;
         }
@@ -382,6 +407,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
             underline_style: underline_style(element, &style)?,
             underline_color: style.color("text-decoration-color")?,
             underline_from_font,
+            underline_band,
             underline_heavy,
             strike: lines.split_ascii_whitespace().any(|l| l == "line-through"),
             double_strike: element.has_attr("data-double-strike"),
@@ -479,7 +505,7 @@ fn glow(element: &Element<'_>, style: &Style<'_>) -> Result<Option<Shadow>, Stri
 #[cfg(test)]
 mod tests {
     use crate::color::Rgba;
-    use crate::model::{ParagraphAlign, Shrink, SlideObject, Synthesis, TabAlign, TextFit, TextObject, UnderlineStyle, VerticalAlign};
+    use crate::model::{EmBand, ParagraphAlign, Shrink, SlideObject, Synthesis, TabAlign, TextFit, TextObject, UnderlineStyle, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -633,6 +659,17 @@ mod tests {
     }
 
     #[test]
+    fn reads_an_underline_band_in_em_in_place_of_the_post_band() {
+        let html = format!(
+            r#"<div class="text-paragraph" data-line-baseline="16" style="{PARAGRAPH_STYLE}"><span class="text-run" style="{RUN_STYLE} text-decoration-line: underline; text-decoration-thickness: 0.072em; text-underline-offset: 0.045em; text-decoration-skip-ink: none;">x</span></div>"#
+        );
+        let text = text_object(&html).unwrap().text.expect("text");
+        let decoration = &text.paragraphs[0].runs[0].decoration;
+        assert!(decoration.underline_from_font);
+        assert_eq!(decoration.underline_band, Some(EmBand { offset: -0.045, size: 0.072 }));
+    }
+
+    #[test]
     fn reads_inter_word_justification() {
         let style = PARAGRAPH_STYLE.replace("text-align: left;", "text-align: justify; text-justify: inter-word;");
         let html = format!(r#"<div class="text-paragraph" data-line-baseline="16" style="{style}"><span class="text-run" style="{RUN_STYLE}">x</span></div>"#);
@@ -663,6 +700,27 @@ mod tests {
             (
                 run("", " text-underline-position: under;", "x"),
                 "CSS property 'text-underline-position': 'under'",
+            ),
+            (
+                run("", " text-decoration-thickness: 0.07em; text-underline-offset: 2px;", "x"),
+                "CSS property 'text-underline-offset': '2px' must be '<n>em'",
+            ),
+            (run("", " text-underline-offset: 0.1em;", "x"), "'text-decoration-thickness' a positive '<n>em'"),
+            (
+                run("", " text-decoration-thickness: 0em; text-underline-offset: 0.1em;", "x"),
+                "'text-decoration-thickness' a positive '<n>em'",
+            ),
+            (
+                run(
+                    "",
+                    " text-decoration-thickness: 0.07em; text-underline-offset: 0.1em; text-underline-position: from-font;",
+                    "x",
+                ),
+                "and no 'text-underline-position'",
+            ),
+            (
+                run("", " text-decoration-thickness: 0.07em;", "x"),
+                "CSS property 'text-decoration-thickness': '0.07em'",
             ),
             (
                 run("", " text-decoration-skip-ink: auto;", "x"),

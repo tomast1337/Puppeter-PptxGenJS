@@ -12,6 +12,15 @@ const FONT_WIN_METRICS_SCHEMA = z
         winAscent: integer(0, "a non-negative integer (OS/2 usWinAscent)"),
         winDescent: integer(0, "a non-negative integer (OS/2 usWinDescent)"),
         pairKerning: z.boolean({ error: "must be a boolean (whether PowerPoint pair-kerns the font)" }).optional(),
+        underline: z
+            .strictObject(
+                {
+                    position: z.number({ error: "must be a finite number (font units, the band's top above the baseline, negative below)" }),
+                    thickness: z.number({ error: "must be a positive number (font units)" }).positive({ error: "must be a positive number (font units)" }),
+                },
+                { error: "must be { position, thickness } in font units" },
+            )
+            .optional(),
     })
     .refine(metrics => metrics.winAscent + metrics.winDescent > 0, { error: "winAscent + winDescent must be greater than 0" });
 
@@ -25,8 +34,8 @@ function callerFontMetrics(option: unknown): FontMetricsTable {
     const parsed = FONT_METRICS_OPTION_SCHEMA.safeParse(option);
     if (!parsed.success) {
         const issue = parsed.error.issues[0];
-        const [face, field] = issue?.path ?? [];
-        const where = face === undefined ? "" : `[${JSON.stringify(String(face))}]${field === undefined ? "" : `.${String(field)}`}`;
+        const [face, ...fields] = issue?.path ?? [];
+        const where = face === undefined ? "" : `[${JSON.stringify(String(face))}]${fields.map(field => `.${String(field)}`).join("")}`;
         throw new TypeError(`PuppeteerGen option \`fontMetrics${where}\` ${issue?.message ?? "is invalid"}. ${HOW_TO_FIX}`);
     }
     const faces = new Map<string, string>();
@@ -46,7 +55,7 @@ function resolvedFontMetrics(resolve: FontMetricsLookup, fontFace: string): Font
     const parsed = FONT_WIN_METRICS_SCHEMA.safeParse(resolved);
     if (parsed.success) return Object.freeze(parsed.data);
     const issue = parsed.error.issues[0];
-    const field = issue?.path[0] === undefined ? "" : `${String(issue.path[0])} `;
+    const field = issue?.path.length ? `${issue.path.map(String).join(".")} ` : "";
     throw new TypeError(`PuppeteerGen option \`resolveFontMetrics\` returned invalid metrics for ${JSON.stringify(fontFace)}: ${field}${issue?.message ?? "is invalid"}. Return undefined for a face it cannot find, or readFontWinMetrics(fontBytes).`);
 }
 

@@ -81,6 +81,7 @@ const textRun = z
             underlineStyle: z.enum(["solid", "double", "dashed", "dotted", "wavy"]),
             underlineColor: cssColor.optional(),
             underlineFromFont: z.boolean().optional(),
+            underlineBand: z.strictObject({ position: finite, thickness: z.number().positive() }).optional(),
             underlineHeavy: z.boolean().optional(),
             strike: z.boolean(),
             doubleStrike: z.boolean(),

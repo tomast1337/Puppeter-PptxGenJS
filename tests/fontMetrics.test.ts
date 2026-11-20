@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type PptxGenJS from "pptxgenjs";
 import { existsSync, readFileSync } from "node:fs";
 import { FontFileError, PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint, readFontWinMetrics } from "../packages/pptxgenjs/src/index";
 import { FONT_WIN_METRICS, type FontWinMetrics } from "../packages/pptxgenjs/src/defaults";
@@ -99,6 +100,13 @@ describe("fontMetrics option", () => {
             [{ "My Brand Sans": { ...BRAND, winAscent: 0, winDescent: 0 } }, '`fontMetrics["My Brand Sans"]` winAscent + winDescent must be greater than 0'],
             [{ "My Brand Sans": { ...BRAND, pairKerning: "yes" } }, '`fontMetrics["My Brand Sans"].pairKerning` must be a boolean (whether PowerPoint pair-kerns the font)'],
             [{ "My Brand Sans": { ...BRAND, ascent: 900 } }, '`fontMetrics["My Brand Sans"]`'],
+            [{ "My Brand Sans": { ...BRAND, underline: -45 } }, '`fontMetrics["My Brand Sans"].underline` must be { position, thickness } in font units'],
+            [{ "My Brand Sans": { ...BRAND, underline: { position: Number.NaN, thickness: 72 } } }, '`fontMetrics["My Brand Sans"].underline.position` must be a finite number'],
+            [{ "My Brand Sans": { ...BRAND, underline: { position: Number.POSITIVE_INFINITY, thickness: 72 } } }, '`fontMetrics["My Brand Sans"].underline.position` must be a finite number'],
+            [{ "My Brand Sans": { ...BRAND, underline: { position: -45 } } }, '`fontMetrics["My Brand Sans"].underline.thickness` must be a positive number (font units)'],
+            [{ "My Brand Sans": { ...BRAND, underline: { position: -45, thickness: 0 } } }, '`fontMetrics["My Brand Sans"].underline.thickness` must be a positive number (font units)'],
+            [{ "My Brand Sans": { ...BRAND, underline: { position: -45, thickness: Number.POSITIVE_INFINITY } } }, '`fontMetrics["My Brand Sans"].underline.thickness` must be a positive number'],
+            [{ "My Brand Sans": { ...BRAND, underline: { position: -45, thickness: 72, offset: 1 } } }, '`fontMetrics["My Brand Sans"].underline`'],
             ["My Brand Sans", "`fontMetrics` must be an object keyed by font face name"],
         ];
         for (const [fontMetrics, message] of cases) {
@@ -109,6 +117,38 @@ describe("fontMetrics option", () => {
             expect(create).toThrow("readFontWinMetrics(fontBytes)");
         }
         expect(() => new PuppeteerGenPowerPoint(undefined, { fontMetrics: { "My Brand Sans": BRAND, "MY BRAND SANS": BRAND } })).toThrow('lists "My Brand Sans" and "MY BRAND SANS", the same face');
+    });
+
+    test("an entry's underline replaces the face's post band on the PowerPoint target only, in em in the model and the HTML (#391)", async () => {
+        const underline = { position: -45, thickness: 72 };
+        const lookup = fontMetricsLookup({ "My Brand Sans": { ...BRAND, underline }, "My Brand Serif": BRAND }, null);
+        const decoration = (fontFace: string, target: "powerpoint" | "libreoffice" = "powerpoint", options: PptxGenJS.TextPropsOptions = { underline: { style: "sng" } }) => normalizeText("Line", { fontFace, fontSize: 18, ...options }, target, lookup).paragraphs[0]?.runs[0]?.decoration;
+        expect(decoration("My Brand Sans")).toMatchObject({ underlineFromFont: true, underlineBand: { position: -0.045, thickness: 0.072 } });
+        // Without one, the post band; not underlined, or on the LibreOffice target, no band at all.
+        expect(decoration("My Brand Serif")?.underlineFromFont).toBe(true);
+        expect(decoration("My Brand Serif")?.underlineBand).toBeUndefined();
+        expect(decoration("My Brand Sans", "powerpoint", {})?.underlineBand).toBeUndefined();
+        expect(decoration("My Brand Sans", "libreoffice")).not.toHaveProperty("underlineBand");
+        // The heavy band derives from the same band.
+        expect(decoration("My Brand Sans", "powerpoint", { underline: { style: "heavy" } })).toMatchObject({ underlineHeavy: true, underlineBand: { position: -0.045, thickness: 0.072 } });
+
+        const html = async (presentation: PuppeteerGen) => {
+            presentation.addSlide().addText(
+                [
+                    { text: "Band ", options: { fontFace: "My Brand Sans", underline: { style: "sng" } } },
+                    { text: "Post", options: { fontFace: "My Brand Serif", underline: { style: "sng" } } },
+                ],
+                { x: 1, y: 1, w: 4, h: 1, fontSize: 18 },
+            );
+            return (await presentation.toHtml()).html;
+        };
+        const geometry = (document: string) => [...document.matchAll(/class="text-run"[^>]*style="[^"]*?(text-decoration-thickness: [^;]*;(?: text-underline-[a-z]*: [^;]*;)?)/g)].map(match => match[1]);
+        const fontMetrics = { "My Brand Sans": { ...BRAND, underline }, "My Brand Serif": BRAND };
+        const powerPoint = await html(new PuppeteerGenPowerPoint(undefined, { fontMetrics }));
+        // CSS's offset is the band's top below the baseline: post's position negated.
+        expect(geometry(powerPoint)).toEqual(["text-decoration-thickness: 0.072em; text-underline-offset: 0.045em;", "text-decoration-thickness: from-font; text-underline-position: from-font;"]);
+        expect(await html(new PuppeteerGenPowerPoint(undefined, { fontMetrics }))).toBe(powerPoint);
+        expect(await html(new PuppeteerGenLibreOffice(undefined, { fontMetrics }))).toBe(await html(new PuppeteerGenLibreOffice()));
     });
 
     test("looks the caller's faces up over FONT_WIN_METRICS, case-insensitively, frozen", () => {

@@ -69,7 +69,8 @@ root=$PWD
 # +167 B: an underlined run states its geometry for Chromium, and the reader accepts only the band it draws (#378: text-decoration-thickness and text-underline-position from-font, text-decoration-skip-ink none, and their errors), 1,059,506 -> 1,059,673 B measured; budget = that size.
 # +30 B: a paragraph's text-justify is read, inter-word or an error (the allow-list entry, the check and its error message), 1,059,673 -> 1,059,703 B measured; budget = that size.
 # +433 B: PowerPoint's double, wavy and heavy underline shapes around the post band and one band per line, averaged by width (#379: the shapes, the zigzag, the line's band, data-underline-heavy and its error), 1,059,703 -> 1,060,136 B measured; budget = that size.
-GZIP_BUDGET=1060136
+# +202 B: a fontMetrics underline band in place of the post band (#391: the em offset and thickness reader, its error and the band per run), 1,060,136 -> 1,060,338 B measured; budget = that size.
+GZIP_BUDGET=1060338
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

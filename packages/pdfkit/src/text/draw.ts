@@ -88,7 +88,7 @@ const PPT_GRID_PER_INCH = 600;
 /** The wave's vertical thickness: one grid step, in px. */
 const PPT_WAVE_LINE = CSS_PX_PER_INCH / PPT_GRID_PER_INCH;
 
-/** A `post` underline band: its top `position` px below the baseline, `thickness` px tall. */
+/** A `post` underline band, or the HTML's in its place: its top `position` px below the baseline, `thickness` px tall. */
 interface UnderlineBand {
     readonly position: number;
     readonly thickness: number;
@@ -152,6 +152,13 @@ function strike(paint: Paint, decoration: Decoration, x: number, width: number, 
     });
 }
 
+/** A from-font underline's own band in px at `size`: the HTML's (`underlineBand`), else the face's `post` band. */
+function runUnderlineBand(underline: Decoration, face: Face, size: number): UnderlineBand {
+    if (underline.band) return { position: -underline.band.position * size, thickness: underline.band.thickness * size };
+    const m = metrics(face, size);
+    return { position: m.underlinePosition, thickness: m.underlineThickness };
+}
+
 /**
  * The band PowerPoint underlines a line's from-font runs with: their `post` bands averaged by width, as pdf-core's
  * `line_underline_band`. Undefined when the line has none.
@@ -160,10 +167,10 @@ function lineUnderlineBand(fragments: readonly Fragment[]): UnderlineBand | unde
     let [width, position, thickness] = [0, 0, 0];
     for (const { run, face, size, width: advance } of fragments) {
         if (!run.underline?.fromFont) continue;
-        const m = metrics(face, size);
+        const band = runUnderlineBand(run.underline, face, size);
         width += advance;
-        position += advance * m.underlinePosition;
-        thickness += advance * m.underlineThickness;
+        position += advance * band.position;
+        thickness += advance * band.thickness;
     }
     return width > 0 ? { position: position / width, thickness: thickness / width } : undefined;
 }
@@ -224,7 +231,7 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
     }
     doc.restore();
     if (run.underline?.fromFont) {
-        const band = lineBand ?? { position: m.underlinePosition, thickness: m.underlineThickness };
+        const band = lineBand ?? runUnderlineBand(run.underline, face, size);
         decoratePowerPoint(paint, run.underline, x, fragment.width, y + band.position, band.thickness);
     } else if (run.underline) decorate(paint, run.underline, x, fragment.width, y + m.underlinePosition, m.underlineThickness);
     if (run.strike) strike(paint, run.strike, x, fragment.width, y + m.strikePosition, m.strikeThickness);
