@@ -6,7 +6,7 @@ import { FontFileError, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint, readGly
 import type { GlyphAdvances } from "../packages/pptxgenjs/src/defaults";
 import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
-import { advanceGridWordSpacing, isWord, runPieces } from "../packages/pptxgenjs/src/normalize/advanceGrid";
+import { advanceGridWordSpacing, isWord, runPieces, wordAfter } from "../packages/pptxgenjs/src/normalize/advanceGrid";
 import { floorTextWrapWidth, normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
@@ -185,6 +185,17 @@ describe("advanceGridWordSpacing", () => {
         expect((spacing?.words[0] ?? 0) - (unkerned?.words[0] ?? 0)).toBeCloseTo(pair(-113), 1);
         expect((spacing?.spaces?.[0] ?? 0) - (unkerned?.space ?? 0)).toBeCloseTo(pair(-37), 1);
         expect(spacing?.words[1]).toBeCloseTo(unkerned?.words[1] ?? Number.NaN, 1);
+    });
+
+    test("gives a word split across kerned runs one letter-spacing, and kerns a pair across the run edge as inside one run", () => {
+        const whole = advanceGridWordSpacing("AVA To", 24, KERNED, GRID, 0, true);
+        const cursor = { rounded: 0, laidOut: 0 };
+        const split = ["A", "V", "A ", "To"].map((text, index, texts) => advanceGridWordSpacing(text, 24, KERNED, GRID, 0, true, cursor, wordAfter(texts.slice(index + 1).join(""))));
+        // Every piece of "AVA" takes the whole word's spacing, so Chromium shapes it across the spans and kerns "AV" and "VA".
+        expect(split.slice(0, 3).map(spacing => spacing?.words[0])).toEqual([whole?.words[0], whole?.words[0], whole?.words[0]]);
+        // " T", across the edge after "A ", is on the space as in one run, and "To" ends where it does in one run.
+        expect(split[2]?.spaces).toEqual(whole?.spaces ?? []);
+        expect(split[3]?.words).toEqual(whole?.words.slice(1) ?? []);
     });
 
     test("spaces a stretch of spaces with no pair as the run, and leaves a tab's neighbours unkerned", () => {
@@ -557,9 +568,7 @@ describe("kerning across a run edge in Chromium", () => {
         expect(cases.map(([name, , measured], index) => ({ name, near: Math.abs(pixelsToPoints((starts[index] ?? Number.NaN) / PRINT_ZOOM) - measured) < 0.1 }))).toEqual(cases.map(([name]) => ({ name, near: true })));
     };
     test.skipIf(!font)("kerns a pair split across runs of one face, size and weight, as PowerPoint does", () => matches(LETTER_CASES));
-    // shortcut: each run sums its own space pairs (advanceGridWordSpacing), so "xo" lands 0.5 to 1.8pt past
-    // PowerPoint's; give the runs of a line one sum (#398).
-    (font ? test.failing : test.skip)("kerns a space pair split across runs, as PowerPoint does", () => matches(SPACE_CASES));
+    test.skipIf(!font)("kerns a space pair split across runs, as PowerPoint does", () => matches(SPACE_CASES));
 });
 
 describe("a kerned line at the wrap limit in Chromium", () => {
