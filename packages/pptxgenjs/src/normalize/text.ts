@@ -5,7 +5,7 @@ import { builtInFontMetrics } from "#src/fontMetrics";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { inch2EmuToPixels } from "#src/units";
-import { advanceGridWordSpacing, type GridCursor, runPieces, wordAfter } from "./advanceGrid";
+import { advanceGridWordSpacing, fullWidthStretches, type GridCursor, runPieces, wordAfter } from "./advanceGrid";
 import { breakAroundHanPunctuation, hangingMarkRuns, hangingSegments, languageHangingMarks } from "./eastAsianLineBreak";
 import { fallbackChain, fallbackSegments } from "./fallback";
 import { normalizeHyperlink } from "./link";
@@ -403,7 +403,9 @@ function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxG
     const segments = hangingSegments(piece.text, after, marks);
     return segments.flatMap(({ text, hangs }, index) => {
         const rest = segments.slice(index + 1).map(segment => segment.text);
-        return fallbackRuns(text, options, target, fontMetrics, cursor, wordAfter(`${rest.join("")}${kernedText}`)).flatMap(run => {
+        // A word does not go on into a mark that hangs: the mark's advance is cancelled and its U+3000 laid out apart.
+        const kerned = segments[index + 1]?.hangs ? "" : wordAfter(`${rest.join("")}${kernedText}`);
+        return fallbackRuns(text, options, target, fontMetrics, cursor, kerned).flatMap(run => {
             // Only the piece's first stretch starts after its soft break.
             const segment = index ? { ...run, softBreakBefore: false } : run;
             return hangs ? hangingMarkRuns(segment, font) : [segment];
@@ -417,7 +419,11 @@ function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxG
  */
 function fallbackRuns(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup, cursor: GridCursor, kernedText: string): NormalizedTextRun[] {
     const fontFace = options.fontFace ?? PPTX_DEFAULTS.text.fontFace;
-    const segments = fallbackSegments(text, fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic, target, fontMetrics);
+    const bold = options.bold ?? PPTX_DEFAULTS.text.bold;
+    const italic = options.italic ?? PPTX_DEFAULTS.text.italic;
+    const fallback = fallbackSegments(text, fontFace, bold, italic, target, fontMetrics);
+    const font = RENDERING_TARGETS[target].advanceGridPt === undefined ? undefined : fontMetrics.glyphAdvances?.(fontFace, bold, italic);
+    const segments = font ? fallback.flatMap(segment => fullWidthStretches(segment.text, font).map(stretch => ({ ...segment, text: stretch }))) : fallback;
     return segments.map(({ text: stretch, fallbackFaces }, index) => {
         const run = normalizeTextRun(stretch, options, target, fontMetrics, cursor, index === segments.length - 1 ? kernedText : "");
         // Only the first stretch starts after the piece's soft break.

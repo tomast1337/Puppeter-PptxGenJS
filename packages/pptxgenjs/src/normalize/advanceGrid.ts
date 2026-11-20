@@ -54,8 +54,42 @@ const OFF_GRID = 1e-6;
 const PAST_STEP = 2 * LAYOUT_UNIT;
 /** How far past its floored grid step a line starts after spaces that end past the step: a LayoutUnit past PAST_STEP. */
 const START_PAST_STEP = PAST_STEP + LAYOUT_UNIT;
+/** A character the East Asian faces a run falls back to draw 1em wide: Han, kana, Hangul, CJK and full-width punctuation. */
+const FULL_WIDTH = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\ufe30-\ufe4f\uff00-\uff60]/u;
 /** The letter-spacing's precision, px: 1e-6 px over a word's characters stays far below UNDER_LAYOUT_UNIT and keeps the HTML short. */
 const SPACING_DIGITS = 1e6;
+
+/** The break markers the PowerPoint target writes (normalize/eastAsianLineBreak.ts): no advance, no side of their own. */
+const BREAK_MARKER = /[​⁠]/u;
+
+/** Whether `character` is FULL_WIDTH and `font` does not map it, so a fallback face draws it 1em wide. */
+function fallsBackFullWidth(character: string, font: GlyphAdvances): boolean {
+    return FULL_WIDTH.test(character) && !font.advances.has(character.codePointAt(0) ?? 0);
+}
+
+/** Whether the last character of `left` that is not a break marker and the first of `right` both fall back full-width, or neither does. */
+function sameWidthEdge(left: readonly string[], right: readonly string[], font: GlyphAdvances): boolean {
+    const visible = (characters: readonly string[]) => characters.filter(character => !BREAK_MARKER.test(character));
+    return fallsBackFullWidth(visible(left).at(-1) ?? "", font) === fallsBackFullWidth(visible(right)[0] ?? "", font);
+}
+
+/**
+ * `text` cut where it goes from characters a fallback face draws 1em wide (FULL_WIDTH, not in `font`) to others and
+ * back, each stretch for a run of its own; a break marker stays with the stretch before it. A word spreads its
+ * letter-spacing evenly (`advanceGridWordSpacing`), so a line that breaks inside a word, as between Han and Latin
+ * text, ended past PowerPoint's end by the rounding of the Latin characters after the break.
+ */
+export function fullWidthStretches(text: string, font: GlyphAdvances): string[] {
+    const stretches: string[] = [];
+    let wide: boolean | undefined;
+    for (const character of text) {
+        const kind = BREAK_MARKER.test(character) ? wide : fallsBackFullWidth(character, font);
+        if (stretches.length === 0 || (wide !== undefined && kind !== wide)) stretches.push(character);
+        else stretches[stretches.length - 1] += character;
+        wide = kind ?? wide;
+    }
+    return stretches;
+}
 
 /** `text` as its words and the spaces and tabs between them, in order. */
 export function runPieces(text: string): string[] {
@@ -120,7 +154,8 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
  * A word that goes on into `after` is laid out as one word: each of its characters, in this run and the next, takes one
  * letter-spacing (`cursor.word`), so Chromium, whose font includes the letter-spacing, shapes it across the spans and
  * kerns the pair at their edge. With the sums floored at each run's end instead, the spans' letter-spacings differed
- * by a LayoutUnit, and the pair, counted in neither sum, went unkerned.
+ * by a LayoutUnit, and the pair, counted in neither sum, went unkerned. A word does not go on from Han or full-width
+ * marks into other characters or back (`fullWidthStretches`), nor into a mark that hangs (normalize/text.ts).
  * shortcut: a break inside a word (after a hyphen, or between Han characters, also at a run boundary) sees the word's
  * spacing spread evenly, its start up to a LayoutUnit before PowerPoint's; spread it by character when a deck shows
  * the difference.
@@ -145,10 +180,11 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
         const step = Math.floor(width / gridPx + FLOAT_NOISE) * gridPx;
         return width - step > OFF_GRID ? floorLayoutUnit(step) : undefined;
     };
-    // Natural and rounded advance of a character, px; one the font does not map is neither widened nor narrowed.
+    // Natural and rounded advance of a character, px; one the font does not map is 1em when FULL_WIDTH (its fallback
+    // face draws it so), else neither widened nor narrowed.
     const advance = (character: string) => {
-        const units = font.advances.get(character.codePointAt(0) ?? 0) ?? 0;
-        const natural = (units * sizePt) / font.unitsPerEm;
+        const units = font.advances.get(character.codePointAt(0) ?? 0);
+        const natural = units === undefined ? (FULL_WIDTH.test(character) ? sizePt : 0) : (units * sizePt) / font.unitsPerEm;
         return { natural: pointsToPixels(natural), rounded: Math.round(natural / gridPt) * gridPx };
     };
     // Pair kerning of `left` then `right` in px, unrounded; none unkerned, or without a character on either side.
@@ -168,7 +204,8 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     let ownSpaces = false;
     const pieces = runPieces(text).map(piece => [...piece]);
     const following = runPieces(after).map(piece => [...piece]);
-    const goesOn = following[0] !== undefined && isWord(following[0].join(""));
+    // A word does not go on from characters a fallback face draws 1em wide to others or back: see fullWidthStretches.
+    const goesOn = following[0] !== undefined && isWord(following[0].join("")) && sameWidthEdge(pieces.at(-1) ?? [], following[0], font);
     for (const [index, piece] of pieces.entries()) {
         const last = index === pieces.length - 1;
         if (piece.includes("\t")) {
