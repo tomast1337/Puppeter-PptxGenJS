@@ -4,7 +4,7 @@ import type { GlyphAdvances } from "#src/defaults";
 
 /**
  * A run's letter-spacing in px: `space` on its spaces and tabs, `words[i]` on its i-th word (`runPieces`), and, when
- * a kern pair starts in one of them, `spaces[i]` on its i-th stretch of spaces between words (tabs left out).
+ * one of them is kerned or ends off the grid, `spaces[i]` on its i-th stretch of spaces between words (tabs left out).
  */
 export interface WordSpacing {
     readonly space: number;
@@ -42,6 +42,18 @@ const LAYOUT_UNIT = 1 / LAYOUT_UNITS_PER_PX;
 const UNDER_LAYOUT_UNIT = LAYOUT_UNIT / 16;
 /** Float noise in a width that is a whole number of LayoutUnits, kept from flooring a whole one away. */
 const FLOAT_NOISE = 1e-9;
+/**
+ * How far past a grid step, px, a width is off the grid: under any kern pair (one font unit at 1pt is 6.5e-4 px) or
+ * charSpacing (1/100 pt), over the float noise of a sum of steps.
+ */
+const OFF_GRID = 1e-6;
+/**
+ * How far past its floored grid step, on whole LayoutUnits, a word ends whose rounded end is past the step: the fit
+ * tests floor the width to a LayoutUnit and keep one more (`break_lines`, `CanFitOnLine`), so two put it past both.
+ */
+const PAST_STEP = 2 * LAYOUT_UNIT;
+/** How far past its floored grid step a line starts after spaces that end past the step: a LayoutUnit past PAST_STEP. */
+const START_PAST_STEP = PAST_STEP + LAYOUT_UNIT;
 /** The letter-spacing's precision, px: 1e-6 px over a word's characters stays far below UNDER_LAYOUT_UNIT and keeps the HTML short. */
 const SPACING_DIGITS = 1e6;
 
@@ -76,8 +88,17 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
  * the run's rounded advances do, floored to a LayoutUnit: the word takes whatever its predecessors' rounding left
  * over, and no error builds up along the run. Every space takes one LayoutUnit more than its rounded advance, rounded
  * up, which the next word gives back: a line then starts at most two LayoutUnits past its rounded start and ends at
- * most one before its rounded end, so it is never wider than PowerPoint's, and at most 3/64 px narrower against
- * PowerPoint's 0.125pt (1/6 px) step. A tab starts the sums again, from its tab stop.
+ * most one before its rounded end, so it is never wider than PowerPoint's (save the step below), and at most 3/64 px
+ * narrower against PowerPoint's 0.125pt (1/6 px) step. A tab starts the sums again, from its tab stop.
+ * A kern pair or a charSpacing off the grid moves a line's rounded end off the grid too, and the box's width is on it
+ * (`wrapWidthGridPt`), so PowerPoint wraps a line that ends past a step by 0.002pt where the floored end, a LayoutUnit
+ * (0.0117pt) short of it, fits (#341). A word whose rounded end is off the grid so ends at least PAST_STEP past its
+ * floored step, and the spaces before a word that starts off the grid end at least START_PAST_STEP past theirs: a line
+ * that starts on the grid, as every paragraph's first line does, then wraps as PowerPoint's does, and a line is still
+ * never laid out wider than the narrowest box on the grid PowerPoint keeps it in.
+ * shortcut: a line that starts off the grid wraps as PowerPoint's only when its end is a LayoutUnit or more further
+ * off the grid than its start (PowerPoint compares the two unrounded; 1/64 px orders no finer); measured lines start
+ * on it. Lay lines out finer than a LayoutUnit if a deck shows one (#395).
  * Kerned, PowerPoint kerns each pair on its left glyph's advance, so a pair whose left glyph is the space before a
  * break leaves the line's width with that space, and one whose left glyph ends the line stays in it (target/
  * powerpoint.ts). The renderers kern each pair inside a word span themselves, so a word's inner pairs count in its
@@ -119,6 +140,11 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     const sizePx = pointsToPixels(sizePt);
     const gridPx = pointsToPixels(gridPt);
     const charSpacing = pointsToPixels(charSpacingPt);
+    // The grid step at or below `width`, floored to a LayoutUnit, when `width` is off the grid; undefined on it.
+    const offStep = (width: number) => {
+        const step = Math.floor(width / gridPx + FLOAT_NOISE) * gridPx;
+        return width - step > OFF_GRID ? floorLayoutUnit(step) : undefined;
+    };
     // Natural and rounded advance of a character, px; one the font does not map is neither widened nor narrowed.
     const advance = (character: string) => {
         const units = font.advances.get(character.codePointAt(0) ?? 0) ?? 0;
@@ -139,7 +165,7 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     // `rounded`: PowerPoint's width of the paragraph so far; `laidOut`: the profile's, on whole LayoutUnits.
     let { rounded, laidOut } = cursor;
     const spaces: number[] = [];
-    let kernedSpace = false;
+    let ownSpaces = false;
     const pieces = runPieces(text).map(piece => [...piece]);
     const following = runPieces(after).map(piece => [...piece]);
     const goesOn = following[0] !== undefined && isWord(following[0].join(""));
@@ -165,22 +191,24 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
         if (characters[0] === " ") {
             const width = characters.length * (space.rounded + charSpacing);
             rounded += width + inner + edge;
-            if (inner + edge === 0) {
-                spaces.push(spacing(spaceSpacing));
-                laidOut += ceilLayoutUnit(characters.length * (spaceWidth - UNDER_LAYOUT_UNIT));
-            } else {
-                // Its own span: one LayoutUnit wider than its kerned width, rounded up, as an unkerned space is.
-                const kernedWidth = ceilLayoutUnit(width + inner + edge) + LAYOUT_UNIT;
-                spaces.push(spacing((kernedWidth - UNDER_LAYOUT_UNIT - characters.length * space.natural) / characters.length));
-                laidOut += kernedWidth;
-                kernedSpace = true;
+            const pair = inner + edge !== 0;
+            // Kerned, its own span: one LayoutUnit wider than its kerned width, rounded up, as an unkerned space is.
+            const own = pair ? ceilLayoutUnit(width + inner + edge) + LAYOUT_UNIT : ceilLayoutUnit(characters.length * (spaceWidth - UNDER_LAYOUT_UNIT));
+            const step = offStep(rounded);
+            const stretch = step === undefined ? own : Math.max(own, step + START_PAST_STEP - laidOut);
+            if (!pair && stretch === own) spaces.push(spacing(spaceSpacing));
+            else {
+                spaces.push(spacing((stretch - UNDER_LAYOUT_UNIT - characters.length * space.natural) / characters.length));
+                ownSpaces = true;
             }
+            laidOut += stretch;
         } else {
             // The renderers kern the word's inner pairs themselves, and no pair across its span's edge.
             const advances = characters.map(advance);
             const natural = inner + advances.reduce((sum, { natural }) => sum + natural, 0);
             rounded += inner + edge + advances.reduce((sum, { rounded }) => sum + rounded + charSpacing, 0);
-            const end = floorLayoutUnit(rounded);
+            const step = offStep(rounded);
+            const end = step === undefined ? floorLayoutUnit(rounded) : Math.max(floorLayoutUnit(rounded), step + PAST_STEP);
             const wordSpacing = spacing((end - laidOut - UNDER_LAYOUT_UNIT - natural) / characters.length);
             words.push(wordSpacing);
             if (joins) cursor.word = wordSpacing;
@@ -189,5 +217,5 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     }
     cursor.rounded = rounded;
     cursor.laidOut = laidOut;
-    return { space: spacing(spaceSpacing), words, ...(kernedSpace ? { spaces } : {}) };
+    return { space: spacing(spaceSpacing), words, ...(ownSpaces ? { spaces } : {}) };
 }

@@ -19,6 +19,7 @@ import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
 import { inchesToPoints, pointsToPixels } from "@pdflapas/model";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
 import { pdfContentStreams } from "./pdfContentStreams";
+import { boxFloorCases, boxFloorDeck } from "./boxFloorCases";
 import { wrapLimitCases, wrapLimitDeck } from "./wrapLimitCases";
 import { EXTRA_CELL_ROW_TOPS_IN, extraCellTable } from "./extraCellTable";
 
@@ -287,6 +288,32 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             return new Set([...content.matchAll(/(-?[\d.]+) Tm/g)].map(([, y]) => y)).size;
         });
         expect(cases.map(({ fontSize, bold, lines, steps }, index) => ({ fontSize, bold, lines, steps, drawn: drawn[index] }))).toEqual(cases.map(({ fontSize, bold, lines, steps, expectedLines }) => ({ fontSize, bold, lines, steps, drawn: expectedLines })));
+    });
+
+    // Measured against PowerPoint's PDF export of the same deck (tests/boxFloorCases.ts), the two 14pt "Dolor sit AVA"
+    // boxes whose line ends 0.002pt past the floored width included (#341).
+    test.skipIf(!arial(false))("keeps or wraps the last word of each box floor case as PowerPoint does", async () => {
+        const pdftotext = Bun.which("pdftotext");
+        if (!pdftotext) return console.warn("pdftotext (poppler-utils) not installed: box floor cases not compared");
+        const cases = boxFloorCases(arial(false) ?? { unitsPerEm: 1, advances: new Map() });
+        const deck = await boxFloorDeck(new PuppeteerGenPowerPoint(), cases).toHtml();
+        const dir = await mkdtemp(join(tmpdir(), "box-floor-"));
+        try {
+            const file = join(dir, "deck.pdf");
+            await writeFile(file, await (await createWasmRenderer({ fonts: systemFonts })).render(deck));
+            const pages = Bun.spawnSync([pdftotext, "-layout", file, "-"]).stdout.toString().split("\f");
+            // Whether the first line drawn on each case's page ends with its text's last word.
+            const kept = cases.map(({ text }, index) =>
+                (pages[index] ?? "")
+                    .split("\n")
+                    .find(line => line.trim())
+                    ?.trim()
+                    .endsWith(text.split(" ").at(-1) ?? ""),
+            );
+            expect(cases.map(({ label }, index) => ({ label, fits: kept[index] }))).toEqual(cases.map(({ label, fits }) => ({ label, fits })));
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
     });
 
     // Chromium takes the fallback face for a character the run's face lacks from fontconfig, by the run's lang:
