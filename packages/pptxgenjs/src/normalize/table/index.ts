@@ -8,6 +8,7 @@ import { type Px, inchesToPixels, millimetersToPixels, pointsToPixels, px } from
 import { convertToPixels, emuToPixels, inch2EmuToPixels, smartParseEmu } from "#src/units";
 import { tableMarginPixels } from "#src/normalize/margin";
 import { TRANSPARENT } from "#src/color";
+import { checkedSize } from "#src/normalize/size";
 import { normalizeColor, normalizeFill } from "#src/normalize/style";
 import type { SharedRunOptions } from "#src/normalize/sharedRunOptions";
 import { floorTextWrapWidth, normalizeText, type TextInput } from "#src/normalize/text";
@@ -154,7 +155,7 @@ function fitRowsToGrid(rows: NormalizedTableRow[], columns: readonly number[], t
 // DEF_CELL_BORDER with `||`: `{ color, pt }` is a solid line.
 function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder {
     const type = border ? border.type || PPTX_DEFAULTS.border.whenProvidedType : PPTX_DEFAULTS.table.border.type;
-    const width = type === "none" ? 0 : pointsToPixels(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt);
+    const width = type === "none" ? 0 : pointsToPixels(checkedSize(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt, "border.pt", PPTX_DEFAULTS.limits.lineWidthPt));
     return {
         visible: type !== "none",
         // A "none" side is written as <a:noFill/> without its color, so PptxGenJS never checks that color either.

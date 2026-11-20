@@ -3,6 +3,7 @@ import { PPTX_DEFAULTS } from "#src/defaults";
 import type { CssColor, NormalizedFill, NormalizedLine, NormalizedShadow } from "@pdflapas/model";
 import { colorToCSS, TRANSPARENT } from "#src/color";
 import { UnsupportedFeatureError } from "#src/UnsupportedFeatureError";
+import { checkedSize } from "#src/normalize/size";
 import { degreesToRadians, millimetersToPixels, pointsToPixels } from "@pdflapas/model";
 
 type ColorValue = string | { color?: string; transparency?: number; alpha?: number; type?: string };
@@ -154,7 +155,7 @@ export function normalizeLine(value?: PptxGenJS.ShapeLineProps, straightLength?:
         return { visible: false, color: TRANSPARENT, width: 0, style: "solid" };
     }
     const dash = value.dashType ?? "solid";
-    const width = pointsToPixels(value.width ?? PPTX_DEFAULTS.shape.line.widthPt);
+    const width = pointsToPixels(checkedSize(value.width ?? PPTX_DEFAULTS.shape.line.widthPt, "line.width", PPTX_DEFAULTS.limits.lineWidthPt));
     const beginArrow = value.beginArrowType ?? "none";
     const endArrow = value.endArrowType ?? "none";
     const pattern = width > 0 ? PPTX_DEFAULTS.shape.dashPatterns[dash]?.map(part => part * width) : undefined;
@@ -196,9 +197,9 @@ export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow
     // An inner shadow falls on the side `angle` points to (PowerPoint's PDF export), while CSS's inset shadow is the
     // outside of the box moved by the offset, which darkens the opposite side: so the inset offset points the other way.
     const inner = value.type === "inner";
-    const offset = pointsToPixels(value.offset || defaults.offsetPt) * (inner ? -1 : 1);
+    const offset = pointsToPixels(checkedSize(value.offset || defaults.offsetPt, "shadow.offset", PPTX_DEFAULTS.limits.shadowOffsetPt)) * (inner ? -1 : 1);
     // CSS blurs a shadow with sigma = blur / 2, so the CSS blur of an inner shadow is twice its measured sigma.
-    const blur = pointsToPixels(value.blur || defaults.blurPt) * (inner ? 2 * PPTX_DEFAULTS.shadow.innerSigmaPerBlur : 1);
+    const blur = pointsToPixels(checkedSize(value.blur || defaults.blurPt, "shadow.blur", PPTX_DEFAULTS.limits.shadowBlurPt)) * (inner ? 2 * PPTX_DEFAULTS.shadow.innerSigmaPerBlur : 1);
     const opacity = value.opacity || defaults.opacity;
     const color = normalizeColor({ color: value.color || defaults.color, transparency: (1 - opacity) * 100 });
     return {

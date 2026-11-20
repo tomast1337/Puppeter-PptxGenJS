@@ -29,6 +29,22 @@ export const PPTX_DEFAULTS = Object.freeze({
         // `<a:spcPts val>`, which PptxGenJS writes as Math.round(points * 100) for paragraph and line spacing.
         spacingPointsPerPoint: 100,
     }),
+    // The largest size each option takes, in points (checkedSize). PptxGenJS 4.0.1 writes any number unchecked; a
+    // negative one is schema-invalid OOXML (ST_TextFontSize, ST_LineWidth and ST_PositiveCoordinate start at 0) and,
+    // drawn, a negative stroke or font size (GHSA-fmx3-qwqc-h37c). ST_PositiveCoordinate puts no useful bound on
+    // effects, so they take the range PptxGenJS documents (ShadowProps: blur 0-100, offset 0-200) and PowerPoint's
+    // Format pane allows (glow size 0-150): an effect above it costs the WASM renderer seconds of CPU per object.
+    limits: Object.freeze({
+        // ST_TextFontSize: sz 100-400000, so 4000pt, also PowerPoint's largest font size.
+        fontSizePt: 4000,
+        // ST_LineWidth: w 0-20116800 EMU, 1584pt, also PowerPoint's largest line width.
+        lineWidthPt: 1584,
+        glowSizePt: 150,
+        shadowBlurPt: 100,
+        shadowOffsetPt: 200,
+        // IChartPropsChartLine.lineDataSymbolSize: range 2-72, PowerPoint's marker size range.
+        chartMarkerSizePt: 72,
+    }),
     presentation: Object.freeze({
         layout: "LAYOUT_16x9",
         layoutName: "DEFAULT",
@@ -138,6 +154,8 @@ export const PPTX_DEFAULTS = Object.freeze({
         // PowerPoint's Normal text-box inset: top, right, bottom, left.
         marginIn: Object.freeze([0.05, 0.1, 0.05, 0.1] as const),
         glowWhenEnabled: Object.freeze({ sizePt: 8, color: "FFFFFF", opacity: 0.75 }),
+        // genXmlTextRunProperties writes a run's outline as <a:ln w={valToPts(outline.size || 0.75)}>.
+        outlineSizePt: 0.75,
         // A `line` without a width on text that is not shape "line": PptxGenJS 4.0.1 writes <a:ln> without
         // `w`, whose ECMA-376 default 0 is the thinnest line the device draws (LibreOffice: one pixel).
         // 0.75pt is one CSS px, one pixel of the 96 dpi visual raster.
