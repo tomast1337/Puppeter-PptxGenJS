@@ -45,6 +45,11 @@ export interface Bullet {
 
 export type Align = "left" | "center" | "right" | "justify";
 
+export interface TabStop {
+    readonly position: number;
+    readonly alignment: "left" | "right" | "center" | "decimal";
+}
+
 export interface Paragraph {
     readonly runs: readonly Run[];
     readonly align: Align;
@@ -55,6 +60,8 @@ export interface Paragraph {
     readonly spaceBefore: number;
     readonly spaceAfter: number;
     readonly tabSize: number;
+    /** `data-tab-stops`, px from the text area's left edge, in order. */
+    readonly tabStops: readonly TabStop[];
     /** `padding-left`: every line starts here. */
     readonly indent: number;
     /** `text-indent`: the first line, and its bullet, start this far from `indent`. */
@@ -75,6 +82,7 @@ export interface TextBox {
 export type Report = (what: string) => void;
 
 const ALIGNS: ReadonlySet<string> = new Set(["left", "center", "right", "justify"]);
+const TAB_ALIGNS: ReadonlySet<string> = new Set(["left", "right", "center", "decimal"]);
 const ANCHORS: ReadonlySet<string> = new Set(["flex-start", "center", "flex-end"]);
 const DECORATION_STYLES: ReadonlySet<string> = new Set(["solid", "double", "dashed", "dotted", "wavy"]);
 /**
@@ -243,7 +251,6 @@ function readParagraph(element: Element, report: Report): Paragraph {
     const align = take(style, "text-align") ?? "left";
     if (!ALIGNS.has(align)) report(`text-align '${align}' is not drawn`);
     if (take(style, "direction") === "rtl") report("right-to-left paragraphs are drawn left to right");
-    if (attribute(element, "data-tab-stops") !== undefined) report("explicit tab stops are drawn at the default stops");
     const lineHeight = required(px(take(style, "line-height")), "a paragraph's line-height");
     const baseline = required(Number(attribute(element, "data-line-baseline")), "a paragraph's data-line-baseline");
     const optionalBaseline = (name: string) => {
@@ -264,6 +271,7 @@ function readParagraph(element: Element, report: Report): Paragraph {
         spaceBefore: px(take(style, "margin-top")) ?? 0,
         spaceAfter: px(take(style, "margin-bottom")) ?? 0,
         tabSize: px(take(style, "tab-size")) ?? 0,
+        tabStops: readTabStops(attribute(element, "data-tab-stops")),
         indent: px(take(style, "padding-left")) ?? 0,
         textIndent: px(take(style, "text-indent")) ?? 0,
         ...(bulletElement ? { bullet: readBullet(bulletElement, report) } : {}),
@@ -271,6 +279,19 @@ function readParagraph(element: Element, report: Report): Paragraph {
     const bulletAttributes = ["data-bullet-level", "data-bullet-type", "data-bullet-indent", "data-bullet-start", "data-bullet-number-type"];
     reportUnread(element, style, ["data-line-baseline", "data-mark-baseline", "data-break-baseline", "data-tab-stops", ...bulletAttributes], report);
     return paragraph;
+}
+
+/** `data-tab-stops="<position>:<left|right|center|decimal>,…"`. */
+function readTabStops(value: string | undefined): TabStop[] {
+    if (value === undefined) return [];
+    return value.split(",").map(stop => {
+        const [position, alignment = ""] = stop.split(":");
+        const parsed = Number(position);
+        if (!position?.trim() || !Number.isFinite(parsed) || !TAB_ALIGNS.has(alignment)) {
+            throw new Error(`invalid PdfLapas HTML: attribute 'data-tab-stops': '${stop}' is not '<position>:<left|right|center|decimal>'`);
+        }
+        return { position: parsed, alignment: alignment as TabStop["alignment"] }; // `as`: checked against TAB_ALIGNS
+    });
 }
 
 function readFit(element: Element): Fit {

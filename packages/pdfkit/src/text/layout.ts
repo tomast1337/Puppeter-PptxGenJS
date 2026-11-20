@@ -4,7 +4,7 @@
 // draws them, so only the breaks and the x positions are measured here.
 import { type Face, faceFor } from "#src/fonts";
 import { breakOpportunities } from "#src/lineBreak";
-import type { Bullet, Paragraph, Run, TextBox } from "./read";
+import type { Bullet, Paragraph, Run, TabStop, TextBox } from "./read";
 import { type Features, features, type Shaper } from "./shaper";
 
 /** A piece of one run in one face, on one line. `x` is from the content box's left edge. */
@@ -46,6 +46,8 @@ const INVISIBLE = /[​⁠]/g;
 const TAB = "\t";
 /** Slack for float noise when a line's measured width equals its box. */
 const FIT_EPSILON = 0.01;
+/** A tab that ends text on a stop sits on it: positions this many px before a stop count as on it (pdf-core's ON_STOP). */
+const ON_STOP = 0.01;
 
 /** A measured piece before it is placed: one run, one face, no break opportunity inside. */
 interface Piece {
@@ -163,20 +165,70 @@ function wordInkWidth(word: Word): number {
     return word.slice(0, last + 1).reduce((sum, piece, index) => sum + (index === last ? piece.inkWidth : piece.width), 0);
 }
 
+/** Where the stops are: explicit ones from the text area's left edge, then multiples of `defaultStop`; `start(line)` is a line's left edge in it. */
+interface TabRuler {
+    readonly stops: readonly TabStop[];
+    readonly defaultStop: number;
+    readonly start: (line: number) => number;
+}
+
+/** Where a tab at `pos` jumps to: the first explicit stop past it, else the next default stop, as pdf-core's `next_stop`. */
+function nextStop(ruler: TabRuler, pos: number): TabStop | undefined {
+    const past = pos + ON_STOP;
+    const stop = ruler.stops.find(candidate => candidate.position > past);
+    if (stop) return stop;
+    return ruler.defaultStop > 0 ? { position: (Math.floor(past / ruler.defaultStop) + 1) * ruler.defaultStop, alignment: "left" } : undefined;
+}
+
+/**
+ * For each tab of `chunk`, the width of the text it aligns (to the next tab, or the chunk's end less its trailing
+ * spaces) and how far into it the first '.' is, for right, center and decimal stops.
+ * shortcut: pdf-core aligns the text up to the line's end and re-breaks a line the widened tab overflows; here the text
+ * runs to the next tab even when it wraps. Measure per line if a deck aligns wrapping text on a stop.
+ */
+function tabSegments(chunk: Word[], shaper: Shaper): Map<Piece, { width: number; dot?: number }> {
+    const segments = new Map<Piece, { width: number; dot?: number }>();
+    const pieces = chunk.flat();
+    pieces.forEach((tab, index) => {
+        if (!tab.tab) return;
+        let width = 0;
+        let dot: number | undefined;
+        for (let next = index + 1; next < pieces.length; next++) {
+            const piece = pieces[next];
+            if (!piece || piece.tab) break;
+            const at = piece.text.indexOf(".");
+            if (dot === undefined && at >= 0) dot = width + shaper.width(piece.face, piece.text.slice(0, at), piece.size, piece.features, piece.run.letterSpacing);
+            width += next === pieces.length - 1 ? piece.inkWidth : piece.width;
+        }
+        segments.set(tab, { width, ...(dot === undefined ? {} : { dot }) });
+    });
+    return segments;
+}
+
+/** The width of a tab at `pos` that brings its text to its stop: left starts it there, right ends it, center centres it, decimal puts its '.' there. */
+function tabWidth(ruler: TabRuler, pos: number, segment: { width: number; dot?: number } | undefined): number {
+    const stop = nextStop(ruler, pos);
+    if (!stop) return 0;
+    const text = segment?.width ?? 0;
+    const lead = stop.alignment === "right" ? text : stop.alignment === "center" ? text / 2 : stop.alignment === "decimal" ? (segment?.dot ?? text) : 0;
+    return Math.max(0, stop.position - pos - lead);
+}
+
 interface LineDraft {
     pieces: { piece: Piece; x: number }[];
     width: number;
     inkWidth: number;
 }
 
-/** Greedy line filling, as browsers and PowerPoint wrap. `starts[i]` is line i's left edge (the first line can differ). */
-function fillLines(chunk: Word[], available: (line: number) => number, wrap: boolean, tabSize: number, shaper: Shaper): LineDraft[] {
+/** Greedy line filling, as browsers and PowerPoint wrap. `available(i)` is line i's width (the first line can differ). */
+function fillLines(chunk: Word[], available: (line: number) => number, wrap: boolean, ruler: TabRuler, shaper: Shaper): LineDraft[] {
     const lines: LineDraft[] = [{ pieces: [], width: 0, inkWidth: 0 }];
+    const segments = tabSegments(chunk, shaper);
     const place = (word: Word) => {
         const line = lines.at(-1);
         if (!line) return;
         for (const piece of word) {
-            const width = piece.tab ? (tabSize > 0 ? (Math.floor(line.width / tabSize + FIT_EPSILON) + 1) * tabSize - line.width : 0) : piece.width;
+            const width = piece.tab ? tabWidth(ruler, ruler.start(lines.length - 1) + line.width, segments.get(piece)) : piece.width;
             line.pieces.push({ piece: { ...piece, width, inkWidth: piece.tab ? width : piece.inkWidth }, x: line.width });
             line.inkWidth = line.width + (piece.tab ? width : piece.inkWidth);
             line.width += width;
@@ -230,7 +282,8 @@ export function layoutText(box: TextBox, innerWidth: number, scale: number, shap
             const chunkLine = lines.length - firstLine;
             const start = (line: number) => (chunkLine + line === 0 ? firstStart : paragraph.indent);
             const available = (line: number) => innerWidth - start(line);
-            const drafts = fillLines(words(chunk, scale, shaper, missing), available, box.wrap, paragraph.tabSize, shaper);
+            const ruler = { stops: paragraph.tabStops, defaultStop: paragraph.tabSize, start };
+            const drafts = fillLines(words(chunk, scale, shaper, missing), available, box.wrap, ruler, shaper);
             drafts.forEach((draft, index) => {
                 const lastOfChunk = index === drafts.length - 1;
                 const lastOfParagraph = lastOfChunk && chunkIndex === chunks.length - 1;
