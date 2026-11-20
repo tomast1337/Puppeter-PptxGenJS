@@ -269,6 +269,29 @@ describe("text normalization", () => {
         });
         expect(legacyStyle.paragraphs[0]?.bullet?.marker).toBe("iii)");
     });
+
+    // PowerPoint starts a new list at its own startAt when <a:buAutoNum>'s type or startAt changes (sequenceIndex).
+    describe("restarts the numbering when the scheme changes", () => {
+        const item = (text: string, style: "arabicPeriod" | "alphaUcPeriod" | "alphaLcPeriod" | "romanUcPeriod", numberStartAt: number) => ({ text, options: { bullet: { type: "number" as const, style, numberStartAt }, breakLine: true } });
+        const markers = (input: ReturnType<typeof item>[], target?: "powerpoint" | "libreoffice") => normalizeText(input, {}, target).paragraphs.map(paragraph => paragraph.bullet?.marker);
+
+        test.each(["powerpoint", "libreoffice"] as const)("an arabic, alpha, arabic startAt 2 list (%s)", target => {
+            const input = [item("Lorem ipsum", "arabicPeriod", 1), item("​", "arabicPeriod", 1), ...["a", "b", "c", "d"].map(text => item(`Dolor ${text}`, "alphaUcPeriod", 1)), item("Sit amet", "arabicPeriod", 2)];
+            expect(markers(input, target)).toEqual(["1.", "2.", "A.", "B.", "C.", "D.", "2."]);
+        });
+
+        test("an alpha to arabic switch", () => {
+            expect(markers([item("Lorem", "alphaLcPeriod", 1), item("Ipsum", "alphaLcPeriod", 1), item("Dolor", "arabicPeriod", 1)])).toEqual(["a.", "b.", "1."]);
+        });
+
+        test("a startAt change mid-list", () => {
+            expect(markers([item("Lorem", "arabicPeriod", 1), item("Ipsum", "arabicPeriod", 1), item("Dolor", "arabicPeriod", 5), item("Sit", "arabicPeriod", 5)])).toEqual(["1.", "2.", "5.", "6."]);
+        });
+
+        test("continues a list whose scheme stays the same", () => {
+            expect(markers([item("Lorem", "romanUcPeriod", 3), item("Ipsum", "romanUcPeriod", 3), item("Dolor", "romanUcPeriod", 3)])).toEqual(["III.", "IV.", "V."]);
+        });
+    });
 });
 
 describe("text DOM rendering", () => {

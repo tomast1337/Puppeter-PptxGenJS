@@ -14,7 +14,7 @@ const sha256 = (html: string) => createHash("sha256").update(html).digest("hex")
  * same PR, so the output change is visible in review; to see what changed, diff toHtml() against main.
  */
 const EXPECTED_SHA256: Record<string, string> = {
-    fixture: "fa11dff7728c9f92e188c09b917ba09f923256d5aaf798b2ef50f79c81ab5f5d",
+    fixture: "534f1114ca46ccdf4bfd20d20bc7399b8a08e524627e2a5baba8ec4d112a2975",
     "cross-runtime": "609bf2598def97b9f3d6481492e5efa94abae5bb485fa811830f38cab5cbc04e",
     "wasm-text": "d1dbb8dbd5fd16f568d3014a17400799bd3da13aba9e392a7e90d77517483762",
     "wasm-emoji": "041e711c8a1912d6a0c73bd32aa2403839987c3929d4cbdfcb0a5115e27e8df1",
