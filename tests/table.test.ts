@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { inchesToPixels, pixelsToInches, px } from "@pdflapas/model";
+import { inchesToPixels, pixelsToInches, pixelsToPoints, px } from "@pdflapas/model";
 import { inflateSync } from "node:zlib";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { renderedPage } from "./renderedPage";
@@ -141,6 +141,15 @@ describe("table normalization", () => {
             ["https://example.com/b", "#00AA00", true],
         ]);
         expect(runs({ w: 6, color: "FF0000" })[0]).toEqual(["https://example.com/a", "#FF0000", true]);
+    });
+
+    test("floors a cell's width inside its margins to 1/576 in on the PowerPoint target, a spanned cell's over its columns", () => {
+        // Columns of 1.01 and 2.003 in, default 7.2pt margins: 72.72 - 14.4 = 58.32pt keeps 0.07pt past the 0.125pt grid,
+        // 144.216 - 14.4 0.066pt and the spanned 216.936 - 14.4 0.036pt; that remainder goes to the right margin.
+        const table = normalizeTable([[{ text: "A" }, { text: "B" }], [{ text: "C", options: { colspan: 2 } }]], { colW: [1.01, 2.003] }, PAGE, "powerpoint");
+        const extra = table.rows.map(row => row.cells.map(cell => Number(pixelsToPoints(cell.text.margin[1] - cell.text.margin[3]).toFixed(6))));
+        expect(extra).toEqual([[0.07, 0.066], [0.036]]);
+        expect(normalizeTable([[{ text: "A" }]], { colW: [1.01] }, PAGE, "libreoffice").rows[0]!.cells[0]!.text.margin[1]).toBeCloseTo(9.6, 9);
     });
 
     test("matches default, scalar, and mismatched column width behavior", () => {

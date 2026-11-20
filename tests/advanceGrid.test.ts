@@ -11,7 +11,7 @@ import { floorTextWrapWidth, normalizeText } from "../packages/pptxgenjs/src/nor
 import { resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
 import { inchesToPixels, LAYOUT_UNITS_PER_PX, type NormalizedTextBox, pixelsToPoints, pointsToPixels } from "@pdflapas/model";
-import { type BoxFloorCase, boxFloorCases, boxFloorDeck } from "./boxFloorCases";
+import { type BoxFloorCase, boxFloorCases, boxFloorDeck, contextFloorCases } from "./boxFloorCases";
 import { type KernWrapCase, kernWrapCases, kernWrapDeck } from "./kernWrapCases";
 import { wrapLimitCases, wrapLimitDeck } from "./wrapLimitCases";
 
@@ -548,7 +548,7 @@ describe("a line in a box whose width inside the insets is off the 1/576 in grid
             try {
                 await page.setContent(printHtml(html));
                 return await page.evaluate(() =>
-                    Array.from(document.querySelectorAll(".slide-text"), box => {
+                    Array.from(document.querySelectorAll(".slide-container"), box => {
                         const words = Array.from(box.querySelectorAll(".text-run span")).filter(word => word.textContent?.trim());
                         const top = (word: Element | undefined) => word?.getBoundingClientRect().top;
                         return top(words.at(-2)) === top(words[0]);
@@ -569,6 +569,11 @@ describe("a line in a box whose width inside the insets is off the 1/576 in grid
         const drawn = await fits(measured);
         expect(measured.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(measured.map(({ label, fits }) => ({ label, fits })));
     });
+    test.skipIf(!font)("floors a centered, right-aligned, justified, shape, table cell and right-to-left line's width as PowerPoint does", async () => {
+        const measured = contextFloorCases();
+        const drawn = await fits(measured);
+        expect(measured.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(measured.map(({ label, fits }) => ({ label, fits })));
+    });
     // shortcut: the two 14pt "Dolor sit AVA" boxes overflow the floored width by 0.002pt, under a LayoutUnit
     // (0.0117pt), and Chromium keeps them; fix it if a renderer ever measures lines finer than a LayoutUnit.
     (cases.some(hairline) ? test.failing : test.skip)("wraps a line less than a LayoutUnit wider than the floored width, as PowerPoint does", async () => {
@@ -585,9 +590,10 @@ describe("floorTextWrapWidth", () => {
         // 7.2pt insets (0.1 in) leave 100 - 9.6 - 9.6 px, 484.8 steps: 0.8 of a step goes to the end inset.
         const [top, right, bottom, left] = floorTextWrapWidth(box([0, 9.6, 0, 9.6]), 100, "powerpoint").margin;
         expect([top, right - 9.6, bottom, left].map(value => Number((value / step).toFixed(9)))).toEqual([0, 0.8, 0, 9.6 / step]);
+        // Right-to-left text too: PowerPoint starts its left-aligned lines at the left inset whatever the remainder.
         const rtl = floorTextWrapWidth(box([0, 9.6, 0, 9.6], { rtl: true }), 100, "powerpoint").margin;
-        expect(Number(((rtl[3] - 9.6) / step).toFixed(9))).toBe(0.8);
-        expect(rtl[1]).toBe(9.6);
+        expect(Number(((rtl[1] - 9.6) / step).toFixed(9))).toBe(0.8);
+        expect(rtl[3]).toBe(9.6);
     });
     test("keeps a width on the grid, text that does not wrap or runs vertically, and the LibreOffice target", () => {
         const inches = box([0, 0, 0, 0]);
