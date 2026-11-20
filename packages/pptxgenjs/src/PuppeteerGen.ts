@@ -11,8 +11,8 @@ import type { SharedRunOptions } from "./normalize/sharedRunOptions";
 import { findHtmlTable, normalizeHtmlTable } from "./normalize/table/html";
 import { paginateTableRows } from "./normalize/table/pagination";
 import { convertPdfOutput, downloadPdf, resolveFileName, resolveOutputType } from "./output";
-import type { PageSize } from "./pageLayouts";
-import { CUSTOM_PAGE_SIZE_NAME, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES, pageSize } from "./pageLayouts";
+import type { PageSize, PageSizeInput } from "./pageLayouts";
+import { checkedPageSize, DEFAULT_PAGE_SIZE, PPTX_LAYOUT_PAGE_SIZES } from "./pageLayouts";
 import type { PptxAddSlideProps, PptxGenJSLike, PptxSectionProps, PptxSlideMasterProps, PptxTableToSlidesProps, PptxWriteBaseProps, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 import { PuppeteerSlide } from "./PuppeteerSlide";
 import { type HtmlPresentationDocument, lazyDocument, type PresentationRenderer, trustedModelToHtml } from "./render/document";
@@ -137,9 +137,9 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     /** The `context.document` of components checked in addComponent(), created the first time one reads it. */
     private readonly componentDocument: () => Document;
 
-    constructor(pageSize: PageSize = DEFAULT_PAGE_SIZE, options: PuppeteerGenOptions = {}) {
-        this.pageSize = pageSize;
-        this.presLayoutName = pageSize === DEFAULT_PAGE_SIZE ? PPTX_DEFAULTS.presentation.layouts.LAYOUT_16x9.presLayoutName : pageSize.name;
+    constructor(pageSize: PageSizeInput = DEFAULT_PAGE_SIZE, options: PuppeteerGenOptions = {}) {
+        this.pageSize = checkedPageSize("new PuppeteerGen(pageSize)", pageSize);
+        this.presLayoutName = pageSize === DEFAULT_PAGE_SIZE ? PPTX_DEFAULTS.presentation.layouts.LAYOUT_16x9.presLayoutName : this.pageSize.name;
         this.renderer = options.renderer;
         this.resolveImage = imageResolver(options, resolveRemoteImageSource);
         this.createDocument = options.createDocument ?? createBrowserDocument;
@@ -314,9 +314,9 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     /**
      * Set a custom page size
      */
-    setPageSize(pageSize: PageSize): void {
-        this.pageSize = pageSize;
-        this.presLayoutName = pageSize.name;
+    setPageSize(pageSize: PageSizeInput): void {
+        this.pageSize = checkedPageSize("setPageSize()", pageSize);
+        this.presLayoutName = this.pageSize.name;
     }
 
     /**
@@ -408,12 +408,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
      */
     defineLayout(layout: PptxGenJS.PresLayout): void {
         // PptxGenJS warns and writes a NaN slide size; a PDF needs a real one.
-        const width = Number(layout?.width);
-        const height = Number(layout?.height);
-        if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
-            throw new Error(`defineLayout() needs { name, width, height } with width and height in inches greater than zero, got ${JSON.stringify(layout)}`);
-        }
-        this.pageSize = pageSize(width, height, layout.name || CUSTOM_PAGE_SIZE_NAME);
+        this.pageSize = checkedPageSize("defineLayout()", layout);
         this.presLayoutName = this.pageSize.name;
         if (layout.name) this.definedLayouts.set(layout.name, this.pageSize);
     }

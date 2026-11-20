@@ -1,10 +1,10 @@
-import type { PageSize } from "./pageLayouts";
+import type { PageSizeInput } from "./pageLayouts";
 import { cssPx, inchesToPixels } from "@pdflapas/model";
 
 /**
  * Generates CSS for a slide page with specific dimensions
  */
-export function generatePageCSS(pageSize: PageSize): string {
+export function generatePageCSS(pageSize: PageSizeInput): string {
     const widthPx = inchesToPixels(pageSize.width);
     const heightPx = inchesToPixels(pageSize.height);
 

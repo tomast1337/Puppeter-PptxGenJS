@@ -18,10 +18,17 @@ declare const dataUri: unique symbol;
  */
 export type DataUri = string & { readonly [dataUri]: "data-uri" };
 
-export interface PageSize {
+/** A page size as callers write it, in plain inches: what the public API takes. */
+export interface PageSizeInput {
+    width: number;
+    height: number;
+    name: string;
+}
+
+/** A page size in the model: checked, in branded inches. Assignable to PageSizeInput, so it can be passed back in. */
+export interface PageSize extends PageSizeInput {
     width: Inches;
     height: Inches;
-    name: string;
 }
 
 export type ComponentValue = null | boolean | number | string | ComponentValue[] | { [key: string]: ComponentValue };

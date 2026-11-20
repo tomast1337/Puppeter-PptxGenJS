@@ -10,7 +10,7 @@ import type { FontWinMetrics, GlyphAdvances } from "./defaults";
 import { readFontWinMetrics, readGlyphAdvances } from "./fontMetrics";
 import { dataUri, IMAGE_SOURCE_LIMITS, type ImageSourceOptions, imageResolver, imageTooLargeError, MIME_TYPES, resolveRemoteImageSource } from "./normalize/image";
 import { resolveFileName } from "./output";
-import type { PageSize } from "./pageLayouts";
+import type { PageSizeInput } from "./pageLayouts";
 import type { PptxWriteFileProps } from "./pptx";
 import { PuppeteerGen as CorePuppeteerGen, type PuppeteerGenOptions } from "./PuppeteerGen";
 
@@ -152,7 +152,7 @@ export function resolveInstalledGlyphAdvances(fontFace: string, bold: boolean, i
 }
 
 export class PuppeteerGen extends CorePuppeteerGen {
-    constructor(pageSize?: PageSize, options: PuppeteerGenOptions = {}) {
+    constructor(pageSize?: PageSizeInput, options: PuppeteerGenOptions = {}) {
         const { imageSources: _applied, ...rest } = options;
         super(pageSize, {
             ...rest,
@@ -174,14 +174,14 @@ export class PuppeteerGen extends CorePuppeteerGen {
 
 /** PuppeteerGen with the LibreOffice rendering target, the default: the PDF matches LibreOffice's export of the .pptx. */
 export class PuppeteerGenLibreOffice extends PuppeteerGen {
-    constructor(pageSize?: PageSize, options: Omit<PuppeteerGenOptions, "target"> = {}) {
+    constructor(pageSize?: PageSizeInput, options: Omit<PuppeteerGenOptions, "target"> = {}) {
         super(pageSize, { ...options, target: "libreoffice" });
     }
 }
 
 /** PuppeteerGen with the PowerPoint rendering target: the PDF matches PowerPoint's rendering of the .pptx (text under 12pt is not kerned). */
 export class PuppeteerGenPowerPoint extends PuppeteerGen {
-    constructor(pageSize?: PageSize, options: Omit<PuppeteerGenOptions, "target"> = {}) {
+    constructor(pageSize?: PageSizeInput, options: Omit<PuppeteerGenOptions, "target"> = {}) {
         super(pageSize, { ...options, target: "powerpoint" });
     }
 }
