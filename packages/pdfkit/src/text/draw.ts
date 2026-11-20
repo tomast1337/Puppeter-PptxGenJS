@@ -61,19 +61,64 @@ function metrics(face: Face, size: number) {
     };
 }
 
-/** One decoration line (or two, double) of `thickness` centred `offset` px below the baseline. */
-function decorate(paint: Paint, decoration: Decoration, x: number, width: number, baseline: number, offset: number, thickness: number): void {
+// Underline patterns in units of the font's underline thickness: pdf-core's (text/draw.rs), read from LibreOffice's
+// PDF export of the visual fixture's "Underline styles" slide. Dots are one thickness long, as in Chromium.
+const DOT_ON = 1;
+const DOT_OFF = 1;
+const DASH_ON = 3;
+const DASH_OFF = 1.5;
+const DOUBLE_LINE = 0.5;
+const DOUBLE_GAP = 1;
+const WAVE_PERIOD = 6;
+const WAVE_HEIGHT = 1;
+/** LibreOffice draws its wave thinner than the straight line. */
+const WAVE_THICKNESS = 0.5;
+/** The thinnest decoration band, px, as pdf-core draws it. */
+const MIN_THICKNESS = 0.5;
+
+/** `on`-long pieces of the band `top`..`top + t`, `off` apart, from `x`; the last one cut at the end. */
+function dashes(doc: PDFKit.PDFDocument, x: number, top: number, width: number, t: number, on: number, off: number): void {
+    for (let start = x; start < x + width; start += on + off) doc.rect(start, top, Math.min(on, x + width - start), t);
+}
+
+/** A band WAVE_THICKNESS thicknesses tall along a wave centred on `middle`: whole quadratic half-waves nearest to WAVE_PERIOD. */
+function wave(doc: PDFKit.PDFDocument, x: number, middle: number, width: number, t: number): void {
+    const halves = Math.max(1, Math.round(width / ((WAVE_PERIOD * t) / 2)));
+    const half = width / halves;
+    // A quadratic's control point is twice as far from the chord as the curve's peak.
+    const reach = WAVE_HEIGHT * t;
+    const band = (WAVE_THICKNESS * t) / 2;
+    const control = (index: number) => (index % 2 === 0 ? -reach : reach);
+    doc.moveTo(x, middle - band);
+    for (let index = 0; index < halves; index++) doc.quadraticCurveTo(x + half * index + half / 2, middle - band + control(index), x + half * (index + 1), middle - band);
+    doc.lineTo(x + width, middle + band);
+    for (let index = halves - 1; index >= 0; index--) doc.quadraticCurveTo(x + half * index + half / 2, middle + band + control(index), x + half * index, middle + band);
+    doc.closePath();
+}
+
+/** The filled band of a decoration of `style` whose straight form is `thickness` px tall from `top`, as pdf-core's `underline_path`. */
+function decorate(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
     const doc = paint.doc;
-    doc.save();
-    stroke(paint, decoration.color, thickness);
-    if (decoration.style === "dashed") doc.dash(thickness * 3, { space: thickness * 3 });
-    if (decoration.style === "dotted") doc.dash(thickness, { space: thickness });
-    const ys = decoration.style === "double" ? [offset - thickness, offset + thickness] : [offset];
-    for (const y of ys)
-        doc.moveTo(x, baseline + y)
-            .lineTo(x + width, baseline + y)
-            .stroke();
-    doc.restore();
+    const t = Math.max(thickness, MIN_THICKNESS);
+    if (decoration.style === "solid") doc.rect(x, top, width, t);
+    else if (decoration.style === "double") {
+        const [line, gap] = [DOUBLE_LINE * t, DOUBLE_GAP * t];
+        const first = top + t / 2 - gap / 2 - line;
+        doc.rect(x, first, width, line).rect(x, first + line + gap, width, line);
+    } else if (decoration.style === "dotted") dashes(doc, x, top, width, t, DOT_ON * t, DOT_OFF * t);
+    else if (decoration.style === "dashed") dashes(doc, x, top, width, t, DASH_ON * t, DASH_OFF * t);
+    else wave(doc, x, top + t / 2, width, t);
+    fill(paint, decoration.color);
+    doc.fill();
+}
+
+/** A strikethrough band of `thickness` from `top`, or two (double) one thickness above and below it, as pdf-core draws them. */
+function strike(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
+    const t = Math.max(thickness, MIN_THICKNESS);
+    const tops = decoration.style === "double" ? [top - t, top + t] : [top];
+    for (const y of tops) paint.doc.rect(x, y, width, t);
+    fill(paint, decoration.color);
+    paint.doc.fill();
 }
 
 function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: number): void {
@@ -101,8 +146,8 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
         glyphs(paint, fragment.text, x, y, { ...options, fill: false, stroke: true });
     }
     doc.restore();
-    if (run.underline) decorate(paint, run.underline, x, fragment.width, y, m.underlinePosition, m.underlineThickness);
-    if (run.strike) decorate(paint, run.strike, x, fragment.width, y, m.strikePosition, m.strikeThickness);
+    if (run.underline) decorate(paint, run.underline, x, fragment.width, y + m.underlinePosition, m.underlineThickness);
+    if (run.strike) strike(paint, run.strike, x, fragment.width, y + m.strikePosition, m.strikeThickness);
     const link = run.link;
     if (link?.href !== undefined) doc.link(x, y - m.ascent, fragment.width, m.ascent + m.descent, link.href);
     else if (link?.slide !== undefined) doc.goTo(x, y - m.ascent, fragment.width, m.ascent + m.descent, `slide-${link.slide}`);
