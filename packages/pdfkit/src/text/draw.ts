@@ -1,5 +1,6 @@
 // Draws a laid-out text box: highlights, glyphs, decorations, links and bullets, on the profile's line boxes.
 import { type Effect, sameEffect } from "#src/effect/index";
+import { assertLinkUrl } from "@pdflapas/model";
 import { type Face, fallbackFamily } from "#src/fonts";
 import { captureFill, captureGlyphs, fill, glyphs, type Paint, stroke, useFace } from "#src/paint";
 import { type BoxLayout, type Fragment, layoutText } from "./layout";
@@ -168,8 +169,12 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
     if (run.underline) decorate(paint, run.underline, x, fragment.width, y + m.underlinePosition, m.underlineThickness);
     if (run.strike) strike(paint, run.strike, x, fragment.width, y + m.strikePosition, m.strikeThickness);
     const link = run.link;
-    if (link?.href !== undefined) doc.link(x, y - m.ascent, fragment.width, m.ascent + m.descent, link.href);
-    else if (link?.slide !== undefined) doc.goTo(x, y - m.ascent, fragment.width, m.ascent + m.descent, `slide-${link.slide}`);
+    // A slide link carries href="#slide-N" too: data-slide decides, as in pdf-core.
+    if (link?.slide !== undefined) doc.goTo(x, y - m.ascent, fragment.width, m.ascent + m.descent, `slide-${link.slide}`);
+    else if (link?.href !== undefined) {
+        assertLinkUrl(link.href, "a text run");
+        doc.link(x, y - m.ascent, fragment.width, m.ascent + m.descent, link.href);
+    }
 }
 
 /** pdf-core's cap on distinct glows per text box: each one is a mask of the whole box. */

@@ -1,5 +1,6 @@
 // Draws one slide container: its background, then each object in paint order with the common box
 // (docs/HTML_PROFILE.md "Slide objects"): position, size, rotation, flips, opacity, fill and line.
+import { assertLinkUrl } from "@pdflapas/model";
 import { color, px, readStyle, type Style, take } from "./css";
 import { attribute, children, type Element, hasClass } from "./dom";
 import { type Effect, shadowEffect } from "./effect/index";
@@ -156,8 +157,12 @@ function drawBox(element: Element, style: Style, paint: Paint, box: Box): void {
     } else report(`<${element.tagName} class="${attribute(element, "class") ?? ""}"> is not a slide object the renderer draws`);
     const href = attribute(element, "href");
     const slide = attribute(element, "data-slide");
-    if (href !== undefined && element.tagName === "a") doc.link(box.x, box.y, box.width, box.height, href);
-    else if (slide !== undefined && element.tagName === "a") doc.goTo(box.x, box.y, box.width, box.height, `slide-${slide}`);
+    // A slide link carries href="#slide-N" too: data-slide decides, as in pdf-core.
+    if (slide !== undefined && element.tagName === "a") doc.goTo(box.x, box.y, box.width, box.height, `slide-${slide}`);
+    else if (href !== undefined && element.tagName === "a") {
+        assertLinkUrl(href, `'${attribute(element, "data-object-name") ?? "unnamed object"}'`);
+        doc.link(box.x, box.y, box.width, box.height, href);
+    }
     doc.restore();
 }
 

@@ -6,3 +6,4 @@ export * from "./units";
 export * from "./htmlDocument";
 export * from "./sourceEdits";
 export * from "./missingFont";
+export * from "./link";

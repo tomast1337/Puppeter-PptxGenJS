@@ -316,9 +316,11 @@ also jumps to slides through named destinations. Both write the `url` as the
 deck gives it: Chromium would canonicalize it (`https://example.com` becomes
 `https://example.com/`), so the Puppeteer renderer prints each link with a
 placeholder and an incremental update (`packages/puppeteer/src/pdfLinks.ts`)
-writes the URL back into the annotation. Both backends accept only
+writes the URL back into the annotation. Every backend accepts only
 `http:`, `https:` and `mailto:` URLs: normalization rejects any other scheme
-(PptxGenJS writes any string).
+(PptxGenJS writes any string), and each renderer checks the HTML again, so a
+`javascript:` or `file:` link in component output or hand-written HTML fails
+the render instead of reaching the PDF (`LINK_URL_SCHEME` in `@pdflapas/model`).
 
 **Unsupported content:** by default `toPdf()` throws an error listing
 everything the backend could not draw. Pass `onUnsupported: "warn"` to get the

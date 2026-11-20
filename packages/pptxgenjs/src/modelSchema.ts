@@ -1,9 +1,8 @@
-import { type CssColor, type DataUri, inches, type NormalizedPresentation, px } from "@pdflapas/model";
+import { type CssColor, type DataUri, inches, LINK_URL_SCHEME, type NormalizedPresentation, px } from "@pdflapas/model";
 import { z } from "zod";
 import { cloneComponentProps } from "#src/components/normalize";
 import { isSpaces, isWord, runPieces } from "#src/normalize/advanceGrid";
 import { RESOLVED_IMAGE } from "#src/normalize/image";
-import { URL_SCHEME } from "#src/normalize/link";
 
 /**
  * The checks on model JSON another producer built (#282). Each value that reaches CSS, an attribute or an SVG
@@ -40,7 +39,7 @@ const dataUri = z
     .transform(value => value as DataUri);
 const svgSyntax = z.string().regex(SVG_SYNTAX, { error: "holds characters SVG path data, transforms and dash arrays do not use: write numbers, commands and separators only" });
 const fontFace = z.string().regex(FONT_FACE, { error: "holds a control character or one of ;{}: write the font's family name" });
-const href = z.string().refine(value => URL_SCHEME.test(value) || SLIDE_LINK.test(value), { error: "is not a supported link: use an http:, https: or mailto: URL, or #slide-<number>" });
+const href = z.string().refine(value => LINK_URL_SCHEME.test(value) || SLIDE_LINK.test(value), { error: "is not a supported link: use an http:, https: or mailto: URL, or #slide-<number>" });
 
 const shadow = z.strictObject({ visible: z.boolean(), color: cssColor, blur: finite, offsetX: finite, offsetY: finite, inset: z.boolean() });
 const fill = z.strictObject({ visible: z.boolean(), color: cssColor });
