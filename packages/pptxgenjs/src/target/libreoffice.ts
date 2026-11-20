@@ -39,6 +39,8 @@ export const LIBREOFFICE: RenderingTargetProfile = Object.freeze({
     baselineGridPerInch: undefined,
     wrapWidthGridPt: undefined,
     joinsOpeningBracket: false,
+    hangingMarks: "",
+    breaksAroundQuotes: false,
     syntheticBoldStrokeEm: 1 / 30,
     syntheticItalicShear: 0.3462535606,
     fallbackFaces: [],

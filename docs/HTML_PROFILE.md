@@ -289,6 +289,14 @@ PowerPoint's 0.125pt grid, so its lines break where PowerPoint's do, and
 U+2060 WORD JOINER in run text between `)`, `]`, `}` or `%` and a following `(`, `[` or `{`, where
 PowerPoint has no line break and UAX #14 has one. Renderers draw it as nothing, give it no
 `letter-spacing`, and still break there when the word alone overflows its line (`overflow-wrap`).
+In a run whose `lang` is Chinese (`zh`, `zh-CN`, `zh-TW`) the PowerPoint target writes two more:
+U+200B ZERO WIDTH SPACE before a `“` after a Han character and on either side of an ASCII `"` between
+Han characters, where PowerPoint breaks and UAX #14 does not; and a closing mark that PowerPoint hangs
+past the line's end (`）》」”，、。：？)` before a Han character or the line's end) as a run of its own
+whose `letter-spacing` cancels its advance, followed by a run of one U+3000 IDEOGRAPHIC SPACE whose
+`letter-spacing` makes it as wide as the mark was. Mid-line the pair is as wide as the mark; at a line's
+end the U+3000 hangs as preserved white space does under `white-space: pre-wrap`, so the mark is drawn
+past the edge, as in PowerPoint. Both characters are in the text a PDF reader extracts.
 
 **Fallback faces.** On the PowerPoint target a run's (and its bullet's) `font-family` lists, after the face,
 the faces PowerPoint draws a character in when the face lacks it, the first that has it:
