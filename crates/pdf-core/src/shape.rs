@@ -13,7 +13,7 @@ use kurbo::{Affine, BezPath, ParamCurve, PathSeg, Shape, Vec2};
 use crate::Renderer;
 use crate::color::{Rgba, unit};
 use crate::model::{LineModel, ObjectStyle, ShapeGeometry, ShapeModel};
-use crate::path::{rect_path, to_path};
+use crate::path::{rect_path, stroke_width, to_path};
 
 /// SVG's `stroke-miterlimit` initial value, which the Puppeteer renderer's shape and chart strokes
 /// use (krilla defaults to 10).
@@ -110,6 +110,7 @@ impl Renderer {
         if let Some(line) = line
             && let Some(stroke) = stroke_of(line)
             && let Some(pdf) = to_path(path)
+            && self.placed(surface, path, Some(&stroke))
         {
             self.effects.capture_stroke(surface.ctm(), path, &stroke);
             surface.set_fill(None);
@@ -154,7 +155,7 @@ fn stroke_of(line: &LineModel) -> Option<Stroke> {
     let color = Some(line.color).filter(|c| c.3 > 0.0)?;
     Some(Stroke {
         paint: rgb::Color::new(color.0, color.1, color.2).into(),
-        width: line.width,
+        width: stroke_width(line.width)?,
         opacity: unit(color.3),
         dash: line.dash_array.as_deref().and_then(dash_of),
         miter_limit: SVG_MITER_LIMIT,

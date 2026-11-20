@@ -168,6 +168,8 @@ impl Renderer {
         self.images.clear();
         self.image_pixels = 0;
         self.links.clear();
+        self.effects.samples = 0;
+        self.effects.over_budget = false;
     }
 
     fn draw_presentation(&mut self, model: &Presentation) -> Result<Vec<u8>, String> {
@@ -816,6 +818,25 @@ mod tests {
     }
 
     #[test]
+    fn stops_drawing_shadows_past_the_renders_sample_budget() {
+        // A blur this wide makes a mask of the largest size: the budget holds four of them.
+        let huge = || Some(build::shadow("rgba(0, 0, 0, 0.75)", 1e6, 4.0, ShadowKind::Outer));
+        let objects = (0..5).flat_map(|_| linked_rect_with_shadow(huge()).slides.remove(0).objects).collect();
+        let mut r = Renderer::new();
+        render(&mut r, &build::deck(objects)).unwrap();
+        assert_eq!(
+            r.warnings(),
+            vec![format!(
+                "shadows and glows past {} mask samples per render not rendered",
+                effect::MAX_RENDER_SAMPLES
+            )]
+        );
+        // The budget is per render.
+        render(&mut r, &linked_rect_with_shadow(huge())).unwrap();
+        assert_eq!(r.warnings(), Vec::<String>::new());
+    }
+
+    #[test]
     fn draws_a_pictures_inner_shadow_over_it() {
         let mut r = Renderer::new();
         let mut shadowed = picture(build::image(PNG_DATA));
@@ -1423,5 +1444,73 @@ mod tests {
                 "pass {pass}: output depends on earlier renders"
             );
         }
+    }
+
+    /// A renderer with Liberation Sans Regular only, so a bold run is drawn as synthetic bold.
+    fn regular_only() -> Renderer {
+        let mut r = Renderer::new();
+        if let Some(font) = liberation_sans() {
+            r.add_font(font);
+        }
+        r
+    }
+
+    // GHSA-fmx3-qwqc-h37c: each of these panicked in pdf-writer's `line width must be positive` assert, which aborts
+    // the wasm instance. Now each is invalid HTML.
+    #[test]
+    fn rejects_negative_font_sizes_and_stroke_widths_as_invalid_html() {
+        let bold = profile::tests::TEXT.replace("font-weight: normal", "font-weight: bold");
+        let border = profile::tests::TEXT.replace("border-style: none;", "border-color: #FF0000; border-width: -2px; border-style: solid;");
+        for (text, property) in [
+            (bold.replace("font-size: 24px", "font-size: -1.33px"), "font-size"),
+            (
+                bold.replace(
+                    "text-decoration-style: solid;",
+                    "text-decoration-style: solid; -webkit-text-stroke: -2.67px #FF0000;",
+                ),
+                "-webkit-text-stroke",
+            ),
+            (border, "border-width"),
+        ] {
+            let error = regular_only().render_html(&profile::tests::document(&text)).unwrap_err();
+            assert!(
+                error.starts_with("invalid PdfLapas HTML: ") && error.contains(property) && error.contains("negative"),
+                "{error}"
+            );
+        }
+    }
+
+    // GHSA-fmx3-qwqc-h37c: an arc of radius 1e38 gave a path whose bounding box is not finite, and krilla unwrapped it.
+    #[test]
+    fn rejects_svg_coordinates_that_overflow_once_drawn() {
+        use profile::svg::tests::chart;
+        for (path, expected) in [
+            (
+                r##"<path d="M1 0A1 1e38 0 1 1 1 -0.1" stroke="#FF0000" fill="#00FF00"></path>"##,
+                "'1e38' is out of range",
+            ),
+            (r##"<path d="M0 0L-3.5e9-1" stroke="#FF0000"></path>"##, "'-3.5e9' is out of range"),
+            (
+                r##"<path d="M0 0L1 1" stroke="#FF0000" transform="scale(1e10)"></path>"##,
+                "'scale(1e10)' is not a list",
+            ),
+        ] {
+            let error = regular_only().render_html(&profile::tests::document(&chart(path))).unwrap_err();
+            assert!(error.starts_with("invalid PdfLapas HTML: ") && error.contains(expected), "{error}");
+        }
+        let image = svg_image(r##"<path d="M1 0A1 1e38 0 1 1 1 -0.1" stroke="red"/>"##);
+        let error = render(&mut regular_only(), &build::deck(vec![picture(build::image(&image))])).unwrap_err();
+        assert!(error.contains("'1e38' is out of range"), "{error}");
+
+        // Each transform is in range, their product is not: the path is reported and skipped.
+        let nested = format!(
+            "{}{}{}",
+            r#"<g transform="scale(1e9)">"#.repeat(5),
+            r##"<path d="M0 0L1 1Z" stroke="#FF0000" fill="#00FF00"></path>"##,
+            "</g>".repeat(5)
+        );
+        let mut r = regular_only();
+        assert!(r.render_html(&profile::tests::document(&chart(&nested))).unwrap().starts_with(b"%PDF"));
+        assert_eq!(r.warnings(), vec!["path past the page's coordinate range not rendered".to_owned()]);
     }
 }

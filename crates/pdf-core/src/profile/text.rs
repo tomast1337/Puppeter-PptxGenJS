@@ -4,7 +4,7 @@ use super::allow;
 
 use super::dom::{Dom, Element, Node, decode};
 use super::object::link;
-use super::style::{Style, font_families, integer, keyword, number, px, shadow, split_top_level};
+use super::style::{Style, font_families, integer, keyword, number, px, shadow, size_px, split_top_level};
 use crate::color::parse_color;
 use crate::model::{
     Bullet, Decoration, EmBand, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, Synthesis, TabAlign, TabStop, TextBox,
@@ -387,7 +387,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
                 .split_once(' ')
                 .ok_or_else(|| format!("CSS property '-webkit-text-stroke': '{stroke}' is not '<width>px <color>'"))?;
             Some(Outline {
-                width: px(width)?,
+                width: size_px(width).map_err(|e| format!("CSS property '-webkit-text-stroke': {e}"))?,
                 color: parse_color(color).map_err(|e| format!("CSS property '-webkit-text-stroke': {e}"))?,
             })
         }
@@ -398,7 +398,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
         font_face,
         fallback_faces: families.collect(),
         language: element.attr("lang")?.map(String::from),
-        font_size: style.require_px("font-size")?,
+        font_size: style.require_size_px("font-size")?,
         color: style.require_color("color")?,
         bold: one_of("CSS property 'font-weight'", style.require("font-weight")?, &["bold", "normal"])? == "bold",
         italic: one_of("CSS property 'font-style'", style.require("font-style")?, &["italic", "normal"])? == "italic",

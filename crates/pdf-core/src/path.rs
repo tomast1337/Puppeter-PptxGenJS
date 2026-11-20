@@ -4,9 +4,9 @@
 //! read the same geometry krilla draws.
 
 use krilla::geom::{Path, PathBuilder};
-use krilla::paint::{Fill, FillRule};
+use krilla::paint::{Fill, FillRule, Stroke};
 use krilla::surface::Surface;
-use kurbo::{BezPath, PathEl, Point};
+use kurbo::{Affine, BezPath, PathEl, Point, Shape as _};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of};
@@ -15,6 +15,9 @@ use crate::color::{Rgba, fill_of};
 const KAPPA: f64 = 0.552_284_8;
 /// Smallest side of a rectangle, so a zero-size box still makes a path (px).
 const MIN_SIDE: f32 = 0.01;
+/// Largest coordinate a drawn path's box may reach under the current transform: far past any page,
+/// and far enough below f32::MAX that krilla's own box arithmetic stays finite.
+const MAX_PLACED: f64 = 1e30;
 
 impl Renderer {
     /// Fills `path` (current user space) and adds it to the silhouettes being captured.
@@ -28,10 +31,30 @@ impl Renderer {
             return;
         }
         let Some(pdf) = to_path(path) else { return };
+        if !self.placed(surface, path, None) {
+            return;
+        }
         self.effects.capture(surface.ctm(), path, color.3, None);
         surface.set_stroke(None);
         surface.set_fill(Some(Fill { rule, ..fill_of(color) }));
         surface.draw_path(&pdf);
+    }
+
+    /// Whether krilla can place `path` (current user space), stroked with `stroke`, on the page:
+    /// it unwraps the box of what it draws under the current transform, which fails once that box
+    /// overflows f32 (GHSA-fmx3-qwqc-h37c). A path past MAX_PLACED is reported and not drawn.
+    pub(crate) fn placed(&mut self, surface: &Surface, path: &BezPath, stroke: Option<&Stroke>) -> bool {
+        let t = surface.ctm();
+        let ctm = Affine::new([t.sx(), t.ky(), t.kx(), t.sy(), t.tx(), t.ty()].map(f64::from));
+        // A miter can reach `miter_limit` half-widths past the path.
+        let reach = stroke.map_or(0.0, |s| f64::from(s.width * s.miter_limit.max(1.0)));
+        let b = ctm.transform_rect_bbox(path.bounding_box().inflate(reach, reach));
+        // In f64, so the check cannot overflow; NaN fails it.
+        let placed = [b.x0, b.y0, b.x1, b.y1].iter().all(|v| v.abs() <= MAX_PLACED);
+        if !placed {
+            self.warn("path past the page's coordinate range not rendered");
+        }
+        placed
     }
 }
 
@@ -88,6 +111,13 @@ pub(crate) fn ellipse_path(x: f32, y: f32, w: f32, h: f32) -> BezPath {
     pb.curve_to((cx + kx, cy - ry), (cx + rx, cy - ky), (cx + rx, cy));
     pb.close_path();
     pb
+}
+
+/// A stroke width pdf-writer accepts: it asserts `w >= 0`, a panic that aborts the wasm instance
+/// (GHSA-fmx3-qwqc-h37c), and a non-finite width is no PDF number. The profile parser rejects a
+/// negative width; this also stops a computed one, such as the synthetic-bold stroke of a huge font.
+pub(crate) fn stroke_width(width: f32) -> Option<f32> {
+    (width.is_finite() && width >= 0.0).then_some(width)
 }
 
 /// A kurbo path as a krilla path; `None` when it is empty or not finite.

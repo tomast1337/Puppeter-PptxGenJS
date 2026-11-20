@@ -196,6 +196,15 @@ fn number_attr(element: &Element<'_>, name: &str) -> Result<f32, String> {
     number(&value).map_err(|e| format!("attribute '{name}': {e}"))
 }
 
+/// `stroke-width`, which pdf-writer asserts is not negative (GHSA-fmx3-qwqc-h37c).
+fn stroke_width(element: &Element<'_>) -> Result<f32, String> {
+    let width = number_attr(element, "stroke-width")?;
+    if width < 0.0 {
+        return Err(format!("attribute 'stroke-width': {width} is negative"));
+    }
+    Ok(width)
+}
+
 /// A `fill` or `stroke` color; `none` is `None`.
 fn paint(element: &Element<'_>, name: &str) -> Result<Option<FillModel>, String> {
     let value = element
@@ -244,7 +253,7 @@ fn line(svg: &Element<'_>, target: &Element<'_>, heads: &[(String, String)]) -> 
     Ok(Some(LineModel {
         visible: true,
         color: stroke.color,
-        width: number_attr(target, "stroke-width")?,
+        width: stroke_width(target)?,
         dash_array: target.attr("stroke-dasharray")?.map(|d| d.into_owned()),
         begin_arrow: arrow(svg, "data-line-begin-arrow")?,
         end_arrow: arrow(svg, "data-line-end-arrow")?,

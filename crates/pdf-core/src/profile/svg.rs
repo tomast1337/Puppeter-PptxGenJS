@@ -72,6 +72,11 @@ const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 /// Deepest `<g>` nesting read (the renderers nest two levels): deeper input is an error rather
 /// than a deep recursion.
 const MAX_DEPTH: usize = 32;
+/// Largest magnitude of an SVG number, path data included. Past it a coordinate overflows f32 once
+/// transformed, where krilla unwraps the bounding box, and kurbo splits an arc into a number of
+/// cubics that grows with its radius (an arc of radius 1e38 made a 120 MB content stream,
+/// GHSA-fmx3-qwqc-h37c). 1e9 is far past any chart or picture and keeps an arc to ~50 cubics a turn.
+const MAX_SVG_NUMBER: f64 = 1e9;
 const ELEMENTS: &str = "g, defs, path, rect, circle, ellipse, line, polyline, polygon, text, title, desc, metadata";
 
 /// A chart's `<svg>`: `width` and `height` at 100% of the chart box.
@@ -437,14 +442,14 @@ impl Reader<'_, '_> {
             Fill::Gradient(index) => Some(Paint::Gradient(index, paint.fill_opacity)),
         };
         let stroke = match paint.stroke {
-            Some(Rgba(r, g, b, a)) if paint.stroke_width > 0.0 && a * paint.stroke_opacity > 0.0 => Some(stroke(
+            Some(Rgba(r, g, b, a)) if paint.stroke_width > 0.0 && a * paint.stroke_opacity > 0.0 => stroke(
                 Rgba(r, g, b, a * paint.stroke_opacity),
                 paint.stroke_width,
                 paint.cap,
                 paint.join,
                 paint.miter_limit,
                 paint.dash,
-            )),
+            ),
             _ => None,
         };
         if fill.is_none() && stroke.is_none() {
@@ -557,6 +562,9 @@ impl Reader<'_, '_> {
         Ok(match element.name {
             "path" => {
                 let d = element.attr("d")?.unwrap_or_default();
+                if let Some(number) = path_number_out_of_range(&d) {
+                    return Err(format!("attribute 'd': '{number}' is out of range"));
+                }
                 BezPath::from_svg(&d).map_err(|e| format!("attribute 'd': invalid path data: {e}"))?
             }
             "rect" => match (length("width")?, length("height")?) {
@@ -754,12 +762,50 @@ fn font_property(out: &mut Inherited, property: &str, value: &str) -> Result<(),
 fn svg_number(text: &str) -> Result<f32, String> {
     let digits = !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit() || matches!(b, b'+' | b'-' | b'.' | b'e' | b'E'));
     // Through f64, as the profile's numbers are, so a chart reads the same value as before.
-    let value = text.parse::<f64>().ok().filter(|_| digits).map(|v| v as f32);
+    let value = text.parse::<f64>().ok().filter(|_| digits);
     match value {
-        Some(v) if v.is_finite() => Ok(v),
+        Some(v) if v.abs() <= MAX_SVG_NUMBER => Ok(v as f32),
         Some(_) => Err(format!("'{text}' is out of range")),
         None => Err(format!("'{text}' is not a number")),
     }
+}
+
+/// The first number in path data `d` past MAX_SVG_NUMBER, a coordinate or an arc radius, read as
+/// kurbo reads them: an optional sign, digits with an optional fraction, an optional exponent.
+/// What does not parse is left to kurbo's error.
+fn path_number_out_of_range(d: &str) -> Option<&str> {
+    let bytes = d.as_bytes();
+    let digits = |mut i: usize| {
+        while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+            i += 1;
+        }
+        i
+    };
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        if !(b.is_ascii_digit() || matches!(b, b'+' | b'-' | b'.')) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        let mut end = digits(i + usize::from(matches!(b, b'+' | b'-')));
+        if bytes.get(end) == Some(&b'.') {
+            end = digits(end + 1);
+        }
+        if matches!(bytes.get(end), Some(b'e' | b'E')) {
+            let sign = usize::from(matches!(bytes.get(end + 1), Some(b'+' | b'-')));
+            let exponent = digits(end + 1 + sign);
+            if exponent > end + 1 + sign {
+                end = exponent;
+            }
+        }
+        let number = d.get(start..end).unwrap_or_default();
+        if number.parse::<f64>().is_ok_and(|v| v.abs() > MAX_SVG_NUMBER) {
+            return Some(number);
+        }
+        i = end.max(start + 1);
+    }
+    None
 }
 
 /// Numbers separated by commas and/or whitespace.
