@@ -31,14 +31,16 @@
     "noPropertyAccessFromIndexSignature": false,
 
     // Workspace packages resolve to their sources, so typecheck, tests and scripts need no build.
-    // Must mirror each package.json "exports" map; tests/packages.test.ts checks that.
+    // Must mirror each package.json "exports" map; tests/packages.test.ts checks that. Bun applies these
+    // paths at run time, so a package split by runtime maps to the source of its "bun" condition (node.ts,
+    // which re-exports browser.ts); tsc still checks browser.ts as part of this project (#351).
     "paths": {
       "@pdflapas/model": ["./packages/model/src/index.ts"],
       "@pdflapas/puppeteer": ["./packages/puppeteer/src/index.ts"],
       "@pdflapas/pptxgenjs": ["./packages/pptxgenjs/src/index.ts"],
       "@pdflapas/pptxgenjs/html": ["./packages/pptxgenjs/src/html.ts"],
-      "@pdflapas/wasm": ["./packages/wasm/src/browser.ts"],
-      "@pdflapas/pdfkit": ["./packages/pdfkit/src/browser.ts"],
+      "@pdflapas/wasm": ["./packages/wasm/src/node.ts"],
+      "@pdflapas/pdfkit": ["./packages/pdfkit/src/node.ts"],
       "@pdflapas/react": ["./packages/react/src/index.ts"]
     }
   },
