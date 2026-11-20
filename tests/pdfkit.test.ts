@@ -239,6 +239,25 @@ describe("PDFKit renderer", () => {
         expect(rects.map(rect => rect[3])).toEqual([expect.closeTo(t / 2, 2), expect.closeTo(t / 2, 2)]);
     });
 
+    test("puts text on explicit tab stops: a right stop ends it there, a decimal stop puts its '.' there", async () => {
+        const fonts = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
+        const [file] = fonts;
+        if (!file) throw new Error("Liberation Sans is not installed");
+        const font = createFont(Buffer.from(file)) as Font; // `as`: a .ttf holds one font, not a collection
+        const width = (text: string) => (font.layout(text).advanceWidth / font.unitsPerEm) * 24;
+        const renderer = await createPdfkitRenderer({ fonts });
+        const tabStops = [
+            { position: 2, alignment: "r" },
+            { position: 3, alignment: "dec" },
+        ] as PptxGenJS.TextPropsOptions["tabStops"]; // `as`: PptxGenJS types the alignment as a string union the literals widen from
+        const pdf = await render(renderer, pres => pres.addSlide().addText("a\tbb\t12.5", { x: 1, y: 1, w: 5, h: 1, fontFace: "Arial", fontSize: 18, margin: 0, tabStops }));
+        expect(renderer.warnings()).toEqual([]);
+        const [, right, decimal] = texts(pageContents(pdf)[0] ?? "");
+        // Stops are measured from the text area's left edge: the box's x, 96 px.
+        expect((right?.x ?? 0) + width("bb")).toBeCloseTo(96 + 192, 2);
+        expect((decimal?.x ?? 0) + width("12")).toBeCloseTo(96 + 288, 2);
+    });
+
     test("synthesizes bold and italic where the face has neither, as the HTML says", async () => {
         const regularOnly = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
         const renderer = await createPdfkitRenderer({ fonts: regularOnly });
