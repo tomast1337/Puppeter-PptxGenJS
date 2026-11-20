@@ -87,9 +87,12 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * that floor predicts every break, where no floor misses 16 boxes, a 0.056pt tolerance 24, the box width floored to
  * 1/576 in 9 (its insets off the grid) and either width floored to 1/600 in 18 or more. A kern-free line is on the
  * grid already, so only a kerned one, or insets off the grid such as the default 0.1 in, wraps sooner. The target
- * moves the floor's remainder to the end inset (`floorTextWrapWidth`). shortcut: measured on left-aligned text
- * boxes; a centered or right-aligned line and a shape's text rectangle take the same floor and a table cell none until
- * a measurement says otherwise. A kerned line less than a LayoutUnit (0.0117pt) wider than the floored width still
+ * moves the floor's remainder to the right inset (`floorTextWrapWidth`). The same floor holds for centered,
+ * right-aligned and justified lines, a shape's text rectangle and a table cell (the width of its columns inside its
+ * margins, not the columns' width floored): measured against its PDF export of a synthetic deck (80 boxes, Arial at 12
+ * and 14pt, in those contexts plus right-to-left), right-aligned and justified lines end at the floored width, and a
+ * left-aligned right-to-left line starts at the left inset whatever the remainder, so the remainder goes right there
+ * too. shortcut: a right-aligned right-to-left line was not measured; measure it when a deck needs it. A kerned line less than a LayoutUnit (0.0117pt) wider than the floored width still
  * fits in Chromium (2 of the 47 boxes, tests/advanceGrid.test.ts), finer than its line measure.
  * Inside a word it draws glyphs at hinted 600 dpi widths, which never moves a word start or a
  * line break, so the PDF does not copy them. Wrapping tests the line without its trailing space against the box, with

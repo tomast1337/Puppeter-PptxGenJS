@@ -825,8 +825,9 @@ const WRAP_GRID_EPSILON = 1e-6;
 
 /**
  * The target's floor of the width inside the left and right insets (RENDERING_TARGETS.wrapWidthGridPt), moved into the
- * end inset so every renderer wraps at it: `width` is the box's, in px. Text that does not wrap, or runs vertically,
- * keeps its insets.
+ * right inset so every renderer wraps at it: `width` is the box's, or a table cell's columns', in px. Right-to-left text
+ * too: its left-aligned lines start at the left inset whatever the remainder (target/powerpoint.ts). Text that does not
+ * wrap, or runs vertically, keeps its insets.
  */
 export function floorTextWrapWidth(text: NormalizedTextBox, width: number, target: RenderingTarget): NormalizedTextBox {
     const grid = RENDERING_TARGETS[target].wrapWidthGridPt;
@@ -837,7 +838,7 @@ export function floorTextWrapWidth(text: NormalizedTextBox, width: number, targe
     // A width on the grid in inches comes back a hair under it in px; it is on the grid.
     const remainder = inner - Math.floor(inner / step + WRAP_GRID_EPSILON) * step;
     if (inner <= 0 || remainder <= WRAP_GRID_EPSILON * step) return text;
-    return { ...text, margin: text.rtl ? [top, right, bottom, left + remainder] : [top, right + remainder, bottom, left] };
+    return { ...text, margin: [top, right + remainder, bottom, left] };
 }
 
 /**

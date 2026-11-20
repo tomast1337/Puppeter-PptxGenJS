@@ -10,7 +10,7 @@ import { tableMarginPixels } from "#src/normalize/margin";
 import { TRANSPARENT } from "#src/color";
 import { normalizeColor, normalizeFill } from "#src/normalize/style";
 import type { SharedRunOptions } from "#src/normalize/sharedRunOptions";
-import { normalizeText, type TextInput } from "#src/normalize/text";
+import { floorTextWrapWidth, normalizeText, type TextInput } from "#src/normalize/text";
 
 const INHERITED_CELL_OPTIONS = ["align", "bold", "border", "color", "fill", "fontFace", "fontSize", "margin", "textDirection", "underline", "valign"] as const;
 
@@ -130,8 +130,10 @@ function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: P
  * real decks rely on it, and normalization has no warning channel.
  * shortcut: the cut of a colspan across the last column is assumed (no PowerPoint export checks it); measure it if a
  * deck relies on it.
+ * Each cell's text then wraps at the width of its columns floored as a text box's is (floorTextWrapWidth).
  */
-function fitRowsToGrid(rows: NormalizedTableRow[], count: number): NormalizedTableRow[] {
+function fitRowsToGrid(rows: NormalizedTableRow[], columns: readonly number[], target: RenderingTarget): NormalizedTableRow[] {
+    const count = columns.length;
     const taken = new Set<string>();
     return rows.map((row, rowIndex) => {
         let column = 0;
@@ -140,8 +142,9 @@ function fitRowsToGrid(rows: NormalizedTableRow[], count: number): NormalizedTab
             if (column >= count) return [];
             const colspan = Math.min(cell.colspan, count - column);
             for (let r = rowIndex; r < rowIndex + cell.rowspan; r++) for (let c = column; c < column + colspan; c++) taken.add(`${r},${c}`);
+            const width = columns.slice(column, column + colspan).reduce((sum, value) => sum + value, 0);
             column += colspan;
-            return [colspan === cell.colspan ? cell : { ...cell, colspan }];
+            return [{ ...cell, colspan, text: floorTextWrapWidth(cell.text, width, target) }];
         });
         return { ...row, cells };
     });
@@ -292,7 +295,8 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                     };
                 }),
             })),
-            count,
+            columns,
+            target,
         ),
     };
 }

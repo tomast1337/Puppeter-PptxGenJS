@@ -2,12 +2,17 @@
 // PowerPoint's PDF export of the same synthetic deck gave: "<text> xo" in Arial, left aligned, the box (in EMU, as
 // PptxGenJS writes it) between 0.1pt under W and 0.14pt over it, W the line as the PowerPoint target counts it
 // (advances rounded to 0.125pt plus its kern pairs, "A " at the break included). PowerPoint keeps the line's last word
-// when W is no wider than the box less its insets floored to 0.125pt (target/powerpoint.ts, `wrapWidthGridPt`).
+// when W is no wider than the box less its insets floored to 0.125pt (target/powerpoint.ts, `wrapWidthGridPt`), in
+// every context measured: CONTEXT_BOXES.
 import { type GlyphAdvances, PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import type { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
+/** Where the line sits: a text box aligned so, a shape's text rectangle, a one-cell table, or a right-to-left box. */
+export type BoxFloorContext = "left" | "center" | "right" | "justify" | "roundRect" | "ellipse" | "table" | "rtl";
+
 export interface BoxFloorCase {
+    readonly context?: BoxFloorContext;
     readonly fontSize: number;
     readonly text: string;
     /** All four insets, in pt. */
@@ -71,6 +76,31 @@ const BOXES: readonly (readonly [number, string, number, number, number, boolean
     [18, "Lorem ipsum xoxo", 1.3, 1900079, 147.0, true],
 ];
 
+// The boxes of a second measured deck, each line in every context, margin 0 but a table cell's default 7.2pt a side
+// (the width is the shape's or the column's): context, size, text, width (EMU), PowerPoint's break. The two middle
+// widths of each text leave the line between the floored width and the width inside the insets, so only the floor
+// wraps them; a table cell takes it as a text box does, of the column's width less its margins, not of the column's.
+// Its right-to-left box starts its line at the left inset whatever the remainder, so the remainder goes right there too.
+const CONTEXT_BOXES: readonly (readonly [BoxFloorContext, number, string, number, boolean])[] = (["center", "right", "justify", "roundRect", "ellipse", "table", "rtl"] as const).flatMap(context => {
+    // Per context, the widths of "Dolor sit AVA" at 12pt then "Lorem AVAVA" at 14pt: two the floor wraps, one it keeps.
+    const widths: Record<BoxFloorContext, readonly number[]> = {
+        left: [],
+        center: [865837, 866507, 866902, 1074060, 1074544, 1074865],
+        right: [865837, 866507, 866902, 1074060, 1074544, 1074865],
+        justify: [865837, 866507, 866902, 1074060, 1074544, 1074865],
+        roundRect: [910475, 911144, 911539, 1118698, 1119181, 1119502],
+        ellipse: [1224479, 1225426, 1225985, 1518951, 1519635, 1520088],
+        table: [1048717, 1049387, 1049782, 1256940, 1257424, 1257745],
+        rtl: [865837, 866507, 866902, 1074060, 1074544, 1074865],
+    };
+    return widths[context].map((widthEmu, index) => [context, index < 3 ? 12 : 14, index < 3 ? "Dolor sit AVA" : "Lorem AVAVA", widthEmu, index % 3 === 2] as const);
+});
+
+/** The second deck's boxes, one context each, labelled; PowerPoint wraps them as the floor of the width inside the insets does. */
+export function contextFloorCases(): BoxFloorCase[] {
+    return CONTEXT_BOXES.map(([context, fontSize, text, widthEmu, fits]) => ({ context, fontSize, text, insetPt: 0, widthEmu, label: `${context} ${fontSize}pt "${text}", ${widthEmu} EMU`, overflowPt: Number.NaN, fits }));
+}
+
 /** The measured boxes, or none when `font` (Arial or its twin) does not give the measured deck's line widths. */
 export function boxFloorCases(font: GlyphAdvances): BoxFloorCase[] {
     const grid = RENDERING_TARGETS.powerpoint.advanceGridPt ?? Number.NaN;
@@ -90,10 +120,16 @@ export function boxFloorCases(font: GlyphAdvances): BoxFloorCase[] {
     });
 }
 
-/** Each case in a box of its own slide, Arial, top anchored, as in the measured deck. */
+/** Each case in a box of its own slide, Arial, top anchored, as in the measured decks (a shape's insets follow its height). */
 export function boxFloorDeck(presentation: PuppeteerGen, cases: readonly BoxFloorCase[]): PuppeteerGen {
-    for (const { fontSize, text, insetPt, widthEmu } of cases) {
-        presentation.addSlide().addText(`${text} xo`, { x: 0.25, y: 0.2, w: widthEmu / PPTX_DEFAULTS.units.emuPerInch, h: 1.2, margin: insetPt, valign: "top", fontFace: "Arial", fontSize });
+    for (const { context = "left", fontSize, text, insetPt, widthEmu } of cases) {
+        const slide = presentation.addSlide();
+        const line = `${text} xo`;
+        const box = { x: 0.25, y: 0.2, w: widthEmu / PPTX_DEFAULTS.units.emuPerInch, h: context === "left" ? 1.2 : 0.5, margin: insetPt, valign: "top", fontFace: "Arial", fontSize } as const;
+        if (context === "table") slide.addTable([[{ text: line }]], { x: box.x, y: box.y, colW: [box.w], valign: "top", fontFace: "Arial", fontSize });
+        else if (context === "roundRect" || context === "ellipse") slide.addText(line, { ...box, shape: context });
+        else if (context === "rtl") slide.addText(line, { ...box, rtlMode: true, align: "left" });
+        else slide.addText(line, { ...box, align: context });
     }
     return presentation;
 }
