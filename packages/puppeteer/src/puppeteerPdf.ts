@@ -1,4 +1,4 @@
-import { assertHtmlPresentationDocument, assertLinkUrl, type HtmlPresentationDocument, inchesToPixels, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
+import { assertHtmlPresentationDocument, assertLinkUrl, checkImagePixels, type HtmlPresentationDocument, type ImagePixelLimits, imagePixelLimits, inchesToPixels, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import type { Page } from "puppeteer";
 import { withBrowser } from "./browser";
 import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOptions";
@@ -16,19 +16,24 @@ export interface PuppeteerPdfRendererOptions {
      * counts as the face): `"warn"` (default), `"throw"` (`MissingFontError`), `"ignore"`, or a function receiving the list.
      */
     readonly onMissingFont?: MissingFontPolicy;
+    /** Decoded-pixel limits on the deck's raster images, checked from their headers before printing. Default IMAGE_PIXEL_LIMITS. */
+    readonly imageLimits?: ImagePixelLimits;
 }
 
 export class PuppeteerPdfRenderer implements PresentationRenderer {
     private readonly launchOptions: PuppeteerLaunchOptions;
     private readonly onMissingFont: MissingFontPolicy;
+    private readonly imageLimits: Required<ImagePixelLimits>;
 
-    constructor({ launchOptions, onMissingFont }: PuppeteerPdfRendererOptions = {}) {
+    constructor({ launchOptions, onMissingFont, imageLimits }: PuppeteerPdfRendererOptions = {}) {
         this.launchOptions = { ...DEFAULT_LAUNCH_OPTIONS, ...launchOptions };
         this.onMissingFont = missingFontPolicy(onMissingFont);
+        this.imageLimits = imagePixelLimits(imageLimits);
     }
 
     async render(document: HtmlPresentationDocument): Promise<Uint8Array> {
         assertHtmlPresentationDocument(document);
+        checkImagePixels(document.html, this.imageLimits);
         return withBrowser(async browser => {
             // A browser context per document: no cache, storage or cookies shared with another render.
             const context = await browser.createBrowserContext();

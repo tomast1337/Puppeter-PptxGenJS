@@ -2,6 +2,7 @@
 // (`100%` for stretch, the scaled box for contain, cover and crop). PNG and JPEG go to PDFKit as they are; GIF and
 // WebP are decoded (their first frame, as Chromium prints them) and embedded as PNG; SVG is drawn as vector paths
 // (svgImage.ts). The picture's area is its shadow's silhouette, as in pdf-core's image.rs.
+import { webpSize } from "@pdflapas/model";
 import { decodeGif, decodeWebP, encodePng } from "image-in-browser";
 import { length, readStyle, take } from "./css";
 import { attribute, children, type Element, hasClass } from "./dom";
@@ -18,8 +19,6 @@ const GIF_SIGNATURE = [0x47, 0x49, 0x46, 0x38] as const; // "GIF8"
 const RIFF_SIGNATURE = [0x52, 0x49, 0x46, 0x46] as const; // "RIFF"
 const WEBP_FORM = [0x57, 0x45, 0x42, 0x50] as const; // "WEBP", at byte 8 of the RIFF header
 const ROUNDED = "50%";
-/** Most pixels one decoded picture may have (8192 x 8192), pdf-core's MAX_IMAGE_PIXELS: a few KB can claim billions. */
-const MAX_IMAGE_PIXELS = 2 ** 26;
 /** `img` properties that only restate the frame layout `toHtml()` writes for Chromium. */
 const IMG_LAYOUT: ReadonlySet<string> = new Set(["display", "position"]);
 const FRAME_LAYOUT: ReadonlySet<string> = new Set(["width", "height", "overflow", "position"]);
@@ -69,37 +68,14 @@ function gifSize(bytes: Uint8Array): [number, number] {
     return [sw ?? 0, sh ?? 0];
 }
 
-/** A WebP's canvas size from its first chunk (pdf-core's `webp_size`): VP8X, VP8L or VP8. */
-function webpSize(bytes: Uint8Array): [number, number] | undefined {
-    const chunk = String.fromCharCode(...bytes.subarray(12, 16));
-    const le = (at: number, count: number) => littleEndian(bytes, at, count);
-    if (chunk === "VP8X") {
-        const [w, h] = [le(24, 3), le(27, 3)];
-        return w === undefined || h === undefined ? undefined : [w + 1, h + 1];
-    }
-    if (chunk === "VP8L" && bytes[20] === 0x2f) {
-        const bits = le(21, 4);
-        // 14-bit width and height, each less one.
-        return bits === undefined ? undefined : [(bits % 2 ** 14) + 1, (Math.floor(bits / 2 ** 14) % 2 ** 14) + 1];
-    }
-    if (chunk === "VP8 " && startsWith(bytes, [0x9d, 0x01, 0x2a], 23)) {
-        const [w, h] = [le(26, 2), le(28, 2)];
-        return w === undefined || h === undefined ? undefined : [w % 2 ** 14, h % 2 ** 14];
-    }
-    return undefined;
-}
-
 /**
- * The first frame of a GIF or WebP as a PNG file, for PDFKit, which embeds only PNG and JPEG.
- * shortcut: pdf-core also caps the deck's decoded pixels together (MAX_DECK_IMAGE_PIXELS, for a wasm32 instance's
- * memory); Node has no such ceiling, so only the per-image cap applies until a server deck needs the total.
+ * The first frame of a GIF or WebP as a PNG file, for PDFKit, which embeds only PNG and JPEG. Its pixels are within
+ * the renderer's imageLimits: render() checks every image's header first.
  */
 function firstFramePng(bytes: Uint8Array, mime: string): Uint8Array {
     const gif = startsWith(bytes, GIF_SIGNATURE);
     const size = gif ? gifSize(bytes) : webpSize(bytes);
     if (!size) throw new Error(`cannot decode ${mime} data: no image size in its header`);
-    const [w, h] = size;
-    if (w * h > MAX_IMAGE_PIXELS) throw new Error(`${w}x${h} pixels is over the limit of ${MAX_IMAGE_PIXELS} pixels per image; downscale it`);
     const image = gif ? decodeGif({ data: bytes, frameIndex: 0 }) : decodeWebP({ data: bytes, frameIndex: 0 });
     if (!image) throw new Error(`cannot decode ${mime} data`);
     return encodePng({ image, singleFrame: true });

@@ -1,6 +1,6 @@
 // Browser-safe PDFKit renderer ("@pdflapas/pdfkit" under the browser/default conditions): pure JavaScript, no
 // Chromium and no wasm. Must not load node:* modules, puppeteer or jsdom (enforced by scripts/build.ts).
-import { type HtmlPresentationDocument, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
+import { checkImagePixels, type HtmlPresentationDocument, type ImagePixelLimits, imagePixelLimits, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import { renderHtml } from "./document";
 import { type Face, parseFonts } from "./fonts";
 
@@ -22,6 +22,8 @@ export interface PdfkitRendererOptions {
      * `"ignore"`, or a function receiving the list. Not part of `onUnsupported`: the text is drawn, in a fallback face.
      */
     onMissingFont?: MissingFontPolicy;
+    /** Decoded-pixel limits on the deck's raster images, checked from their headers before drawing. Default IMAGE_PIXEL_LIMITS. */
+    imageLimits?: ImagePixelLimits;
 }
 
 export interface SystemFontOptions {
@@ -36,21 +38,25 @@ export class PdfkitRenderer implements PresentationRenderer {
     readonly #faces: readonly Face[];
     readonly #onUnsupported: UnsupportedPolicy;
     readonly #onMissingFont: MissingFontPolicy;
+    readonly #imageLimits: Required<ImagePixelLimits>;
     #warnings: readonly string[] = [];
     #missingFonts: readonly MissingFont[] = [];
 
     // Takes the options, not parsed faces: a face holds a fontkit font, and naming it here would put fontkit's types in
     // the published declarations, which a strict consumer cannot resolve (#354).
-    constructor({ fonts, onUnsupported = "error", onMissingFont }: PdfkitRendererOptions) {
+    constructor({ fonts, onUnsupported = "error", onMissingFont, imageLimits }: PdfkitRendererOptions) {
         if (!fonts?.length) throw new Error("createPdfkitRenderer() requires at least one font: pass { fonts: [Uint8Array, ...] } (Node/Bun: await loadSystemFonts())");
         if (onUnsupported !== "error" && onUnsupported !== "warn") throw new Error(`onUnsupported must be "error" or "warn", got ${JSON.stringify(onUnsupported)}`);
         this.#faces = parseFonts(fonts);
         this.#onUnsupported = onUnsupported;
         this.#onMissingFont = missingFontPolicy(onMissingFont);
+        this.#imageLimits = imagePixelLimits(imageLimits);
     }
 
     /** Parses the profile HTML once; out-of-profile or malformed HTML throws. Images must be data URIs. */
     async render(document: HtmlPresentationDocument): Promise<Uint8Array> {
+        // Before PDFKit decodes a PNG with transparency in JavaScript, or a GIF or WebP is decoded for it.
+        checkImagePixels(document.html, this.#imageLimits);
         const result = await renderHtml(document.html, this.#faces);
         this.#warnings = result.warnings;
         this.#missingFonts = result.missingFonts;

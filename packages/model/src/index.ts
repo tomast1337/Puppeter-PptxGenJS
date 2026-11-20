@@ -7,3 +7,4 @@ export * from "./htmlDocument";
 export * from "./sourceEdits";
 export * from "./missingFont";
 export * from "./link";
+export * from "./imagePixels";
