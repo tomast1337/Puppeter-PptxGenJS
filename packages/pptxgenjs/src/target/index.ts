@@ -79,6 +79,16 @@ export interface RenderingTargetProfile {
      */
     readonly joinsOpeningBracket: boolean;
     /**
+     * The marks that, in a Chinese run followed by a Han character or ending the line, stay on their line past its end
+     * where they would start the next one (normalize/chineseLineBreak.ts); empty: none hangs.
+     */
+    readonly hangingMarks: string;
+    /**
+     * Whether a Chinese run has a line break before a left double quote after a Han character and on either side of an
+     * ASCII quote between Han characters (U+200B in the run text), where UAX #14 has none.
+     */
+    readonly breaksAroundQuotes: boolean;
+    /**
      * How a bold run is drawn in a face that has no bold style: the glyphs filled and stroked with a line this fraction
      * of the font size wide. Undefined leaves the browser's own synthesis (Chromium, measured in its PDF output of a
      * regular-only Liberation Sans at 9 to 72pt: a 1/32 em stroke, its glyph outlines 1/64 em wider on each side, and a

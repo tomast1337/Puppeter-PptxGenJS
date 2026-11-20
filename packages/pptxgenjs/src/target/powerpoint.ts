@@ -8,6 +8,8 @@ const ADVANCE_GRID_PER_INCH = 576;
 const BASELINE_GRID_PER_INCH = 600;
 /** Its font fallback chain (`fallbackFaces`), first to last. */
 const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun"]);
+/** The marks measured hanging past a Chinese line's end (`hangingMarks`). */
+const HANGING_MARKS = "），》」”，、。：？)";
 
 /**
  * PowerPoint kerns a run only from its `kern` size: from 12pt, and never with `charSpacing`, and only from the face's
@@ -110,6 +112,25 @@ const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol"
  * "word,word", "word;word", "word%word", "word+word" and "word&word" never break and "word-word" breaks after the
  * hyphen in both. Only "(" after ")" and "%" was measured; "[" and "{", and "]" and "}" before them, are the same
  * UAX #14 classes (OP, CP/CL).
+ * It breaks Chinese text (runs with `lang` zh-CN or zh-TW, read with the `eaLnBrk="1" latinLnBrk="0"
+ * hangingPunct="1"` PptxGenJS writes in `<p:defaultTextStyle>`) as UAX #14 does but in two places, measured against
+ * its PDF export of a synthetic deck (tests/chineseBreakCases.ts: SimSun 10pt, margin 0, 30 strings in zh-CN and the
+ * same in zh-TW, each in boxes that end the line just before, between and after the two characters of one boundary;
+ * both languages break alike). A closing mark that would start the next line stays on its line, past the right edge,
+ * when a Han character follows it or the paragraph ends (`hangingMarks`): ）》」”，、。：？ and ASCII ")" after
+ * "123(4", drawn at their place outside the box ("这是示例文字内容，" in an 8em box, "他刚才又说「这是示例」" ending
+ * "示例」" in a 5em one), where Chromium pulls the character before down with it. Only one hangs: "（第一）。" with "）"
+ * one past the edge breaks before "一", and with "。" one past the edge hangs "。". "……" does not hang and is not
+ * left at a line's start, as in UAX #14. It breaks before "“" after a Han character ("他刚才又说" | "“这是示例”"), and
+ * on either side of an ASCII quote between Han characters ("他刚才又说" | "\"示例项目\"" and "他说\"示例项目" |
+ * "\"很好"), where UAX #14 (LB19) has no break (`breaksAroundQuotes`, a U+200B ZERO WIDTH SPACE in the run text).
+ * Otherwise the boxes break as Chromium does: an opening bracket or quote never ends a line, a word of ASCII letters,
+ * digits and brackets ("Excel", "123(4)", "100%") is kept whole and breaks from Han on either side, and there is no
+ * extra space between Han and Latin text.
+ * shortcut: measured before a Han character or the paragraph's end and in zh runs only; a mark before another mark or
+ * a Latin letter, the other closing marks (！；』】〕 and ASCII ,.;:!?]}) and other languages keep UAX #14 until a deck
+ * measures them. "——" breaks between the two dashes and not before them in PowerPoint, the reverse of UAX #14 (LB17),
+ * which the target keeps.
  * It draws a character the run's face lacks in the first face of one chain that has it, whatever the run's face
  * (`fallbackFaces`): Arial, Cambria Math, Segoe UI Symbol, Yu Gothic, then PMingLiU and SimSun. Measured against its
  * PDF export of a synthetic deck (Arial, Calibri and Times New Roman at 14pt, one character class per line) and each
@@ -143,6 +164,8 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     baselineGridPerInch: BASELINE_GRID_PER_INCH,
     wrapWidthGridPt: PPTX_DEFAULTS.units.pointsPerInch / ADVANCE_GRID_PER_INCH,
     joinsOpeningBracket: true,
+    hangingMarks: HANGING_MARKS,
+    breaksAroundQuotes: true,
     syntheticBoldStrokeEm: undefined,
     syntheticItalicShear: undefined,
     fallbackFaces: FALLBACK_FACES,
