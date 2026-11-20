@@ -5,6 +5,7 @@ import PDFDocument from "pdfkit";
 import { attribute, children, descendants, type Element, hasClass, parseDocument, textContent } from "./dom";
 import type { Face } from "./fonts";
 import { drawSlide } from "./slide";
+import { Effects } from "./effect/index";
 import { createShaper } from "./text/shaper";
 
 export interface RenderResult {
@@ -103,6 +104,7 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
     const missing = new Map<string, { objects: Set<string>; used: string | undefined }>();
     const shaper = createShaper(faces);
     const registered = new Set<string>();
+    const effects = new Effects();
     const numbers = slides.map((slide, index) => Number(SLIDE_ID.exec(attribute(slide, "id") ?? "")?.[1] ?? index + 1));
     for (const element of descendants(slides)) {
         const target = attribute(element, "data-slide");
@@ -122,6 +124,7 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
                     doc,
                     shaper,
                     registered,
+                    effects,
                     report,
                     missingFace: (face, used) => {
                         const entry = missing.get(face) ?? { objects: new Set<string>(), used };

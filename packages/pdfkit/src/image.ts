@@ -1,8 +1,9 @@
 // Draws a picture (docs/HTML_PROFILE.md "Image"): the `img` inside its clipping frame, at the box its style gives
 // (`100%` for stretch, the scaled box for contain, cover and crop). PDFKit embeds PNG and JPEG; others are reported.
+// The picture's area is its shadow's silhouette, as in pdf-core's image.rs.
 import { length, readStyle, take } from "./css";
 import { attribute, children, type Element, hasClass } from "./dom";
-import type { Paint } from "./paint";
+import { captureFill, type Paint } from "./paint";
 import type { Frame } from "./text/draw";
 import { reportUnread } from "./text/read";
 
@@ -49,18 +50,25 @@ export function drawImage(element: Element, objectStyle: Map<string, string>, pa
     const src = attribute(img, "src") ?? "";
     const bytes = dataUriBytes(src);
     if (!bytes) throw new Error("invalid PdfLapas HTML: an image's src is not a data: URI (toHtml() inlines every image)");
+    if (width === undefined || height === undefined) throw new Error("invalid PdfLapas HTML: an image's img has no width and height in px or %");
     if (!startsWith(bytes, PNG_SIGNATURE) && !startsWith(bytes, JPEG_SIGNATURE)) {
         paint.report(`image format '${DATA_URI.exec(src)?.[1] || "unknown"}' is not drawn (PDFKit embeds PNG and JPEG)`);
         return;
     }
     const doc = paint.doc;
+    const [left, top] = [box.x + x, box.y + y];
+    // Contained and cropped pictures may not fill the box: the silhouette is what is drawn.
+    // shortcut: the shadow is cast by the picture rectangle, not by its transparent pixels (LibreOffice follows the
+    // alpha channel), as in pdf-core; decode the alpha for it when a deck shadows a cut-out picture.
+    const [l, t] = [Math.max(box.x, left), Math.max(box.y, top)];
+    const [r, b] = [Math.min(box.x + box.width, left + width), Math.min(box.y + box.height, top + height)];
+    captureFill(paint, opacity, pen => (rounded ? pen.ellipse(box.x + box.width / 2, box.y + box.height / 2, box.width / 2, box.height / 2) : pen.rect(l, t, r - l, b - t)));
     doc.save();
     if (rounded) doc.ellipse(box.x + box.width / 2, box.y + box.height / 2, box.width / 2, box.height / 2).clip();
     else doc.rect(box.x, box.y, box.width, box.height).clip();
     // An image XObject is painted with the fill alpha (ISO 32000-1 11.6.4.4).
     doc.fillOpacity(opacity * paint.opacity);
-    if (width === undefined || height === undefined) throw new Error("invalid PdfLapas HTML: an image's img has no width and height in px or %");
     // `as`: dataUriBytes builds a fresh array over its own ArrayBuffer (never shared memory), which PDFKit takes whole.
-    doc.image(bytes.buffer as ArrayBuffer, box.x + x, box.y + y, { width, height });
+    doc.image(bytes.buffer as ArrayBuffer, left, top, { width, height });
     doc.restore();
 }

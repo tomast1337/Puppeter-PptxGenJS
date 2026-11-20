@@ -2,12 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { inflateSync } from "node:zlib";
 import { create as createFont, type Font } from "fontkit";
 import { JSDOM } from "jsdom";
+import PDFDocument from "pdfkit";
 import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/html";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { createPdfkitRenderer as createBrowserPdfkitRenderer, loadSystemFonts as browserLoadSystemFonts, type PdfkitRenderer } from "../packages/pdfkit/src/browser";
 import { createPdfkitRenderer, loadSystemFonts } from "../packages/pdfkit/src/node";
+import { boxRadii, dilate, gaussianBlur } from "../packages/pdfkit/src/effect/filter";
+import { composite } from "../packages/pdfkit/src/effect/raster";
 import { breakOpportunities } from "../packages/pdfkit/src/lineBreak";
+import { record } from "../packages/pdfkit/src/path";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 /** The page height in points: PDFKit flips each text object about it, so a baseline `y` px from the top is written as `PAGE_HEIGHT_PT - y`. */
@@ -31,6 +35,17 @@ function pageContents(pdf: Uint8Array): string[] {
         }
     }
     return contents;
+}
+
+/** The dictionaries of the image XObjects in `pdf`, in object order. */
+function imageObjects(pdf: Uint8Array): string[] {
+    return [
+        ...Buffer.from(pdf)
+            .toString("latin1")
+            .matchAll(/<<[^<>]*\/Subtype \/Image[^<>]*>>/g),
+    ]
+        .map(([match]) => match)
+        .filter(image => !image.includes("/DeviceGray"));
 }
 
 /** Each drawn text object's position in CSS px from the slide's top left, and its font size in px. */
@@ -154,6 +169,103 @@ describe("PDFKit renderer", () => {
         const renderer = await createPdfkitRenderer({ fonts: systemFonts, onUnsupported: "warn" });
         await render(renderer, pres => pres.addSlide().addImage({ data: GIF, x: 1, y: 1, w: 1, h: 1 }));
         expect(renderer.warnings()).toEqual(["slide 1: object 'Image 0': image format 'image/gif' is not drawn (PDFKit embeds PNG and JPEG)"]);
+    });
+
+    test("records a quadratic as the cubic with its curve, not PDFKit's `v`", () => {
+        const doc = new PDFDocument({ autoFirstPage: false });
+        // The controls sit two thirds of the way from each end to the quadratic's control (30, 60).
+        expect(record(doc, pen => pen.path("M 0 0 Q 30 60 90 0"))).toEqual([
+            ["M", 0, 0],
+            ["C", 20, 40, 50, 40, 90, 0],
+        ]);
+    });
+
+    describe("line heads and effects", () => {
+        test("fills each line head in the line's colour at its end, turned along the line", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const pdf = await render(renderer, pres => pres.addSlide().addShape("line", { x: 1, y: 1, w: 2, h: 0, line: { color: "FF0000", width: 2, beginArrowType: "oval", endArrowType: "triangle" } }));
+            const [content = ""] = pageContents(pdf);
+            // The page background, the stroke, then two filled heads; the line runs left to right, so the end head is not
+            // turned (cos 1, sin 0) and the start head points back (cos -1).
+            expect(content.match(/^f$/gm)?.length).toBe(3);
+            expect(content).toMatch(/\n-1 0 -?0 -1 0 0 cm\n/);
+            expect(content).toMatch(/\n1 0 -?0 1 192 0 cm\n/);
+            expect(renderer.warnings()).toEqual([]);
+        });
+
+        test("puts an outer shadow under its shape, as a blurred image whose soft mask is the silhouette", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const pdf = await render(renderer, pres => pres.addSlide().addShape("rect", { x: 1, y: 1, w: 1, h: 1, fill: { color: "FF0000" }, shadow: { type: "outer", blur: 6, offset: 4, angle: 45, color: "000000", opacity: 0.5 } }));
+            const [image = ""] = imageObjects(pdf).filter(object => object.includes("/SMask"));
+            expect(image).toContain("/Interpolate true");
+            expect(image).toContain("/ColorSpace /DeviceRGB");
+            const [content = ""] = pageContents(pdf);
+            expect(content.indexOf("/FX1 Do")).toBeGreaterThan(-1);
+            expect(content.indexOf("/FX1 Do")).toBeLessThan(content.indexOf("1 0 0 scn"));
+            expect(renderer.warnings()).toEqual([]);
+        });
+
+        test("glows text under its glyphs", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts });
+            const pdf = await render(renderer, pres => pres.addSlide().addText("Glow", { x: 1, y: 1, w: 3, h: 1, glow: { size: 8, opacity: 0.5, color: "FFC000" } }));
+            const [content = ""] = pageContents(pdf);
+            expect(content.indexOf("/FX1 Do")).toBeGreaterThan(-1);
+            expect(content.indexOf("/FX1 Do")).toBeLessThan(content.indexOf("BT"));
+            expect(renderer.warnings()).toEqual([]);
+        });
+
+        test("draws a picture's inner shadow over it, and reports one on a shape as pdf-core does", async () => {
+            const renderer = await createPdfkitRenderer({ fonts: systemFonts, onUnsupported: "warn" });
+            const picture = new PuppeteerGen(PAGE, { renderer, createDocument, target: "powerpoint" });
+            picture.addSlide().addImage({ data: PNG, x: 1, y: 1, w: 1, h: 1, shadow: { type: "inner", blur: 6, offset: 4, angle: 45, color: "000000", opacity: 0.5 } });
+            const [content = ""] = pageContents(await picture.toPdf());
+            expect(content.indexOf("/FX1 Do")).toBeGreaterThan(content.indexOf("/I1 Do"));
+            const shape = new PuppeteerGen(PAGE, { renderer, createDocument });
+            shape.addSlide().addShape("rect", { x: 1, y: 1, w: 1, h: 1, fill: { color: "FF0000" }, shadow: { type: "outer", blur: 6, offset: 4, angle: 45, color: "000000", opacity: 0.5 } });
+            const { html, pageSize } = await shape.toHtml();
+            const pdf = await renderer.render({ html: html.replace('<svg class="shape-svg"', '<svg class="shape-svg" data-shadow-inset=""'), pageSize });
+            expect(pageContents(pdf).join("")).not.toContain(" Do");
+            expect(renderer.warnings()).toEqual(["slide 1: object 'Shape 0': inner shadow not rendered"]);
+        });
+
+        test("blurs and dilates a mask as pdf-core's filters do", () => {
+            const [w, h] = [21, 21];
+            const mask = new Float32Array(w * h);
+            composite(
+                [
+                    [8, 8, 13, 8],
+                    [13, 8, 13, 13],
+                    [13, 13, 8, 13],
+                    [8, 13, 8, 8],
+                ],
+                1,
+                w,
+                h,
+                new Float32Array(w * h + 2),
+                mask,
+            );
+            const sum = (values: Float32Array) => values.reduce((total, value) => total + value, 0);
+            // The 5 x 5 square is covered exactly.
+            expect(sum(mask)).toBeCloseTo(25, 4);
+            expect(mask[10 * w + 10]).toBe(1);
+            gaussianBlur(mask, w, h, 1.5);
+            // A blur away from the edges moves coverage, never adds or loses it.
+            expect(sum(mask)).toBeCloseTo(25, 2);
+            expect(mask[10 * w + 10]).toBeLessThan(1);
+            const point = new Float32Array(w * h);
+            point[10 * w + 10] = 1;
+            dilate(point, w, h, 3);
+            // Grown by 3 px with an anti-aliased edge, half a px each side of it.
+            expect(point[10 * w + 12]).toBe(1);
+            expect(point[10 * w + 13]).toBe(0.5);
+            expect(point[10 * w + 14]).toBe(0);
+            expect(point[10 * w + 10]).toBe(1);
+            // The three box blurs' cascade has about the Gaussian's standard deviation (pdf-core's own test).
+            for (const sigma of [1, 2.5, 3.7, 7, 20]) {
+                const variance = boxRadii(sigma).reduce((total, radius) => total + ((2 * radius + 1) ** 2 - 1) / 12, 0);
+                expect(Math.abs(Math.sqrt(variance) - sigma)).toBeLessThan(0.25 * Math.max(sigma, 1));
+            }
+        });
     });
 
     test("lists a face no font provides, with the face drawn instead", async () => {
