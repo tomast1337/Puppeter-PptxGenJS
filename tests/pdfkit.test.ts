@@ -221,6 +221,24 @@ describe("PDFKit renderer", () => {
         expect((api?.x ?? 0) - (same?.x ?? 0)).toBeCloseTo(kerned * 24, 3);
     });
 
+    test("fills an underline as pdf-core's band: from the font's underline position down, one thickness tall", async () => {
+        const fonts = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
+        const [file] = fonts;
+        if (!file) throw new Error("Liberation Sans is not installed");
+        const font = createFont(Buffer.from(file)) as Font; // `as`: a .ttf holds one font, not a collection
+        const renderer = await createPdfkitRenderer({ fonts });
+        const pdf = await render(renderer, pres => pres.addSlide().addText("Under", { x: 1, y: 1, w: 4, h: 1, fontFace: "Arial", fontSize: 18, underline: { style: "dbl" }, margin: 0, valign: "top" }));
+        const content = pageContents(pdf)[0] ?? "";
+        const [text] = texts(content);
+        const scale = 24 / font.unitsPerEm;
+        const [top, t] = [(text?.baseline ?? 0) - font.underlinePosition * scale, font.underlineThickness * scale];
+        // Double: two half-thickness lines one thickness apart, centred on the single band.
+        // The first rect is the slide background.
+        const rects = [...content.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re/g)].slice(1).map(match => match.slice(1).map(Number));
+        expect(rects.map(rect => rect[1])).toEqual([expect.closeTo(top - t / 2, 2), expect.closeTo(top + t, 2)]);
+        expect(rects.map(rect => rect[3])).toEqual([expect.closeTo(t / 2, 2), expect.closeTo(t / 2, 2)]);
+    });
+
     test("synthesizes bold and italic where the face has neither, as the HTML says", async () => {
         const regularOnly = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
         const renderer = await createPdfkitRenderer({ fonts: regularOnly });

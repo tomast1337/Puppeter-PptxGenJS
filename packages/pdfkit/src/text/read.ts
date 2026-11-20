@@ -5,7 +5,7 @@ import { attribute, children, type Element, hasClass, isElement, textContent } f
 import type { FaceRequest } from "#src/fonts";
 
 export interface Decoration {
-    readonly style: "solid" | "double" | "dashed" | "dotted";
+    readonly style: "solid" | "double" | "dashed" | "dotted" | "wavy";
     readonly color: Color;
 }
 
@@ -76,7 +76,7 @@ export type Report = (what: string) => void;
 
 const ALIGNS: ReadonlySet<string> = new Set(["left", "center", "right", "justify"]);
 const ANCHORS: ReadonlySet<string> = new Set(["flex-start", "center", "flex-end"]);
-const DECORATION_STYLES: ReadonlySet<string> = new Set(["solid", "double", "dashed", "dotted"]);
+const DECORATION_STYLES: ReadonlySet<string> = new Set(["solid", "double", "dashed", "dotted", "wavy"]);
 /**
  * Chromium's synthetic styles, the default for HTML that does not state them: pdf-core's
  * CHROMIUM_SYNTHETIC_BOLD_STROKE_EM and CHROMIUM_SYNTHETIC_ITALIC_SHEAR, measured in Chromium's PDF output.
