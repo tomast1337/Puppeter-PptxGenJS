@@ -293,7 +293,7 @@ A run holds text, or text and **word spans**: `<span style="letter-spacing: 1.35
 `span` with no class, no other attribute and no other CSS, whose only child is text with no space or tab.
 The spaces and tabs between words stay bare text in the run, so the run's text content is the run's text,
 in reading order, except a stretch of spaces with a `letter-spacing` of its own (`spaceCharacterSpacing`:
-on the PowerPoint target, the spaces a kern pair such as Arial's " T" starts on), which is a span of the
+on the PowerPoint target, the spaces a kern pair such as Arial's " T" starts on, or that end off its grid), which is a span of the
 same form whose text is those spaces. A span's `letter-spacing` replaces the run's for its characters; the
 run's applies to its bare text. A run with word spans has one per word (`wordCharacterSpacing`, the run's
 text split at spaces and tabs) and is never `data-empty`; a reader rejects any other element in a run.
