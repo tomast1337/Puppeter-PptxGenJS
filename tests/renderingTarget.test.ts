@@ -47,8 +47,11 @@ describe("rendering targets", () => {
 
     test("normalization marks runs unkerned only for the PowerPoint target", () => {
         const run = (options: Parameters<typeof normalizeText>[1], target?: Parameters<typeof normalizeText>[2]) => normalizeText("x", options, target).paragraphs[0]?.runs[0];
-        expect(run({ fontSize: 11.5 }, "powerpoint")?.kerning).toBe(false);
-        expect(run({ fontSize: 12 }, "powerpoint")).not.toHaveProperty("kerning");
+        // Measured against PowerPoint's PDF export of a synthetic deck ("AVAVAVAVAVAV xo" in Arial): unkerned at 10, 11,
+        // 11.5 and 11.9pt, kerned at 12 and 12.5pt, in a text box, a table cell (11pt unkerned, 12, 18, 24pt kerned)
+        // and a roundRect (12 and 24pt kerned) alike.
+        for (const fontSize of [11.5, 11.9]) expect(run({ fontSize }, "powerpoint")?.kerning).toBe(false);
+        for (const fontSize of [12, 12.5]) expect(run({ fontSize }, "powerpoint")).not.toHaveProperty("kerning");
         // The 18pt default is kerned; charSpacing turns kerning off at any size.
         expect(run({}, "powerpoint")).not.toHaveProperty("kerning");
         expect(run({ fontSize: 40, charSpacing: 2 }, "powerpoint")?.kerning).toBe(false);
