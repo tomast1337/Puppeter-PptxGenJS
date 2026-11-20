@@ -8,6 +8,7 @@ import { inch2EmuToPixels } from "#src/units";
 import { advanceGridWordSpacing, type GridCursor, runPieces, wordAfter } from "./advanceGrid";
 import { breakAroundHanPunctuation, hangingMarkRuns, hangingSegments, languageHangingMarks } from "./eastAsianLineBreak";
 import { fallbackChain, fallbackSegments } from "./fallback";
+import { paragraphAlign, verticalAlign } from "./alignment";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { recordSharedRun, type SharedRunOptions, sharedRunOptions } from "./sharedRunOptions";
@@ -366,7 +367,7 @@ function paragraphFromPieces(
     // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
     const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
 
-    const align = first.align ?? PPTX_DEFAULTS.text.align;
+    const align = paragraphAlign(first.align) ?? PPTX_DEFAULTS.text.align;
     return {
         runs,
         align,
@@ -695,6 +696,8 @@ export function normalizeText(
     markFontFace: string = themeFontFace,
     writing: RunWriting = {},
 ): NormalizedTextBox {
+    // Refused even when every run sets its own (paragraphFromPieces checks the align each paragraph uses).
+    paragraphAlign(options.align);
     const records = new Map<object, RunRecord>();
     const lines = groupPieces(piecesFromInput(input, options, writing, records), options.align);
     writeBoxOptions(lines, writing.box ?? options);
@@ -742,7 +745,7 @@ export function normalizeText(
     return {
         paragraphs: spaced,
         margin: textMarginPixels(options.margin, options.inset),
-        verticalAlign: options.valign ?? PPTX_DEFAULTS.text.valign,
+        verticalAlign: verticalAlign(options.valign, writing.cell ? "tableCell" : "textBox") ?? PPTX_DEFAULTS.text.valign,
         wrap: options.wrap ?? PPTX_DEFAULTS.text.wrap,
         fit: getFitMode(options),
         direction: getTextDirection(direction),

@@ -5,6 +5,7 @@ import { DEFAULT_RENDERING_TARGET, type RenderingTarget } from "#src/target/inde
 import type { FourSideMargin } from "#src/defaults";
 import { builtInFontMetrics } from "#src/fontMetrics";
 import type { PageSize } from "#src/pageLayouts";
+import { verticalAlign } from "./alignment";
 import { normalizeObjectStyle } from "./object";
 import { normalizeText } from "./text";
 
@@ -46,7 +47,7 @@ export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: Pptx
             color: own.color || last.color || PPTX_DEFAULTS.text.color,
             bold: Boolean(own.bold),
             align,
-            valign: own.valign || last.valign || defaults.valign,
+            valign: verticalAlign(own.valign || last.valign || defaults.valign, "slideNumber"),
             margin: slideNumberMargin(own.margin) ?? slideNumberMargin(last.margin),
         },
         target,
