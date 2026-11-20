@@ -90,6 +90,10 @@ describe("parseModel()", () => {
         expect(rejection(spacing, [0.1, 0.2]).message).toContain("runs[0].wordCharacterSpacing: ");
         expect(rejection(spacing, []).issues[0]?.path).toBe("model.slides[0].objects[0].text.paragraphs[0].runs[0].wordCharacterSpacing");
         expect(rejection(spacing, [Number.NaN]).issues[0]?.path).toBe("model.slides[0].objects[0].text.paragraphs[0].runs[0].wordCharacterSpacing[0]");
+        // "Hi" has no stretch of spaces, and space letter-spacing comes only with word letter-spacing.
+        const spaces = ["slides", 0, "objects", 0, "text", "paragraphs", 0, "runs", 0, "spaceCharacterSpacing"] as const;
+        expect(rejection(spaces, [0.1]).message).toContain("runs[0].spaceCharacterSpacing: ");
+        expect(rejection(spaces, []).message).toContain("comes with wordCharacterSpacing");
     });
 
     test("modelToHtml() checks its input; the error names the path", async () => {

@@ -129,6 +129,9 @@ const KERN_SUBTABLE_LENGTH = 2;
 const KERN_SUBTABLE_COVERAGE = 4;
 const KERN_SUBTABLE_PAIRS = 6;
 const KERN_HORIZONTAL = 0x0001;
+// Format 0: nPairs, then uint16 searchRange, entrySelector and rangeShift, then 6-byte pairs (uint16 left and right glyph, FWORD value).
+const KERN_FORMAT_0_PAIRS = 14;
+const KERN_PAIR_SIZE = 6;
 
 /**
  * A font's head.unitsPerEm and OS/2 usWinAscent and usWinDescent, from TrueType or OpenType (CFF) bytes, for the
@@ -205,38 +208,81 @@ function sfntTables(bytes: Uint8Array, faceIndex: number, reader: FontReader): {
     return { tables, field: field(2), field32: field(4) };
 }
 
+const KERNING_ERROR = "must be a Map from the left character's code point to a Map from the right one's to the pair's kerning in font units";
+const CODE_POINT = z
+    .int()
+    .min(0)
+    .max(UNICODE_CODE_POINTS - 1);
 const GLYPH_ADVANCES_SCHEMA = z.strictObject({
     unitsPerEm: integer(1, "a positive integer (head.unitsPerEm)"),
-    advances: z.map(
-        z
-            .int()
-            .min(0)
-            .max(UNICODE_CODE_POINTS - 1),
-        z.number().min(0).max(Number.MAX_SAFE_INTEGER),
-        { error: "must be a Map from code point to advance width in font units" },
-    ),
+    advances: z.map(CODE_POINT, z.number().min(0).max(Number.MAX_SAFE_INTEGER), { error: "must be a Map from code point to advance width in font units" }),
+    kerning: z.map(CODE_POINT, z.map(CODE_POINT, z.number().finite(), { error: KERNING_ERROR }), { error: KERNING_ERROR }).optional(),
 });
 
 /**
  * Each character's advance width (hmtx) in font units, keyed by Unicode code point through the font's Unicode cmap
  * (format 12, else format 4), and head.unitsPerEm: what the PowerPoint target lays text out on its advance grid with
  * (RENDERING_TARGETS.advanceGridPt). A character the font does not map is left out, and so is every one of a font
- * without a Unicode cmap (a symbol font). A TrueType collection (.ttc) gives the face at `faceIndex`; WOFF and WOFF2 are
- * not read. Browser-safe: bytes in.
+ * without a Unicode cmap (a symbol font). `kerning` holds the pair kerning of a version 0 `kern` table (`kernPairs`), what
+ * PowerPoint kerns a run from 12pt with; it is left out without one. A TrueType collection (.ttc) gives the face at
+ * `faceIndex`; WOFF and WOFF2 are not read. Browser-safe: bytes in.
  */
 export function readGlyphAdvances(bytes: Uint8Array, faceIndex = 0): GlyphAdvances {
-    const { field, field32 } = sfntTables(bytes, faceIndex, "readGlyphAdvances");
+    const { tables, field, field32 } = sfntTables(bytes, faceIndex, "readGlyphAdvances");
     const unitsPerEm = field("head", HEAD_UNITS_PER_EM, "unitsPerEm");
     if (unitsPerEm === 0) throw new FontFileError("head.unitsPerEm is 0", "readGlyphAdvances");
     const longMetrics = field("hhea", HHEA_NUMBER_OF_H_METRICS, "numberOfHMetrics");
     if (longMetrics === 0) throw new FontFileError("hhea.numberOfHMetrics is 0", "readGlyphAdvances");
     const glyphCount = field("maxp", MAXP_NUM_GLYPHS, "numGlyphs");
     const advances = new Map<number, number>();
+    const characters = new Map<number, number[]>();
     for (const [codePoint, glyph] of unicodeGlyphs(field, field32)) {
         // Glyph 0 is .notdef: the character is missing, as is one mapped past the font's glyphs.
-        if (glyph !== 0 && glyph < glyphCount) advances.set(codePoint, field("hmtx", HMTX_RECORD_SIZE * Math.min(glyph, longMetrics - 1), `glyph ${glyph}'s advanceWidth`));
+        if (glyph === 0 || glyph >= glyphCount) continue;
+        advances.set(codePoint, field("hmtx", HMTX_RECORD_SIZE * Math.min(glyph, longMetrics - 1), `glyph ${glyph}'s advanceWidth`));
+        characters.set(glyph, [...(characters.get(glyph) ?? []), codePoint]);
     }
-    return Object.freeze({ unitsPerEm, advances });
+    const kerning = tables.has("kern") ? kernPairs(field, characters) : undefined;
+    return Object.freeze({ unitsPerEm, advances, ...(kerning?.size ? { kerning } : {}) });
+}
+
+/**
+ * The pair kerning of a version 0 `kern` table's horizontal format 0 subtables, the ones PowerPoint kerns from
+ * (`hasMicrosoftPairKerning`), summed, keyed by the left then the right character of each glyph pair through
+ * `characters` (glyph id to code points); empty for an Apple-format table. A subtable is stepped over by its pairs, not
+ * its uint16 length, which a large one overflows (Arial's 160,250 bytes say 29,178).
+ */
+function kernPairs(field: TableField, characters: ReadonlyMap<number, readonly number[]>): Map<number, Map<number, number>> {
+    const pairs = new Map<number, Map<number, number>>();
+    if (field("kern", 0, "its version") !== 0) return pairs;
+    const subtables = field("kern", KERN_TABLES, "nTables");
+    let subtable = KERN_SUBTABLES;
+    for (let index = 0; index < subtables; index++) {
+        const coverage = field("kern", subtable + KERN_SUBTABLE_COVERAGE, `subtable ${index} coverage`);
+        if (coverage >> 8 !== 0) {
+            const length = field("kern", subtable + KERN_SUBTABLE_LENGTH, `subtable ${index} length`);
+            if (length < KERN_SUBTABLE_PAIRS) throw new FontFileError(`kern subtable ${index} is ${length} bytes long, shorter than its header`, "readGlyphAdvances");
+            subtable += length;
+            continue;
+        }
+        const count = field("kern", subtable + KERN_SUBTABLE_PAIRS, `subtable ${index} nPairs`);
+        const first = subtable + KERN_FORMAT_0_PAIRS;
+        subtable = first + count * KERN_PAIR_SIZE;
+        if ((coverage & KERN_HORIZONTAL) === 0) continue;
+        for (let pair = 0; pair < count; pair++) {
+            const record = first + pair * KERN_PAIR_SIZE;
+            const lefts = characters.get(field("kern", record, `subtable ${index} pair ${pair} left glyph`)) ?? [];
+            const rights = characters.get(field("kern", record + 2, `subtable ${index} pair ${pair} right glyph`)) ?? [];
+            // An FWORD: signed 16-bit.
+            const value = (field("kern", record + 4, `subtable ${index} pair ${pair} value`) << 16) >> 16;
+            for (const left of lefts) {
+                const row = pairs.get(left) ?? new Map<number, number>();
+                pairs.set(left, row);
+                for (const right of rights) row.set(right, (row.get(right) ?? 0) + value);
+            }
+        }
+    }
+    return pairs;
 }
 
 /** The [code point, glyph id] pairs of the first Unicode cmap subtable in UNICODE_CMAPS order that is format 12 or 4; none without one. */

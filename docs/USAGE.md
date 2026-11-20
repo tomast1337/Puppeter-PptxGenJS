@@ -434,7 +434,8 @@ widths of the font the run's face, weight and style resolve to. `options.resolve
 italic)` finds them: by default on Node the installed font fontconfig matches (when its family is the face),
 read with `readGlyphAdvances(bytes, faceIndex = 0)`, which is browser-safe and throws `FontFileError` on a
 font it cannot read. It is called at most once per face, weight and style per presentation, never for the
-LibreOffice target; a result that is not `{ unitsPerEm, advances: Map<codePoint, fontUnits> }` throws a
+LibreOffice target; a result that is not `{ unitsPerEm, advances: Map<codePoint, fontUnits> }`, with an optional
+`kerning: Map<leftCodePoint, Map<rightCodePoint, fontUnits>>` (the `kern` table's pairs, which kerned runs add), throws a
 `TypeError` naming the face. A face it returns `undefined` for, every face with `resolveGlyphAdvances: null`,
 and every face in the `@pdflapas/pptxgenjs/html` entry without a resolver keep their natural advances:
 

@@ -407,10 +407,14 @@ export interface FontMetricsLookup {
     /** The advances of a face in a weight and style, for `advanceGridPt`; missing, or undefined for a face, lays it out with the natural advances. */
     readonly glyphAdvances?: GlyphAdvanceLookup;
 }
-/** A font's head.unitsPerEm and each character's hmtx advance width in those units, keyed by Unicode code point. */
+/**
+ * A font's head.unitsPerEm and each character's hmtx advance width in those units, keyed by Unicode code point, and its
+ * `kern` table's pair kerning in those units, keyed by the left then the right character's code point.
+ */
 export interface GlyphAdvances {
     readonly unitsPerEm: number;
     readonly advances: ReadonlyMap<number, number>;
+    readonly kerning?: ReadonlyMap<number, ReadonlyMap<number, number>>;
 }
 /** A face's advances in a weight and style, or undefined when they are not known. */
 export type GlyphAdvanceLookup = (fontFace: string, bold: boolean, italic: boolean) => GlyphAdvances | undefined;

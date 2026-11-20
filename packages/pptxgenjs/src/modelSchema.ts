@@ -1,7 +1,7 @@
 import { type CssColor, type DataUri, inches, type NormalizedPresentation, px } from "@pdflapas/model";
 import { z } from "zod";
 import { cloneComponentProps } from "#src/components/normalize";
-import { isWord, runPieces } from "#src/normalize/advanceGrid";
+import { isSpaces, isWord, runPieces } from "#src/normalize/advanceGrid";
 import { RESOLVED_IMAGE } from "#src/normalize/image";
 import { URL_SCHEME } from "#src/normalize/link";
 
@@ -88,6 +88,7 @@ const textRun = z
         baselineOffset: finite,
         characterSpacing: finite,
         wordCharacterSpacing: z.array(finite).optional(),
+        spaceCharacterSpacing: z.array(finite).optional(),
         kerning: z.literal(false).optional(),
         syntheticBold: nonNegative.optional(),
         syntheticItalic: finite.optional(),
@@ -103,6 +104,10 @@ const textRun = z
     .refine(run => run.wordCharacterSpacing === undefined || run.wordCharacterSpacing.length === runPieces(run.text).filter(isWord).length, {
         error: "wordCharacterSpacing must hold one value per word of text (the stretches between spaces and tabs)",
         path: ["wordCharacterSpacing"],
+    })
+    .refine(run => run.spaceCharacterSpacing === undefined || (run.wordCharacterSpacing !== undefined && run.spaceCharacterSpacing.length === runPieces(run.text).filter(isSpaces).length), {
+        error: "spaceCharacterSpacing must hold one value per stretch of spaces in text (a tab ends one), and comes with wordCharacterSpacing",
+        path: ["spaceCharacterSpacing"],
     });
 
 const textBox = z.strictObject({

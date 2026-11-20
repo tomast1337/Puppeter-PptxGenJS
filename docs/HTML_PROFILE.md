@@ -273,9 +273,11 @@ with `data-underline-style`, and `data-empty` on an empty run (its text is U+200
 A run holds text, or text and **word spans**: `<span style="letter-spacing: 1.35293px;">Lorem</span>`, a
 `span` with no class, no other attribute and no other CSS, whose only child is text with no space or tab.
 The spaces and tabs between words stay bare text in the run, so the run's text content is the run's text,
-in reading order. A word span's `letter-spacing` replaces the run's for the word's characters; the run's
-applies to its bare text. A run with word spans has one per word (`wordCharacterSpacing`, the run's text
-split at spaces and tabs) and is never `data-empty`; a reader rejects any other element in a run.
+in reading order, except a stretch of spaces with a `letter-spacing` of its own (`spaceCharacterSpacing`:
+on the PowerPoint target, the spaces a kern pair such as Arial's " T" starts on), which is a span of the
+same form whose text is those spaces. A span's `letter-spacing` replaces the run's for its characters; the
+run's applies to its bare text. A run with word spans has one per word (`wordCharacterSpacing`, the run's
+text split at spaces and tabs) and is never `data-empty`; a reader rejects any other element in a run.
 
 The rendering target (`PuppeteerGenPowerPoint`, `PuppeteerGenLibreOffice`, or the `target` option) is not
 written as a document-level value: each difference is on the element it changes, so a reader of the HTML
@@ -799,6 +801,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextRun.baselineOffset`              | profile | `position: relative; top: <-offset>px`, omitted at 0; it moves the glyphs only, the line box is the paragraph's.           |
 | `NormalizedTextRun.characterSpacing`            | profile | `letter-spacing`, omitted at 0.                                                                                            |
 | `NormalizedTextRun.wordCharacterSpacing`        | profile | Each word in a word span of its own `letter-spacing` (PowerPoint target), omitted when the run has none.                   |
+| `NormalizedTextRun.spaceCharacterSpacing`       | profile | A stretch of spaces in a span of its own `letter-spacing` where it differs from the run's, omitted when none does.         |
 | `NormalizedTextRun.kerning`                     | profile | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
 | `NormalizedTextRun.syntheticBold`               | profile | `data-synthetic-bold` on a bold run (LibreOffice target), omitted for the renderer's own synthetic bold.                   |
 | `NormalizedTextRun.syntheticItalic`             | profile | `data-synthetic-italic` on an italic run (LibreOffice target), omitted for the renderer's own synthetic italic.            |

@@ -167,8 +167,15 @@ against its PDF export of synthetic decks (Arial and Calibri, 8 to 12pt,
 regular and bold, lines about 700pt long), the rounded advances fit its word
 starts with a residual of 0.07 to 0.25pt (sd), the natural ones 0.2 to 1.2pt;
 on a long line the difference reaches about 0.5%, which moves line breaks.
-Pair kerning from 12pt still applies; whether PowerPoint rounds kerning values
-too was not measured, so they stay as they are. A line fits while its rounded
+From 12pt it adds each pair's `kern` table value to the rounded advances,
+unrounded, pairs with a space included: its word starts are that sum within
+0.06 to 0.12pt at 12 to 36pt (Arial and Calibri), against up to 0.58pt with
+each pair rounded too. Arial kerns the space ("A ", " T", " Y") where Calibri
+does not; the browser drops a pair at a word's edge, so the PowerPoint target
+gives each pair to the word or the spaces its left character is in. That is
+also where a break leaves it: "A " at a line's end counts in the line's width,
+" T" leaves with the trailing space (measured on Arial at 12 and 18pt, one box
+of twelve still kept where PowerPoint wraps, 0.05pt narrower than its line). A line fits while its rounded
 advances, trailing spaces left out, are no wider than the box less its insets:
 exactly as wide fits, 0.125pt wider wraps. The PowerPoint target gives each word
 of a run the `letter-spacing` that ends it where the run's rounded advances up to

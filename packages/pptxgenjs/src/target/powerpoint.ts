@@ -58,8 +58,22 @@ const FALLBACK_FACES = Object.freeze(["Arial", "Cambria Math", "Segoe UI Symbol"
  * decks (Arial and Calibri, 8, 9, 10 and 12pt, regular and bold, lines about 700pt long), word starts fit the rounded
  * advances with a residual sd of 0.07-0.25pt against 0.2-1.2pt for the natural ones (a 1/600, 1/1200, 1/1440, 1/96 or
  * 1/72 in grid, floor or ceiling, and hinted advances at 72-1200 dpi fit worse). Arial 8pt's space, 2.222pt, takes
- * 2.25pt. Pair kerning still applies from 12pt (`readsKern`); whether it rounds kerning values too was not measured,
- * so they stay unrounded. Inside a word it draws glyphs at hinted 600 dpi widths, which never moves a word start or a
+ * 2.25pt. From 12pt (`readsKern`) it adds each pair's `kern` table value, unrounded, to the rounded advances, pairs
+ * with a space included: measured against its PDF export of a synthetic deck (one line "AVAVA To Ty Wa Yo LT P. Te
+ * Vo AV Fa", Arial and Calibri at 12, 14, 18, 24 and 36pt, margin 0), its word starts are that sum within 0.06-0.12pt
+ * at each size (the 1/600 in word-start grid), against 0.11-0.58pt with each pair rounded to 1/576 in too. Arial kerns the space ("A " -113, " T" and " Y"
+ * -37 units of 2048) where Calibri does not, and Chromium and the WASM renderer drop a pair across a word span's
+ * edge, so Arial's words drifted right by those pairs (+2.4pt over the line at 12pt, +7.2pt at 36pt, Calibri within
+ * 0.13pt); the piece of each pair's left character takes it now (`advanceGridWordSpacing`), and both renderers put
+ * Arial's word starts within 0.13pt of PowerPoint's at every size. A pair belongs to its left glyph's advance when a
+ * line breaks: measured against its PDF export of a synthetic deck ("Lorem ipsum AVAVA xo" and "... AVAVA To" in
+ * Arial at 12 and 18pt, boxes from 0.7pt under the line's width to 0.05pt over it plus "A " and " T"), "A " at the
+ * line's end counts in its width, and " T" leaves with the trailing space: the target breaks those 12 boxes as
+ * PowerPoint does but one (tests/kernWrapCases.ts), and 34 lines of justified all-caps Arial and 28 of Calibri at
+ * 12pt all. shortcut: PowerPoint wraps the 18pt line 0.05pt narrower than its box, where 12pt keeps one 0.062pt
+ * narrower, which a box width floored to 1/576 or 1/600 in would explain; measure boxes between those floors
+ * before flooring the box.
+ * Inside a word it draws glyphs at hinted 600 dpi widths, which never moves a word start or a
  * line break, so the PDF does not copy them. Wrapping tests the line without its trailing space against the box, with
  * no tolerance: rounded advances exactly as wide as the box fit, 0.125pt wider wrap. Each word therefore takes its own
  * letter-spacing (`advanceGridWordSpacing`), so its end, not only the run's, is PowerPoint's.
