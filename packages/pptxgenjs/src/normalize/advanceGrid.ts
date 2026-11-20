@@ -15,11 +15,13 @@ export interface WordSpacing {
 /**
  * Where a paragraph's runs have ended so far, px: `rounded` is PowerPoint's width of them, `laidOut` the profile's, on
  * whole LayoutUnits. The paragraph creates one at 0 and each run (`advanceGridWordSpacing`) starts from it and moves it
- * to its own end, so the rounding carries across run boundaries instead of starting again at each.
+ * to its own end, so the rounding carries across run boundaries instead of starting again at each. `word` is the
+ * letter-spacing of a word that goes on into the next run, which its first piece takes; the sums already end with it.
  */
 export interface GridCursor {
     rounded: number;
     laidOut: number;
+    word?: number | undefined;
 }
 
 /** Whether `piece` (`runPieces`) is a stretch of spaces, which `WordSpacing.spaces` spaces: no word, no tab. */
@@ -29,6 +31,8 @@ export function isSpaces(piece: string): boolean {
 
 /** A word of a run's text (`NormalizedTextRun.wordCharacterSpacing`), or the spaces and tabs between two words. */
 const PIECE = /[^ \t]+|[ \t]+/g;
+/** The first space or tab of a text, where a word that crosses into it ends. */
+const WORD_END = /[ \t]/;
 /** A LayoutUnit, the grid the profile's line breaker rounds each piece's width up to (docs/HTML_PROFILE.md). */
 const LAYOUT_UNIT = 1 / LAYOUT_UNITS_PER_PX;
 /**
@@ -48,6 +52,12 @@ export function runPieces(text: string): string[] {
 
 export function isWord(piece: string): boolean {
     return !piece.startsWith(" ") && !piece.startsWith("\t");
+}
+
+/** `text` up to its first space or tab included: all `advanceGridWordSpacing` reads of the text after a run. */
+export function wordAfter(text: string): string {
+    const end = text.search(WORD_END);
+    return end < 0 ? text : text.slice(0, end + 1);
 }
 
 const floorLayoutUnit = (width: number) => Math.floor(width * LAYOUT_UNITS_PER_PX + FLOAT_NOISE) / LAYOUT_UNITS_PER_PX;
@@ -84,6 +94,12 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
  * LayoutUnit per run boundary on a line, enough for pdf-core to break a line of SimSun and Arial runs that fills its
  * box to 0.01pt one character early (#370). A run without a grid or font sets `cursor` back to 0, as a tab and a
  * soft break do.
+ * `after` is the text of the next runs that PowerPoint kerns with this one (same face, size, weight and style, kerned),
+ * up to `wordAfter`. A pair across the run edge is kerned like one inside the run, on its left character's piece (#398).
+ * A word that goes on into `after` is laid out as one word: each of its characters, in this run and the next, takes one
+ * letter-spacing (`cursor.word`), so Chromium, whose font includes the letter-spacing, shapes it across the spans and
+ * kerns the pair at their edge. With the sums floored at each run's end instead, the spans' letter-spacings differed
+ * by a LayoutUnit, and the pair, counted in neither sum, went unkerned.
  * shortcut: a break inside a word (after a hyphen, or between Han characters, also at a run boundary) sees the word's
  * spacing spread evenly, its start up to a LayoutUnit before PowerPoint's; spread it by character when a deck shows
  * the difference.
@@ -91,8 +107,10 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
  * up to 1/(512 x size px) narrower than the font's (8pt: 0.044 px over a 720 px line, against the 1/6 px step); the
  * WASM renderer uses the exact size. Size the words for that truncation if a tie between steps flips in Chromium.
  */
-export function advanceGridWordSpacing(text: string, sizePt: number, font: GlyphAdvances | undefined, gridPt: number | undefined, charSpacingPt: number, kerned: boolean, cursor: GridCursor = { rounded: 0, laidOut: 0 }): WordSpacing | undefined {
+export function advanceGridWordSpacing(text: string, sizePt: number, font: GlyphAdvances | undefined, gridPt: number | undefined, charSpacingPt: number, kerned: boolean, cursor: GridCursor = { rounded: 0, laidOut: 0 }, after = ""): WordSpacing | undefined {
     const spaceAdvance = font?.advances.get(" ".codePointAt(0) ?? 0);
+    const continued = cursor.word;
+    cursor.word = undefined;
     if (gridPt === undefined || font === undefined || spaceAdvance === undefined) {
         cursor.rounded = 0;
         cursor.laidOut = 0;
@@ -123,15 +141,26 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     const spaces: number[] = [];
     let kernedSpace = false;
     const pieces = runPieces(text).map(piece => [...piece]);
-    for (const [index, characters] of pieces.entries()) {
-        if (characters.includes("\t")) {
+    const following = runPieces(after).map(piece => [...piece]);
+    const goesOn = following[0] !== undefined && isWord(following[0].join(""));
+    for (const [index, piece] of pieces.entries()) {
+        const last = index === pieces.length - 1;
+        if (piece.includes("\t")) {
             rounded = 0;
             laidOut = 0;
             continue;
         }
+        if (index === 0 && continued !== undefined && isWord(piece.join(""))) {
+            // The rest of a word an earlier run started: the sums already end with it.
+            words.push(continued);
+            if (last && goesOn) cursor.word = continued;
+            continue;
+        }
+        const joins = last && goesOn && isWord(piece.join(""));
+        const characters = joins ? [...piece, ...(following[0] ?? [])] : piece;
         // The pairs whose left character is in the piece: PowerPoint kerns a pair on its left glyph's advance.
         const inner = characters.reduce((sum, character, at) => sum + kern(characters[at - 1], character), 0);
-        const next = pieces[index + 1];
+        const next = last ? following[joins ? 1 : 0] : pieces[index + 1];
         const edge = next === undefined || next.includes("\t") ? 0 : kern(characters.at(-1), next[0]);
         if (characters[0] === " ") {
             const width = characters.length * (space.rounded + charSpacing);
@@ -152,7 +181,9 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
             const natural = inner + advances.reduce((sum, { natural }) => sum + natural, 0);
             rounded += inner + edge + advances.reduce((sum, { rounded }) => sum + rounded + charSpacing, 0);
             const end = floorLayoutUnit(rounded);
-            words.push(spacing((end - laidOut - UNDER_LAYOUT_UNIT - natural) / characters.length));
+            const wordSpacing = spacing((end - laidOut - UNDER_LAYOUT_UNIT - natural) / characters.length);
+            words.push(wordSpacing);
+            if (joins) cursor.word = wordSpacing;
             laidOut = end;
         }
     }
