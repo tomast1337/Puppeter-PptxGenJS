@@ -275,6 +275,25 @@ console.log(\`WASM package consumer generated a PDF under \${"Bun" in globalThis
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
     await run([process.execPath, "run", wasmConsumerPath], consumerDirectory);
     await run(["node", "--experimental-strip-types", wasmConsumerPath], consumerDirectory);
+    // The PDFKit renderer (#316): its node condition loads system fonts, and it draws a shadow through its dependencies.
+    const pdfkitConsumerSource = `
+import PuppeteerGen, { PAGE_SIZES } from "${names.main}";
+import { createPdfkitRenderer, loadSystemFonts } from "@pdflapas/pdfkit";
+
+const renderer = await createPdfkitRenderer({ fonts: await loadSystemFonts() });
+const presentation = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer });
+presentation.addSlide().addText("PDFKit package consumer", { x: 1, y: 1, w: 4, h: 1, fontFace: "Calibri" });
+presentation.addSlide().addShape("rect", { x: 1, y: 1, w: 2, h: 1, fill: { color: "0088CC" }, shadow: { type: "outer", blur: 4, offset: 3, angle: 45, color: "000000", opacity: 0.5 } });
+const pdf = new TextDecoder("latin1").decode(await presentation.toPdf());
+if (!pdf.startsWith("%PDF-") || pdf.match(/\\/Type\\s*\\/Page\\b(?!s)/g)?.length !== 2 || !pdf.includes("/SMask")) throw new Error("PDFKit entry did not render a two-page PDF with a shadow");
+console.log(\`PDFKit package consumer generated a PDF under \${"Bun" in globalThis ? "Bun" : "Node.js"}\`);
+`;
+    // shortcut: run, not typechecked: the declarations name fontkit's types, which pull in @types/node (#354); add it
+    // to the tsconfig files once the published types stop naming fontkit.
+    const pdfkitConsumerPath = join(consumerDirectory, "pdfkit-consumer.ts");
+    await Bun.write(pdfkitConsumerPath, pdfkitConsumerSource);
+    await run([process.execPath, "run", pdfkitConsumerPath], consumerDirectory);
+    await run(["node", "--experimental-strip-types", pdfkitConsumerPath], consumerDirectory);
     // Install React only after the core consumer has been typechecked and run without it.
     await run([process.execPath, "add", "--dev", "--ignore-scripts", ...["react", "react-dom", "@types/react", "@types/react-dom"].map(name => `${name}@${rootMetadata.devDependencies[name]}`)], consumerDirectory);
     const reactConsumerSource = `
@@ -347,7 +366,7 @@ try {
         console.log(`packed ${manifest.name}@${manifest.version} (${workspaceDependencies.map(entry => entry.join("@")).join(", ") || "no workspace dependencies"})`);
     }
 
-    await checkConsumer(join(temporaryRoot, "pdflapas-consumer"), ["@pdflapas/pptxgenjs", "@pdflapas/wasm", "@pdflapas/react"], {
+    await checkConsumer(join(temporaryRoot, "pdflapas-consumer"), ["@pdflapas/pptxgenjs", "@pdflapas/wasm", "@pdflapas/pdfkit", "@pdflapas/react"], {
         main: "@pdflapas/pptxgenjs",
         html: "@pdflapas/pptxgenjs/html",
         wasm: "@pdflapas/wasm",
