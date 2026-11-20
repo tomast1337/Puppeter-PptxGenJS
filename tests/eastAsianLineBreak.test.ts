@@ -9,6 +9,7 @@ import { breakAroundHanPunctuation, hangingMarkRuns, hangingSegments, languageHa
 import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import { createWasmRenderer, loadSystemFonts } from "../packages/wasm/src/node";
 import { type EastAsianBreakCase, eastAsianBreakCases, eastAsianBreakDeck } from "./eastAsianBreakCases";
+import { type MixedVariant, mixedBreakCases, mixedBreakDeck } from "./eastAsianMixedBreakCases";
 
 afterAll(closeBrowser);
 
@@ -102,6 +103,23 @@ describe("East Asian line breaks on the PowerPoint target", () => {
         expect(breakAroundHanPunctuation('A"B say “this”—that', "", "", false)).toBe('A"B say “this”—that');
     });
 
+    test("in any other language, also breaks on either side of CJK punctuation next to digits, Latin and ASCII punctuation, but not next to white space or inside a Latin quote", () => {
+        expect(breakAroundHanPunctuation("参考了（1999年版）", "", "", false)).toBe("参考了​（​1999年版​）");
+        expect(breakAroundHanPunctuation("参见Alpha「Beta」内容", "", "", false)).toBe("参见Alpha​「​Beta​」​内容");
+        expect(breakAroundHanPunctuation("完成了1999，2000年", "", "", false)).toBe("完成了1999​，​2000年");
+        expect(breakAroundHanPunctuation("参考了(1)，然后", "", "", false)).toBe("参考了(1)​，​然后");
+        expect(breakAroundHanPunctuation("参考了）（1999）", "", "", false)).toBe("参考了​）​（​1999​）");
+        expect(breakAroundHanPunctuation("参见Alpha （1999）", "", "", false)).toBe("参见Alpha （​1999​）");
+        expect(breakAroundHanPunctuation("（", "a", "1", false)).toBe("​（​");
+        // “ and ‘ in a Latin face are narrow: no break between them and Latin text or digits.
+        expect(breakAroundHanPunctuation("参考了“Alpha”‘1999’", "", "", false)).toBe("参考了​“Alpha”‘1999’");
+    });
+
+    test("in a language with hanging marks, breaks before ‘ after Han, and still not after an opening bracket", () => {
+        expect(breakAroundHanPunctuation("参考了‘1999’内容", "", "", true)).toBe("参考了​‘1999’内容");
+        expect(breakAroundHanPunctuation("参考了（1999年版）", "", "", true)).toBe("参考了（1999年版）");
+    });
+
     test("writes the hang and the breaks in the run text on the PowerPoint target by its language, and nothing on LibreOffice", async () => {
         const text = (presentation: PuppeteerGenPowerPoint | PuppeteerGenLibreOffice, lang?: string) => {
             presentation.addSlide().addText('他说"示例"，其他', { x: 0, y: 0, w: 2, h: 1, fontFace: "SimSun", ...(lang ? { lang } : {}) });
@@ -109,37 +127,39 @@ describe("East Asian line breaks on the PowerPoint target", () => {
         };
         expect(text(new PuppeteerGenPowerPoint(), "zh-CN")).toEqual(['他说\u200b"\u200b示例\u200b"', "，", "\u3000", "其他"]);
         expect(text(new PuppeteerGenPowerPoint(), "ja-JP")).toEqual(['他说\u200b"\u200b示例\u200b"', "，", "\u3000", "其他"]);
-        expect(text(new PuppeteerGenPowerPoint())).toEqual(['他说\u200b"\u200b示例\u200b"，\u200b其他']);
-        expect(text(new PuppeteerGenPowerPoint(), "ko-KR")).toEqual(['他说\u200b"\u200b示例\u200b"，\u200b其他']);
+        expect(text(new PuppeteerGenPowerPoint())).toEqual(['他说\u200b"\u200b示例\u200b"\u200b，\u200b其他']);
+        expect(text(new PuppeteerGenPowerPoint(), "ko-KR")).toEqual(['他说\u200b"\u200b示例\u200b"\u200b，\u200b其他']);
         expect(text(new PuppeteerGenLibreOffice(), "zh-CN")).toEqual(['他说"示例"，其他']);
         expect(text(new PuppeteerGenLibreOffice())).toEqual(['他说"示例"，其他']);
     });
 });
 
+const pdftotext = Bun.which("pdftotext");
+
+/** The lines of the first `pages` pages, as pdftotext reads them, by their number of characters other than white space and U+200B. */
+async function drawnLines(pdf: Uint8Array, pages: number): Promise<number[][]> {
+    const directory = await mkdtemp(join(tmpdir(), "east-asian-break-"));
+    try {
+        const file = join(directory, "deck.pdf");
+        await writeFile(file, pdf);
+        const text = Bun.spawnSync([pdftotext ?? "pdftotext", "-raw", "-enc", "UTF-8", file, "-"]).stdout.toString();
+        return text
+            .split("\f")
+            .slice(0, pages)
+            .map(page =>
+                page
+                    .split("\n")
+                    .map(line => [...line.replace(/[\s\u3000\u200b⁠]/gu, "")].length)
+                    .filter(Boolean),
+            );
+    } finally {
+        await rm(directory, { recursive: true, force: true });
+    }
+}
+
 describe("the measured East Asian boxes, in both renderers", () => {
     const simSun = resolveInstalledGlyphAdvances("SimSun", false, false);
-    const pdftotext = Bun.which("pdftotext");
     const cases = eastAsianBreakCases();
-    /** Each page's lines, as pdftotext reads them, by their number of characters other than white space and U+200B. */
-    const drawnLines = async (pdf: Uint8Array) => {
-        const directory = await mkdtemp(join(tmpdir(), "east-asian-break-"));
-        try {
-            const file = join(directory, "deck.pdf");
-            await writeFile(file, pdf);
-            const text = Bun.spawnSync([pdftotext ?? "pdftotext", "-raw", "-enc", "UTF-8", file, "-"]).stdout.toString();
-            return text
-                .split("\f")
-                .slice(0, cases.length)
-                .map(page =>
-                    page
-                        .split("\n")
-                        .map(line => [...line.replace(/[\s\u3000\u200b⁠]/gu, "")].length)
-                        .filter(Boolean),
-                );
-        } finally {
-            await rm(directory, { recursive: true, force: true });
-        }
-    };
     const expected = (selected: readonly EastAsianBreakCase[]) => selected.map(({ label, lines }) => ({ label, lines: [...lines] }));
     const drawn = (selected: readonly EastAsianBreakCase[], lines: number[][]) => selected.map(({ label }, index) => ({ label, lines: lines[index] }));
     // Measured against PowerPoint's PDF export of the same decks.
@@ -150,7 +170,7 @@ describe("the measured East Asian boxes, in both renderers", () => {
         "breaks each box where PowerPoint does, in Chromium",
         async () => {
             const pdf = await eastAsianBreakDeck(new PuppeteerGenPowerPoint(), measured).toPdf();
-            expect(drawn(measured, await drawnLines(pdf))).toEqual(expected(measured));
+            expect(drawn(measured, await drawnLines(pdf, cases.length))).toEqual(expected(measured));
         },
         60_000,
     );
@@ -160,8 +180,41 @@ describe("the measured East Asian boxes, in both renderers", () => {
         async () => {
             const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
             const pdf = await eastAsianBreakDeck(new PuppeteerGenPowerPoint(undefined, { renderer }), measured).toPdf();
-            expect(drawn(measured, await drawnLines(pdf))).toEqual(expected(measured));
+            expect(drawn(measured, await drawnLines(pdf, cases.length))).toEqual(expected(measured));
         },
         60_000,
+    );
+});
+
+describe("the measured boxes of full-width punctuation next to digits and Latin text, in both renderers", () => {
+    const arial = resolveInstalledGlyphAdvances("Arial", false, false);
+    const times = resolveInstalledGlyphAdvances("Times New Roman", false, false);
+    const cases = mixedBreakCases();
+    const expected = cases.map(({ label, lines }) => ({ label, lines: [...lines] }));
+    const drawn = (lines: number[][]) => cases.map(({ label }, index) => ({ label, lines: lines[index] }));
+    const ready = arial !== undefined && times !== undefined && pdftotext !== null;
+    const fonts = (fontFace: MixedVariant["fontFace"]) => {
+        const font = fontFace === "Arial" ? arial : times;
+        if (!font) throw new Error(`${fontFace} is not installed: the measured boxes need its advances`);
+        return font;
+    };
+
+    test.skipIf(!ready)(
+        "breaks each box where PowerPoint does, in Chromium",
+        async () => {
+            const pdf = await mixedBreakDeck(new PuppeteerGenPowerPoint(), cases, fonts).toPdf();
+            expect(drawn(await drawnLines(pdf, cases.length))).toEqual(expected);
+        },
+        120_000,
+    );
+
+    test.skipIf(!ready)(
+        "breaks each box where PowerPoint does, in the WASM renderer",
+        async () => {
+            const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
+            const pdf = await mixedBreakDeck(new PuppeteerGenPowerPoint(undefined, { renderer }), cases, fonts).toPdf();
+            expect(drawn(await drawnLines(pdf, cases.length))).toEqual(expected);
+        },
+        120_000,
     );
 });

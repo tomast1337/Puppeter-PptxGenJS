@@ -87,9 +87,10 @@ export interface RenderingTargetProfile {
     readonly hangingMarks: Readonly<Record<string, string>>;
     /**
      * Whether a run has line breaks around punctuation next to Han characters where UAX #14 has none (U+200B in the
-     * run text) and none where it has one (U+2060): in a language with `hangingMarks`, before "“" after Han, between
-     * Han and an ASCII quote, and between two dashes but not before them; in any other, on either side of full-width
-     * punctuation next to Han or more of it, and between Han and an ASCII quote.
+     * run text) and none where it has one (U+2060): in a language with `hangingMarks`, before "“" and "‘" after Han,
+     * between Han and an ASCII quote, and between two dashes but not before them; in any other, on either side of CJK
+     * punctuation next to anything but white space, of full-width punctuation next to Han, and between Han and an
+     * ASCII quote.
      */
     readonly breaksAroundHanPunctuation: boolean;
     /**

@@ -136,14 +136,22 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * zh: ）》」”，、。：？！；』】〕 and ASCII ),.;:!?]}, before Han, a Latin letter, a digit, "（", a soft break, a run
  * in another size or the paragraph's end; "（第一）。" with "）" one past the edge breaks before "一", and "（甲）——"
  * with "）" one past the edge breaks before "（". In ja: ，。 (a ja "）" one past the edge breaks before "（"). It
- * breaks before "“" after Han ("他刚才又说" | "“这是示例”"), between Han and an ASCII quote on either side, also
+ * breaks before "“" and "‘" after Han ("他刚才又说" | "“这是示例”"), between Han and an ASCII quote on either side, also
  * next to Latin text ("我们使用" | "\"Alpha\"" and "大家都说\"" | "样本\"不错"), and between two dashes but never
  * before them ("示例结果如" | "下——全部完" in a 6em box, "示例结果如下—" | "—全部完成"), where UAX #14 (LB19,
  * LB17) has the reverse (`breaksAroundHanPunctuation`: U+200B ZERO WIDTH SPACE and U+2060 WORD JOINER in the run).
  * In en-US, with no `lang` and in ko-KR nothing hangs, and it breaks on either side of full-width punctuation next to
  * Han or more of it: "我们今天讨论示例" | "，然后继续", "参考附件材料（" | "甲）", "老师刚刚讲到“" | "样本问题”",
  * "示例结果如下" | "——全部完成"; between Han and an ASCII quote as in zh. A Han run in Arial with no `lang` breaks so
- * too. Otherwise the boxes break as Chromium does: "……" is not left at a line's start, a word of ASCII letters,
+ * too. It also breaks on either side of CJK punctuation whatever is next to it but white space: digits, Latin letters,
+ * ASCII punctuation. Measured against its PDF export of a synthetic deck (tests/eastAsianMixedBreakCases.ts: Arial
+ * and Times New Roman, 8 and 10pt, left and justified, Han in a fallback face, each string in boxes that end the line
+ * just before, between and after the two characters of one boundary): an opening bracket ends a line before digits
+ * or a Latin word ("我们参考了（" | "1999年版）", "参见Alpha「" | "Beta」", "我们参考了（" | "(1)项）"), and a closing mark or
+ * stop starts one after them ("我们完成了1999" | "，然后继续", "我们参考了「Alpha" | "」内容", "我们参考了(1)" | "，然后").
+ * The quotes “ ” ‘ ’, narrow in a Latin face, do not break from Latin text or digits ("我们参考了" | "“Alpha”内容").
+ * In zh-CN and zh-TW none of those breaks (an opening bracket keeps its digits: "我们参考了" | "（1999年版）"), but it
+ * breaks before "‘" after Han as before "“" ("我们参考了" | "‘1999’内容"). Otherwise the boxes break as Chromium does: "……" is not left at a line's start, a word of ASCII letters,
  * digits and brackets ("Excel", "123(4)", "100%") is kept whole and breaks from Han on either side, there is no extra
  * space between Han and Latin text, and Latin punctuation in en-US Latin text does not hang.
  * shortcut: ko-KR also breaks inside digits ("今年总共有1" | "28个"), which the target does not; ja is measured for
