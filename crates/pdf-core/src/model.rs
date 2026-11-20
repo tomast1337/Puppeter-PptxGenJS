@@ -1,6 +1,8 @@
 //! The subset of the normalized model (packages/model/src/types.ts) this renderer reads, filled
 //! from the PdfLapas HTML profile by `crate::profile`.
 
+use std::ops::Range;
+
 use crate::color::Rgba;
 use crate::svg::Svg;
 
@@ -353,6 +355,9 @@ pub(crate) struct Bullet {
     pub(crate) level: u32,
 }
 
+/// A byte range of a run's text and its letter spacing in px.
+pub(crate) type WordSpacing = (Range<usize>, f32);
+
 pub(crate) struct Run {
     pub(crate) text: String,
     pub(crate) font_face: String,
@@ -366,6 +371,9 @@ pub(crate) struct Run {
     /// Super/subscript are already resolved into `font_size` and `baseline_offset`.
     pub(crate) baseline_offset: f32,
     pub(crate) character_spacing: f32,
+    /// Byte ranges of `text` with their own letter spacing in px, in place of `character_spacing`: the
+    /// words of a run whose spans each carry one (the PowerPoint target's advance grid, word by word).
+    pub(crate) word_spacing: Vec<WordSpacing>,
     /// False: laid out without the font's pair kerning (`font-kerning: none`, the PowerPoint target).
     pub(crate) kerning: bool,
     pub(crate) synthesis: Synthesis,
@@ -571,6 +579,7 @@ pub(crate) mod build {
             },
             baseline_offset: 0.0,
             character_spacing: 0.0,
+            word_spacing: Vec::new(),
             kerning: true,
             synthesis: Synthesis::default(),
             highlight: None,

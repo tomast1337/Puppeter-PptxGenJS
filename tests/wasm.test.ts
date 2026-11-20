@@ -9,7 +9,7 @@ import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen as HtmlPuppeteerGen, type HtmlPresentationDocument, type PresentationRenderer } from "../packages/pptxgenjs/src/html";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
-import { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/node";
+import { PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint, resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
 import { CORE_SVG_SHAPES } from "../packages/pptxgenjs/src/normalize/shape";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { completeProfileHtml, pptxHtmlDocument } from "../packages/pptxgenjs/src/render/completion";
@@ -19,6 +19,7 @@ import type { InitInput, Renderer } from "../packages/wasm/src/pdf_wasm.js";
 import { inchesToPoints, pointsToPixels } from "@pdflapas/model";
 import { HAND_WRITTEN_OBJECTS, handWrittenDocument } from "./handWrittenHtml";
 import { pdfContentStreams } from "./pdfContentStreams";
+import { wrapLimitCases, wrapLimitDeck } from "./wrapLimitCases";
 import { EXTRA_CELL_ROW_TOPS_IN, extraCellTable } from "./extraCellTable";
 
 // Type-level checks against the committed wasm-bindgen declarations: regenerating them with an
@@ -270,6 +271,23 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             // One text object per drawn line.
             expect({ name, lines: content.match(/\bBT\b/g)?.length }).toEqual({ name, lines: chromium });
         }
+    });
+
+    // The PowerPoint target lays each word out at its advances rounded to 0.125pt: a last line exactly as wide as its
+    // box or 0.125pt narrower fits, 0.125pt wider wraps, as in PowerPoint and Chromium (tests/advanceGrid.test.ts).
+    test("breaks the PowerPoint target's lines at the box's width by the rounded advances, as PowerPoint does", async () => {
+        const arial = (bold: boolean) => resolveInstalledGlyphAdvances("Arial", bold, false);
+        if (!arial(false) || !arial(true)) return console.warn("Arial is not installed: the PowerPoint wrap limit is not checked");
+        const cases = wrapLimitCases(bold => arial(bold) ?? { unitsPerEm: 1, advances: new Map() });
+        const deck = await wrapLimitDeck(new PuppeteerGenPowerPoint(), cases).toHtml();
+        const pdf = Buffer.from(await (await createWasmRenderer({ fonts: systemFonts })).render(deck));
+        // A page's lines: the distinct baselines of its text objects, `1 0 0 -1 x y Tm`.
+        const drawn = [...ascii(pdf).matchAll(/\/Contents (\d+) 0 R/g)].map(([, id]) => {
+            const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${id} 0 obj`)) + "stream\n".length;
+            const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
+            return new Set([...content.matchAll(/(-?[\d.]+) Tm/g)].map(([, y]) => y)).size;
+        });
+        expect(cases.map(({ fontSize, bold, lines, steps }, index) => ({ fontSize, bold, lines, steps, drawn: drawn[index] }))).toEqual(cases.map(({ fontSize, bold, lines, steps, expectedLines }) => ({ fontSize, bold, lines, steps, drawn: expectedLines })));
     });
 
     // Chromium takes the fallback face for a character the run's face lacks from fontconfig, by the run's lang:

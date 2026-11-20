@@ -1,18 +1,27 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import type PptxGenJS from "pptxgenjs";
 import { existsSync, readFileSync } from "node:fs";
 import { closeBrowser, withBrowser } from "../packages/puppeteer/src/browser";
 import { FontFileError, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint, readGlyphAdvances } from "../packages/pptxgenjs/src/index";
 import type { GlyphAdvances } from "../packages/pptxgenjs/src/defaults";
 import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
-import { advanceGridSpacing } from "../packages/pptxgenjs/src/normalize/advanceGrid";
+import { advanceGridWordSpacing, isWord, runPieces } from "../packages/pptxgenjs/src/normalize/advanceGrid";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
-import { pointsToPixels } from "@pdflapas/model";
+import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
+import { LAYOUT_UNITS_PER_PX, pointsToPixels } from "@pdflapas/model";
+import { wrapLimitCases, wrapLimitDeck } from "./wrapLimitCases";
 
 afterAll(closeBrowser);
 
-const GRID = RENDERING_TARGETS.powerpoint.advanceGridPt;
+const GRID = powerPointGrid();
+
+function powerPointGrid(): number {
+    const grid = RENDERING_TARGETS.powerpoint.advanceGridPt;
+    if (grid === undefined) throw new Error("The PowerPoint target has no advance grid (advanceGridPt in target/powerpoint.ts).");
+    return grid;
+}
 // Arial's (and Liberation Sans's) unitsPerEm and advances: space 569, "a" 1139, "i" 455.
 const ARIAL: GlyphAdvances = { unitsPerEm: 2048, advances: new Map([..." ai"].map((character, index) => [character.codePointAt(0) ?? 0, [569, 1139, 455][index] ?? 0])) };
 
@@ -60,28 +69,89 @@ const CMAP_FORMAT_4 = words(0, 1, 3, 1, 0, 12, 4, 42, 0, 6, 4, 1, 2, 66, 67, 0xf
 // cmap with one (3,10) format 12 subtable: U+1F600-U+1F601 to glyphs 4 and 5.
 const CMAP_FORMAT_12 = words(0, 1, 3, 10, 0, 12, 12, 0, 0, 28, 0, 0, 0, 1, 0x1, 0xf600, 0x1, 0xf601, 0, 4);
 
-describe("advanceGridSpacing", () => {
+describe("advanceGridWordSpacing", () => {
+    const LAYOUT_UNIT = 1 / LAYOUT_UNITS_PER_PX;
+    /** Arial 8pt natural advances in px: space 2.2227pt, "a" 4.4492pt, "i" 1.7773pt. */
+    const natural = (units: number) => pointsToPixels((units * 8) / 2048);
+    /** The profile's width of a piece laid out with `spacing` after each of its `count` characters: rounded up to a LayoutUnit. */
+    const laidOut = (naturalPx: number, count: number, spacing: number) => Math.ceil((naturalPx + count * spacing) * LAYOUT_UNITS_PER_PX) / LAYOUT_UNITS_PER_PX;
+
     test("is PowerPoint's 1/576 in grid on the PowerPoint target and none on LibreOffice", () => {
         expect(GRID).toBe(0.125);
         expect(RENDERING_TARGETS.libreoffice.advanceGridPt).toBeUndefined();
     });
 
-    test("spreads the rounding of each advance to 0.125pt over the run's characters", () => {
-        // Arial 8pt: space 2.2227 -> 2.25, "a" 4.4492 -> 4.5, "i" 1.7773 -> 1.75.
-        expect(advanceGridSpacing(" ", 8, ARIAL, GRID)).toBeCloseTo(2.25 - (569 * 8) / 2048, 10);
-        const natural = ((569 + 1139 + 455) * 8) / 2048;
-        expect(advanceGridSpacing("a i", 8, ARIAL, GRID) * 3).toBeCloseTo(2.25 + 4.5 + 1.75 - natural, 10);
-        // 9pt: "a" 5.0054 -> 5.0, rounded down.
-        expect(advanceGridSpacing("a", 9, ARIAL, GRID)).toBeCloseTo(5 - (1139 * 9) / 2048, 10);
+    test("splits a run into its words and the spaces and tabs between them, in order", () => {
+        expect(runPieces("  Lorem ipsum\t dolor, sit  ")).toEqual(["  ", "Lorem", " ", "ipsum", "\t ", "dolor,", " ", "sit", "  "]);
+        expect(runPieces("  Lorem ipsum\t dolor, sit  ").filter(isWord)).toEqual(["Lorem", "ipsum", "dolor,", "sit"]);
+        expect(runPieces("")).toEqual([]);
     });
 
-    test("counts a character the font does not map without rounding it, and gives 0 without a grid, a font or text", () => {
-        expect(advanceGridSpacing("aZ", 8, ARIAL, GRID)).toBeCloseTo((4.5 - (1139 * 8) / 2048) / 2, 10);
-        expect(advanceGridSpacing("a", 8, ARIAL, undefined)).toBe(0);
-        expect(advanceGridSpacing("a", 8, undefined, GRID)).toBe(0);
-        expect(advanceGridSpacing("", 8, ARIAL, GRID)).toBe(0);
-        // An astral character is one character.
-        expect(advanceGridSpacing("😀", 8, ARIAL, GRID)).toBe(0);
+    test("ends each word on its rounded advances floored to a LayoutUnit and gives each space one LayoutUnit more", () => {
+        const spacing = advanceGridWordSpacing("a i", 8, ARIAL, GRID, 0);
+        if (!spacing) throw new Error("no spacing");
+        const [a, i] = spacing.words;
+        // "a" rounds to 4.5pt, 6 px, a whole number of LayoutUnits; laid out 1/16 LayoutUnit under it.
+        expect(laidOut(natural(1139), 1, a ?? 0)).toBe(6);
+        // The space rounds to 2.25pt, 3 px, and is laid out a LayoutUnit wider.
+        expect(laidOut(natural(569), 1, spacing.space)).toBe(3 + LAYOUT_UNIT);
+        // "i" rounds to 1.75pt: the run's rounded 8.5pt (11.333 px) floored to 725/64, less what "a" and the space took.
+        expect(laidOut(natural(455), 1, i ?? 0)).toBe(725 / 64 - 6 - (3 + LAYOUT_UNIT));
+    });
+
+    test("keeps every line of a long run within 3/64 px under its rounded width, never over, in Arial and charSpacing", () => {
+        const font = resolveInstalledGlyphAdvances("Arial", false, false);
+        if (!font) return console.warn("Arial is not installed: the long-run sums are not checked");
+        const text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+        for (const [fontSize, charSpacing] of [
+            [7, 0],
+            [8, 0],
+            [8.5, 0],
+            [10, 0],
+            [8, 1.5],
+            [8, -0.3],
+        ] as const) {
+            const spacing = advanceGridWordSpacing(text, fontSize, font, GRID, charSpacing);
+            if (!spacing) throw new Error("no spacing");
+            const advance = (character: string) => ((font.advances.get(character.codePointAt(0) ?? 0) ?? 0) * fontSize) / font.unitsPerEm;
+            // Each piece's PowerPoint width and laid-out width, px.
+            let word = 0;
+            const pieces = runPieces(text).map(piece => {
+                const characters = [...piece];
+                const rounded = pointsToPixels(characters.reduce((sum, character) => sum + Math.round(advance(character) / GRID) * GRID + charSpacing, 0));
+                const naturalPx = pointsToPixels(characters.reduce((sum, character) => sum + advance(character), 0));
+                return { word: isWord(piece), rounded, laidOut: laidOut(naturalPx, characters.length, isWord(piece) ? (spacing.words[word++] ?? Number.NaN) : spacing.space) };
+            });
+            expect(word).toBe(spacing.words.length);
+            // Every line from a word's start to a later word's end.
+            pieces.forEach((start, first) => {
+                if (!start.word) return;
+                let rounded = 0;
+                let width = 0;
+                pieces.slice(first).forEach(piece => {
+                    rounded += piece.rounded;
+                    width += piece.laidOut;
+                    if (!piece.word) return;
+                    const under = rounded - width;
+                    expect({ fontSize, charSpacing, within: under > -1e-9 && under < 3 * LAYOUT_UNIT }).toEqual({ fontSize, charSpacing, within: true });
+                });
+            });
+        }
+    });
+
+    test("starts the sums again after a tab, and leaves an unmapped character unrounded", () => {
+        const spacing = advanceGridWordSpacing("a\ta Z", 8, ARIAL, GRID, 0);
+        expect(spacing?.words[1]).toBe(spacing?.words[0] ?? Number.NaN);
+        // "Z" is not in ARIAL: no natural advance and no rounding, so it takes what the space's extra LayoutUnit left.
+        expect(spacing?.words[2]).toBeCloseTo(-LAYOUT_UNIT - LAYOUT_UNIT / 16, 6);
+    });
+
+    test("is undefined without a grid, a font or a space in the font, and has no words for a run without any", () => {
+        expect(advanceGridWordSpacing("a i", 8, ARIAL, undefined, 0)).toBeUndefined();
+        expect(advanceGridWordSpacing("a i", 8, undefined, GRID, 0)).toBeUndefined();
+        expect(advanceGridWordSpacing("a i", 8, { unitsPerEm: 2048, advances: new Map([[97, 1139]]) }, GRID, 0)).toBeUndefined();
+        expect(advanceGridWordSpacing("  ", 8, ARIAL, GRID, 0)?.words).toEqual([]);
+        expect(advanceGridWordSpacing("", 8, ARIAL, GRID, 0)?.words).toEqual([]);
     });
 });
 
@@ -120,14 +190,18 @@ describe("readGlyphAdvances", () => {
 describe("resolveGlyphAdvances option", () => {
     const font = (fontFace: string) => ({ fontFace, fontSize: 8, margin: 0 });
 
-    test("lays the PowerPoint target's runs out on the grid as letter-spacing, composed with charSpacing", () => {
+    test("lays the PowerPoint target's words out on the grid as letter-spacing, composed with charSpacing", () => {
         const lookup = fontMetricsLookup(undefined, null, () => ARIAL);
-        const runs = (charSpacing?: number) => normalizeText("a i", { ...font("Arial"), charSpacing }, "powerpoint", lookup).paragraphs[0]?.runs[0]?.characterSpacing;
-        const grid = advanceGridSpacing("a i", 8, ARIAL, GRID);
-        expect(runs()).toBeCloseTo(pointsToPixels(grid), 10);
-        expect(runs(2)).toBeCloseTo(pointsToPixels(2 + grid), 10);
+        const run = (text: string, options: PptxGenJS.TextPropsOptions = {}, target: "powerpoint" | "libreoffice" = "powerpoint") => normalizeText(text, { ...font("Arial"), ...options }, target, lookup).paragraphs[0]?.runs[0];
+        const spacing = (charSpacing: number) => advanceGridWordSpacing("a i", 8, ARIAL, GRID, charSpacing);
+        for (const charSpacing of [0, 2]) expect(run("a i", { charSpacing })).toMatchObject({ characterSpacing: spacing(charSpacing)?.space, wordCharacterSpacing: spacing(charSpacing)?.words });
         // A superscript at 2/3 of 12pt is rounded at the 8pt it is drawn at.
-        expect(normalizeText("a i", { ...font("Arial"), fontSize: 12, superscript: true }, "powerpoint", lookup).paragraphs[0]?.runs[0]?.characterSpacing).toBeCloseTo(pointsToPixels(grid), 10);
+        expect(run("a i", { fontSize: 12, superscript: true })).toMatchObject({ characterSpacing: spacing(0)?.space, wordCharacterSpacing: spacing(0)?.words });
+        // A run of one word takes its spacing on the run; the LibreOffice target has no grid.
+        expect(run("a")).toMatchObject({ characterSpacing: advanceGridWordSpacing("a", 8, ARIAL, GRID, 0)?.words[0] });
+        expect(run("a")).not.toHaveProperty("wordCharacterSpacing");
+        expect(run("a i", { charSpacing: 2 }, "libreoffice")).toMatchObject({ characterSpacing: pointsToPixels(2) });
+        expect(run("a i", {}, "libreoffice")).not.toHaveProperty("wordCharacterSpacing");
     });
 
     test("is asked once per face, weight and style, and never for the LibreOffice target", () => {
@@ -157,7 +231,10 @@ describe("resolveGlyphAdvances option", () => {
         };
         expect(await html({ resolveGlyphAdvances: () => undefined })).not.toContain("letter-spacing");
         expect(await html({ resolveGlyphAdvances: null })).not.toContain("letter-spacing");
-        expect(await html({ resolveGlyphAdvances: () => ARIAL })).toContain(`letter-spacing: ${pointsToPixels(advanceGridSpacing("a i", 8, ARIAL, GRID))}px`);
+        // Each word in a span of its own letter-spacing; the space between keeps the run's, and the text reads as before.
+        const spacing = advanceGridWordSpacing("a i", 8, ARIAL, GRID, 0);
+        const grid = await html({ resolveGlyphAdvances: () => ARIAL });
+        expect(grid).toContain(`letter-spacing: ${spacing?.space}px; font-kerning: none;" lang="en-US"><span style="letter-spacing: ${spacing?.words[0]}px;">a</span> <span style="letter-spacing: ${spacing?.words[1]}px;">i</span></span>`);
     });
 
     test("throws a TypeError naming the option for a resolver that is not a function or returns invalid advances", () => {
@@ -174,35 +251,57 @@ describe("the PowerPoint advance grid in Chromium", () => {
     const TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore";
     const CASES = [8, 9, 10].flatMap(fontSize => [false, true].map(bold => ({ fontSize, bold })));
 
-    // Under 12pt (unkerned) a run is its advances plus its letter-spacing after each character: Chromium's own advances
-    // (canvas, one character at a time) plus the font file's rounding to the grid must give the run's width.
-    test.skipIf(!installed)("widens or narrows an unkerned run by its advances' rounding to 0.125pt, with the installed font", async () => {
+    // Under 12pt (unkerned) each word and each space is laid out at its advances rounded to the grid, so a run, printed
+    // at the print zoom as the PDF is, is as wide as its rounded advances: less one LayoutUnit at most, and less what
+    // FreeType's 26.6 font size takes off Chromium's advances (the size in device px truncated to 1/64, at the zoom).
+    test.skipIf(!installed)("lays an unkerned run out as wide as its advances rounded to 0.125pt, with the installed font", async () => {
         const presentation = new PuppeteerGenPowerPoint();
         const slide = presentation.addSlide();
         CASES.forEach(({ fontSize, bold }, index) => slide.addText(TEXT, { fontFace: "Liberation Sans", fontSize, bold, margin: 0, wrap: false, x: 0.1, y: 0.1 + 0.3 * index, w: 9, h: 0.2 }));
         const { html } = await presentation.toHtml();
-        const runs = await withBrowser(async browser => {
+        const widths = await withBrowser(async browser => {
             const page = await browser.newPage();
             try {
-                await page.setContent(html);
-                return await page.evaluate(() => {
-                    const context = document.createElement("canvas").getContext("2d");
-                    if (!context) throw new Error("no 2d canvas");
-                    return Array.from(document.querySelectorAll<HTMLElement>(".text-run"), run => {
-                        const style = getComputedStyle(run);
-                        context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-                        const advances = Array.from(run.textContent ?? "").reduce((sum, character) => sum + context.measureText(character).width, 0);
-                        return { width: run.getBoundingClientRect().width, advances };
-                    });
-                });
+                await page.setContent(printHtml(html));
+                return await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".text-run"), run => run.getBoundingClientRect().width));
             } finally {
                 await page.close();
             }
         });
-        expect(runs).toHaveLength(CASES.length);
-        const roundings = CASES.map(({ fontSize, bold }) => pointsToPixels(advanceGridSpacing(TEXT, fontSize, resolveInstalledGlyphAdvances("Liberation Sans", bold, false), GRID) * TEXT.length));
-        // Regular 8pt rounds 2.7px wider: more than the 0.05px the comparison allows.
-        expect(roundings[0]).toBeGreaterThan(2);
-        roundings.forEach((rounding, index) => expect(runs[index]?.width).toBeCloseTo((runs[index]?.advances ?? 0) + rounding, 1));
+        expect(widths).toHaveLength(CASES.length);
+        CASES.forEach(({ fontSize, bold }, index) => {
+            const font = resolveInstalledGlyphAdvances("Liberation Sans", bold, false);
+            const natural = (character: string) => ((font?.advances.get(character.codePointAt(0) ?? 0) ?? 0) * fontSize) / (font?.unitsPerEm ?? 1);
+            const rounded = pointsToPixels([...TEXT].reduce((sum, character) => sum + Math.round(natural(character) / GRID) * GRID, 0));
+            const size = pointsToPixels(fontSize) * PRINT_ZOOM * LAYOUT_UNITS_PER_PX;
+            const truncation = pointsToPixels([...TEXT].reduce((sum, character) => sum + natural(character), 0)) * (1 - Math.floor(size) / size);
+            // 8pt rounds 2.7px wider than the natural advances: the grid, not the font, sets the width.
+            if (fontSize === 8 && !bold) expect(rounded - pointsToPixels([...TEXT].reduce((sum, character) => sum + natural(character), 0))).toBeGreaterThan(2);
+            const width = (widths[index] ?? 0) / PRINT_ZOOM;
+            expect({ fontSize, bold, under: Math.abs(rounded - truncation - width) < 1 / LAYOUT_UNITS_PER_PX }).toEqual({ fontSize, bold, under: true });
+        });
+    });
+});
+
+describe("the PowerPoint target's wrap limit in Chromium", () => {
+    const arial = (bold: boolean) => resolveInstalledGlyphAdvances("Arial", bold, false);
+    const installed = arial(false) !== undefined && arial(true) !== undefined;
+
+    // A line fits in PowerPoint while its rounded advances are no wider than the box: exactly as wide or 0.125pt
+    // narrower keeps the last word, 0.125pt wider wraps it, on the first, second or third line of one long run.
+    test.skipIf(!installed)("keeps a last line exactly as wide as the box or 0.125pt narrower, and wraps one 0.125pt wider, as PowerPoint does", async () => {
+        const cases = wrapLimitCases(bold => arial(bold) ?? { unitsPerEm: 1, advances: new Map() });
+        const { html } = await wrapLimitDeck(new PuppeteerGenPowerPoint(), cases).toHtml();
+        const drawn = await withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                // Printed as the PDF is: at the print zoom.
+                await page.setContent(printHtml(html));
+                return await page.evaluate(() => Array.from(document.querySelectorAll(".slide-text"), box => new Set(Array.from(box.querySelectorAll(".text-run"), run => Array.from(run.getClientRects(), rect => Math.round(rect.top))).flat()).size));
+            } finally {
+                await page.close();
+            }
+        });
+        expect(cases.map(({ fontSize, bold, lines, steps }, index) => ({ fontSize, bold, lines, steps, drawn: drawn[index] }))).toEqual(cases.map(({ fontSize, bold, lines, steps, expectedLines }) => ({ fontSize, bold, lines, steps, drawn: expectedLines })));
     });
 });

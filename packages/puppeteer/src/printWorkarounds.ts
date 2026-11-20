@@ -6,7 +6,7 @@
  * finds the elements, and each change is spliced into the original string at its source offsets, so every
  * byte the print step does not change stays as it was. HTML outside the profile comes back unchanged.
  */
-import { applySourceEdits, degreesToRadians, type SourceEdit } from "@pdflapas/model";
+import { applySourceEdits, degreesToRadians, LAYOUT_UNITS_PER_PX, type SourceEdit } from "@pdflapas/model";
 import { type DefaultTreeAdapterTypes, parse } from "parse5";
 
 type Element = DefaultTreeAdapterTypes.Element;
@@ -97,7 +97,6 @@ const snapBorder = (width: number) => (width > 0 ? Math.max(1, Math.floor(width 
  * 12.8px 0.203, and every painted baseline is that layout baseline rounded. Moving by the centre instead printed
  * baselines 0.049pt high on average (sd 0.04, up to 0.12pt).
  */
-const LAYOUT_UNITS_PER_PX = 64;
 // 1e-6 keeps float noise in `height x PRINT_ZOOM` from flooring a whole layout unit away.
 const strutBaseline = (height: number) => Math.floor(Math.floor(height * PRINT_ZOOM * LAYOUT_UNITS_PER_PX + 1e-6) / (2 * LAYOUT_UNITS_PER_PX)) / PRINT_ZOOM;
 const fraction = (value: number) => Math.round((value - Math.round(value)) * 1e4) / 1e4;

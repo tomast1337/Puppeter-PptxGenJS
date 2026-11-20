@@ -212,7 +212,13 @@ async function prepareForPrint(): Promise<string[]> {
             const segments: Text[][] = [[]];
             for (const child of Array.from(paragraph.children)) {
                 if (child.tagName === "BR") segments.push([]);
-                else if (child.classList.contains("text-run")) segments[segments.length - 1]?.push(...Array.from(child.childNodes).filter((node): node is Text => node instanceof Text && node.length > 0));
+                // Its own text and its words' spans' (wordCharacterSpacing), in order.
+                else if (child.classList.contains("text-run"))
+                    segments[segments.length - 1]?.push(
+                        ...Array.from(child.childNodes)
+                            .flatMap(node => (node instanceof Element ? Array.from(node.childNodes) : [node]))
+                            .filter((node): node is Text => node instanceof Text && node.length > 0),
+                    );
             }
             segments.forEach((nodes, index) => {
                 const raise = (index === segments.length - 1 ? mark : soft) * height;

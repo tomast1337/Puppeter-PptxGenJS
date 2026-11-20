@@ -58,7 +58,9 @@ const BASELINE_GRID_PER_INCH = 600;
  * 1/72 in grid, floor or ceiling, and hinted advances at 72-1200 dpi fit worse). Arial 8pt's space, 2.222pt, takes
  * 2.25pt. Pair kerning still applies from 12pt (`readsKern`); whether it rounds kerning values too was not measured,
  * so they stay unrounded. Inside a word it draws glyphs at hinted 600 dpi widths, which never moves a word start or a
- * line break, so the PDF does not copy them. Wrapping tests the line without its trailing space against the box.
+ * line break, so the PDF does not copy them. Wrapping tests the line without its trailing space against the box, with
+ * no tolerance: rounded advances exactly as wide as the box fit, 0.125pt wider wrap. Each word therefore takes its own
+ * letter-spacing (`advanceGridWordSpacing`), so its end, not only the run's, is PowerPoint's.
  * It puts each baseline on a 1/600 in grid, 0.12pt (`baselineGridPerInch`): measured against its PDF export of
  * synthetic decks (one line "Hxg" in Arial at 6, 7, 8, 9, 9.5, 10, 12, 14, 16 and 18pt, in text boxes and one-cell
  * tables, margin 0 and default margins, top anchored), the first baseline below the top inset is the single-spaced
