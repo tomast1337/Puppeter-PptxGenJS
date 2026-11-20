@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { closeBrowser } from "../packages/puppeteer/src/browser";
 import { objectOffsets, pdfText } from "../packages/puppeteer/src/pdfUpdate";
-import { withType1CFonts } from "../packages/puppeteer/src/type3Fonts";
+import { restrictedByFsType, restrictedFonts } from "../packages/puppeteer/src/fontEmbedding";
+import { type3FontNames, withType1CFonts } from "../packages/puppeteer/src/type3Fonts";
 
 // An installed face with CFF outlines (an OpenType OTTO face), which Skia would draw as a Type 3 font: URW Gothic is the
 // one #347 found it with, Noto Sans CJK the one the visual Docker image has.
@@ -99,5 +100,46 @@ describe("withType1CFonts", () => {
             const pdf = type3Pdf(procedure);
             expect(withType1CFonts(pdf)).toBe(pdf);
         }
+    });
+
+    test("leaves a Type 3 font alone when its face forbids embedding (#350)", () => {
+        const pdf = type3Pdf("500 0 0 -700 500 0 d1\n0 0 m\n500 0 l\n500 -700 l\nh\nf");
+        expect(type3FontNames(pdf)).toEqual(["AAAAAA+Test"]);
+        expect(withType1CFonts(pdf, new Set(["AAAAAA+Test"]))).toBe(pdf);
+        expect(withType1CFonts(pdf, new Set(["BBBBBB+Other"]))).not.toBe(pdf);
+    });
+});
+
+/** An sfnt with one OS/2 table whose fsType is `fsType`, or a collection holding it as its second face. */
+function sfntWithFsType(fsType: number, collection = false): Uint8Array {
+    const font = collection ? 20 : 0; // a TTC header of two faces: tag, version, count, two offsets
+    const bytes = new Uint8Array(font + 12 + 16 + 10);
+    const view = new DataView(bytes.buffer);
+    if (collection) {
+        view.setUint32(0, 0x74746366); // "ttcf"
+        view.setUint32(8, 2);
+        view.setUint32(16, font);
+    }
+    view.setUint32(font, 0x00010000);
+    view.setUint16(font + 4, 1);
+    view.setUint32(font + 12, 0x4f532f32); // "OS/2"
+    view.setUint32(font + 20, font + 28);
+    view.setUint16(font + 28 + 8, fsType);
+    return bytes;
+}
+
+describe("font embedding permission (OS/2 fsType)", () => {
+    test("reads the restricted-licence bit, in a font and in a collection", () => {
+        expect(restrictedByFsType(sfntWithFsType(0x0002))).toBe(true);
+        expect(restrictedByFsType(sfntWithFsType(0x0000))).toBe(false);
+        expect(restrictedByFsType(sfntWithFsType(0x0008))).toBe(false);
+        expect(restrictedByFsType(sfntWithFsType(0x0002, true), 1)).toBe(true);
+        expect(restrictedByFsType(new Uint8Array(6))).toBeUndefined();
+        expect(restrictedByFsType(sfntWithFsType(0x0002).subarray(0, 30))).toBeUndefined();
+    });
+
+    test("finds the face by its PostScript name through fontconfig; an unknown face is not restricted", async () => {
+        expect(await restrictedFonts(["CCCCCC+NoSuchFont-Regular"])).toEqual(new Set());
+        if (CFF_FACE === "URW Gothic") expect(await restrictedFonts(["DDDDDD+URWGothic-Book"])).toEqual(new Set());
     });
 });

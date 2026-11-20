@@ -198,6 +198,13 @@ The WASM renderer takes the same option: `createWasmRenderer({ fonts, onMissingF
 Puppeteer checks the faces in the page before printing: one canvas width
 comparison per distinct `font-family` list, not per run.
 
+Chromium writes a face with CFF outlines (an OpenType `OTTO` font) as a Type 3
+font of glyph drawings; the renderer rewrites it as an embedded Type 1C font, as
+PowerPoint's export embeds it. A face whose licence forbids embedding (OS/2
+`fsType` restricted) stays Type 3, as Chromium wrote it: the renderer finds the
+font file by the face's PostScript name through fontconfig (`fc-match`).
+Without fontconfig the face cannot be identified and is rewritten.
+
 ### Image size limits (`imageLimits`)
 
 A few KB of PNG can declare billions of pixels, and decoding them exhausts

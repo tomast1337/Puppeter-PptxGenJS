@@ -10,9 +10,10 @@ import { appendObjects, objectOffsets, type PdfObject, pdfText, readTrailer } fr
  * Skia writes y-down. `withType1CFonts` rewrites each such font as a Type 1 font with a CFF program built from
  * those same glyph procedures, so the glyphs, codes, encoding, widths and ToUnicode stay as Chromium wrote them
  * and no content stream changes. A Type 3 font whose glyphs are not plain filled outlines (colour or bitmap glyphs,
- * even-odd fills) stays as it is.
+ * even-odd fills) stays as it is, and so does one whose /FontName is in `restricted`: Skia also writes a face whose
+ * licence forbids embedding (OS/2 fsType) as Type 3, and PowerPoint's export does not embed it either.
  */
-export function withType1CFonts(pdf: Uint8Array): Uint8Array {
+export function withType1CFonts(pdf: Uint8Array, restricted: ReadonlySet<string> = new Set()): Uint8Array {
     const text = pdfText(pdf);
     if (!TYPE3.test(text)) return pdf;
     const offsets = objectOffsets(text, fontError);
@@ -21,12 +22,35 @@ export function withType1CFonts(pdf: Uint8Array): Uint8Array {
     let next = trailer.size;
     for (const match of text.matchAll(TYPE3_ALL)) {
         const font = objectContaining(text, match.index, offsets);
+        if (font && restricted.has(descriptorFontName(text, offsets, font))) continue;
         const rewritten = font && type1CFont(text, offsets, font, next);
         if (!rewritten) continue;
         objects.push(rewritten.font, rewritten.descriptor, rewritten.fontFile);
         next += NEW_OBJECTS_PER_FONT;
     }
     return objects.length ? appendObjects(pdf, trailer, objects) : pdf;
+}
+
+/** The /FontName of each Type 3 font in `pdf`, as its descriptor writes it (with the subset tag). */
+export function type3FontNames(pdf: Uint8Array): string[] {
+    const text = pdfText(pdf);
+    if (!TYPE3.test(text)) return [];
+    const offsets = objectOffsets(text, fontError);
+    const names = new Set<string>();
+    for (const match of text.matchAll(TYPE3_ALL)) {
+        const font = objectContaining(text, match.index, offsets);
+        if (font) names.add(descriptorFontName(text, offsets, font));
+    }
+    return [...names];
+}
+
+/** The /FontName in the descriptor of Type 3 `font`. */
+function descriptorFontName(text: string, offsets: ReadonlyMap<number, number>, font: IndirectObject): string {
+    const descriptorNumber = Number(DESCRIPTOR.exec(font.body)?.[1] ?? Number.NaN);
+    if (!Number.isInteger(descriptorNumber)) throw fontError(`its Type 3 font ${font.number} has no /FontDescriptor`);
+    const fontName = FONT_NAME.exec(object(text, offsets, descriptorNumber).dictionary)?.[1];
+    if (fontName === undefined) throw fontError(`the descriptor of its Type 3 font ${font.number} has no /FontName`);
+    return fontName;
 }
 
 interface IndirectObject {
