@@ -15,10 +15,7 @@ const PACKAGES = [
     { name: "pptxgenjs", entrypoints: ["index", "html"] },
     { name: "wasm", entrypoints: ["browser", "node"] },
     { name: "react", entrypoints: ["index"] },
-    // Pure re-exports, so transpiled instead of bundled: with the root tsconfig paths, Bun 1.4.0 (CI)
-    // bundles `export { default } from "@pdflapas/pptxgenjs"` to an export of an undeclared binding.
-    { name: "puppeteer-pptxgenjs", entrypoints: ["index", "html", "react", "wasm"], transpileOnly: true },
-] as { name: string; entrypoints: string[]; transpileOnly?: boolean }[];
+] as { name: string; entrypoints: string[] }[];
 
 const RELATIVE_SPECIFIER = /(\bfrom\s*|\bimport\(\s*)(["'])(\.{1,2}\/[^"']*)\2/g;
 
@@ -58,43 +55,35 @@ async function declarationFiles(directory: string): Promise<string[]> {
 
 const configDirectory = await mkdtemp(join(tmpdir(), "pdflapas-build-"));
 try {
-    for (const { name, entrypoints, transpileOnly } of PACKAGES) {
+    for (const { name, entrypoints } of PACKAGES) {
         const packageDirectory = resolve(packagesDirectory, name);
         const outputDirectory = resolve(packageDirectory, "dist");
         if (outputDirectory === packageDirectory) throw new Error("Refusing to clean a package root");
         await rm(outputDirectory, { recursive: true, force: true });
 
-        if (transpileOnly) {
-            const transpiler = new Bun.Transpiler({ loader: "ts", target: "node" });
-            for (const entry of entrypoints) {
-                await Bun.write(resolve(outputDirectory, `${entry}.js`), transpiler.transformSync(await readFile(resolve(packageDirectory, `src/${entry}.ts`), "utf8")));
-            }
-        }
-        const bundle = transpileOnly
-            ? { success: true, logs: [], outputs: entrypoints }
-            : await Bun.build({
-                  entrypoints: entrypoints.map(entry => resolve(packageDirectory, `src/${entry}.ts`)),
-                  outdir: outputDirectory,
-                  target: "node",
-                  format: "esm",
-                  // Dependencies, including the other @pdflapas packages, stay imports.
-                  packages: "external",
-                  // The root tsconfig maps @pdflapas/* to sources for development; never inline them.
-                  external: ["@pdflapas/*"],
-                  // `packages: "external"` also keeps "#src/..." subpath imports external (Bun 1.4.4); resolve them through
-                  // the package's imports map, to its own sources, so they are inlined.
-                  plugins: [
-                      {
-                          name: "inline-src-imports",
-                          setup: build => {
-                              build.onResolve({ filter: /^#src\// }, ({ path, importer }) => ({ path: Bun.resolveSync(path, importer) }));
-                          },
-                      },
-                  ],
-                  sourcemap: "inline",
+        const bundle = await Bun.build({
+            entrypoints: entrypoints.map(entry => resolve(packageDirectory, `src/${entry}.ts`)),
+            outdir: outputDirectory,
+            target: "node",
+            format: "esm",
+            // Dependencies, including the other @pdflapas packages, stay imports.
+            packages: "external",
+            // The root tsconfig maps @pdflapas/* to sources for development; never inline them.
+            external: ["@pdflapas/*"],
+            // `packages: "external"` also keeps "#src/..." subpath imports external (Bun 1.4.4); resolve them through
+            // the package's imports map, to its own sources, so they are inlined.
+            plugins: [
+                {
+                    name: "inline-src-imports",
+                    setup: build => {
+                        build.onResolve({ filter: /^#src\// }, ({ path, importer }) => ({ path: Bun.resolveSync(path, importer) }));
+                    },
+                },
+            ],
+            sourcemap: "inline",
 
-                  minify: true,
-              });
+            minify: true,
+        });
         if (!bundle.success) {
             bundle.logs.forEach(log => {
                 console.error(log);
@@ -194,8 +183,4 @@ if (!entrypoint.PAGE_SIZES || !entrypoint.PPTX_DEFAULTS_VERSION || typeof entryp
 const htmlEntrypoint = await import(`${pathToFileURL(resolve(pptxDirectory, "html.js")).href}?build-smoke=${Date.now()}`);
 if (typeof htmlEntrypoint.default !== "function" || htmlEntrypoint.default === entrypoint.default || "closeBrowser" in htmlEntrypoint) {
     throw new Error("Built html entrypoint must expose the core PuppeteerGen without Node adapters");
-}
-for (const entry of ["index", "html"]) {
-    const shim = await import(`${pathToFileURL(resolve(packagesDirectory, `puppeteer-pptxgenjs/dist/${entry}.js`)).href}?build-smoke=${Date.now()}`);
-    if (typeof shim.default !== "function" || shim.default !== shim.PuppeteerGen) throw new Error(`Built puppeteer-pptxgenjs/dist/${entry}.js does not re-export PuppeteerGen as its default`);
 }

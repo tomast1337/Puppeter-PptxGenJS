@@ -189,7 +189,7 @@ export function resolvedImageDataUri(source: string, result: unknown): DataUri {
 export async function resolveRemoteImageSource(source: string, options: ImageSourceOptions = {}): Promise<string> {
     if (/^data:/i.test(source)) return imageDataUri(source);
     if (/^https?:\/\//i.test(source)) return fetchImage(source, options);
-    throw new Error(`Cannot resolve image path '${source}' without filesystem access: use the Node entry ("puppeteer-pptxgenjs") or pass a resolveImage option`);
+    throw new Error(`Cannot resolve image path '${source}' without filesystem access: use the Node entry ("@pdflapas/pptxgenjs") or pass a resolveImage option`);
 }
 
 function normalizeSizing(sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | undefined, sourceWidth: number, sourceHeight: number, boxWidth: number, boxHeight: number, pageWidth: number, pageHeight: number): NormalizedImageSizing {

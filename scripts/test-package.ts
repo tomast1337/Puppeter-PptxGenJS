@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const PACKAGES = ["model", "puppeteer", "pptxgenjs", "wasm", "react", "puppeteer-pptxgenjs"];
+const PACKAGES = ["model", "puppeteer", "pptxgenjs", "wasm", "react"];
 
 const projectRoot = resolve(import.meta.dir, "..");
 const temporaryRoot = await mkdtemp(join(tmpdir(), "pdflapas-consumer-"));
@@ -345,13 +345,6 @@ try {
         html: "@pdflapas/pptxgenjs/html",
         wasm: "@pdflapas/wasm",
         react: "@pdflapas/react",
-    });
-    // The deprecation shim runs the consumer sources unchanged from the single-package release: a drop-in proof.
-    await checkConsumer(join(temporaryRoot, "legacy-consumer"), ["puppeteer-pptxgenjs"], {
-        main: "puppeteer-pptxgenjs",
-        html: "puppeteer-pptxgenjs/html",
-        wasm: "puppeteer-pptxgenjs/wasm",
-        react: "puppeteer-pptxgenjs/react",
     });
 } finally {
     await rm(temporaryRoot, { recursive: true, force: true });

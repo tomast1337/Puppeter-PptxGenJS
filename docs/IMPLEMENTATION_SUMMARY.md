@@ -201,8 +201,7 @@ The generated CSS includes:
 │   │   └── index.ts           # Node entry (@pdflapas/pptxgenjs)
 │   ├── puppeteer/src/     # @pdflapas/puppeteer: PuppeteerPdfRenderer and the shared browser
 │   ├── wasm/src/          # @pdflapas/wasm: WASM backend loaders + wasm-bindgen glue
-│   ├── react/src/         # @pdflapas/react: React component adapter
-│   └── puppeteer-pptxgenjs/src/  # Deprecation shim re-exporting the packages above
+│   └── react/src/         # @pdflapas/react: React component adapter
 ├── crates/                # Rust workspace: pdf-core (model -> PDF) and pdf-wasm (wasm-bindgen)
 ├── examples/
 │   ├── test.ts                   # Basic example

@@ -51,15 +51,6 @@
         "puppeteer": "^24.15.0",
       },
     },
-    "packages/puppeteer-pptxgenjs": {
-      "name": "puppeteer-pptxgenjs",
-      "version": "0.2.0",
-      "dependencies": {
-        "@pdflapas/pptxgenjs": "workspace:*",
-        "@pdflapas/react": "workspace:*",
-        "@pdflapas/wasm": "workspace:*",
-      },
-    },
     "packages/react": {
       "name": "@pdflapas/react",
       "version": "0.2.0",
@@ -312,8 +303,6 @@
     "puppeteer": ["puppeteer@24.15.0", "", { "dependencies": { "@puppeteer/browsers": "2.10.6", "chromium-bidi": "7.2.0", "cosmiconfig": "^9.0.0", "devtools-protocol": "0.0.1464554", "puppeteer-core": "24.15.0", "typed-query-selector": "^2.12.0" }, "bin": { "puppeteer": "lib/cjs/puppeteer/node/cli.js" } }, "sha512-HPSOTw+DFsU/5s2TUUWEum9WjFbyjmvFDuGHtj2X4YUz2AzOzvKMkT3+A3FR+E+ZefiX/h3kyLyXzWJWx/eMLQ=="],
 
     "puppeteer-core": ["puppeteer-core@24.15.0", "", { "dependencies": { "@puppeteer/browsers": "2.10.6", "chromium-bidi": "7.2.0", "debug": "^4.4.1", "devtools-protocol": "0.0.1464554", "typed-query-selector": "^2.12.0", "ws": "^8.18.3" } }, "sha512-2iy0iBeWbNyhgiCGd/wvGrDSo73emNFjSxYOcyAqYiagkYt5q4cPfVXaVDKBsukgc2fIIfLAalBZlaxldxdDYg=="],
-
-    "puppeteer-pptxgenjs": ["puppeteer-pptxgenjs@workspace:packages/puppeteer-pptxgenjs"],
 
     "queue": ["queue@6.0.2", "", { "dependencies": { "inherits": "~2.0.3" } }, "sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA=="],
 

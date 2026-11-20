@@ -73,7 +73,7 @@ function renderSlide(slide: NormalizedSlide, index: number, pass: RenderPass): H
 /** Default document factory for browser runtimes; the Node entry injects jsdom instead. */
 export function createBrowserDocument(): Document {
     const document = (globalThis as { document?: Document }).document;
-    if (!document) throw new Error('No DOM is available: pass a createDocument option to PuppeteerGen, or use the Node entry ("puppeteer-pptxgenjs")');
+    if (!document) throw new Error('No DOM is available: pass a createDocument option to PuppeteerGen, or use the Node entry ("@pdflapas/pptxgenjs")');
     return document.implementation.createHTMLDocument();
 }
 

@@ -345,7 +345,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     /** PDF bytes from the configured renderer; nothing is written to disk. */
     async toPdf(): Promise<Uint8Array> {
-        if (!this.renderer) throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("puppeteer-pptxgenjs") for the Puppeteer default');
+        if (!this.renderer) throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("@pdflapas/pptxgenjs") for the Puppeteer default');
         // A renderer with only renderModel() (the model input, removed in #69) would otherwise fail as "render is not a function".
         if (typeof this.renderer.render !== "function") throw new Error("toPdf() renderer must implement render(document: HtmlPresentationDocument): every renderer reads the toHtml() document, renderModel(model) was removed (#69)");
         return this.renderer.render(await this.toHtml());
@@ -355,7 +355,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     async writeFile(props?: PptxWriteFileProps | string): Promise<string> {
         const fileName = resolveFileName(props);
         if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
-            throw new Error('writeFile() downloads the PDF in a browser, or writes it to disk from the Node entry ("puppeteer-pptxgenjs"); this runtime has neither a document nor a filesystem, so use toPdf() or toHtml() instead');
+            throw new Error('writeFile() downloads the PDF in a browser, or writes it to disk from the Node entry ("@pdflapas/pptxgenjs"); this runtime has neither a document nor a filesystem, so use toPdf() or toHtml() instead');
         }
         downloadPdf(document, fileName, await this.toPdf());
         return fileName;
