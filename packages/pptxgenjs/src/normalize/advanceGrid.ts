@@ -88,7 +88,8 @@ export function fullWidthStretches(text: string, font: GlyphAdvances): string[] 
         else stretches[stretches.length - 1] += character;
         wide = kind ?? wide;
     }
-    return stretches;
+    // An empty run stays one run: it is an empty paragraph's line, whose height the paragraph keeps.
+    return stretches.length ? stretches : [text];
 }
 
 /** `text` as its words and the spaces and tabs between them, in order. */
