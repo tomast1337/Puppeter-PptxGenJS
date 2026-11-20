@@ -75,7 +75,7 @@ export type { ImageSourceOptions } from "./normalize/image";
 export type { PdfMetadataOptions } from "./normalize/pdfMetadata";
 export type { PuppeteerGenOptions } from "./PuppeteerGen";
 export type { PuppeteerSlide } from "./PuppeteerSlide";
-export type { Orientation, PageLayout, PageSize, PageSizeName } from "./pageLayouts";
+export type { Orientation, PageLayout, PageSize, PageSizeInput, PageSizeName } from "./pageLayouts";
 export type { PptxGenJSLike, PptxShapeProps, PptxSlide, PptxTableProps, PptxTableRow, PptxTextProps, PptxTextPropsOptions, PptxWriteFileProps, PptxWriteProps } from "./pptx";
 export type { HtmlPresentationDocument, ModelToHtmlOptions, PresentationRenderer } from "./render/document";
 export type { ComponentLookup } from "./render/slide";

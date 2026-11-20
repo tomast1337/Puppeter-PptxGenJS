@@ -1,4 +1,4 @@
-import type { PageSize } from "./types";
+import type { PageSizeInput } from "./types";
 
 /**
  * The /Creator and /Producer every renderer writes to the PDF Info dictionary unless the document sets its own
@@ -10,7 +10,8 @@ export const PDF_PRODUCER = "PdfLapas";
 
 export interface HtmlPresentationDocument {
     html: string;
-    pageSize: PageSize;
+    // Plain inches: a renderer also renders a document its caller built (#277).
+    pageSize: PageSizeInput;
 }
 
 /** Turns the HTML document (`toHtml()`, `modelToHtml()`) into PDF bytes: every renderer reads only the HTML (#69). */

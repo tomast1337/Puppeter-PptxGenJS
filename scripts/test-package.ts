@@ -115,6 +115,13 @@ console.log("standalone package consumer passed");
 `;
     const consumerSourcePath = join(consumerDirectory, "consumer.ts");
     await Bun.write(consumerSourcePath, consumerSource);
+    // The public API with plain PptxGenJS literals against the built declarations: no internal brand leaks (#277).
+    const apiTypes = await Bun.file(resolve(projectRoot, "tests/publicApiTypes.ts")).text();
+    const apiTypesEntries: Record<string, string> = { "@pdflapas/pptxgenjs": names.main, "@pdflapas/pptxgenjs/html": names.html, "@pdflapas/wasm": names.wasm };
+    await Bun.write(
+        join(consumerDirectory, "api-types-consumer.ts"),
+        apiTypes.replace(/from "([^"]+)"/g, (statement, specifier: string) => `from "${apiTypesEntries[specifier] ?? specifier}"`),
+    );
     await Bun.write(
         join(consumerDirectory, "tsconfig.json"),
         JSON.stringify(
@@ -129,7 +136,7 @@ console.log("standalone package consumer passed");
                     types: [],
                     noEmit: true,
                 },
-                files: ["consumer.ts"],
+                files: ["consumer.ts", "api-types-consumer.ts"],
             },
             null,
             2,

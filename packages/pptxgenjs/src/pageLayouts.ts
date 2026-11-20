@@ -1,9 +1,9 @@
 // Common page sizes and layouts for presentation/document generation
-import type { PageSize } from "@pdflapas/model";
-import { inches } from "@pdflapas/model";
+import type { PageSize, PageSizeInput } from "@pdflapas/model";
+import { CUSTOM_PAGE_SIZE_NAME, inches } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "./defaults";
 
-export type { PageSize } from "@pdflapas/model";
+export type { PageSize, PageSizeInput } from "@pdflapas/model";
 
 export interface PageLayout {
     landscape: PageSize;
@@ -13,6 +13,17 @@ export interface PageLayout {
 /** A page size from its width and height in inches. */
 export function pageSize(width: number, height: number, name: string): PageSize {
     return { width: inches(width), height: inches(height), name };
+}
+
+/** A caller's page size, checked and branded: width and height in inches greater than zero, name optional. */
+export function checkedPageSize(caller: string, input: Partial<PageSizeInput> | undefined): PageSize {
+    // Number(): PptxGenJS callers in plain JavaScript may pass numeric strings, which PptxGenJS multiplies as numbers.
+    const width = Number(input?.width);
+    const height = Number(input?.height);
+    if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
+        throw new Error(`${caller} needs { name, width, height } with width and height in inches greater than zero, got ${JSON.stringify(input)}`);
+    }
+    return pageSize(width, height, typeof input?.name === "string" && input.name ? input.name : CUSTOM_PAGE_SIZE_NAME);
 }
 
 // Common page sizes (dimensions in inches)

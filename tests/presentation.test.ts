@@ -97,6 +97,17 @@ describe("presentation properties read like PptxGenJS 4.0.1", () => {
         expect(pres.getModel().pageSize).toEqual(PAGE_SIZES.SCREEN_16X9.landscape);
     });
 
+    test("the constructor and setPageSize() take plain inches and check them, as defineLayout() does (#277)", () => {
+        const pres = new PuppeteerGen({ width: 10, height: 5.625, name: "Plain" });
+        expect(pres.getModel().pageSize).toEqual(pageSize(10, 5.625, "Plain"));
+        expect(pres.presLayout.name).toBe("Plain");
+        pres.setPageSize({ width: 8.5, height: 11, name: "Letter" });
+        expect(pres.getModel().pageSize).toEqual(pageSize(8.5, 11, "Letter"));
+        expect(() => pres.setPageSize({ width: -1, height: 5, name: "Bad" })).toThrow("setPageSize() needs { name, width, height } with width and height in inches greater than zero");
+        expect(() => new PuppeteerGen({ width: Number.POSITIVE_INFINITY, height: 5, name: "Bad" })).toThrow("new PuppeteerGen(pageSize) needs");
+        expect(pres.getModel().pageSize).toEqual(pageSize(8.5, 11, "Letter"));
+    });
+
     test("rtlMode is stored like PptxGenJS and, like PptxGenJS's slides, draws nothing differently", async () => {
         const reference = new pptxgen();
         const pres = new PuppeteerGen();
