@@ -19,6 +19,8 @@ export interface Shaper {
     chain(request: FaceRequest): FaceChain;
     /** The advance of `text` in `face` at `size` px, letter spacing after every character included. */
     width(face: Face, text: string, size: number, features: Features, letterSpacing: number): number;
+    /** The kerning between `first` and `second` in `face` at `size` px: what shaping them together moves the second. */
+    kern(face: Face, first: string, second: string, size: number, features: Features): number;
 }
 
 export function createShaper(faces: readonly Face[]): Shaper {
@@ -43,6 +45,10 @@ export function createShaper(faces: readonly Face[]): Shaper {
                 advances.set(key, em);
             }
             return em * size + letterSpacing * Array.from(text).length;
+        },
+        kern(face, first, second, size, featureSet) {
+            if (!first || !second || featureSet.kern === false) return 0;
+            return this.width(face, first + second, size, featureSet, 0) - this.width(face, first, size, featureSet, 0) - this.width(face, second, size, featureSet, 0);
         },
     };
 }
