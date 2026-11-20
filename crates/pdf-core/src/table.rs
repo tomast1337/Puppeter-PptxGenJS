@@ -112,7 +112,8 @@ fn grow_rows(heights: &mut [f32], needs: impl Iterator<Item = (usize, usize, f32
             *h = h.max(need);
         }
     }
-    // shortcut: the shortfall of a spanning cell goes to its last row; spread it if a reference shows otherwise.
+    // PowerPoint puts what a merged cell lacks on its last row: measured against its PDF export of a synthetic deck
+    // (merged in pairs and threes, 2 to 5 lines), the other rows keep their own height.
     for (row, rows, need) in needs.filter(|(_, rows, _)| *rows > 1) {
         let spanned = heights.get(row..row + rows).map_or(0.0, |hs| hs.iter().sum::<f32>());
         if need > spanned

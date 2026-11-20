@@ -27,7 +27,24 @@ function slackMargin({ margin, verticalAlign }: NormalizedTextBox, slack: number
     return [top + above, right, bottom + slack - above, left];
 }
 
-function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: number): Html {
+/**
+ * The rows a merged cell ends in. PowerPoint gives such a row what the merged cell lacks and keeps the other rows at
+ * their own height (measured against its PDF export of a synthetic deck: merged in pairs and threes, 2 to 5 lines),
+ * but Chromium spreads it over the spanned rows that have a height, in proportion to them; it gives it to the one row
+ * without a height when the others have one. So such a row carries its height as its cells' text `min-height`
+ * instead: the printed text box spans the row, half borders included (printWorkarounds cellInset).
+ * shortcut: a merged cell's rows that it does not end, without a height, still share the shortfall in Chromium
+ * (the WASM renderer gives it to the last); fix when such a row is measured.
+ */
+function mergedCellEnds(table: NormalizedTable): ReadonlySet<number> {
+    const ends = new Set<number>();
+    table.rows.forEach((row, index) => {
+        for (const cell of row.cells) if (cell.rowspan > 1) ends.add(Math.min(index + cell.rowspan, table.rows.length) - 1);
+    });
+    return ends;
+}
+
+function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: number, minHeight?: number): Html {
     const css: InlineStyle = new Map([
         ["padding", "0px"],
         ["overflow", "hidden"],
@@ -56,6 +73,7 @@ function renderCell(cell: NormalizedTableCell, rowHeight: RowHeight, slack: numb
     } else {
         textCss.set("width", "100%");
     }
+    if (minHeight !== undefined) textCss.set("min-height", `${minHeight}px`);
     textCss.set("overflow", "hidden");
     // shortcut: a row whose height is shorter than its text grows without the slack; add it once a fixture shows it.
     const text = renderText(textCss, rowHeight === "auto" && slack ? { ...cell.text, margin: slackMargin(cell.text, slack) } : cell.text);
@@ -75,10 +93,20 @@ export function renderTable(table: NormalizedTable): Html {
         [],
         table.columns.map(width => voidElement("col", [styleAttribute(new Map([["width", cssPx(width)]]))])),
     );
-    const rows = table.rows.map(row => {
-        const rowHeight: RowHeight = row.height !== undefined ? "fixed" : "auto";
+    const ends = mergedCellEnds(table);
+    const rows = table.rows.map((row, index) => {
+        // Vertical text needs a definite row height (renderCell), so its row keeps it.
+        const { height } = row;
+        if (height !== undefined && ends.has(index) && row.cells.every(cell => cell.text.direction === "horizontal")) {
+            return element(
+                "tr",
+                [],
+                row.cells.map(cell => renderCell(cell, "auto", 0, height)),
+            );
+        }
+        const rowHeight: RowHeight = height !== undefined ? "fixed" : "auto";
         const cells = row.cells.map(cell => renderCell(cell, rowHeight, table.contentRowSlack ?? 0));
-        return element("tr", [styleAttribute(new Map(row.height !== undefined ? [["height", cssPx(row.height)]] : []))], cells);
+        return element("tr", [styleAttribute(new Map(height !== undefined ? [["height", cssPx(height)]] : []))], cells);
     });
     return element("table", [["class", "slide-table"], styleAttribute(css)], [columns, ...rows]);
 }

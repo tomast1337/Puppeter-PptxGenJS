@@ -442,7 +442,10 @@ LibreOffice; only vertical text in a row with a height fills the cell (`position
 margins are the `.table-cell-text` padding; the WASM renderer refuses another value. In a row sized to its content (no row or table
 height), the cell's `padding` also holds the table's `contentRowSlack`: on the bottom for top text, half on
 each side for middle, on the top for bottom, so the row is that much taller than its text and margins and the
-text sits where the anchor puts it. Borders are
+text sits where the anchor puts it. A row a merged cell (`rowspan`) ends in has no `height` on its `tr`: each of its
+cells' `.table-cell-text` carries it as `min-height`, so Chromium gives that row, and not the others the cell
+spans, what the merged cell lacks, as PowerPoint does. The WASM renderer reads the row's height back as the
+largest `min-height`. Borders are
 `<width>px <solid|dashed> <color>` per side, `transparent` when hidden. A renderer strokes them as PowerPoint
 and LibreOffice do: each grid edge once, however many cells share it (the wider side wins, as in CSS's collapsing
 border model, and on a tie the first cell in document order), and each run of edges along a grid line with the
@@ -894,7 +897,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTable.columns`         | profile | One `col` per column with `width: <n>px`.                                                      |
 | `NormalizedTable.rows`            | profile | One `tr` per row.                                                                              |
 | `NormalizedTable.contentRowSlack` | profile | Added to the `.table-cell-text` `padding` of rows without a height, by vertical anchor.        |
-| `NormalizedTableRow.height`       | profile | `tr` `height`, omitted when undefined.                                                         |
+| `NormalizedTableRow.height`       | profile | `tr` `height`; where a merged cell ends, `.table-cell-text` `min-height`.                      |
 | `NormalizedTableRow.cells`        | profile | `td` children.                                                                                 |
 | `NormalizedTableCell.text`        | profile | `div.table-cell-text`, a text box as for text objects.                                         |
 | `NormalizedTableCell.colspan`     | profile | `colspan`.                                                                                     |

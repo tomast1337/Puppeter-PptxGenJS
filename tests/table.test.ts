@@ -382,6 +382,46 @@ describe("cells beyond the grid columns (#286)", () => {
     });
 });
 
+// Measured against PowerPoint's PDF export of a synthetic deck: a merged cell taller than its rows lengthens its last
+// row only. 10pt Arial, margins 3.6pt top and bottom (a 19.2pt row), the first column merged in pairs of 3 lines (43.2pt
+// for 38.4): 19.2, 24.0 per pair, where Chromium spreads it to 21.6, 21.6 by itself.
+describe("a merged cell's shortfall goes to its last row", () => {
+    // Chromium snaps a border to whole px on screen (in print it does not), so the measured table has none.
+    const mergedTable = (presentation: PuppeteerGen, bordered = true) => {
+        const line = { type: "solid", pt: 0.6, color: "FFFFFF" } as const;
+        const none = { type: "none" } as const;
+        const options: PptxGenJS.TableCellProps = { margin: [3.6, 7.2, 3.6, 7.2], border: [none, none, bordered ? line : none, none] };
+        const rows = [0, 1, 2, 3].map(index => [...(index % 2 === 0 ? [{ text: "Lorem\nIpsum\nDolor", options: { ...options, rowspan: 2 } }] : []), { text: "Amet", options }, { text: "Sit", options }]);
+        presentation.addSlide().addTable(rows, { x: 0.3, y: 0.3, colW: [1.2, 2, 1.2], rowH: 0.1, fontFace: "Arial", fontSize: 10, valign: "middle" });
+    };
+
+    test("the row a merged cell ends in carries its height as its cells' text min-height, not on the tr", () => {
+        const presentation = new PuppeteerGen(PAGE);
+        mergedTable(presentation);
+        const rows = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-table tr"));
+        expect(rows.map(row => parseFloat(row.style.height || "0"))).toEqual([9.6, 0, 9.6, 0].map(px => expect.closeTo(px, 6)));
+        expect(Array.from(rows[1]!.querySelectorAll<HTMLElement>(".table-cell-text"), cell => parseFloat(cell.style.minHeight))).toEqual([9.6, 9.6].map(px => expect.closeTo(px, 6)));
+        expect(rows[0]!.querySelector<HTMLElement>(".table-cell-text")?.style.minHeight).toBe("");
+    });
+
+    test("Chromium sizes the rows as PowerPoint does", async () => {
+        const presentation = new PuppeteerGen(PAGE);
+        mergedTable(presentation, false);
+        const { html } = await presentation.toHtml();
+        const tops = await withBrowser(async browser => {
+            const page = await browser.newPage();
+            try {
+                await page.setContent(html);
+                return await page.evaluate(() => Array.from(document.querySelectorAll(".slide-table tr"), row => row.getBoundingClientRect().top));
+            } finally {
+                await page.close();
+            }
+        });
+        // Row pitch, top to top: the tr boxes overlap by half the collapsed borders.
+        expect(tops.slice(1).map((top, index) => (top - (tops[index] ?? 0)) * 0.75)).toEqual([19.2, 24, 19.2].map(pt => expect.closeTo(pt, 1)));
+    });
+});
+
 /** The `<a:tr h>` PptxGenJS 4.0.1 writes for a one-slide table, in inches to 4 places; 0 is a row sized to its content. */
 async function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Promise<number[]> {
     const pptx = new PptxGenJSRuntime();

@@ -28,7 +28,7 @@ const CELL_CSS: &[&str] = &[
     "border-bottom",
     "border-left",
 ];
-const CELL_TEXT_CSS: &[&str] = &["display", "box-sizing", "position", "inset", "width"];
+const CELL_TEXT_CSS: &[&str] = &["display", "box-sizing", "position", "inset", "width", "min-height"];
 /// What `borderCSS` writes for a hidden border.
 const HIDDEN_BORDER: &str = "0px none transparent";
 
@@ -78,19 +78,22 @@ fn read_row(dom: &Dom<'_>, row: &Element<'_>) -> Result<TableRow, String> {
     }
     let style = Style::of(row)?;
     allow(row, &style, &[], &[&["height"]])?;
-    let cells = dom
-        .elements_of(&row.children)?
-        .into_iter()
-        .enumerate()
-        .map(|(i, cell)| read_cell(dom, cell).map_err(|e| format!("cell {}: {e}", i + 1)))
-        .collect::<Result<_, _>>()?;
-    Ok(TableRow {
-        height: style.px("height")?,
-        cells,
-    })
+    let mut height = style.px("height")?;
+    let mut cells = Vec::new();
+    for (i, cell) in dom.elements_of(&row.children)?.into_iter().enumerate() {
+        let (cell, min_height) = read_cell(dom, cell).map_err(|e| format!("cell {}: {e}", i + 1))?;
+        // A row a merged cell ends in carries its height as its cells' text `min-height`, so Chromium gives it what
+        // the merged cell lacks (render/table.ts mergedCellEnds).
+        if let Some(min_height) = min_height {
+            height = Some(height.map_or(min_height, |h| h.max(min_height)));
+        }
+        cells.push(cell);
+    }
+    Ok(TableRow { height, cells })
 }
 
-fn read_cell(dom: &Dom<'_>, cell: &Element<'_>) -> Result<TableCell, String> {
+/// The cell, and its text's `min-height` (px) when it has one.
+fn read_cell(dom: &Dom<'_>, cell: &Element<'_>) -> Result<(TableCell, Option<f32>), String> {
     if cell.name != "td" {
         return Err(format!("expected <td>, found <{}>", cell.name));
     }
@@ -130,13 +133,15 @@ fn read_cell(dom: &Dom<'_>, cell: &Element<'_>) -> Result<TableCell, String> {
         // PptxGenJS writes a bare <a:bodyPr/> in a cell: no autofit, the row grows to the text instead.
         return Err("div.table-cell-text: attribute 'data-text-fit' must be 'none' (a table cell has no autofit; its row grows to the text)".into());
     }
-    Ok(TableCell {
+    let min_height = text_style.px("min-height")?;
+    let cell = TableCell {
         text,
         colspan: span("colspan")?,
         rowspan: span("rowspan")?,
         fill: style.color("background-color")?.map(|color| FillModel { visible: true, color }),
         borders,
-    })
+    };
+    Ok((cell, min_height))
 }
 
 /// `border-<side>: <width>px <style> <color>`, or `0px none transparent` when hidden, and the
@@ -249,6 +254,17 @@ mod tests {
             let error = table(&rows).err().unwrap_or_default();
             assert!(error.starts_with("slide 1: object 'Tb': "), "{rows}: {error}");
         }
+    }
+
+    // A row a merged cell ends in carries its height on its cells' text (render/table.ts mergedCellEnds): the largest
+    // `min-height`, or the `tr` height when that is larger.
+    #[test]
+    fn reads_a_row_height_from_its_cells_min_height() {
+        let with_min = |min: &str| cell(r#"colspan="1" rowspan="1""#, BORDERS).replacen("width: 100%;", &format!("width: 100%; min-height: {min};"), 1);
+        let object = table(&format!("<tr>{}{}</tr>", with_min("20px"), with_min("30px"))).unwrap();
+        assert_eq!(object.table.rows.first().and_then(|row| row.height), Some(30.0));
+        let object = table(&format!(r#"<tr style="height: 40px">{}</tr>"#, with_min("20px"))).unwrap();
+        assert_eq!(object.table.rows.first().and_then(|row| row.height), Some(40.0));
     }
 
     // Chromium pads a td without `padding: 0px` with the stylesheet's table margin, which would draw a taller row (#291).
