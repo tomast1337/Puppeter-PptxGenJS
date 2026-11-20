@@ -114,6 +114,7 @@ async function prepareForPrint(): Promise<string[]> {
     const marked = markedParagraphs();
     shrinkTextToFit();
     raiseMarkedLines(marked);
+    justifyAtSpaces();
     strokeTableBorders();
     return failedImages();
 
@@ -311,6 +312,107 @@ async function prepareForPrint(): Promise<string[]> {
                 return { index, offset: high };
             }
             return start;
+        }
+    }
+
+    /**
+     * Justifies each `text-justify: inter-word` paragraph (docs/HTML_PROFILE.md, Text) at its spaces only, which Chromium
+     * has no `text-justify` for: its `auto` widens every Han character too. The paragraph is laid out left-aligned, which
+     * moves no break, and each line that CSS justifies (not the last, not one ending in a soft break) gets the
+     * `word-spacing` that takes its last character to the right edge, on spans around its text. A line without a space
+     * stays at its start, as `inter-word` says. The spacing must not move a break: a paragraph in which a line no longer
+     * fits after it (the line breaker sums widths its own way) goes back to left-aligned, every break where it was.
+     * shortcut: horizontal left-to-right paragraphs only; an RTL or vertical one keeps Chromium's `auto`.
+     */
+    function justifyAtSpaces(): void {
+        const INTER_WORD = /(?:^|; )text-justify: inter-word(?:;|$)/;
+        // CSS word-separator characters, which word-spacing widens; trailing ones and zero-width ones end no line.
+        const SEPARATOR = /^[ \u00a0]$/;
+        const TRAILING = /^[\s\u200b\u2060\u3000]$/;
+        const paragraphs = Array.from(document.querySelectorAll<HTMLElement>(".text-paragraph")).filter(paragraph => INTER_WORD.test(paragraph.getAttribute("style") ?? "") && paragraph.style.direction !== "rtl" && paragraph.closest<HTMLElement>(".slide-text")?.dataset.textDirection === "horizontal");
+        if (!paragraphs.length) return;
+        // Client rects are in zoomed px, word-spacing in CSS px; the line breaker rounds each piece up to a LayoutUnit.
+        const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+        const LAYOUT_UNIT = 1 / 64;
+        paragraphs.forEach(paragraph => (paragraph.style.textAlign = "left"));
+        const range = document.createRange();
+        type Character = { node: Text; offset: number; left: number; right: number; text: string };
+        const spreads: { paragraph: HTMLElement; characters: Character[]; spacing: number }[] = [];
+        // All reads first, so the wrapping below does not lay the document out again for each line.
+        for (const paragraph of paragraphs) {
+            const style = getComputedStyle(paragraph);
+            const edge = paragraph.getBoundingClientRect().right - (parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth)) * zoom;
+            const lines: Character[][] = [];
+            const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!(node instanceof Text) || node.parentElement?.closest(".text-bullet")) continue;
+                for (let offset = 0; offset < node.length; offset++) {
+                    range.setStart(node, offset);
+                    range.setEnd(node, offset + 1);
+                    const rect = range.getClientRects()[0];
+                    if (!rect) continue;
+                    const character = { node, offset, left: rect.left, right: rect.right, text: node.data.charAt(offset) };
+                    const line = lines[lines.length - 1];
+                    const previous = line?.[line.length - 1];
+                    // Left to right, a line starts where the text moves back left.
+                    if (!line || !previous || rect.left < previous.left - zoom) lines.push([character]);
+                    else line.push(character);
+                }
+            }
+            lines.slice(0, -1).forEach((line, index) => {
+                const last = line[line.length - 1];
+                const next = lines[index + 1]?.[0];
+                if (!last || !next) return;
+                range.setStart(last.node, last.offset + 1);
+                range.setEnd(next.node, next.offset);
+                if (range.cloneContents().querySelector("br")) return;
+                let end = line.length;
+                while (end > 0 && TRAILING.test(line[end - 1]?.text ?? "")) end--;
+                const content = line.slice(0, end);
+                const spaces = content.filter(({ text }) => SEPARATOR.test(text)).length;
+                const right = content[content.length - 1]?.right;
+                if (!spaces || right === undefined) return;
+                const slack = edge - right - (spaces + 1) * LAYOUT_UNIT;
+                if (slack > 0) spreads.push({ paragraph, characters: content, spacing: slack / zoom / spaces });
+            });
+        }
+        // Last line first: splitting a text node leaves the offsets of the lines before it valid.
+        const spans = new Map<HTMLElement, HTMLElement[][]>();
+        for (const { paragraph, characters, spacing } of spreads.reverse()) {
+            const line: HTMLElement[] = [];
+            spans.set(paragraph, [...(spans.get(paragraph) ?? []), line]);
+            // One span per text node of the line, around the line's part of it.
+            const parts = new Map<Text, { from: number; to: number }>();
+            for (const { node, offset } of characters) {
+                const part = parts.get(node);
+                parts.set(node, { from: part?.from ?? offset, to: offset + 1 });
+            }
+            for (const [node, { from, to }] of parts) {
+                if (to < node.length) node.splitText(to);
+                const part = from > 0 ? node.splitText(from) : node;
+                const span = document.createElement("span");
+                span.style.wordSpacing = `${spacing}px`;
+                part.replaceWith(span);
+                span.append(part);
+                line.push(span);
+            }
+        }
+        // A line still fits while each of its spans is one box on the line its first span is on: a wrapped part lands a
+        // line height lower, where faces and raised runs move a box's middle by less than half its height.
+        const middle = (rect: DOMRect) => rect.top + rect.height / 2;
+        for (const lines of spans.values()) {
+            const moved = lines.some(line => {
+                const first = line[0]?.getClientRects()[0];
+                return (
+                    !first ||
+                    line.some(span => {
+                        const rects = span.getClientRects();
+                        const rect = rects[0];
+                        return rects.length !== 1 || !rect || Math.abs(middle(rect) - middle(first)) > Math.max(rect.height, first.height) / 2;
+                    })
+                );
+            });
+            if (moved) lines.flat().forEach(span => (span.style.wordSpacing = ""));
         }
     }
 

@@ -112,12 +112,7 @@ function renderRun(run: NormalizedTextRun): Html {
 }
 
 function paragraphAttributes(paragraph: NormalizedTextParagraph): Attribute[] {
-    const css: InlineStyle = new Map([
-        ["text-align", paragraph.align],
-        ["direction", paragraph.rtl ? "rtl" : "ltr"],
-        ["margin-top", `${paragraph.spaceBefore}px`],
-        ["margin-bottom", `${paragraph.spaceAfter}px`],
-    ]);
+    const css: InlineStyle = new Map([["text-align", paragraph.align], ...(paragraph.textJustify ? ([["text-justify", paragraph.textJustify]] as const) : []), ["direction", paragraph.rtl ? "rtl" : "ltr"], ["margin-top", `${paragraph.spaceBefore}px`], ["margin-bottom", `${paragraph.spaceAfter}px`]]);
     // The line box. The stylesheet's strut and the print step's baseline shift draw it (docs/HTML_PROFILE.md).
     const { lineBox, bullet } = paragraph;
     css.set("line-height", `${lineBox.height}px`);
