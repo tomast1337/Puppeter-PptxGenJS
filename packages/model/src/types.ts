@@ -139,7 +139,8 @@ export interface NormalizedTextRun {
     wordCharacterSpacing?: readonly number[];
     /**
      * The extra advance in px on each stretch of spaces between words of `text` (a tab ends one), in order, in place
-     * of `characterSpacing`: the PowerPoint target's pairs kerned on a space (Arial's " T"), with `wordCharacterSpacing`.
+     * of `characterSpacing`: the PowerPoint target's pairs kerned on a space (Arial's " T") and spaces ending off its grid,
+     * with `wordCharacterSpacing`.
      * Omitted: `characterSpacing` spaces them.
      */
     spaceCharacterSpacing?: readonly number[];

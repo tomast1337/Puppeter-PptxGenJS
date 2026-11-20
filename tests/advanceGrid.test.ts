@@ -154,6 +154,52 @@ describe("advanceGridWordSpacing", () => {
         }
     });
 
+    // The profile's fit (advanceGridWordSpacing): the line's pieces rounded up to LayoutUnits, kept within the width
+    // floored to a LayoutUnit (Chromium at the print zoom: within 1/512 px of it, so no LayoutUnit more).
+    test.skipIf(!font)("keeps every line of a long kerned run in the narrowest box on the grid PowerPoint keeps it in, and wraps a paragraph's first line in the next narrower", () => {
+        if (!font) throw new Error("unreachable: skipped without Arial");
+        const text = "AVAVA To Ty, Lorem AVA ipsum Wo Yo. dolor LT sit Va amet, PA consectetur AW adipiscing Te elit, sed AV do Ty";
+        const step = pointsToPixels(GRID);
+        const code = (character: string | undefined) => character?.codePointAt(0) ?? 0;
+        for (const fontSize of [8, 10.5, 12, 14, 18, 24]) {
+            const spacing = advanceGridWordSpacing(text, fontSize, font, GRID, 0, true);
+            if (!spacing) throw new Error("no spacing");
+            const units = (value: number) => pointsToPixels((value * fontSize) / font.unitsPerEm);
+            const kern = (left: string | undefined, right: string | undefined) => units(font.kerning?.get(code(left))?.get(code(right)) ?? 0);
+            const pieces = runPieces(text);
+            let word = 0;
+            let stretch = 0;
+            // Each word's PowerPoint start and end and its laid-out start and end, px.
+            let rounded = 0;
+            let laid = 0;
+            const words: { roundedStart: number; roundedEnd: number; start: number; end: number }[] = [];
+            pieces.forEach((piece, index) => {
+                const characters = [...piece];
+                const inner = characters.reduce((sum, character, at) => sum + kern(characters[at - 1], character), 0);
+                const edge = kern(characters.at(-1), pieces[index + 1]?.[0]);
+                const naturalPx = inner + characters.reduce((sum, character) => sum + units(font.advances.get(code(character)) ?? 0), 0);
+                const width = laidOut(naturalPx, characters.length, isWord(piece) ? (spacing.words[word] ?? Number.NaN) : (spacing.spaces?.[stretch] ?? spacing.space));
+                const start = { rounded, laid };
+                rounded += inner + edge + characters.reduce((sum, character) => sum + pointsToPixels(Math.round(((font.advances.get(code(character)) ?? 0) * fontSize) / font.unitsPerEm / GRID) * GRID), 0);
+                laid += width;
+                if (isWord(piece)) {
+                    words.push({ roundedStart: start.rounded, roundedEnd: rounded, start: start.laid, end: laid });
+                    word++;
+                } else stretch++;
+            });
+            words.forEach((first, at) =>
+                words.slice(at).forEach(last => {
+                    const powerPoint = last.roundedEnd - first.roundedStart;
+                    const kept = Math.ceil(powerPoint / step - 1e-9) * step;
+                    const width = last.end - first.start;
+                    const fits = (box: number) => width <= Math.floor(box * LAYOUT_UNITS_PER_PX + 1e-9) / LAYOUT_UNITS_PER_PX + 1e-9;
+                    expect({ fontSize, at, kept: fits(kept) }).toEqual({ fontSize, at, kept: true });
+                    if (at === 0) expect({ fontSize, wrapped: fits(kept - step) }).toEqual({ fontSize, wrapped: false });
+                }),
+            );
+        }
+    });
+
     // Measured against PowerPoint's PDF export (target/powerpoint.ts): a kerned run's word starts are its advances
     // rounded to the grid plus every kern pair unrounded, the pairs with a space included.
     test("adds a kerned run's pairs unrounded to PowerPoint's width, each across a span's edge on the piece of its left character", () => {
@@ -559,21 +605,12 @@ describe("a line in a box whose width inside the insets is off the 1/576 in grid
             }
         });
     };
-    // Chromium keeps a line up to a LayoutUnit past the width it is given, and the target's words end within one
-    // below PowerPoint's (advanceGridWordSpacing), so a kerned line that overflows the floored width by less is kept.
-    const layoutUnitPt = pixelsToPoints(1 / LAYOUT_UNITS_PER_PX);
-    const hairline = ({ overflowPt }: BoxFloorCase) => overflowPt > 0 && overflowPt < layoutUnitPt;
-    // Measured against PowerPoint's PDF export of the same deck: the width inside the insets floored to 0.125pt.
+    // Measured against PowerPoint's PDF export of the same deck: the width inside the insets floored to 0.125pt. The two
+    // 14pt "Dolor sit AVA" boxes end 0.002pt past it, under a LayoutUnit (0.0117pt), and wrap (#341).
     test.skipIf(!cases.length)("keeps or wraps the last word of each measured box as PowerPoint does", async () => {
-        const measured = cases.filter(box => !hairline(box));
-        const drawn = await fits(measured);
-        expect(measured.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(measured.map(({ label, fits }) => ({ label, fits })));
-    });
-    // shortcut: the two 14pt "Dolor sit AVA" boxes overflow the floored width by 0.002pt, under a LayoutUnit
-    // (0.0117pt), and Chromium keeps them; fix it if a renderer ever measures lines finer than a LayoutUnit.
-    (cases.some(hairline) ? test.failing : test.skip)("wraps a line less than a LayoutUnit wider than the floored width, as PowerPoint does", async () => {
-        const narrow = cases.filter(hairline);
-        expect(await fits(narrow)).toEqual(narrow.map(({ fits }) => fits));
+        expect(cases.some(({ overflowPt }) => overflowPt > 0 && overflowPt < pixelsToPoints(1 / LAYOUT_UNITS_PER_PX))).toBe(true);
+        const drawn = await fits(cases);
+        expect(cases.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(cases.map(({ label, fits }) => ({ label, fits })));
     });
 });
 
