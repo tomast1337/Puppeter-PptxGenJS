@@ -398,11 +398,13 @@ const pres = new PuppeteerGenPowerPoint(undefined, {
 An entry may also carry `pairKerning: boolean`: whether PowerPoint pair-kerns the face. PowerPoint
 kerns a font with a `kern` table from that table alone, so only when it is Microsoft-format (version 0)
 with a horizontal format 0 subtable; a face whose only pair kerning is an Apple-format `kern` table plus
-GPOS is drawn unkerned at every size. A font with no `kern` table is kerned from its GPOS table. PowerPoint
+GPOS is drawn unkerned at every size, and so is a font with no `kern` table: PowerPoint never kerns from
+GPOS. PowerPoint
 kerns text from 12pt only in a face it kerns, and the PowerPoint target draws a face with
 `pairKerning: false` unkerned at every size. Left out, the face is kerned from 12pt. `readFontWinMetrics`
-(and so the default resolver) reads it from the font: true for a version 0 `kern` table as above, else,
-without a `kern` table, when the font has a GPOS table. `FONT_WIN_METRICS` sets it for Arial and Calibri.
+(and so the default resolver) reads it from the font: true only for a version 0 `kern` table as above.
+`FONT_WIN_METRICS` sets it for Arial and Calibri. A face whose glyph advances are read
+(`resolveGlyphAdvances`) with no `kern` pairs is drawn unkerned too.
 
 The constructor checks each entry: `unitsPerEm` a positive integer, `winAscent` and `winDescent`
 non-negative integers with a positive sum, `pairKerning` a boolean if present, and no other field. An

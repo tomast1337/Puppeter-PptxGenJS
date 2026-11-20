@@ -66,8 +66,8 @@ export interface PuppeteerGenOptions {
      * `resolveFontMetrics` and the built-in FONT_WIN_METRICS; a face in none keeps the font-independent baseline.
      * `readFontWinMetrics(bytes)` reads them from a font file. `pairKerning: false` says the face has no pair kerning
      * PowerPoint reads (no version 0 `kern` table), so the PowerPoint target draws it unkerned at any size; omitted, it
-     * is kerned from 12pt. The LibreOffice target ignores them, as LibreOffice's line box ignores the font and it kerns
-     * every run.
+     * is kerned from 12pt unless its `resolveGlyphAdvances` advances carry no `kern` pairs. The LibreOffice target
+     * ignores them, as LibreOffice's line box ignores the font and it kerns every run.
      */
     fontMetrics?: Readonly<Record<string, FontWinMetrics>>;
     /**

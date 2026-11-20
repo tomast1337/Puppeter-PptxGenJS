@@ -102,9 +102,8 @@ const pres = new PuppeteerGenPowerPoint(); // or new pptxgen(undefined, { target
   text style and `kern="0"` on a run with `charSpacing`; PowerPoint reads them, so text under 12pt and
   text with `charSpacing` is drawn without the font's pair kerning, and a line that just fits kerned
   may wrap. It kerns a font with a `kern` table only when that table is Microsoft-format (version 0), so text
-  in a font whose kerning is an Apple-format `kern` table plus GPOS is never kerned; a font with no `kern`
-  table is kerned from GPOS (`pairKerning` in
-  USAGE.md). LibreOffice kerns every run. A single-spaced line's baseline follows its fonts' ascent and
+  in a font whose kerning is an Apple-format `kern` table plus GPOS is never kerned, and neither is a font
+  with no `kern` table: PowerPoint does not kern from GPOS (`pairKerning` in USAGE.md). LibreOffice kerns every run. A single-spaced line's baseline follows its fonts' ascent and
   descent, read on Node from the installed font as PowerPoint does, else from the `fontMetrics` option or
   `FONT_WIN_METRICS` in `defaults.ts` (Arial, Calibri, Cambria, Courier New, Times New Roman); see
   [USAGE.md](./USAGE.md), which also shows how to keep the HTML independent of the installed fonts.

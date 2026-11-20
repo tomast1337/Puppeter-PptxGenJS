@@ -64,9 +64,12 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
  * natural width as in PowerPoint's; a pair across a span's edge, such as Arial's "A " and " T", they leave out (the
  * span ends a shaping run, and Blink shapes each space on its own), so it goes to the piece of its left character: the
  * word's letter-spacing takes "A ", and the spaces before " T" take it in a span of their own (`spaces`).
- * shortcut: kerning is the `kern` table's (GlyphAdvances.kerning): a font kerned from GPOS alone still loses its pairs
- * across a span edge, and one whose GPOS kerns a pair otherwise than its `kern` table is off by the difference; read
- * GPOS pair kerning when a deck shows one.
+ * Kerning is the `kern` table's (GlyphAdvances.kerning), the only one PowerPoint reads; a face without `kern` pairs is
+ * drawn unkerned (`font-kerning: none`, normalize/text.ts `kerned`), so GPOS adds nothing to it.
+ * shortcut: in a face with both tables the renderers kern a word's inner pairs from GPOS, so a pair GPOS kerns otherwise
+ * than the `kern` table, or that only GPOS kerns, moves the word's end by the difference (none does in Latin text in
+ * Liberation Sans or Serif); turn the renderer's kerning off and spread the `kern` pairs as letter-spacing when a deck
+ * shows one.
  * shortcut: the sums start again at each run, adding up to a LayoutUnit per run boundary on a line, and a break inside
  * a word (after a hyphen) sees the word's spacing spread evenly; give the runs one sum when a deck shows the difference.
  * shortcut: FreeType sets Chromium's font size in 1/64 device px, truncated, so at the print zoom (8) its advances are

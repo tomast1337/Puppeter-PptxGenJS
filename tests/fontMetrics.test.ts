@@ -187,9 +187,9 @@ describe("readFontWinMetrics", () => {
         expect(readFontWinMetrics(ttc(base => sfnt({ base, kern: kernV0(subtable(HORIZONTAL_FORMAT_0, 1)) }))).pairKerning).toBe(true);
     });
 
-    test("without a kern table, reports pair kerning when the font has a GPOS table, TrueType or OpenType CFF alike", () => {
-        expect(readFontWinMetrics(sfnt({ version: OTTO, gpos: true })).pairKerning).toBe(true);
-        expect(readFontWinMetrics(sfnt({ gpos: true })).pairKerning).toBe(true);
+    test("without a kern table, reports no pair kerning, GPOS or not: PowerPoint does not kern from GPOS", () => {
+        expect(readFontWinMetrics(sfnt({ version: OTTO, gpos: true })).pairKerning).toBe(false);
+        expect(readFontWinMetrics(sfnt({ gpos: true })).pairKerning).toBe(false);
         expect(readFontWinMetrics(sfnt({ version: OTTO })).pairKerning).toBe(false);
         expect(readFontWinMetrics(sfnt())).toEqual({ ...BRAND, pairKerning: false });
     });
@@ -296,8 +296,8 @@ describe("resolveInstalledFontMetrics (the Node entry's default)", () => {
     });
 
     const liberationMono = installedFont("Liberation Mono");
-    test.skipIf(liberationMono === undefined || !liberationMono.endsWith("LiberationMono-Regular.ttf"))("reports a font whose only pair kerning is GPOS (no kern table) as pair-kerned", () => {
-        expect(resolveInstalledFontMetrics("Liberation Mono")?.pairKerning).toBe(true);
+    test.skipIf(liberationMono === undefined || !liberationMono.endsWith("LiberationMono-Regular.ttf"))("reports a font with a GPOS table and no kern table as not pair-kerned", () => {
+        expect(resolveInstalledFontMetrics("Liberation Mono")?.pairKerning).toBe(false);
     });
 
     test("does not take the substitute fontconfig answers with for a face that is not installed", () => {
