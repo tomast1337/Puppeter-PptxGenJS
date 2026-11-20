@@ -167,6 +167,8 @@ export interface NormalizedTextBullet {
 export interface NormalizedTextParagraph {
     runs: NormalizedTextRun[];
     align: "left" | "center" | "right" | "justify";
+    /** With `align: "justify"`: `"inter-word"` widens only a line's spaces (CSS `text-justify`); absent, the renderer's `auto`. */
+    textJustify?: "inter-word";
     rtl: boolean;
     /**
      * Each line's height and its baseline's distance below the line top, in px (a font-independent line box, as the

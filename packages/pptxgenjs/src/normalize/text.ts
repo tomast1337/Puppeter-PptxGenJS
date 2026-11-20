@@ -354,9 +354,11 @@ function paragraphFromPieces(
     // A line feed ends its line in the run's own font: only the <a:p>'s last line holds the paragraph mark.
     const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
 
+    const align = first.align ?? PPTX_DEFAULTS.text.align;
     return {
         runs,
-        align: first.align ?? PPTX_DEFAULTS.text.align,
+        align,
+        ...(align === "justify" && RENDERING_TARGETS[target].justifiesAtSpaces ? { textJustify: "inter-word" as const } : {}),
         rtl: first.rtlMode ?? PPTX_DEFAULTS.text.rtlMode,
         lineBox: endsParagraph ? lineBox : feedLineBox,
         spaceBefore: pointsToPixels(spacingPoints(first.paraSpaceBefore ?? 0, target)),
