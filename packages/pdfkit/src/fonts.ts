@@ -11,9 +11,11 @@ export interface Face {
     readonly italic: boolean;
 }
 
-/** What a run asks for: `font-family`, `font-weight: bold`, `font-style: italic`. */
+/** What a run asks for: `font-family` (its face, then the target's fallback faces), `lang`, `font-weight: bold`, `font-style: italic`. */
 export interface FaceRequest {
     readonly family: string;
+    readonly fallbacks: readonly string[];
+    readonly lang?: string;
     readonly bold: boolean;
     readonly italic: boolean;
 }
@@ -40,6 +42,14 @@ const METRIC_ALIASES: Readonly<Record<string, string>> = Object.freeze({
     courier: "liberation mono",
 });
 const FALLBACK_FAMILIES: readonly string[] = Object.freeze(["dejavu sans", "liberation sans", "noto sans cjk jp"]);
+/** The CJK face tried for a run's `lang` before FALLBACK_FAMILIES: pdf-core's CJK_FALLBACK_BY_LANG, after Chromium. */
+const CJK_FALLBACK_BY_LANG: Readonly<Record<string, string>> = Object.freeze({
+    ja: "noto sans cjk jp",
+    ko: "noto sans cjk kr",
+    "zh-cn": "noto sans cjk sc",
+    "zh-tw": "noto sans cjk tc",
+    "zh-hk": "noto sans cjk hk",
+});
 /** Tables that hold glyph outlines; a face without them (a bitmap color emoji font) cannot be drawn by PDFKit. */
 const OUTLINE_TABLES: readonly string[] = Object.freeze(["glyf", "CFF ", "CFF2"]);
 const BOLD_WEIGHT = 600;
@@ -84,14 +94,23 @@ function bestFace(faces: readonly Face[], family: string, bold: boolean, italic:
     return candidates.find(face => face.bold === bold && face.italic === italic) ?? candidates.find(face => face.bold === bold) ?? candidates[0];
 }
 
-/** The lookup chain for a request: its face, its metric alias, then the fallback families. */
-export function faceChain(faces: readonly Face[], { family, bold, italic }: FaceRequest): FaceChain {
-    const requested = family.toLowerCase();
-    const alias = METRIC_ALIASES[requested];
-    const own = [requested, ...(alias ? [alias] : [])].map(name => bestFace(faces, name, bold, italic));
-    const fallbacks = FALLBACK_FAMILIES.map(name => bestFace(faces, name, bold, italic));
-    const chain = [...new Set([...own, ...fallbacks, faces[0]].filter((face): face is Face => face !== undefined))];
-    return { faces: chain, found: own.some(face => face !== undefined) };
+/** A family's face, or its metric alias's when the family has none: fontconfig aliases only a face it has no font for. */
+function familyFace(faces: readonly Face[], family: string, bold: boolean, italic: boolean): Face | undefined {
+    const name = family.toLowerCase();
+    const alias = METRIC_ALIASES[name];
+    return bestFace(faces, name, bold, italic) ?? (alias ? bestFace(faces, alias, bold, italic) : undefined);
+}
+
+/**
+ * The lookup chain for a request, as pdf-core's `family_stack`: its face (or metric alias), its fallback faces (each
+ * or its alias), the CJK face of its `lang`, then the fallback families.
+ */
+export function faceChain(faces: readonly Face[], { family, fallbacks, lang, bold, italic }: FaceRequest): FaceChain {
+    const own = familyFace(faces, family, bold, italic);
+    const byLang = lang === undefined ? undefined : CJK_FALLBACK_BY_LANG[lang.toLowerCase()];
+    const rest = [...fallbacks, ...(byLang ? [byLang] : []), ...FALLBACK_FAMILIES].map(name => familyFace(faces, name, bold, italic));
+    const chain = [...new Set([own, ...rest, faces[0]].filter((face): face is Face => face !== undefined))];
+    return { faces: chain, found: own !== undefined };
 }
 
 /** The first face of `chain` with a glyph for `codePoint`. */

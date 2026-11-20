@@ -87,9 +87,20 @@ function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: 
         doc.rect(x, y - m.ascent, fragment.width, m.ascent + m.descent).fill();
     }
     useFace(paint, face, size);
+    // The face lacks the run's bold or italic style: synthesize it as the HTML says (pdf-core's text/draw.rs).
+    const embolden = run.face.bold && !face.bold;
+    const oblique = run.face.italic && !face.italic;
+    const options = { features: fragment.features, letterSpacing: run.letterSpacing };
+    doc.save();
+    if (oblique) doc.transform(1, 0, -run.synthesis.italicShear, 1, run.synthesis.italicShear * y, 0);
     fill(paint, run.color);
-    if (run.outline) stroke(paint, run.outline.color, run.outline.width);
-    glyphs(paint, fragment.text, x, y, { features: fragment.features, letterSpacing: run.letterSpacing, outline: run.outline !== undefined });
+    if (embolden) stroke(paint, run.color, size * run.synthesis.boldStroke);
+    glyphs(paint, fragment.text, x, y, { ...options, fill: true, stroke: embolden });
+    if (run.outline) {
+        stroke(paint, run.outline.color, run.outline.width);
+        glyphs(paint, fragment.text, x, y, { ...options, fill: false, stroke: true });
+    }
+    doc.restore();
     if (run.underline) decorate(paint, run.underline, x, fragment.width, y, m.underlinePosition, m.underlineThickness);
     if (run.strike) decorate(paint, run.strike, x, fragment.width, y, m.strikePosition, m.strikeThickness);
     const link = run.link;
@@ -103,6 +114,6 @@ export function drawLayout(paint: Paint, layout: BoxLayout, left: number, top: n
     for (const { bullet, face, size, x, baseline } of layout.bullets) {
         useFace(paint, face, size);
         fill(paint, bullet.color);
-        glyphs(paint, bullet.text, left + x, top + baseline, { features: features(true, 0), letterSpacing: 0 });
+        glyphs(paint, bullet.text, left + x, top + baseline, { features: features(true, 0), letterSpacing: 0, fill: true, stroke: false });
     }
 }

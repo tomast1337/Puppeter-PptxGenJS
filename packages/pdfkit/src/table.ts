@@ -49,7 +49,7 @@ const SPAN = /^\d+$/;
 /** CSS that `toHtml()` writes for Chromium's table layout and that states no drawn value of its own. */
 const TABLE_LAYOUT: ReadonlySet<string> = new Set(["width", "height", "table-layout", "border-collapse", "border-spacing"]);
 /** `vertical-align` repeats the cell text's `align-items`, which is what the text is anchored by. */
-const CELL_LAYOUT: ReadonlySet<string> = new Set(["padding", "overflow", "position", "vertical-align"]);
+const CELL_LAYOUT: ReadonlySet<string> = new Set(["overflow", "position", "vertical-align"]);
 const CELL_TEXT_LAYOUT: ReadonlySet<string> = new Set(["display", "box-sizing", "position", "inset", "width", "overflow"]);
 const CELL_ATTRIBUTES = SIDES.map(side => `data-border-${side}-dash-array`);
 
@@ -83,6 +83,9 @@ function readCell(cell: Element, report: Report): Cell {
     const style = readStyle(cell);
     const borders: Borders = [readBorder(cell, style, "top"), readBorder(cell, style, "right"), readBorder(cell, style, "bottom"), readBorder(cell, style, "left")];
     const background = color(take(style, "background-color"));
+    // The cell margin is the .table-cell-text padding; a td padding would add to it, as pdf-core refuses.
+    const padding = take(style, "padding");
+    if (padding !== undefined && px(padding) !== 0) throw invalid(`a <td>'s padding is '${padding}', expected 0px (the cell margin is the .table-cell-text padding)`);
     const [box, ...extra] = children(cell);
     if (!box || extra.length || !hasClass(box, "table-cell-text")) throw invalid("a <td> must hold one div.table-cell-text");
     const fit = attribute(box, "data-text-fit") ?? "none";

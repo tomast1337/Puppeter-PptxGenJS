@@ -8,7 +8,7 @@ export function parseDocument(html: string): Element[] {
     return children(parse(html) as unknown as Element); // `as`: a parse5 document has childNodes like an element; only they are read
 }
 
-function isElement(node: ChildNode): node is Element {
+export function isElement(node: ChildNode): node is Element {
     return "tagName" in node;
 }
 

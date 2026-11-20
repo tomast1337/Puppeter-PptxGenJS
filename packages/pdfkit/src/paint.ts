@@ -40,11 +40,12 @@ export function useFace(paint: Paint, face: Face, size: number): void {
 export interface GlyphOptions {
     readonly features: Features;
     readonly letterSpacing: number;
-    readonly outline?: boolean;
+    readonly fill: boolean;
+    readonly stroke: boolean;
 }
 
 /** Draws `text` with its baseline at `y`, unwrapped, in the current face, fill and stroke. */
-export function glyphs(paint: Paint, text: string, x: number, y: number, { features, letterSpacing, outline }: GlyphOptions): void {
+export function glyphs(paint: Paint, text: string, x: number, y: number, { features, letterSpacing, fill, stroke }: GlyphOptions): void {
     paint.doc.text(text, x, y, {
         lineBreak: false,
         baseline: "alphabetic",
@@ -52,7 +53,8 @@ export function glyphs(paint: Paint, text: string, x: number, y: number, { featu
         // (`{ kern: false }`); @types/pdfkit declares only a list of tags to turn on.
         features: { ...features } as unknown as PDFKit.Mixins.OpenTypeFeatures[],
         characterSpacing: letterSpacing,
-        ...(outline ? { fill: true, stroke: true } : {}),
+        fill,
+        stroke,
     });
 }
 
