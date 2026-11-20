@@ -325,7 +325,7 @@ function paragraphFromPieces(
     fontMetrics: FontMetricsLookup,
     themeFontFace: string,
     markFontFace: string,
-): NormalizedTextParagraph & { readonly level: number } {
+): NormalizedTextParagraph & { readonly level: number; readonly lineEndOffset: number } {
     // PowerPoint and LibreOffice give the empty text after a run's last line feed no size in a paragraph that holds
     // other text (measured against PowerPoint's PDF export); alone, it is an empty paragraph in the run's font. Without
     // it, the paragraph's properties come from its next run.
@@ -371,6 +371,7 @@ function paragraphFromPieces(
         defaultTabStop: inchesToPixels(PPTX_DEFAULTS.text.defaultTabStopIn),
         bullet: normalizeBullet(first, lists),
         level: paragraphLevel(first),
+        lineEndOffset: spacedLineEndOffset(runs, spacing, lineBox, target, fontMetrics),
     };
 }
 
@@ -401,6 +402,38 @@ function hanPunctuationBreaks(runs: NormalizedTextRun[], hangingMarks: Readonly<
         return text === run.text ? run : { ...run, text };
     });
 }
+
+/**
+ * Where the text ends below its last line's bottom, in px, when this paragraph is the last: 0 except with explicit
+ * spacing on a target that reads the fonts (RENDERING_TARGETS.fontLineBaseline), where PowerPoint ends the line at its
+ * baseline plus its fonts' single-spaced descent, not at the spaced line's height. Measured against its PDF export of a
+ * synthetic deck (Arial, one-line cells in rows sized to their text, margins 0 and 3.6pt): 8pt in 12pt lines makes a
+ * 10.82pt row (9 + 1.82), 10pt at 1.2x lines a 13.08pt one (10.8 + 2.28), and 10pt in 12pt lines 12pt (9.72 + 2.28).
+ * shortcut: with lines spaced closer than that the end would fall below the line, which was not measured, so it stays
+ * at the line's bottom; measure it when a deck needs it.
+ */
+function spacedLineEndOffset(runs: readonly NormalizedTextRun[], spacing: LineSpacing | undefined, lineBox: NormalizedTextParagraph["lineBox"], target: RenderingTarget, fontMetrics: FontMetricsLookup): number {
+    const fontSize = Math.max(0, ...runs.map(run => run.fontSize));
+    if (!RENDERING_TARGETS[target].fontLineBaseline || !isSpaced(spacing, fontSize, target)) return 0;
+    return Math.min(0, lineBox.baseline + singleLineExtents(runs, fontMetrics).descent - lineBox.height);
+}
+
+/**
+ * Whether `spacing` lays the paragraph out as spaced lines: lineSpacingMultiple 1 is the single line (singleLineEm),
+ * which PowerPoint lays out as single spacing, and on a target that reads the fonts (RENDERING_TARGETS.fontLineBaseline)
+ * so is a lineSpacing exactly as tall: measured against PowerPoint's PDF export of a synthetic deck, 10pt Arial in 12pt
+ * lines puts its baseline 9.72pt down, the font's single-spaced one, where 0.75 of the line is 9 (8pt in 12pt lines:
+ * 9). `fontSize` is the paragraph's largest, in px.
+ */
+function isSpaced(spacing: LineSpacing | undefined, fontSize: number, target: RenderingTarget): spacing is LineSpacing {
+    if (spacing === undefined) return false;
+    const single = PPTX_DEFAULTS.text.singleLineEm;
+    if ("em" in spacing) return spacing.em !== single;
+    return !(RENDERING_TARGETS[target].fontLineBaseline && Math.abs(spacing.exact - single * fontSize) < SINGLE_LINE_EPSILON);
+}
+
+/** Line heights closer than this, in px, are the same: PptxGenJS writes spacing in 1/100 pt, sizes in 1/100 pt. */
+const SINGLE_LINE_EPSILON = 1e-6;
 
 /**
  * `runs` with a WORD_JOINER at each BEFORE_OPENING_BRACKET point, also where a run ends with ")" and the next run on
@@ -623,7 +656,7 @@ export function normalizeText(
     const { addsParagraphSpacing, spacesFirstParagraph, emptyNumberedParagraph } = RENDERING_TARGETS[target];
     let lists: readonly NumberSequence[] = [];
     const paragraphs = groups.map((group, index) => {
-        const { bullet, level, ...paragraph } = paragraphFromPieces(group, options, lists, target, fontMetrics, themeFontFace, markFontFace);
+        const { bullet, level, lineEndOffset, ...paragraph } = paragraphFromPieces(group, options, lists, target, fontMetrics, themeFontFace, markFontFace);
         // A paragraph PptxGenJS writes without a run gets no marker in PowerPoint or LibreOffice.
         const runless = group.pieces.every(piece => piece.noRun);
         const empty = paragraph.runs.every(run => !run.text);
@@ -640,13 +673,14 @@ export function normalizeText(
         // bottom anchors and table cells follow the same rule until a measurement says otherwise.
         const first = index === 0 && !spacesFirstParagraph ? { spaceBefore: 0 } : {};
         // PowerPoint and LibreOffice leave the last paragraph's space after out of the text height, so it does not
-        // lift middle- or bottom-anchored text (or grow a table row).
-        const last = index === groups.length - 1 ? { spaceAfter: 0 } : {};
+        // lift middle- or bottom-anchored text (or grow a table row); the text ends where its last line does.
+        const last = index === groups.length - 1 ? { spaceAfter: lineEndOffset } : {};
         return { ...paragraph, ...(bullet && !runless ? { bullet } : {}), ...first, ...last };
     });
     // CSS keeps only the larger of two adjacent margins; a target that adds them gets each space after moved onto
-    // the next paragraph's space before, so the gap is their sum in every renderer.
-    const spaced = addsParagraphSpacing ? paragraphs.map((paragraph, index) => ({ ...paragraph, spaceBefore: paragraph.spaceBefore + (paragraphs[index - 1]?.spaceAfter ?? 0), spaceAfter: 0 })) : paragraphs;
+    // the next paragraph's space before, so the gap is their sum in every renderer. The last keeps its line end.
+    const lastIndex = paragraphs.length - 1;
+    const spaced = addsParagraphSpacing ? paragraphs.map((paragraph, index) => ({ ...paragraph, spaceBefore: paragraph.spaceBefore + (paragraphs[index - 1]?.spaceAfter ?? 0), spaceAfter: index === lastIndex ? paragraph.spaceAfter : 0 })) : paragraphs;
 
     const direction = options.vert ?? PPTX_DEFAULTS.text.textDirection;
 
@@ -732,9 +766,7 @@ function fontLineBox(paragraph: LineBoxInput, target: RenderingTarget, fontMetri
     const { spacing } = paragraph;
     const box = lineBoxOf(fontSize, spacing === undefined ? undefined : "exact" in spacing ? spacing.exact : spacing.em * fontSize);
     const { spacedLineBaseline, fontLineBaseline } = RENDERING_TARGETS[target];
-    // lineSpacingMultiple 1 is the single line (singleLineEm), which PowerPoint lays out as single spacing.
-    const spaced = spacing !== undefined && !("em" in spacing && spacing.em === PPTX_DEFAULTS.text.singleLineEm);
-    if (spaced) return spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
+    if (isSpaced(spacing, fontSize, target)) return spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
     const { runs } = paragraph;
     const last = runs.at(-1);
     if (!fontLineBaseline || !last) return box;
@@ -757,6 +789,12 @@ function fontLineBox(paragraph: LineBoxInput, target: RenderingTarget, fontMetri
  * two overflow the line.
  */
 function fontBaseline(runs: ReadonlyArray<Pick<NormalizedTextRun, "fontFace" | "fontSize">>, height: number, fontMetrics: FontMetricsLookup): number {
+    const { ascent, descent } = singleLineExtents(runs, fontMetrics);
+    return ascent + descent > height ? (ascent * height) / (ascent + descent) : ascent;
+}
+
+/** The largest single-spaced ascent and descent of `runs`: each reaches 1.2x its size, split by its font's winAscent : winDescent. */
+function singleLineExtents(runs: ReadonlyArray<Pick<NormalizedTextRun, "fontFace" | "fontSize">>, fontMetrics: FontMetricsLookup): { ascent: number; descent: number } {
     let ascent = 0;
     let descent = 0;
     for (const run of runs) {
@@ -764,7 +802,7 @@ function fontBaseline(runs: ReadonlyArray<Pick<NormalizedTextRun, "fontFace" | "
         ascent = Math.max(ascent, share * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
         descent = Math.max(descent, (1 - share) * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
     }
-    return ascent + descent > height ? (ascent * height) / (ascent + descent) : ascent;
+    return { ascent, descent };
 }
 
 /** The part of a single-spaced line above the baseline in a font with `metrics`, else the font-independent 1em of 1.2em. */
