@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { inflateSync } from "node:zlib";
+import { create as createFont, type Font } from "fontkit";
 import { JSDOM } from "jsdom";
 import type PptxGenJS from "pptxgenjs";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/html";
@@ -204,6 +205,20 @@ describe("PDFKit renderer", () => {
         doc.addSlide().addText("x", { x: 1, y: 1, w: 1, h: 1 });
         const bare = await doc.toHtml();
         await expect(renderer.render({ ...bare, html: bare.html.replace("font-family: &quot;", "font-family: Arial, &quot;") })).rejects.toThrow("is not one or more quoted families");
+    });
+
+    test("kerns a pair across a break opportunity, as one shaped run", async () => {
+        const fonts = await loadSystemFonts({ match: /^LiberationSans-Regular\.ttf$/ });
+        const [file] = fonts;
+        if (!file) throw new Error("Liberation Sans is not installed");
+        const font = createFont(Buffer.from(file)) as Font; // `as`: a .ttf holds one font, not a collection
+        const renderer = await createPdfkitRenderer({ fonts });
+        const pdf = await render(renderer, pres => pres.addSlide().addText("Same API", { x: 1, y: 1, w: 4, h: 1, fontFace: "Arial", fontSize: 18, margin: 0 }));
+        const [same, api] = texts(pageContents(pdf)[0] ?? "");
+        // " A" is a kern pair: "API" starts where shaping the whole run puts it, not after an unkerned "Same ".
+        const kerned = (font.layout("Same API").advanceWidth - font.layout("API").advanceWidth) / font.unitsPerEm;
+        expect(font.layout("Same ").advanceWidth / font.unitsPerEm).not.toBeCloseTo(kerned, 4);
+        expect((api?.x ?? 0) - (same?.x ?? 0)).toBeCloseTo(kerned * 24, 3);
     });
 
     test("synthesizes bold and italic where the face has neither, as the HTML says", async () => {

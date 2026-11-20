@@ -101,6 +101,9 @@ function words(runs: readonly Run[], scale: number, shaper: Shaper, missing: (ru
                 start = index;
             }
         }
+        // The run's previous piece: the run is shaped as one, as Chromium and pdf-core shape it, so a kern pair across
+        // a break opportunity (Arial's "A " or " T") moves the next piece; it is added to the previous piece's width.
+        let previous: { word: Word; index: number } | undefined;
         for (const segment of segments) {
             if (segment.startsWord && result.at(-1)?.length) result.push([]);
             const word = result.at(-1);
@@ -108,13 +111,20 @@ function words(runs: readonly Run[], scale: number, shaper: Shaper, missing: (ru
             const tabFace = segment.text === TAB ? shaper.chain(run.face).faces[0] : undefined;
             if (tabFace) {
                 word.push({ run, face: tabFace, text: "", size, features: runFeatures, width: 0, inkWidth: 0, tab: true, spaces: 0 });
+                previous = undefined;
                 continue;
             }
             for (const piece of faceRuns(segment.text.replace(INVISIBLE, ""), run, shaper, missing)) {
                 const width = shaper.width(piece.face, piece.text, size, runFeatures, run.letterSpacing);
                 const trimmed = piece.text.trimEnd();
                 const inkWidth = trimmed.length === piece.text.length ? width : shaper.width(piece.face, trimmed, size, runFeatures, run.letterSpacing);
+                const before = previous && previous.word[previous.index];
+                if (previous && before?.face === piece.face) {
+                    const pair = shaper.kern(piece.face, Array.from(before.text).at(-1) ?? "", Array.from(piece.text)[0] ?? "", size, runFeatures);
+                    if (pair) previous.word[previous.index] = { ...before, width: before.width + pair };
+                }
                 word.push({ run, face: piece.face, text: piece.text, size, features: runFeatures, width, inkWidth, tab: false, spaces: trailingSpaces(piece.text) });
+                previous = { word, index: word.length - 1 };
             }
         }
         offset += run.text.length;
