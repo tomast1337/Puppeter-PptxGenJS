@@ -198,6 +198,23 @@ The WASM renderer takes the same option: `createWasmRenderer({ fonts, onMissingF
 Puppeteer checks the faces in the page before printing: one canvas width
 comparison per distinct `font-family` list, not per run.
 
+### Image size limits (`imageLimits`)
+
+A few KB of PNG can declare billions of pixels, and decoding them exhausts
+memory or time. Every renderer reads each raster image's size from its header
+(PNG, JPEG, GIF, WebP) and refuses, before decoding anything, an image over
+8192 x 8192 pixels or a presentation whose distinct images exceed four times
+that together (`IMAGE_PIXEL_LIMITS` in `@pdflapas/model`). SVG pictures are
+vector data and are not counted. The Puppeteer and PDFKit renderers take other
+limits:
+
+```typescript
+new PuppeteerPdfRenderer({ imageLimits: { maxImagePixels: 12_000 * 12_000, maxDeckImagePixels: 2 ** 29 } });
+await createPdfkitRenderer({ fonts, imageLimits: { maxImagePixels: 4096 * 4096 } });
+```
+
+The WASM renderer keeps the defaults: a wasm32 instance has 4 GiB of memory.
+
 `@pdflapas/pptxgenjs` installs `@pdflapas/puppeteer` for its Node entry's
 default renderer; install `@pdflapas/puppeteer` directly only to use
 `PuppeteerPdfRenderer` or `closeBrowser` without the compatibility layer.

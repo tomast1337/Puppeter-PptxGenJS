@@ -31,7 +31,8 @@ const BASE64: GeneralPurpose = GeneralPurpose::new(
     GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
 );
 
-/// Most pixels one raster image may have (8192 x 8192, 256 MiB as RGBA): a few KB of compressed
+/// Most pixels one raster image may have (8192 x 8192, 256 MiB as RGBA; `IMAGE_PIXEL_LIMITS` in
+/// packages/model/src/imagePixels.ts for the other renderers): a few KB of compressed
 /// data can claim billions of pixels, and decoding them would run the wasm instance out of memory.
 pub(crate) const MAX_IMAGE_PIXELS: u64 = 1 << 26;
 /// Most pixels the distinct raster images of one presentation may have together (1 GiB as RGBA,
