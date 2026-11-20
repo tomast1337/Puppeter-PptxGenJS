@@ -12,6 +12,16 @@ export interface WordSpacing {
     readonly spaces?: readonly number[];
 }
 
+/**
+ * Where a paragraph's runs have ended so far, px: `rounded` is PowerPoint's width of them, `laidOut` the profile's, on
+ * whole LayoutUnits. The paragraph creates one at 0 and each run (`advanceGridWordSpacing`) starts from it and moves it
+ * to its own end, so the rounding carries across run boundaries instead of starting again at each.
+ */
+export interface GridCursor {
+    rounded: number;
+    laidOut: number;
+}
+
 /** Whether `piece` (`runPieces`) is a stretch of spaces, which `WordSpacing.spaces` spaces: no word, no tab. */
 export function isSpaces(piece: string): boolean {
     return piece.startsWith(" ") && !piece.includes("\t");
@@ -70,15 +80,24 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
  * than the `kern` table, or that only GPOS kerns, moves the word's end by the difference (none does in Latin text in
  * Liberation Sans or Serif); turn the renderer's kerning off and spread the `kern` pairs as letter-spacing when a deck
  * shows one.
- * shortcut: the sums start again at each run, adding up to a LayoutUnit per run boundary on a line, and a break inside
- * a word (after a hyphen) sees the word's spacing spread evenly; give the runs one sum when a deck shows the difference.
+ * The sums run on across the runs of a paragraph through `cursor`: started again at each run, they added up to a
+ * LayoutUnit per run boundary on a line, enough for pdf-core to break a line of SimSun and Arial runs that fills its
+ * box to 0.01pt one character early (#370). A run without a grid or font sets `cursor` back to 0, as a tab and a
+ * soft break do.
+ * shortcut: a break inside a word (after a hyphen, or between Han characters, also at a run boundary) sees the word's
+ * spacing spread evenly, its start up to a LayoutUnit before PowerPoint's; spread it by character when a deck shows
+ * the difference.
  * shortcut: FreeType sets Chromium's font size in 1/64 device px, truncated, so at the print zoom (8) its advances are
  * up to 1/(512 x size px) narrower than the font's (8pt: 0.044 px over a 720 px line, against the 1/6 px step); the
  * WASM renderer uses the exact size. Size the words for that truncation if a tie between steps flips in Chromium.
  */
-export function advanceGridWordSpacing(text: string, sizePt: number, font: GlyphAdvances | undefined, gridPt: number | undefined, charSpacingPt: number, kerned: boolean): WordSpacing | undefined {
+export function advanceGridWordSpacing(text: string, sizePt: number, font: GlyphAdvances | undefined, gridPt: number | undefined, charSpacingPt: number, kerned: boolean, cursor: GridCursor = { rounded: 0, laidOut: 0 }): WordSpacing | undefined {
     const spaceAdvance = font?.advances.get(" ".codePointAt(0) ?? 0);
-    if (gridPt === undefined || font === undefined || spaceAdvance === undefined) return undefined;
+    if (gridPt === undefined || font === undefined || spaceAdvance === undefined) {
+        cursor.rounded = 0;
+        cursor.laidOut = 0;
+        return undefined;
+    }
     const sizePx = pointsToPixels(sizePt);
     const gridPx = pointsToPixels(gridPt);
     const charSpacing = pointsToPixels(charSpacingPt);
@@ -99,9 +118,8 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     const spaceWidth = ceilLayoutUnit(space.rounded + charSpacing) + LAYOUT_UNIT;
     const spaceSpacing = spaceWidth - UNDER_LAYOUT_UNIT - space.natural;
     const words: number[] = [];
-    // `rounded`: PowerPoint's width of the run so far; `laidOut`: the profile's, on whole LayoutUnits.
-    let rounded = 0;
-    let laidOut = 0;
+    // `rounded`: PowerPoint's width of the paragraph so far; `laidOut`: the profile's, on whole LayoutUnits.
+    let { rounded, laidOut } = cursor;
     const spaces: number[] = [];
     let kernedSpace = false;
     const pieces = runPieces(text).map(piece => [...piece]);
@@ -138,5 +156,7 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
             laidOut = end;
         }
     }
+    cursor.rounded = rounded;
+    cursor.laidOut = laidOut;
     return { space: spacing(spaceSpacing), words, ...(kernedSpace ? { spaces } : {}) };
 }

@@ -5,7 +5,7 @@ import { builtInFontMetrics } from "#src/fontMetrics";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { inch2EmuToPixels } from "#src/units";
-import { advanceGridWordSpacing, runPieces } from "./advanceGrid";
+import { advanceGridWordSpacing, type GridCursor, runPieces } from "./advanceGrid";
 import { breakAroundHanPunctuation, hangingMarkRuns, hangingSegments, languageHangingMarks } from "./eastAsianLineBreak";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
@@ -130,17 +130,17 @@ function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fo
 /**
  * The letter-spacing in px of a run's spaces and of each of its words: `charSpacing`, plus on a target with an advance
  * grid the rounding of the run's advances to it, and its pair kerning when `kerned` (advanceGridWordSpacing), at the
- * size it is drawn at, reduced when `escaped`. A run of one word takes that word's; without a grid, or advances for the run's face, weight and style,
+ * size it is drawn at, reduced when `escaped`, carrying the paragraph's rounding in `cursor`. A run of one word takes that word's; without a grid, or advances for the run's face, weight and style,
  * every character takes `charSpacing`.
  */
-function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: boolean, target: RenderingTarget, fontMetrics: FontMetricsLookup): Pick<NormalizedTextRun, "characterSpacing" | "wordCharacterSpacing" | "spaceCharacterSpacing"> {
+function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: boolean, target: RenderingTarget, fontMetrics: FontMetricsLookup, cursor: GridCursor | undefined): Pick<NormalizedTextRun, "characterSpacing" | "wordCharacterSpacing" | "spaceCharacterSpacing"> {
     const { advanceGridPt, escapementSizeRatio } = RENDERING_TARGETS[target];
     const charSpacing = options.charSpacing ?? 0;
     const sizePt = (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) * (escaped ? escapementSizeRatio : 1);
     const font = advanceGridPt === undefined ? undefined : fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
     // A U+2011 drawn with the hyphen-minus glyph takes its advance.
     const drawn = RENDERING_TARGETS[target].nonBreakingHyphen === "hyphen-minus" ? text.replaceAll(NON_BREAKING_HYPHEN, "-") : text;
-    const spacing = advanceGridWordSpacing(drawn, sizePt, font, advanceGridPt, charSpacing, kerned(options, target, fontMetrics));
+    const spacing = advanceGridWordSpacing(drawn, sizePt, font, advanceGridPt, charSpacing, kerned(options, target, fontMetrics), cursor);
     if (!spacing) return { characterSpacing: pointsToPixels(charSpacing) };
     const [word, ...others] = spacing.words;
     if (word !== undefined && !others.length && runPieces(text).length === 1) return { characterSpacing: word };
@@ -153,7 +153,8 @@ function runFontSize(options: PptxGenJS.TextPropsOptions): number {
     return pointsToPixels(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt);
 }
 
-export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics): NormalizedTextRun {
+/** `cursor`: where the paragraph's earlier runs end on the advance grid (GridCursor), moved to this run's end. */
+export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptions, target: RenderingTarget = DEFAULT_RENDERING_TARGET, fontMetrics: FontMetricsLookup = builtInFontMetrics, cursor?: GridCursor): NormalizedTextRun {
     const underline = underlineType(options);
     const strike = options.strike === true || options.strike === "sngStrike" || options.strike === "dblStrike";
     const fontSize = runFontSize(options);
@@ -190,7 +191,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         },
         verticalAlign: getVerticalAlign(options),
         baselineOffset: escapement === undefined ? 0 : escapement * fontSize,
-        ...runSpacing(text, options, escapement !== undefined, target, fontMetrics),
+        ...runSpacing(text, options, escapement !== undefined, target, fontMetrics, cursor),
         ...(kerned(options, target, fontMetrics) ? {} : { kerning: false as const }),
         ...(bold && syntheticBoldStrokeEm !== undefined ? { syntheticBold: syntheticBoldStrokeEm } : {}),
         ...(italic && syntheticItalicShear !== undefined ? { syntheticItalic: syntheticItalicShear } : {}),
@@ -344,7 +345,9 @@ function paragraphFromPieces(
     // A (14.4 + 9.6), in a 20pt one 38.4pt (14.4 + 24). Unset (no `sz`) is the default size.
     const runless = pieces.every(piece => piece.noRun);
     const pieceOptions = (piece: TextPiece) => inheritedOptions(parent, runless ? { ...piece.options, fontSize: markFontSizePt ?? PPTX_DEFAULTS.text.fontSizePt } : piece.options);
-    const normalizedRuns = pieces.flatMap((piece, index) => pieceRuns(piece, pieces[index + 1], pieceOptions(piece), target, fontMetrics));
+    // One advance grid sum for the paragraph's runs, in order (GridCursor).
+    const cursor: GridCursor = { rounded: 0, laidOut: 0 };
+    const normalizedRuns = pieces.flatMap((piece, index) => pieceRuns(piece, pieces[index + 1], pieceOptions(piece), target, fontMetrics, cursor));
     const { joinsOpeningBracket, breaksAroundHanPunctuation, hangingMarks } = RENDERING_TARGETS[target];
     const joinedRuns = joinsOpeningBracket ? joinOpeningBrackets(normalizedRuns) : normalizedRuns;
     const runs = breaksAroundHanPunctuation ? hanPunctuationBreaks(joinedRuns, hangingMarks) : joinedRuns;
@@ -383,13 +386,15 @@ function paragraphFromPieces(
  * The runs of `piece`: one, or in a language with the target's `hangingMarks`, one per stretch around each mark that
  * hangs (normalize/eastAsianLineBreak.ts); `next` is the piece after it in the paragraph.
  */
-function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup): NormalizedTextRun[] {
+function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup, cursor: GridCursor): NormalizedTextRun[] {
+    // A soft break starts a line, so the sums start again with it, exactly where PowerPoint's line does.
+    if (options.softBreakBefore) Object.assign(cursor, { rounded: 0, laidOut: 0 });
     const marks = languageHangingMarks(options.lang ?? PPTX_DEFAULTS.theme.language, RENDERING_TARGETS[target].hangingMarks);
-    if (!marks) return [normalizeTextRun(piece.text, options, target, fontMetrics)];
+    if (!marks) return [normalizeTextRun(piece.text, options, target, fontMetrics, cursor)];
     const after = next && !next.options.softBreakBefore ? [...next.text][0] : undefined;
     const font = fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
     return hangingSegments(piece.text, after, marks).flatMap(({ text, hangs }, index) => {
-        const run = normalizeTextRun(text, options, target, fontMetrics);
+        const run = normalizeTextRun(text, options, target, fontMetrics, cursor);
         // Only the piece's first stretch starts after its soft break.
         const segment = index ? { ...run, softBreakBefore: false } : run;
         return hangs ? hangingMarkRuns(segment, font) : [segment];

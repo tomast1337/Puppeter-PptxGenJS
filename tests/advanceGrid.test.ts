@@ -200,6 +200,18 @@ describe("advanceGridWordSpacing", () => {
         expect(spacing?.words[2]).toBeCloseTo(-LAYOUT_UNIT - LAYOUT_UNIT / 16, 6);
     });
 
+    test("carries the sums across a paragraph's runs through the cursor, as one run would (#370)", () => {
+        const whole = advanceGridWordSpacing("i a i", 7, ARIAL, GRID, 0, false);
+        const cursor = { rounded: 0, laidOut: 0 };
+        advanceGridWordSpacing("i a", 7, ARIAL, GRID, 0, false, cursor);
+        // At 7pt the first run ends off a LayoutUnit: started again at 0, " i" would end on another one.
+        expect(advanceGridWordSpacing(" i", 7, ARIAL, GRID, 0, false, cursor)?.words).toEqual(whole?.words.slice(2) ?? []);
+        expect(advanceGridWordSpacing(" i", 7, ARIAL, GRID, 0, false)?.words).not.toEqual(whole?.words.slice(2) ?? []);
+        // A run without a font starts the sums again.
+        advanceGridWordSpacing("a", 7, undefined, GRID, 0, false, cursor);
+        expect(cursor).toEqual({ rounded: 0, laidOut: 0 });
+    });
+
     test("is undefined without a grid, a font or a space in the font, and has no words for a run without any", () => {
         expect(advanceGridWordSpacing("a i", 8, ARIAL, undefined, 0, false)).toBeUndefined();
         expect(advanceGridWordSpacing("a i", 8, undefined, GRID, 0, false)).toBeUndefined();
@@ -279,6 +291,15 @@ describe("readGlyphAdvances", () => {
 
 describe("resolveGlyphAdvances option", () => {
     const font = (fontFace: string) => ({ fontFace, fontSize: 8, margin: 0 });
+
+    test("carries the grid's sums from run to run of a paragraph, and starts them again at a soft break", () => {
+        const lookup = fontMetricsLookup(undefined, null, () => ARIAL);
+        const runs = normalizeText([{ text: "i a" }, { text: " i" }, { text: "i a", options: { softBreakBefore: true } }, { text: "a", options: { softBreakBefore: true } }], { ...font("Arial"), fontSize: 7 }, "powerpoint", lookup).paragraphs[0]?.runs;
+        const words = (text: string) => advanceGridWordSpacing(text, 7, ARIAL, GRID, 0, false)?.words;
+        expect(runs?.[1]?.wordCharacterSpacing).toEqual(words("i a i")?.slice(2) ?? []);
+        // At 7pt "i a" ends off a LayoutUnit: carried on, the "a" after it would take another spacing.
+        expect(runs?.[3]?.characterSpacing).toBe(words("a")?.[0] ?? Number.NaN);
+    });
 
     test("lays the PowerPoint target's words out on the grid as letter-spacing, composed with charSpacing", () => {
         const lookup = fontMetricsLookup(undefined, null, () => ARIAL);
