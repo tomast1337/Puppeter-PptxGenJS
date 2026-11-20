@@ -4,7 +4,7 @@ import { FontFileError, PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPower
 import { FONT_WIN_METRICS, type FontWinMetrics } from "../packages/pptxgenjs/src/defaults";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
-import { resolveInstalledFontMetrics } from "../packages/pptxgenjs/src/node";
+import { resolveInstalledFontMetrics, resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
 
 /**
  * A minimal sfnt: a head table with unitsPerEm and an OS/2 table with usWinAscent and usWinDescent (`os2Length` bytes),
@@ -305,6 +305,17 @@ describe("resolveInstalledFontMetrics (the Node entry's default)", () => {
         // fontconfig pattern syntax in a name stays part of the name.
         expect(resolveInstalledFontMetrics("Liberation Sans:weight=200")).toBeUndefined();
         expect(resolveInstalledFontMetrics("Liberation Sans-12")).toBeUndefined();
+    });
+
+    // Each lookup used to spawn fc-match synchronously: 300 made-up names blocked the event loop for about 7 s.
+    test("answers a face that is not installed from the installed families, without spawning fc-match", () => {
+        resolveInstalledFontMetrics("Warm Up The Family List");
+        const start = performance.now();
+        for (let index = 0; index < 300; index++) {
+            expect(resolveInstalledFontMetrics(`Made Up Face ${index}`)).toBeUndefined();
+            expect(resolveInstalledGlyphAdvances(`Made Up Face ${index}`, true, false)).toBeUndefined();
+        }
+        expect(performance.now() - start).toBeLessThan(100);
     });
 });
 
