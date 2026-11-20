@@ -1,6 +1,6 @@
 // Browser-safe WASM text renderer ("@pdflapas/wasm" under the browser/default conditions).
 // Must not load node:* modules, puppeteer or jsdom (enforced by tests/wasm.test.ts and scripts/build.ts).
-import { type HtmlPresentationDocument, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
+import { assertHtmlPresentationDocument, type HtmlPresentationDocument, type MissingFont, type MissingFontPolicy, missingFontPolicy, type PresentationRenderer, reportMissingFonts } from "@pdflapas/model";
 import init, { Renderer } from "./pdf_wasm.js";
 
 export { type MissingFont, MissingFontError, type MissingFontPolicy } from "@pdflapas/model";
@@ -67,6 +67,7 @@ export class WasmRenderer implements PresentationRenderer {
 
     /** Parses the profile HTML in WebAssembly; out-of-profile or malformed HTML throws, naming slide, object and property. Images must be data URIs. */
     async render(document: HtmlPresentationDocument): Promise<Uint8Array> {
+        assertHtmlPresentationDocument(document);
         return this.#checked(this.#binding.renderHtml(document.html));
     }
 

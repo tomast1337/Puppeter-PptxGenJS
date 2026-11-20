@@ -96,6 +96,19 @@ async function reported(renderer: (onMissingFont: (missing: readonly MissingFont
     return found;
 }
 
+describe("renderer input", () => {
+    // #347's repro passed render(pptx.toHtml()) without await; both renderers failed with a bare TypeError.
+    test("rejects the toHtml() Promise and a document without html, naming the fix", async () => {
+        const pptx = new PuppeteerGen();
+        pptx.addSlide();
+        const renderers: PresentationRenderer[] = [new WasmRenderer(fakeBinding([])), new PuppeteerPdfRenderer()];
+        for (const renderer of renderers) {
+            await expect(renderer.render(pptx.toHtml() as never)).rejects.toThrow("got a Promise: await toHtml() before passing its result");
+            await expect(renderer.render({ pageSize: PAGE } as never)).rejects.toThrow("got object without an html string");
+        }
+    });
+});
+
 describe("Puppeteer backend", () => {
     test("reports a face Chromium has no font for, and not Arial or Liberation Sans", async () => {
         expect(await reported(async onMissingFont => new PuppeteerPdfRenderer({ onMissingFont }))).toEqual([{ face: "NoSuchFont", objects: ["slide 1 'Table 0'", "slide 1 'Text 0'"], usedFace: expect.any(String) }]);
