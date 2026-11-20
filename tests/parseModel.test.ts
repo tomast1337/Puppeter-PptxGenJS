@@ -84,6 +84,14 @@ describe("parseModel()", () => {
         expect(rejection(["slides", 0, "objects", 0, "text", "paragraphs", 0, "runs", 0, "fontFace"], 'Arial";}\nbody{color:red').message).toContain("runs[0].fontFace: ");
     });
 
+    test("rejects word letter-spacing that is not one finite value per word of the run", () => {
+        const spacing = ["slides", 0, "objects", 0, "text", "paragraphs", 0, "runs", 0, "wordCharacterSpacing"] as const;
+        // "Hi" is one word.
+        expect(rejection(spacing, [0.1, 0.2]).message).toContain("runs[0].wordCharacterSpacing: ");
+        expect(rejection(spacing, []).issues[0]?.path).toBe("model.slides[0].objects[0].text.paragraphs[0].runs[0].wordCharacterSpacing");
+        expect(rejection(spacing, [Number.NaN]).issues[0]?.path).toBe("model.slides[0].objects[0].text.paragraphs[0].runs[0].wordCharacterSpacing[0]");
+    });
+
     test("modelToHtml() checks its input; the error names the path", async () => {
         const model = smallModel() as { slides: { color: string }[] };
         model.slides[0]!.color = "red;background:url(x)";

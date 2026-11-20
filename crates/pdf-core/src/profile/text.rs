@@ -1,13 +1,14 @@
 //! Text boxes, paragraphs, bullets and runs (`render/text.ts`), for text objects and table cells.
 
 use super::allow;
-use super::dom::{Dom, Element};
+
+use super::dom::{Dom, Element, Node, decode};
 use super::object::link;
 use super::style::{Style, font_family, integer, keyword, number, px, shadow, split_top_level};
 use crate::color::parse_color;
 use crate::model::{
     Bullet, Decoration, LineBox, Outline, Paragraph, ParagraphAlign, Run, Shadow, ShadowKind, Shrink, Synthesis, TabAlign, TabStop, TextBox, TextDirection,
-    TextFit, UnderlineStyle, VerticalAlign,
+    TextFit, UnderlineStyle, VerticalAlign, WordSpacing,
 };
 
 /// Attributes of the element that holds a text box.
@@ -84,6 +85,8 @@ const RUN_CSS: &[&str] = &[
     "-webkit-text-stroke",
     "text-shadow",
 ];
+/// CSS of a word span inside a run (`wordCharacterSpacing`).
+const WORD_CSS: &[&str] = &["letter-spacing"];
 /// What an empty run holds so it still owns a line box (`data-empty` marks it).
 const EMPTY_RUN_TEXT: &str = "\u{200B}";
 /// The no-break space after a bullet marker.
@@ -296,9 +299,9 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
     }
     let style = Style::of(element)?;
     allow(element, &style, &[RUN_ATTRS], &[RUN_CSS])?;
-    let content = dom.text_of(element)?;
+    let (content, word_spacing) = run_text(dom, element)?;
     let text = if element.has_attr("data-empty") {
-        if content != EMPTY_RUN_TEXT {
+        if content != EMPTY_RUN_TEXT || !word_spacing.is_empty() {
             return Err("a run with data-empty must hold only U+200B".into());
         }
         String::new()
@@ -339,6 +342,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
         // `top` is the negated offset, omitted at 0.
         baseline_offset: style.px("top")?.map_or(0.0, |top| -top),
         character_spacing: style.px("letter-spacing")?.unwrap_or(0.0),
+        word_spacing,
         // Omitted when kerned; the profile writes only `none`, CSS's other keywords kern.
         kerning: style
             .get("font-kerning")
@@ -352,6 +356,34 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
         link: link(element)?,
         soft_break_before: element.has_attr("data-soft-break-before"),
     })
+}
+
+/// A run's text and the byte range of each word wrapped in a `<span>` of its own `letter-spacing`
+/// (`wordCharacterSpacing`), with that spacing. A word span holds text only and has no other attribute or CSS.
+fn run_text(dom: &Dom<'_>, run: &Element<'_>) -> Result<(String, Vec<WordSpacing>), String> {
+    let mut text = String::new();
+    let mut words = Vec::new();
+    for node in &run.children {
+        match *node {
+            Node::Text(id) => text += &decode(dom.raw_text(id)?)?,
+            Node::Element(id) => {
+                let word = dom.element(id)?;
+                if word.name != "span" {
+                    return Err(format!("unexpected <{}> inside <{}>: a run holds text and word spans", word.name, run.name));
+                }
+                let style = Style::of(word)?;
+                allow(word, &style, &[], &[WORD_CSS]).map_err(|e| format!("word span: {e}"))?;
+                if word.has_attr("class") {
+                    return Err("word span: attribute 'class' is not in the profile; a word span has only a letter-spacing style".into());
+                }
+                let spacing = style.px("letter-spacing")?.ok_or("word span: CSS property 'letter-spacing' is missing")?;
+                let start = text.len();
+                text += &dom.text_of(word).map_err(|e| format!("word span: {e}"))?;
+                words.push((start..text.len(), spacing));
+            }
+        }
+    }
+    Ok((text, words))
 }
 
 /// `data-synthetic-bold` and `data-synthetic-italic`, each the browser's when omitted.
@@ -520,6 +552,17 @@ mod tests {
     }
 
     #[test]
+    fn reads_each_word_span_as_a_byte_range_of_the_run_with_its_letter_spacing() {
+        let html = format!(
+            r#"<div class="text-paragraph" data-line-baseline="16" style="{PARAGRAPH_STYLE}"><span class="text-run" style="{RUN_STYLE} letter-spacing: 0.5px;"> <span style="letter-spacing: 1.25px;">a&amp;b</span>	 <span style="letter-spacing: -0.75px;">çd</span></span></div>"#
+        );
+        let text = text_object(&html).unwrap().text.expect("text");
+        let run = text.paragraphs.first().and_then(|p| p.runs.first()).expect("run");
+        assert_eq!((run.text.as_str(), run.character_spacing), (" a&b\t çd", 0.5));
+        assert_eq!(run.word_spacing, [(1..4, 1.25), (6..9, -0.75)]);
+    }
+
+    #[test]
     fn rejects_out_of_profile_text() {
         let run = |attrs: &str, style: &str, text: &str| {
             format!(
@@ -546,6 +589,14 @@ mod tests {
             ),
             (run(" data-underline-style=\"thick\"", "", "x"), "attribute 'data-underline-style': 'thick'"),
             (run("", "", "<b>x</b>"), "unexpected <b>"),
+            (run("", "", "<span>x</span>"), "word span: CSS property 'letter-spacing' is missing"),
+            (run("", "", r#"<span style="letter-spacing: 1px; color: red;">x</span>"#), "word span: "),
+            (
+                run("", "", r#"<span class="w" style="letter-spacing: 1px;">x</span>"#),
+                "word span: attribute 'class'",
+            ),
+            (run("", "", r#"<span style="letter-spacing: 1px;"><b>x</b></span>"#), "word span: "),
+            (run(" data-empty=\"\"", "", r#"<span style="letter-spacing: 1px;">&#8203;</span>"#), "U+200B"),
             (run("", "", "a &copy; b"), "character reference"),
             (run(" onclick=\"x\"", "", "x"), "attribute 'onclick'"),
             (run("", " font-size: NaNpx;", "x").replace("font-size: 16px; ", ""), "font-size"),

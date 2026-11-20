@@ -5,7 +5,7 @@ import { builtInFontMetrics } from "#src/fontMetrics";
 import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { inch2EmuToPixels } from "#src/units";
-import { advanceGridSpacing } from "./advanceGrid";
+import { advanceGridWordSpacing, runPieces } from "./advanceGrid";
 import { normalizeHyperlink } from "./link";
 import { textMarginPixels } from "./margin";
 import { recordSharedRun, type SharedRunOptions, sharedRunOptions } from "./sharedRunOptions";
@@ -118,15 +118,21 @@ function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fo
 }
 
 /**
- * The letter-spacing in points that puts a run's advances on the target's grid (advanceGridSpacing) at the size it is
- * drawn at, reduced when `escaped`; 0 when the target has none or the run's face, weight and style have no advances.
+ * The letter-spacing in px of a run's spaces and of each of its words: `charSpacing`, plus on a target with an advance
+ * grid the rounding of the run's advances to it (advanceGridWordSpacing) at the size it is drawn at, reduced when
+ * `escaped`. A run of one word takes that word's; without a grid, or advances for the run's face, weight and style,
+ * every character takes `charSpacing`.
  */
-function gridSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: boolean, target: RenderingTarget, fontMetrics: FontMetricsLookup): number {
+function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: boolean, target: RenderingTarget, fontMetrics: FontMetricsLookup): Pick<NormalizedTextRun, "characterSpacing" | "wordCharacterSpacing"> {
     const { advanceGridPt, escapementSizeRatio } = RENDERING_TARGETS[target];
-    if (advanceGridPt === undefined) return 0;
+    const charSpacing = options.charSpacing ?? 0;
     const sizePt = (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) * (escaped ? escapementSizeRatio : 1);
-    const font = fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
-    return advanceGridSpacing(text, sizePt, font, advanceGridPt);
+    const font = advanceGridPt === undefined ? undefined : fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
+    const spacing = advanceGridWordSpacing(text, sizePt, font, advanceGridPt, charSpacing);
+    if (!spacing) return { characterSpacing: pointsToPixels(charSpacing) };
+    const [word, ...others] = spacing.words;
+    if (word !== undefined && !others.length && runPieces(text).length === 1) return { characterSpacing: word };
+    return { characterSpacing: spacing.space, ...(spacing.words.length ? { wordCharacterSpacing: spacing.words } : {}) };
 }
 
 /** A run's font size in px, before any superscript or subscript reduction. */
@@ -166,7 +172,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
         },
         verticalAlign: getVerticalAlign(options),
         baselineOffset: escapement === undefined ? 0 : escapement * fontSize,
-        characterSpacing: pointsToPixels((options.charSpacing ?? 0) + gridSpacing(text, options, escapement !== undefined, target, fontMetrics)),
+        ...runSpacing(text, options, escapement !== undefined, target, fontMetrics),
         ...(kerned(options, target, fontMetrics) ? {} : { kerning: false as const }),
         ...(bold && syntheticBoldStrokeEm !== undefined ? { syntheticBold: syntheticBoldStrokeEm } : {}),
         ...(italic && syntheticItalicShear !== undefined ? { syntheticItalic: syntheticItalicShear } : {}),

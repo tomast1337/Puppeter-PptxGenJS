@@ -257,6 +257,16 @@ impl Renderer {
                 if run.character_spacing != 0.0 {
                     builder.push(StyleProperty::LetterSpacing(run.character_spacing), r.clone());
                 }
+                // Stacked text puts a line break between characters, and a word's spacing only moves line ends.
+                if !stacked {
+                    // The run's text starts after its soft break, and each tab before a word became TAB_PLACEHOLDER.
+                    let widened = |text: &str| text.len() + text.matches('\t').count() * (TAB_PLACEHOLDER.len_utf8() - 1);
+                    let start = r.end.saturating_sub(widened(&run.text));
+                    for (word, spacing) in &run.word_spacing {
+                        let at = start + run.text.get(..word.start).map_or(0, widened);
+                        builder.push(StyleProperty::LetterSpacing(*spacing), at..at + word.len());
+                    }
+                }
                 if !run.kerning {
                     builder.push(StyleProperty::FontFeatures((&NO_KERNING).into()), r.clone());
                 }

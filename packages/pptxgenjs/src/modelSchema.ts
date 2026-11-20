@@ -1,6 +1,7 @@
 import { type CssColor, type DataUri, inches, type NormalizedPresentation, px } from "@pdflapas/model";
 import { z } from "zod";
 import { cloneComponentProps } from "#src/components/normalize";
+import { isWord, runPieces } from "#src/normalize/advanceGrid";
 import { RESOLVED_IMAGE } from "#src/normalize/image";
 import { URL_SCHEME } from "#src/normalize/link";
 
@@ -67,34 +68,40 @@ const objectStyle = z.strictObject({
     objectName: z.string(),
 });
 
-const textRun = z.strictObject({
-    text: z.string(),
-    fontFace,
-    fontSize: nonNegative,
-    color: cssColor,
-    bold: z.boolean(),
-    italic: z.boolean(),
-    decoration: z.strictObject({
-        underline: z.boolean(),
-        underlineStyle: z.enum(["solid", "double", "dashed", "dotted", "wavy"]),
-        underlineColor: cssColor.optional(),
-        strike: z.boolean(),
-        doubleStrike: z.boolean(),
-    }),
-    verticalAlign: z.enum(["baseline", "sub", "super"]),
-    baselineOffset: finite,
-    characterSpacing: finite,
-    kerning: z.literal(false).optional(),
-    syntheticBold: nonNegative.optional(),
-    syntheticItalic: finite.optional(),
-    highlight: cssColor.optional(),
-    outline: z.strictObject({ color: cssColor, width: nonNegative }).optional(),
-    glow: shadow.optional(),
-    shadow: shadow.optional(),
-    language: z.string().regex(LANGUAGE, { error: "is not a language tag: write a BCP 47 tag such as en-US" }),
-    link: link.optional(),
-    softBreakBefore: z.boolean(),
-});
+const textRun = z
+    .strictObject({
+        text: z.string(),
+        fontFace,
+        fontSize: nonNegative,
+        color: cssColor,
+        bold: z.boolean(),
+        italic: z.boolean(),
+        decoration: z.strictObject({
+            underline: z.boolean(),
+            underlineStyle: z.enum(["solid", "double", "dashed", "dotted", "wavy"]),
+            underlineColor: cssColor.optional(),
+            strike: z.boolean(),
+            doubleStrike: z.boolean(),
+        }),
+        verticalAlign: z.enum(["baseline", "sub", "super"]),
+        baselineOffset: finite,
+        characterSpacing: finite,
+        wordCharacterSpacing: z.array(finite).optional(),
+        kerning: z.literal(false).optional(),
+        syntheticBold: nonNegative.optional(),
+        syntheticItalic: finite.optional(),
+        highlight: cssColor.optional(),
+        outline: z.strictObject({ color: cssColor, width: nonNegative }).optional(),
+        glow: shadow.optional(),
+        shadow: shadow.optional(),
+        language: z.string().regex(LANGUAGE, { error: "is not a language tag: write a BCP 47 tag such as en-US" }),
+        link: link.optional(),
+        softBreakBefore: z.boolean(),
+    })
+    .refine(run => run.wordCharacterSpacing === undefined || run.wordCharacterSpacing.length === runPieces(run.text).filter(isWord).length, {
+        error: "wordCharacterSpacing must hold one value per word of text (the stretches between spaces and tabs)",
+        path: ["wordCharacterSpacing"],
+    });
 
 const textBox = z.strictObject({
     paragraphs: z.array(

@@ -26,7 +26,10 @@ container with that number ([Slide](#slide)). Readers accept `data-hidden` and g
 Likewise, a `data-text-fit="shrink"` box now states its shrink rule in `data-text-fit-step`,
 `data-text-fit-max-steps` and `data-text-fit-tolerance` ([Text](#text)) instead of each renderer
 keeping its own copy (#154); the WASM reader requires them in both versions, and
-[completion](#completion) fills them in a hand-written or older document.
+[completion](#completion) fills them in a hand-written or older document. The PowerPoint target's
+rounding of glyph advances to the 0.125pt grid moved in place from one `letter-spacing` per run to one per
+word: a run's words are each in a [word span](#text) of their own `letter-spacing`, so a line breaks where
+PowerPoint's does.
 
 **Meta names.** The project was called pdfdeck when version 1 was frozen, so a version 1 document spells its
 meta names `pdfdeck-profile` and `pdfdeck-page-size`, and readers keep accepting exactly that. Version 2 was
@@ -267,13 +270,20 @@ CSS cannot state exactly are `data-*` on the run: `data-vertical-align` (`sub`, 
 `data-text-shadow` (which `text-shadow` entry is the `glow` and which the `shadow`), `data-double-strike`
 with `data-underline-style`, and `data-empty` on an empty run (its text is U+200B).
 
+A run holds text, or text and **word spans**: `<span style="letter-spacing: 1.35293px;">Lorem</span>`, a
+`span` with no class, no other attribute and no other CSS, whose only child is text with no space or tab.
+The spaces and tabs between words stay bare text in the run, so the run's text content is the run's text,
+in reading order. A word span's `letter-spacing` replaces the run's for the word's characters; the run's
+applies to its bare text. A run with word spans has one per word (`wordCharacterSpacing`, the run's text
+split at spaces and tabs) and is never `data-empty`; a reader rejects any other element in a run.
+
 The rendering target (`PuppeteerGenPowerPoint`, `PuppeteerGenLibreOffice`, or the `target` option) is not
 written as a document-level value: each difference is on the element it changes, so a reader of the HTML
 and the WASM renderer follow it without knowing the target. Today that is `font-kerning: none` on a run
 the PowerPoint target draws unkerned (under 12pt, or with `charSpacing`), a paragraph's
 `data-line-baseline`, which the PowerPoint target sets from its fonts' ascent and descent, and a run's
 `letter-spacing`, which on the PowerPoint target also carries the rounding of its glyph advances to
-PowerPoint's 0.125pt grid (spread evenly over the run's characters), so its width is PowerPoint's, and
+PowerPoint's 0.125pt grid, so its lines break where PowerPoint's do, and
 U+2060 WORD JOINER in run text between `)`, `]`, `}` or `%` and a following `(`, `[` or `{`, where
 PowerPoint has no line break and UAX #14 has one. Renderers draw it as nothing, give it no
 `letter-spacing`, and still break there when the word alone overflows its line (`overflow-wrap`).
@@ -286,6 +296,24 @@ the renderer uses the browser's: Chromium strokes with 1/32 of the font size and
 degrees), measured in its PDF output, and the WASM renderer draws the same. Chromium ignores both
 attributes, so only the WASM renderer follows the LibreOffice values. Both are numbers; the bold width is
 not negative.
+
+**The advance grid** (`RENDERING_TARGETS.powerpoint.advanceGridPt`, measured against PowerPoint's PDF export of
+synthetic decks). PowerPoint lays an unkerned run out at each glyph's hmtx advance at the font size rounded to
+0.125pt, and keeps a word on a line while the rounded widths up to its end are no wider than the line (the box
+less its insets): exactly as wide fits, 0.125pt wider wraps, and trailing spaces do not count. Under 12pt, when
+the face's advances are known, the PowerPoint target therefore puts each word of a run in a word span whose
+`letter-spacing` makes the word end where PowerPoint's does, and gives the run the `letter-spacing` of its
+spaces. Chromium and the WASM renderer round each inline item's width up to a LayoutUnit (1/64 px) and keep a
+line while its width is at most the available width floored to a LayoutUnit plus one, so:
+
+- each word ends at the rounded width of the run up to its end, in px, floored to a LayoutUnit (the run's sums
+  start again after a tab), less 1/16 LayoutUnit so that the width rounded up is that LayoutUnit;
+- each space is its rounded width rounded up to a LayoutUnit plus one, less 1/16 LayoutUnit, so a line ending
+  before it keeps the LayoutUnit the fit test grants.
+
+A line is then 0 to 3/64 px narrower than PowerPoint's and never wider, at any zoom whose LayoutUnit divides
+1/64 px (the print step's `zoom` does). `letter-spacing` values are rounded to 10⁻⁶ px. A run of one word and
+no space carries the word's value on the run and has no word span.
 
 Every line of a paragraph is `line-height` tall with its baseline `data-line-baseline` px below its top,
 except two lines whose baseline may sit elsewhere in the same height: the paragraph's last line, at
@@ -737,6 +765,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextRun.verticalAlign`               | profile | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |
 | `NormalizedTextRun.baselineOffset`              | profile | `position: relative; top: <-offset>px`, omitted at 0; it moves the glyphs only, the line box is the paragraph's.           |
 | `NormalizedTextRun.characterSpacing`            | profile | `letter-spacing`, omitted at 0.                                                                                            |
+| `NormalizedTextRun.wordCharacterSpacing`        | profile | Each word in a word span of its own `letter-spacing` (PowerPoint target), omitted when the run has none.                   |
 | `NormalizedTextRun.kerning`                     | profile | `font-kerning: none` when `false` (PowerPoint target), omitted when kerned.                                                |
 | `NormalizedTextRun.syntheticBold`               | profile | `data-synthetic-bold` on a bold run (LibreOffice target), omitted for the renderer's own synthetic bold.                   |
 | `NormalizedTextRun.syntheticItalic`             | profile | `data-synthetic-italic` on an italic run (LibreOffice target), omitted for the renderer's own synthetic italic.            |

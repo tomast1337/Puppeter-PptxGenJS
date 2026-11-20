@@ -124,6 +124,12 @@ export interface NormalizedTextRun {
     baselineOffset: number;
     /** Extra advance after each character in px: `charSpacing`, plus on the PowerPoint target its advance grid's rounding. */
     characterSpacing: number;
+    /**
+     * The extra advance in px inside each word of `text`, in order, in place of `characterSpacing`, which then spaces
+     * only its spaces and tabs: the PowerPoint target's advance grid word by word. A word is a stretch of `text`
+     * without a space (U+0020) or tab. Omitted: `characterSpacing` spaces every character.
+     */
+    wordCharacterSpacing?: readonly number[];
     /** `false`: drawn without the font's pair kerning (PowerPoint, below the run's `kern` size); omitted: kerned. */
     kerning?: false;
     /** On a bold run: the stroke width, as a fraction of `fontSize`, that emboldens a face with no bold; omitted: the renderer's own. */

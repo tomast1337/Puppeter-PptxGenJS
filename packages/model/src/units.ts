@@ -3,6 +3,8 @@
 export const CSS_PX_PER_INCH = 96;
 export const POINTS_PER_INCH = 72;
 export const MILLIMETERS_PER_INCH = 25.4;
+/** Blink's LayoutUnit, 1/64 CSS px: the grid the HTML profile's line breaker measures widths on (docs/HTML_PROFILE.md). */
+export const LAYOUT_UNITS_PER_PX = 64;
 
 // Type-only brands: a `Px` is still a number at runtime and in JSON, but a `Pt` or plain number cannot stand in for it.
 declare const unit: unique symbol;

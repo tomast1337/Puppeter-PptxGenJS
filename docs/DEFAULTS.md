@@ -167,15 +167,19 @@ regular and bold, lines about 700pt long), the rounded advances fit its word
 starts with a residual of 0.07 to 0.25pt (sd), the natural ones 0.2 to 1.2pt;
 on a long line the difference reaches about 0.5%, which moves line breaks.
 Pair kerning from 12pt still applies; whether PowerPoint rounds kerning values
-too was not measured, so they stay as they are. The PowerPoint target adds the
-rounding of a run's advances, spread evenly over its characters, to its
-`letter-spacing` (`RENDERING_TARGETS.powerpoint.advanceGridPt`), from the
-advances of the face, weight and style `resolveGlyphAdvances` finds (on Node by
-default the installed font). A run in a face it does not find keeps the natural
-advances, as does every run of the LibreOffice target. Word starts inside a run
-can be off the grid by up to 0.2 to 0.5pt (the run's end is exact), and the
-1/600 in word-start grid and PowerPoint's hinted glyph widths inside a word are
-not reproduced.
+too was not measured, so they stay as they are. A line fits while its rounded
+advances, trailing spaces left out, are no wider than the box less its insets:
+exactly as wide fits, 0.125pt wider wraps. The PowerPoint target gives each word
+of a run the `letter-spacing` that ends it where the run's rounded advances up to
+its end do, and each space its rounded width
+(`RENDERING_TARGETS.powerpoint.advanceGridPt`, the HTML profile's advance grid),
+from the advances of the face, weight and style `resolveGlyphAdvances` finds (on
+Node by default the installed font), so a line is never wider than PowerPoint's
+and at most 3/64 px narrower. A run in a face it does not find keeps the natural
+advances, as does every run of the LibreOffice target. The sums start again at
+each run, a word broken after a hyphen spreads its rounding evenly over its
+characters, and the 1/600 in word-start grid and PowerPoint's hinted glyph widths
+inside a word are not reproduced.
 
 PowerPoint puts each baseline on a 1/600 in (0.12pt) grid. Measured against its
 PDF export of synthetic decks (one line of Arial, 6 to 18pt, in text boxes and

@@ -61,7 +61,8 @@ root=$PWD
 # +411 B: a line as wide as its box stays on it, by Blink's LayoutUnit fit test (#288: the line breaking loop with its own fit and alignment widths), 1,057,165 -> 1,057,576 B measured; budget = that size.
 # +351 B: a character the run's face lacks takes the Noto Sans CJK face of the run's lang, as Chromium's fontconfig fallback does (#289: the lang read from the run and the lang-to-face table), 1,057,576 -> 1,057,927 B measured; budget = that size.
 # -427 B: a raised or lowered run no longer grows its line in pdf-core; the line box comes grown or not from the HTML, per target (#298: stack_lines loses the per-run loop), 1,057,927 -> 1,057,500 B measured; budget = that size.
-GZIP_BUDGET=1057500
+# +1,363 B: each word of a run takes its own letter-spacing from a span inside the run (wordCharacterSpacing: the word span reader and the per-word letter spacing), 1,057,500 -> 1,058,863 B measured; budget = that size.
+GZIP_BUDGET=1058863
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then
