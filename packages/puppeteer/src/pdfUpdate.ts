@@ -34,6 +34,7 @@ const XREF_ENTRY_BYTES = 20; // ISO 32000-1 7.5.4: "nnnnnnnnnn ggggg n" and a tw
 const TRAILER = /^trailer\s*<<([\s\S]*?)>>\s*startxref/;
 const INFO_REF = /\/Info\s+(\d+)\s+(\d+)\s+R/;
 const SIZE = /\/Size\s+(\d+)/;
+const PREV = /\/Prev\s+(\d+)/;
 const ROOT_REF = /\/Root\s+\d+\s+\d+\s+R/;
 const ID = /\/ID\s*\[[^\]]*\]/;
 const WHITESPACE = /\s/;
@@ -57,6 +58,21 @@ export function readTrailer(text: string, fail: (problem: string) => Error): Pdf
     if (!Number.isInteger(size) || root === undefined) throw fail("its trailer has no /Size or /Root");
     const info = INFO_REF.exec(trailer);
     return { xrefOffset, offsets, size, root, info: info ? { number: Number(info[1]), generation: Number(info[2]) } : undefined, id: ID.exec(trailer)?.[0] ?? "" };
+}
+
+/** The offset of every in-use object of `text`, following the sections' /Prev chain: a newer section's entry wins. */
+export function objectOffsets(text: string, fail: (problem: string) => Error): Map<number, number> {
+    const offsets = new Map<number, number>();
+    const visited = new Set<number>();
+    for (let xrefOffset: number | undefined = readTrailer(text, fail).xrefOffset; xrefOffset !== undefined;) {
+        if (visited.has(xrefOffset) || !text.startsWith("xref", xrefOffset)) throw fail(`its /Prev ${xrefOffset} does not point at a new cross-reference table`);
+        visited.add(xrefOffset);
+        const section = crossReference(text, xrefOffset + "xref".length, fail);
+        for (const [number, offset] of section.offsets) if (!offsets.has(number)) offsets.set(number, offset);
+        const prev = PREV.exec(TRAILER.exec(text.slice(section.end))?.[1] ?? "");
+        xrefOffset = prev ? Number(prev[1]) : undefined;
+    }
+    return offsets;
 }
 
 /** `pdf` with `objects` appended as an update after `trailer` (read from `pdf`), its Info dictionary set to `info`. */
