@@ -5,7 +5,8 @@ import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOpt
 import { type DocumentInfo, withDocumentInfo } from "./pdfInfo";
 import { LINK_PLACEHOLDER, withLinkUris } from "./pdfLinks";
 import { metricSubstitute, PRINT_ZOOM, printHtml } from "./printWorkarounds";
-import { withType1CFonts } from "./type3Fonts";
+import { restrictedFonts } from "./fontEmbedding";
+import { type3FontNames, withType1CFonts } from "./type3Fonts";
 
 /** Options for `PuppeteerPdfRenderer`. */
 export interface PuppeteerPdfRendererOptions {
@@ -100,7 +101,8 @@ async function printPdf(page: Page, { html, pageSize }: HtmlPresentationDocument
     });
     // The links update reads the newest cross-reference section, so it follows the Info update, which needs the original
     // one; the fonts update follows every section.
-    return withType1CFonts(withLinkUris(withDocumentInfo(pdf, await page.evaluate(documentInfo)), uris));
+    const linked = withLinkUris(withDocumentInfo(pdf, await page.evaluate(documentInfo)), uris);
+    return withType1CFonts(linked, await restrictedFonts(type3FontNames(linked)));
 }
 
 // prepareForPrint and documentInfo run inside the page: page.evaluate sends their source text, so they may use only
