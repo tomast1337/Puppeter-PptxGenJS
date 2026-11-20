@@ -54,6 +54,7 @@
   "dependencies": {
     "@pdflapas/model": "workspace:*",
     "fontkit": "2.0.4",
+    "image-in-browser": "3.7.0",
     "linebreak": "1.1.0",
     "parse5": "7.3.0",
     "pdfkit": "0.20.2"

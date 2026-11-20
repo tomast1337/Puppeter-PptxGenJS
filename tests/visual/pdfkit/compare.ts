@@ -1,7 +1,7 @@
 // Scores the PDFKit backend's PDFs against the same LibreOffice reference as the WASM decks, next to the Puppeteer
 // default's and the WASM backend's, with the tests/visual/wasm/compare.ts machinery (pdftoppm 96dpi, ImageMagick RMSE,
 // crops padded by 3 px). Run in the pinned visual image:
-//   bun run test:visual:pdfkit:docker [text|images|shapes|options|tables|tableOptions|effects ...]
+//   bun run test:visual:pdfkit:docker [text|images|shapes|options|tables|tableOptions|svg|gif|webp|effects ...]
 //
 // No gate and no baseline: the backend is a spike (#310), so this prints the score tables and writes
 // <out>/<deck>/fidelity.json plus a reference | puppeteer | wasm | pdfkit montage per crop for eyeballing.
@@ -16,7 +16,7 @@ import { CROP_TARGET, PAGE_THRESHOLD } from "../thresholds";
 import { createRenderer as createWasmRenderer } from "../wasm/backend";
 import { DECKS } from "../wasm/decks";
 
-const DEFAULT_DECKS = ["text", "images", "shapes", "options", "tables", "tableOptions", "effects"];
+const DEFAULT_DECKS = ["text", "images", "shapes", "options", "tables", "tableOptions", "svg", "gif", "webp", "effects"];
 const deckNames = process.argv.length > 2 ? process.argv.slice(2) : DEFAULT_DECKS;
 const root = join(tmpdir(), "pdfkit-parity");
 const ENGINES = ["puppeteer", "wasm", "pdfkit"] as const;

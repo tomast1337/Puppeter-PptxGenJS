@@ -38,6 +38,7 @@
       "dependencies": {
         "@pdflapas/model": "workspace:*",
         "fontkit": "2.0.4",
+        "image-in-browser": "3.7.0",
         "linebreak": "1.1.0",
         "parse5": "7.3.0",
         "pdfkit": "0.20.2",
@@ -262,6 +263,8 @@
     "https-proxy-agent": ["https-proxy-agent@7.0.6", "", { "dependencies": { "agent-base": "^7.1.2", "debug": "4" } }, "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw=="],
 
     "iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
+
+    "image-in-browser": ["image-in-browser@3.7.0", "", {}, "sha512-TSwLCxb/MW97krcfY6YTNM3oqVcH9ZwT17ygDwB2vYEtEMHs4H5INUr7L6civIS5WeciB6HS/ZbS6RFWPHzOHQ=="],
 
     "image-size": ["image-size@1.2.1", "", { "dependencies": { "queue": "6.0.2" }, "bin": { "image-size": "bin/image-size.js" } }, "sha512-rH+46sQJ2dlwfjfhCyNx5thzrv+dtmBIhPHk0zgRUukHzZ/kRueTJXoYYsclBaKcSMBWuGbOFXtioLpzTb5euw=="],
 
