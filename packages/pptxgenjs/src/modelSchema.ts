@@ -115,6 +115,7 @@ const textBox = z.strictObject({
         z.strictObject({
             runs: z.array(textRun),
             align: z.enum(["left", "center", "right", "justify"]),
+            textJustify: z.literal("inter-word").optional(),
             rtl: z.boolean(),
             lineBox: z.strictObject({ height: nonNegative, baseline: finite, markBaseline: finite.optional(), breakBaseline: finite.optional() }),
             spaceBefore: finite,

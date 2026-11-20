@@ -93,6 +93,12 @@ export interface RenderingTargetProfile {
      */
     readonly breaksAroundHanPunctuation: boolean;
     /**
+     * Whether a justified line takes its slack in its spaces only (`text-justify: inter-word`), every other character
+     * at its own advance, and a line without a space stays at its start; otherwise the renderer's `auto`, which in
+     * Chromium also widens each Han character.
+     */
+    readonly justifiesAtSpaces: boolean;
+    /**
      * How a bold run is drawn in a face that has no bold style: the glyphs filled and stroked with a line this fraction
      * of the font size wide. Undefined leaves the browser's own synthesis (Chromium, measured in its PDF output of a
      * regular-only Liberation Sans at 9 to 72pt: a 1/32 em stroke, its glyph outlines 1/64 em wider on each side, and a

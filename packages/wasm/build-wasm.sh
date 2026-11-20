@@ -66,7 +66,8 @@ root=$PWD
 # +778 B: the PowerPoint target's fallback faces and non-breaking hyphen (#289: the font-family list reader, the chain and the registered-face check in family_stack, the U+2011 rewrite of a run's text), 1,058,828 -> 1,059,606 B measured; budget = that size.
 # +143 B: a picture's inner shadow is drawn over it (#205: the blurred outside of the moved silhouette, kept inside it), 1,059,606 -> 1,059,749 B measured; budget = that size.
 # -243 B: a row a merged cell ends in reads its height from its cells' text min-height (the CSS property and the fold into the row height), 1,059,749 -> 1,059,506 B measured; budget = that size.
-GZIP_BUDGET=1059506
+# +101 B: a paragraph's text-justify is read, inter-word or an error (the allow-list entry, the check and its error message), 1,059,506 -> 1,059,607 B measured; budget = that size.
+GZIP_BUDGET=1059607
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

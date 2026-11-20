@@ -44,6 +44,7 @@ const PARAGRAPH_ATTRS: &[&str] = &[
 // `padding-left` and `text-indent` are the bullet indent, derived from the values read here.
 const PARAGRAPH_CSS: &[&str] = &[
     "text-align",
+    "text-justify",
     "direction",
     "margin-top",
     "margin-bottom",
@@ -206,6 +207,12 @@ fn paragraph(dom: &Dom<'_>, element: &Element<'_>) -> Result<Paragraph, String> 
         Some(stops) => stops.split(',').map(tab_stop).collect::<Result<_, _>>()?,
         None => Vec::new(),
     };
+    // The layout justifies a line at its spaces only, which is `inter-word`.
+    // shortcut: `auto` (absent) is drawn as `inter-word` too, where Chromium also widens Han characters; draw it so
+    // when a target that needs it renders through this crate.
+    if let Some(justify) = style.get("text-justify") {
+        one_of("CSS property 'text-justify'", justify, &["inter-word"])?;
+    }
     let baseline = number_attr(element, "data-line-baseline")?;
     let line_baseline = |name: &str| match element.attr(name)? {
         Some(value) => number(&value).map_err(|e| format!("attribute '{name}': {e}")),
@@ -447,7 +454,7 @@ fn glow(element: &Element<'_>, style: &Style<'_>) -> Result<Option<Shadow>, Stri
 #[cfg(test)]
 mod tests {
     use crate::color::Rgba;
-    use crate::model::{Shrink, SlideObject, Synthesis, TabAlign, TextFit, TextObject, UnderlineStyle, VerticalAlign};
+    use crate::model::{ParagraphAlign, Shrink, SlideObject, Synthesis, TabAlign, TextFit, TextObject, UnderlineStyle, VerticalAlign};
     use crate::profile::parse;
     use crate::profile::tests::document;
 
@@ -600,6 +607,14 @@ mod tests {
     }
 
     #[test]
+    fn reads_inter_word_justification() {
+        let style = PARAGRAPH_STYLE.replace("text-align: left;", "text-align: justify; text-justify: inter-word;");
+        let html = format!(r#"<div class="text-paragraph" data-line-baseline="16" style="{style}"><span class="text-run" style="{RUN_STYLE}">x</span></div>"#);
+        let text = text_object(&html).unwrap().text.expect("text");
+        assert!(matches!(text.paragraphs[..], [ref p] if p.align == ParagraphAlign::Justify));
+    }
+
+    #[test]
     fn rejects_out_of_profile_text() {
         let run = |attrs: &str, style: &str, text: &str| {
             format!(
@@ -615,6 +630,10 @@ mod tests {
             (run("", " text-shadow: 1px 1px 1px red;", "x"), "data-text-shadow"),
             (run("", " text-decoration-line: overline;", "x"), "overline"),
             (run("", " font-kerning: off;", "x"), "font-kerning"),
+            (
+                run("", "", "x").replace("text-align: left;", "text-align: justify; text-justify: auto;"),
+                "CSS property 'text-justify': 'auto'",
+            ),
             (
                 run(" data-synthetic-bold=\"-0.1\"", "", "x"),
                 "attribute 'data-synthetic-bold': -0.1 is negative",

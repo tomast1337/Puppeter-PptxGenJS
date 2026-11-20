@@ -139,6 +139,12 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * shortcut: ko-KR also breaks inside digits ("今年总共有1" | "28个"), which the target does not; ja is measured for
  * ，。 and "）" only, and the dash in zh only; "、", the ja dash and other marks keep these rules until a deck measures
  * them.
+ * It justifies a line by widening its spaces only (`justifiesAtSpaces`): every other character keeps its advance, and a
+ * line without a space stays at its start. Measured against its PDF export of a synthetic deck (10pt, no `lang`,
+ * 3.33in boxes, justified and left; tests/eastAsianJustify.test.ts): a Han line with no space, with or without
+ * full-width punctuation, ends where the left-aligned one does (229.85 against 229.41pt, the 0.12pt size grid's drift),
+ * one space on a Han line takes the whole 9.76pt of slack, and on lines of Han, Latin words and spaces, in SimSun,
+ * Arial or both, the Han and Latin steps are the left-aligned ones and the spaces share the rest.
  * It draws a character the run's face lacks in the first face of one chain that has it, whatever the run's face
  * (`fallbackFaces`): Arial, Cambria Math, Segoe UI Symbol, Yu Gothic, then PMingLiU and SimSun. Measured against its
  * PDF export of a synthetic deck (Arial, Calibri and Times New Roman at 14pt, one character class per line) and each
@@ -174,6 +180,7 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     joinsOpeningBracket: true,
     hangingMarks: HANGING_MARKS,
     breaksAroundHanPunctuation: true,
+    justifiesAtSpaces: true,
     syntheticBoldStrokeEm: undefined,
     syntheticItalicShear: undefined,
     fallbackFaces: FALLBACK_FACES,
