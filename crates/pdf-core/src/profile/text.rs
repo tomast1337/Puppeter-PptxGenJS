@@ -324,6 +324,7 @@ fn run(dom: &Dom<'_>, element: &Element<'_>) -> Result<Run, String> {
     Ok(Run {
         text,
         font_face: font_family(style.require("font-family")?).map_err(|e| format!("CSS property 'font-family': {e}"))?,
+        language: element.attr("lang")?.map(String::from),
         font_size: style.require_px("font-size")?,
         color: style.require_color("color")?,
         bold: one_of("CSS property 'font-weight'", style.require("font-weight")?, &["bold", "normal"])? == "bold",

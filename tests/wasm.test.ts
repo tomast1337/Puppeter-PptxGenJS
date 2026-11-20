@@ -270,6 +270,64 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         }
     });
 
+    // Chromium takes the fallback face for a character the run's face lacks from fontconfig, by the run's lang:
+    // Noto Sans CJK SC for zh-CN, TC for zh-TW, KR for ko, JP for ja and any lang without a rule (#289). Liberation Sans,
+    // Arial's alias, has the issue's modifier letters, so neither backend falls back for them. U+2011 is left out: see
+    // the shortcut at family_stack (crates/pdf-core/src/text/font.rs).
+    test("falls back to the CJK face Chromium picks for the run's lang", async () => {
+        const pdffonts = Bun.which("pdffonts");
+        if (!pdffonts) return console.warn("pdffonts (poppler-utils) not installed: CJK fallback faces not compared");
+        const runs = [
+            ["zh-CN", "简体中文的文本"],
+            ["zh-TW", "繁體中文的文本"],
+            ["ja", "日本語のテキスト"],
+            ["ko", "한국어 텍스트"],
+            ["en-US", "中文"],
+            ["en-US", "lorem 1ᵉʳ dolor"],
+        ] as const;
+        const pdf = async (pres: PuppeteerGen) => {
+            for (const [lang, text] of runs) pres.addSlide().addText(text, { x: 1, y: 1, w: 6, h: 1, fontFace: "Arial", fontSize: 24, lang });
+            return pres.toPdf();
+        };
+        const dir = await mkdtemp(join(tmpdir(), "cjk-fallback-"));
+        try {
+            // The distinct faces pdffonts lists for each page, without the subset tag (Chromium embeds a face once per run)
+            // or the CMap a Type 0 font name may end in (PDF 32000-1 9.7.6.1: krilla writes "-Identity-H").
+            const faces = async (name: string, bytes: Uint8Array) => {
+                const file = join(dir, `${name}.pdf`);
+                await writeFile(file, bytes);
+                return runs.map((_, page) => {
+                    const listing = Bun.spawnSync([pdffonts, "-f", String(page + 1), "-l", String(page + 1), file]).stdout.toString();
+                    return [
+                        ...new Set(
+                            listing
+                                .split("\n")
+                                .slice(2)
+                                .filter(Boolean)
+                                .map(line =>
+                                    line
+                                        .split(/\s+/)[0]
+                                        ?.replace(/^[A-Z]{6}\+/, "")
+                                        .replace(/-Identity-H$/, ""),
+                                ),
+                        ),
+                    ].sort();
+                });
+            };
+            const chromium = await faces("chromium", await pdf(new PuppeteerGen(PAGE)));
+            // Elsewhere fontconfig can pick faces loadSystemFonts does not load (Arch: Droid Sans Fallback, Arial); the
+            // pinned visual image (tests/visual/Dockerfile) has Liberation, fonts-noto-cjk and its lang rules.
+            if (chromium.flat().some(face => !/^(?:NotoSansCJK|LiberationSans)/.test(face ?? ""))) {
+                return console.warn(`Chromium used ${JSON.stringify(chromium)}, not only Liberation Sans and Noto Sans CJK: fallback faces not compared`);
+            }
+            const cjk = ["NotoSansCJKsc-Regular", "NotoSansCJKtc-Regular", "NotoSansCJKjp-Regular", "NotoSansCJKkr-Regular", "NotoSansCJKjp-Regular"].map(face => [face]);
+            expect(chromium.map(page => page.filter(face => face?.startsWith("NotoSansCJK")))).toEqual([...cjk, []]);
+            expect(await faces("wasm", await pdf(new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) })))).toEqual(chromium);
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
+
     test("follows the PowerPoint target's font-kerning: none, so the unkerned runs move", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pdf = async (pres: PuppeteerGen) => {

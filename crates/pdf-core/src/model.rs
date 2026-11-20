@@ -356,6 +356,8 @@ pub(crate) struct Bullet {
 pub(crate) struct Run {
     pub(crate) text: String,
     pub(crate) font_face: String,
+    /// The run's `lang`, which picks the CJK fallback face (`text::font::family_stack`).
+    pub(crate) language: Option<String>,
     pub(crate) font_size: f32,
     pub(crate) color: Rgba,
     pub(crate) bold: bool,
@@ -555,6 +557,7 @@ pub(crate) mod build {
         Run {
             text: text.into(),
             font_face: font_face.into(),
+            language: None,
             font_size,
             color: Rgba(0, 0, 0, 1.0),
             bold: false,
