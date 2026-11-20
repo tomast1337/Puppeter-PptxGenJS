@@ -195,7 +195,8 @@ const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』�
  * band's top is underlinePosition below the baseline and its height underlineThickness, the bold face's when bold,
  * each within one 1/600 in step: 12pt Arial 0.84pt thick (post 0.879), bold 1.2 (1.26), Calibri 0.84 (0.785), Times
  * New Roman 0.6 (0.586), tops 1.27pt below the baseline (1.271, 1.359, 1.307); Chromium drew 1.125pt for each at
- * 0.66pt. The underline colour is used when set.
+ * 0.66pt. The underline colour is used when set. On some faces PowerPoint draws another band, by a rule not yet known
+ * (#391): a `fontMetrics` entry's `underline` gives that band in place of the `post` one (`underlineBand`).
  * Around that band (top P, thickness T), in the same export: double is two T/2 lines from P - T to P + T (12pt Arial
  * 0.48pt lines 0.72pt apart from 0.43pt below the baseline, T 0.84), heavy one 1.5T band from P - T (12pt Arial 1.32pt
  * from 0.48pt, 24pt 2.76pt from 0.70pt; `underlineHeavy`), wavy a 1/600 in zigzag of 45-degree slopes filling 2T from

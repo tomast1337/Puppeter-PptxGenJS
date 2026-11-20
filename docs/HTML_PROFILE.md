@@ -279,6 +279,15 @@ underlinePosition below the baseline), drawn over descenders, as PowerPoint draw
 draws its own (about 0.1em, at its own offset, broken around descenders). pdf-core and the PDFKit renderer draw
 the band either way; pdf-core rejects another value and the PDFKit renderer reports it.
 
+With `NormalizedTextDecoration.underlineBand` (a `fontMetrics` entry's `underline`, #391) the run states the band
+in place of the `post` one: `text-decoration-thickness: <T>em; text-underline-offset: <O>em;
+text-decoration-skip-ink: none`, with no `text-underline-position`. T is the band's height and O its top below
+the baseline, both in em of the run's font size (O is the model's `position` negated, so a band above the
+baseline has a negative O). Chromium puts an `auto`-positioned underline's top O below the baseline, and every
+renderer treats this band as the `post` one: the shapes and the line's averaged band below derive from it.
+pdf-core rejects an offset that is not in em, one without a positive em thickness or one with
+`text-underline-position`, and the PDFKit renderer reports them.
+
 Around that band (top P below the baseline, thickness T), a from-font underline takes PowerPoint's shapes:
 `double` is two T/2 lines from P - T to P + T; `wavy` a zigzag of 45-degree slopes, 1/600 in tall, filling the
 2T from P - T/2 in whole half-waves; and with `data-underline-heavy` (PptxGenJS's `heavy`, only on a from-font
@@ -846,6 +855,9 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextDecoration.underlineStyle`       | profile | `text-decoration-style`; `data-underline-style` when `data-double-strike` replaced it with `double`.                       |
 | `NormalizedTextDecoration.underlineColor`       | profile | `text-decoration-color`.                                                                                                   |
 | `NormalizedTextDecoration.underlineFromFont`    | profile | `text-decoration-thickness`/`text-underline-position: from-font`, `text-decoration-skip-ink: none`.                        |
+| `NormalizedTextDecoration.underlineBand`        | profile | `text-decoration-thickness`/`text-underline-offset` in em, in place of `from-font`.                                        |
+| `NormalizedUnderlineBand.position`              | profile | `text-underline-offset: <-position>em` on the run.                                                                         |
+| `NormalizedUnderlineBand.thickness`             | profile | `text-decoration-thickness: <thickness>em` on the run.                                                                     |
 | `NormalizedTextDecoration.underlineHeavy`       | profile | `data-underline-heavy` on the run.                                                                                         |
 | `NormalizedTextDecoration.strike`               | profile | `line-through` in `text-decoration-line`.                                                                                  |
 | `NormalizedTextDecoration.doubleStrike`         | profile | `data-double-strike` on the run (`text-decoration-style: double` draws it).                                                |

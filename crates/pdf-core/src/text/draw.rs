@@ -160,6 +160,20 @@ pub(crate) struct UnderlineBand {
     pub(crate) size: f32,
 }
 
+/// A from-font run's own band at `font_size` px: the HTML's (`underline_band`, in em), else the face's `post` band.
+fn run_underline_band(paint: &RunPaint, metrics: &FontMetrics, font_size: f32) -> UnderlineBand {
+    match paint.underline_band {
+        Some(band) => UnderlineBand {
+            offset: band.offset * font_size,
+            size: band.size * font_size,
+        },
+        None => UnderlineBand {
+            offset: metrics.underline_offset,
+            size: metrics.underline_size,
+        },
+    }
+}
+
 /// The band PowerPoint underlines a line's from-font runs with: their `post` bands averaged by width (a 12pt then a
 /// 24pt Arial run: 1.44pt thick, its top 2.06pt below the baseline, where 12pt alone is 0.84/1.27 and 24pt alone
 /// 1.80/2.42, measured against its PDF export of a synthetic deck). None when the line has no such run.
@@ -167,14 +181,13 @@ pub(crate) fn line_underline_band(line: &Line<'_, Brush>, paints: &[RunPaint]) -
     let (mut width, mut offset, mut size) = (0.0, 0.0, 0.0);
     for item in line.items() {
         let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
-        let underlined = paints
-            .get(glyph_run.style().brush.0 as usize)
-            .is_some_and(|paint| paint.underline && paint.underline_from_font);
-        if underlined {
-            let (advance, metrics) = (glyph_run.advance(), glyph_run.run().font_metrics());
+        let paint = paints.get(glyph_run.style().brush.0 as usize);
+        if let Some(paint) = paint.filter(|paint| paint.underline && paint.underline_from_font) {
+            let run = glyph_run.run();
+            let (advance, band) = (glyph_run.advance(), run_underline_band(paint, run.font_metrics(), run.font_size()));
             width += advance;
-            offset += advance * metrics.underline_offset;
-            size += advance * metrics.underline_size;
+            offset += advance * band.offset;
+            size += advance * band.size;
         }
     }
     (width > 0.0).then(|| UnderlineBand {
@@ -350,7 +363,16 @@ impl Renderer {
             return;
         };
         self.draw_glyphs(surface, glyph_run, paint, font, text, (ox, oy));
-        self.draw_decorations(surface, paint, &metrics, start, baseline, advance, line_band);
+        // A from-font underline takes the line's band; every other the face's.
+        let band = if paint.underline_from_font {
+            line_band.unwrap_or_else(|| run_underline_band(paint, &metrics, run.font_size()))
+        } else {
+            UnderlineBand {
+                offset: metrics.underline_offset,
+                size: metrics.underline_size,
+            }
+        };
+        self.draw_decorations(surface, paint, &metrics, start, baseline, advance, band);
     }
 
     /// The run's glyphs in `font`: an outline under them, the fill (synthetic bold and italic
@@ -429,7 +451,7 @@ impl Renderer {
         self.glyphs = glyphs;
     }
 
-    /// Underline and strikethrough over `advance` px from `start`; a from-font underline takes the line's `band`.
+    /// Underline and strikethrough over `advance` px from `start`; the underline around `band`.
     #[allow(clippy::too_many_arguments)] // the run's place on its line, as draw_glyph_run has it
     fn draw_decorations(
         &mut self,
@@ -439,15 +461,10 @@ impl Renderer {
         start: f32,
         baseline: f32,
         advance: f32,
-        line_band: Option<UnderlineBand>,
+        band: UnderlineBand,
     ) {
         let deco = paint.underline_color.unwrap_or(paint.color);
         if paint.underline {
-            let own = UnderlineBand {
-                offset: metrics.underline_offset,
-                size: metrics.underline_size,
-            };
-            let band = if paint.underline_from_font { line_band.unwrap_or(own) } else { own };
             let (top, t) = (baseline - band.offset, band.size.max(0.5));
             let path = if paint.underline_from_font {
                 powerpoint_underline_path(paint.underline_style, paint.underline_heavy, start, top, advance, t)

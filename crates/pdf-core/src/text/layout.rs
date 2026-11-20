@@ -13,7 +13,7 @@ use krilla::paint::Stroke;
 use crate::Renderer;
 use crate::color::Rgba;
 use crate::effect::Effect;
-use crate::model::{LineBox, ParagraphAlign, Synthesis, TextBox, TextDirection, TextFit, UnderlineStyle};
+use crate::model::{EmBand, LineBox, ParagraphAlign, Synthesis, TextBox, TextDirection, TextFit, UnderlineStyle};
 use crate::text::tabs::{MAX_TAB_REBREAK_BYTES, TAB_PLACEHOLDER, TabRuler, place_tabs, tab_box};
 
 /// Blink's `LayoutUnit`, the grid its line breaker measures on: 1/64 CSS px (`kFractionalBits` = 6 in
@@ -33,6 +33,7 @@ pub(crate) struct RunPaint {
     pub(crate) underline_style: UnderlineStyle,
     pub(crate) underline_color: Option<Rgba>,
     pub(crate) underline_from_font: bool,
+    pub(crate) underline_band: Option<EmBand>,
     pub(crate) underline_heavy: bool,
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
@@ -234,6 +235,7 @@ impl Renderer {
                     underline_style: run.decoration.underline_style,
                     underline_color: run.decoration.underline_color,
                     underline_from_font: run.decoration.underline_from_font,
+                    underline_band: run.decoration.underline_band,
                     underline_heavy: run.decoration.underline_heavy,
                     strike: run.decoration.strike,
                     double_strike: run.decoration.double_strike,
@@ -349,6 +351,7 @@ impl Renderer {
                         underline_style: UnderlineStyle::Solid,
                         underline_color: None,
                         underline_from_font: false,
+                        underline_band: None,
                         underline_heavy: false,
                         strike: false,
                         double_strike: false,

@@ -14,6 +14,7 @@ export interface Color {
 const HEX_COLOR = /^#([\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/i;
 const RGB_COLOR = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i;
 const PX_LENGTH = /^(-?\d*\.?\d+(?:e[-+]?\d+)?)px$/i;
+const EM_LENGTH = /^(-?\d*\.?\d+(?:e[-+]?\d+)?)em$/i;
 const PERCENT_LENGTH = /^(-?\d*\.?\d+)%$/;
 const FULL_ALPHA = 255;
 const SHORT_HEX_LENGTH = 3;
@@ -61,6 +62,12 @@ export function take(style: Style, property: string): string | undefined {
 export function px(value: string | undefined): number | undefined {
     if (value === "0") return 0;
     const match = value === undefined ? null : PX_LENGTH.exec(value);
+    return match?.[1] === undefined ? undefined : Number(match[1]);
+}
+
+/** An `<n>em` length; undefined for anything else. */
+export function em(value: string | undefined): number | undefined {
+    const match = value === undefined ? null : EM_LENGTH.exec(value);
     return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 

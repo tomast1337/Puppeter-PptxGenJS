@@ -2,7 +2,7 @@ import type PptxGenJS from "pptxgenjs";
 import { type FontMetricsLookup, type FontWinMetrics, PPTX_DEFAULTS } from "#src/defaults";
 import { DEFAULT_RENDERING_TARGET, RENDERING_TARGETS, type RenderingTarget } from "#src/target/index";
 import { builtInFontMetrics } from "#src/fontMetrics";
-import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
+import type { NormalizedShadow, NormalizedTextBox, NormalizedTextBullet, NormalizedTextDecoration, NormalizedTextParagraph, NormalizedTextRun } from "@pdflapas/model";
 import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { inch2EmuToPixels } from "#src/units";
 import { advanceGridWordSpacing, fullWidthStretches, type GridCursor, runPieces, wordAfter } from "./advanceGrid";
@@ -151,6 +151,12 @@ function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: 
     return { characterSpacing: spacing.space, wordCharacterSpacing: spacing.words, ...(spacing.spaces ? { spaceCharacterSpacing: spacing.spaces } : {}) };
 }
 
+/** The caller's `fontMetrics` underline for the face (#391), in em: the band drawn in place of its `post` band. */
+function underlineBand(metrics: FontWinMetrics | undefined): Pick<NormalizedTextDecoration, "underlineBand"> {
+    const band = metrics?.underline;
+    return band ? { underlineBand: { position: band.position / metrics.unitsPerEm, thickness: band.thickness / metrics.unitsPerEm } } : {};
+}
+
 /** A run's font size in px, before any superscript or subscript reduction. */
 function runFontSize(options: PptxGenJS.TextPropsOptions): number {
     return pointsToPixels(checkedSize(options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt, "fontSize", PPTX_DEFAULTS.limits.fontSizePt));
@@ -191,7 +197,7 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
             underline: underlined,
             underlineStyle: underlineStyle(underline),
             underlineColor: typeof options.underline === "object" && options.underline.color ? normalizeColor(options.underline.color) : undefined,
-            ...(underlined && underlineFromFont ? { underlineFromFont } : {}),
+            ...(underlined && underlineFromFont ? { underlineFromFont, ...underlineBand(fontMetrics(fontFace)) } : {}),
             // shortcut: only `heavy` is measured; dashHeavy, dottedHeavy, wavyHeavy and the other heavy dashes draw at
             // their normal thickness (#397), measure them against PowerPoint's PDF export when a deck uses one.
             ...(underlined && underlineFromFont && underline === "heavy" ? { underlineHeavy: true } : {}),

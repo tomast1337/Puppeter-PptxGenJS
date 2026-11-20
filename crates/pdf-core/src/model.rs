@@ -420,10 +420,20 @@ pub(crate) struct Decoration {
     /// `text-decoration-thickness: from-font` (the PowerPoint target's): the underline takes PowerPoint's shapes
     /// around the `post` band, averaged over the line's runs; otherwise LibreOffice's patterns.
     pub(crate) underline_from_font: bool,
+    /// `text-decoration-thickness` and `text-underline-offset` in em (the model's `underlineBand`): a from-font
+    /// underline's band in place of the face's `post` band.
+    pub(crate) underline_band: Option<EmBand>,
     /// `data-underline-heavy`: PowerPoint's heavy band, 1.5 times the `post` band's thickness.
     pub(crate) underline_heavy: bool,
     pub(crate) strike: bool,
     pub(crate) double_strike: bool,
+}
+
+/// An underline band in em of the run's font size: its top `offset` above the baseline (below when negative), `size` tall.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct EmBand {
+    pub(crate) offset: f32,
+    pub(crate) size: f32,
 }
 
 /// `NormalizedTextDecoration.underlineStyle`: the CSS `text-decoration-style` the PptxGenJS style maps to.
@@ -585,6 +595,7 @@ pub(crate) mod build {
                 underline_style: UnderlineStyle::Solid,
                 underline_color: None,
                 underline_from_font: false,
+                underline_band: None,
                 underline_heavy: false,
                 strike: false,
                 double_strike: false,

@@ -1,6 +1,6 @@
 // Reads a text box of the profile (docs/HTML_PROFILE.md "Text") into the values the layout needs. Every inline
 // property and data-* attribute the renderer does not draw is reported through `report`, never dropped silently.
-import { type Color, color, cssStrings, px, readStyle, type Style, sides, take } from "#src/css";
+import { type Color, color, cssStrings, em, px, readStyle, type Style, sides, take } from "#src/css";
 import { attribute, children, type Element, hasClass, isElement, textContent } from "#src/dom";
 import { type Effect, glowEffect } from "#src/effect/index";
 import type { FaceRequest } from "#src/fonts";
@@ -10,6 +10,11 @@ export interface Decoration {
     readonly color: Color;
     /** `text-decoration-thickness: from-font` on an underline: PowerPoint's shapes, on the line's averaged band (draw.ts). */
     readonly fromFont?: boolean;
+    /**
+     * `text-decoration-thickness: <t>em; text-underline-offset: <o>em` (the model's `underlineBand`): a from-font
+     * underline's band in place of the face's `post` band, in em: its top `position` above the baseline (-o), `thickness` t.
+     */
+    readonly band?: { readonly position: number; readonly thickness: number };
     /** `data-underline-heavy` on a from-font underline: PowerPoint's heavy band. */
     readonly heavy?: boolean;
 }
@@ -191,16 +196,36 @@ function runPieces(element: Element, letterSpacing: number): { text: string; let
     return pieces.filter(piece => piece.text);
 }
 
+/**
+ * A caller's underline band (`underlineBand`): `text-underline-offset` and `text-decoration-thickness` in em, without
+ * `text-underline-position`; both taken from `style`. Undefined without an offset; any other form is reported.
+ */
+function readUnderlineBand(style: Style, report: Report): Decoration["band"] {
+    const offset = take(style, "text-underline-offset");
+    if (offset === undefined) return undefined;
+    const thickness = style.get("text-decoration-thickness");
+    const [top, height] = [em(offset), em(thickness)];
+    if (top === undefined || height === undefined || height <= 0 || style.has("text-underline-position")) {
+        report(`CSS property 'text-underline-offset: ${offset}' is not drawn: an underline band is '<n>em' with 'text-decoration-thickness' a positive '<n>em' and no 'text-underline-position'`);
+        return undefined;
+    }
+    style.delete("text-decoration-thickness");
+    return { position: -top, thickness: height };
+}
+
 function readDecorations(element: Element, style: Style, textColor: Color, report: Report): Pick<Run, "underline" | "strike"> {
     const lines = (take(style, "text-decoration-line") ?? "").split(/\s+/);
     const cssStyle = take(style, "text-decoration-style") ?? "solid";
     const decorationColor = readColor(take(style, "text-decoration-color"), "text-decoration-color", report) ?? textColor;
-    // The underline is always drawn from the face's post table, over the descenders (draw.ts); any other value is reported.
-    const fromFont = UNDERLINE_FROM_FONT.map(([property, drawn]) => {
-        const value = take(style, property);
-        if (value !== undefined && value !== drawn) report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
-        return value !== undefined;
-    })[0];
+    const band = readUnderlineBand(style, report);
+    // The underline is always drawn from the face's post table, or the band above, over the descenders (draw.ts); any
+    // other value is reported.
+    const fromFont =
+        UNDERLINE_FROM_FONT.map(([property, drawn]) => {
+            const value = take(style, property);
+            if (value !== undefined && value !== drawn) report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
+            return value !== undefined;
+        })[0] || band !== undefined;
     const heavyAttribute = attribute(element, "data-underline-heavy") !== undefined;
     if (heavyAttribute && !fromFont) report("attribute 'data-underline-heavy' without 'text-decoration-thickness: from-font' is not drawn (drawn at the normal thickness)");
     const heavy = heavyAttribute && fromFont;
@@ -213,7 +238,7 @@ function readDecorations(element: Element, style: Style, textColor: Color, repor
         return { style: "solid", color: decorationColor };
     };
     return {
-        ...(lines.includes("underline") ? { underline: { ...decoration("underline", underlineStyle), ...(fromFont ? { fromFont } : {}), ...(heavy ? { heavy } : {}) } } : {}),
+        ...(lines.includes("underline") ? { underline: { ...decoration("underline", underlineStyle), ...(fromFont ? { fromFont } : {}), ...(band ? { band } : {}), ...(heavy ? { heavy } : {}) } } : {}),
         ...(lines.includes("line-through") || doubleStrike ? { strike: decoration("strike", doubleStrike ? "double" : "solid") } : {}),
     };
 }

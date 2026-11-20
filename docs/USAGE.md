@@ -435,11 +435,41 @@ kerns text from 12pt only in a face it kerns, and the PowerPoint target draws a 
 `FONT_WIN_METRICS` sets it for Arial and Calibri. A face whose glyph advances are read
 (`resolveGlyphAdvances`) with no `kern` pairs is drawn unkerned too.
 
+An entry may also carry `underline: { position, thickness }`: the underline band the PowerPoint target draws
+for the face, in place of the one in its `post` table. The PowerPoint target draws an underline from the
+face's `post` table (`underlinePosition`, `underlineThickness`), which is what PowerPoint draws for Arial,
+Calibri and Times New Roman, but for some faces PowerPoint draws another band by a rule that is not known yet
+(#391). Both numbers are in the entry's font units (`unitsPerEm`):
+
+- `position` is the band's **top**, measured from the baseline, with the `post` table's sign: negative is
+  below the baseline. It is the top of the band, not its centre, as the PowerPoint target reads
+  `post.underlinePosition`, so the face's own `post` values give the same underline as leaving the field out
+  (the same band in the WASM and PDFKit renderers; Chromium may round the explicit band to a different pixel).
+- `thickness` is the band's height, greater than 0.
+
+```typescript
+const pres = new PuppeteerGenPowerPoint(undefined, {
+    fontMetrics: {
+        // Measured in PowerPoint's PDF export of a deck using the face: at 10pt, the band's top is 0.45pt below
+        // the baseline and it is 0.72pt tall, so -45 and 72 of 1000 units.
+        "My Brand Sans": { unitsPerEm: 1000, winAscent: 950, winDescent: 250, underline: { position: -45, thickness: 72 } },
+    },
+});
+```
+
+Take the numbers from PowerPoint, not from the font: underline a run in a deck using the face, export it to
+PDF from PowerPoint, and measure the band's top below the baseline and its height at a known size; then
+`position = -top / size * unitsPerEm` and `thickness = height / size * unitsPerEm`. The band applies to the
+face in every weight and style, and PowerPoint's double, wavy and heavy underlines are drawn around it as
+around the `post` band. `toHtml()` states it as `text-decoration-thickness` and `text-underline-offset` in em
+on the run. `readFontWinMetrics` (and so the default resolver) never sets it.
+
 The constructor checks each entry: `unitsPerEm` a positive integer, `winAscent` and `winDescent`
-non-negative integers with a positive sum, `pairKerning` a boolean if present, and no other field. An
+non-negative integers with a positive sum, `pairKerning` a boolean if present, `underline` if present an
+object with a finite `position` and a positive finite `thickness` and nothing else, and no other field. An
 invalid entry throws a `TypeError` naming the face and field. `readFontWinMetrics(bytes, faceIndex = 0)` is browser-safe (it takes bytes,
 not a path) and throws `FontFileError` on bytes that are not a readable TrueType or OpenType font. The
-LibreOffice target ignores `fontMetrics` and `resolveFontMetrics`, as LibreOffice's line box does not
+LibreOffice target ignores `fontMetrics` (its `underline` too: it draws its own underline) and `resolveFontMetrics`, as LibreOffice's line box does not
 depend on the font; it never calls the resolver.
 
 `resolveFontMetrics` takes a face name and returns its metrics, or `undefined` to fall through to

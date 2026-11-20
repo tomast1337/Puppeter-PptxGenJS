@@ -1102,6 +1102,40 @@ mod tests {
     }
 
     #[test]
+    fn a_from_font_underline_with_an_em_band_takes_it_in_place_of_the_post_band() {
+        let band_of = |band: Option<model::EmBand>| {
+            let mut run = build::run("Band", "Liberation Sans", 20.0);
+            run.decoration.underline = true;
+            run.decoration.underline_from_font = true;
+            run.decoration.underline_band = band;
+            let layout = laid_out(&build::text_box(vec![build::paragraph(vec![run], 40.0, 32.0)]))?;
+            let line = layout.paras[0].layout.lines().next().expect("one line");
+            let metrics = line
+                .items()
+                .find_map(|item| match item {
+                    parley::PositionedLayoutItem::GlyphRun(run) => Some(*run.run().font_metrics()),
+                    parley::PositionedLayoutItem::InlineBox(_) => None,
+                })
+                .expect("a glyph run");
+            let band = crate::text::draw::line_underline_band(&line, &layout.paints).expect("an underlined line");
+            Some((band.offset, band.size, metrics))
+        };
+        let Some((offset, size, metrics)) = band_of(Some(model::EmBand { offset: -0.045, size: 0.072 })) else {
+            return eprintln!("Liberation Sans not installed: the em underline band not checked");
+        };
+        assert!((offset - -0.9).abs() < 1e-4 && (size - 1.44).abs() < 1e-4);
+        // The post band given as em draws as the post band.
+        let post = model::EmBand {
+            offset: metrics.underline_offset / 20.0,
+            size: metrics.underline_size / 20.0,
+        };
+        let (offset, size, _) = band_of(Some(post)).expect("installed");
+        let (post_offset, post_size, _) = band_of(None).expect("installed");
+        assert!((offset - post_offset).abs() < 1e-4 && (size - post_size).abs() < 1e-4);
+        assert!((post_offset - metrics.underline_offset).abs() < 1e-4);
+    }
+
+    #[test]
     fn stacked_text_puts_every_character_on_its_own_line() {
         let mut text = text_box(&[(&["Ab c", "d"], 36.0, 30.0)]);
         text.direction = TextDirection::Stacked;
