@@ -39,9 +39,12 @@ export class PdfkitRenderer implements PresentationRenderer {
     #warnings: readonly string[] = [];
     #missingFonts: readonly MissingFont[] = [];
 
-    constructor(faces: readonly Face[], onUnsupported: UnsupportedPolicy = "error", onMissingFont?: MissingFontPolicy) {
+    // Takes the options, not parsed faces: a face holds a fontkit font, and naming it here would put fontkit's types in
+    // the published declarations, which a strict consumer cannot resolve (#354).
+    constructor({ fonts, onUnsupported = "error", onMissingFont }: PdfkitRendererOptions) {
+        if (!fonts?.length) throw new Error("createPdfkitRenderer() requires at least one font: pass { fonts: [Uint8Array, ...] } (Node/Bun: await loadSystemFonts())");
         if (onUnsupported !== "error" && onUnsupported !== "warn") throw new Error(`onUnsupported must be "error" or "warn", got ${JSON.stringify(onUnsupported)}`);
-        this.#faces = faces;
+        this.#faces = parseFonts(fonts);
         this.#onUnsupported = onUnsupported;
         this.#onMissingFont = missingFontPolicy(onMissingFont);
     }
@@ -70,8 +73,7 @@ export class PdfkitRenderer implements PresentationRenderer {
 }
 
 export async function createPdfkitRenderer(options: PdfkitRendererOptions): Promise<PdfkitRenderer> {
-    if (!options.fonts?.length) throw new Error("createPdfkitRenderer() requires at least one font: pass { fonts: [Uint8Array, ...] } (Node/Bun: await loadSystemFonts())");
-    return new PdfkitRenderer(parseFonts(options.fonts), options.onUnsupported, options.onMissingFont);
+    return new PdfkitRenderer(options);
 }
 
 export async function loadSystemFonts(_options?: SystemFontOptions): Promise<Uint8Array[]> {
