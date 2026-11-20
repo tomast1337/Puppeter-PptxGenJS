@@ -10,7 +10,7 @@ use krilla::paint::Stroke;
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
 use kurbo::BezPath;
-use parley::{FontMetrics, GlyphRun, Layout, PositionedLayoutItem};
+use parley::{FontMetrics, GlyphRun, Layout, Line, PositionedLayoutItem};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of, unit};
@@ -39,6 +39,60 @@ const WAVE_PERIOD: f32 = 6.0;
 const WAVE_HEIGHT: f32 = 1.0;
 /// LibreOffice draws its wave thinner than the straight line.
 const WAVE_THICKNESS: f32 = 0.5;
+
+// PowerPoint's underline shapes around the face's `post` band (top P below the baseline, thickness T), measured
+// against its PDF export of a synthetic deck (Arial, Calibri and Times New Roman at 8 to 24pt), each within about one
+// 1/600 in step, its device grid. Double: two T/2 lines, the first from P - T, the second ending at P + T (12pt Arial
+// 0.48pt lines 0.72pt apart from 0.43pt below the baseline, T 0.84). Heavy: one band 1.5T tall from P - T (12pt Arial
+// 1.32pt from 0.48pt, 24pt 2.76pt from 0.70pt). Wavy: a zigzag of 45-degree slopes, one grid step tall, filling the
+// 2T from P - T/2, with whole half-waves (it runs past the text to finish the last one).
+const PPT_DOUBLE_LINE: f32 = 0.5;
+const PPT_HEAVY: f32 = 1.5;
+const PPT_WAVE_BAND: f32 = 2.0;
+/// PowerPoint's device grid in its PDF export, steps per inch (the PowerPoint target's advance and baseline grid).
+const PPT_GRID_PER_IN: f32 = 600.0;
+/// The wave's vertical thickness: one grid step.
+const PPT_WAVE_LINE: f32 = crate::PX_PER_IN / PPT_GRID_PER_IN;
+
+/// PowerPoint's underline of `style` (heavy when `heavy`) around the `post` band `t` px tall from `top`, over
+/// `advance` px from `start` (y down).
+fn powerpoint_underline_path(style: UnderlineStyle, heavy: bool, start: f32, top: f32, advance: f32, t: f32) -> BezPath {
+    match style {
+        UnderlineStyle::Solid if heavy => rect_path(start, top - t, advance, PPT_HEAVY * t, 0.0),
+        UnderlineStyle::Double => {
+            let line = PPT_DOUBLE_LINE * t;
+            let mut path = rect_path(start, top - t, advance, line, 0.0);
+            path.extend(rect_path(start, top + t - line, advance, line, 0.0));
+            path
+        }
+        UnderlineStyle::Wavy => zigzag(start, top - t / 2.0, advance, PPT_WAVE_BAND * t),
+        // shortcut: PowerPoint's dotted and dashed underlines were not measured, so they keep LibreOffice's patterns
+        // around the band; measure them when a deck needs them (#397).
+        _ => underline_path(style, start, top, advance, t),
+    }
+}
+
+/// A zigzag PPT_WAVE_LINE tall filling `band` px from `top`, 45-degree slopes, from `start` down first, over whole
+/// half-waves covering `advance`.
+// shortcut: each glyph run (a run, or a word of one with its own spacing) starts its own zigzag, where PowerPoint draws
+// one per line; join them when a deck shows the seams.
+fn zigzag(start: f32, top: f32, advance: f32, band: f32) -> BezPath {
+    let reach = (band - PPT_WAVE_LINE).max(PPT_WAVE_LINE);
+    // A finite advance over a positive reach: a whole count of at least 1.
+    let halves = (advance / reach).ceil().max(1.0) as u32;
+    let point = |i: u32, y: f32| (f64::from(start + reach * i as f32), f64::from(y));
+    let edge = |i: u32| if i.is_multiple_of(2) { top } else { top + reach };
+    let mut path = BezPath::new();
+    path.move_to(point(0, top));
+    for i in 0..=halves {
+        path.line_to(point(i, edge(i) + PPT_WAVE_LINE));
+    }
+    for i in (0..=halves).rev() {
+        path.line_to(point(i, edge(i)));
+    }
+    path.close_path();
+    path
+}
 
 /// The filled outline of an underline of `style` whose straight form is the `thickness` px tall band from
 /// `top`, over `advance` px from `start` (y down).
@@ -97,6 +151,36 @@ fn wave(start: f32, middle: f32, advance: f32, t: f32) -> BezPath {
     }
     path.close_path();
     path
+}
+
+/// A `post` underline band: its top `offset` px above the baseline (below it when negative), `size` px tall.
+#[derive(Clone, Copy)]
+pub(crate) struct UnderlineBand {
+    pub(crate) offset: f32,
+    pub(crate) size: f32,
+}
+
+/// The band PowerPoint underlines a line's from-font runs with: their `post` bands averaged by width (a 12pt then a
+/// 24pt Arial run: 1.44pt thick, its top 2.06pt below the baseline, where 12pt alone is 0.84/1.27 and 24pt alone
+/// 1.80/2.42, measured against its PDF export of a synthetic deck). None when the line has no such run.
+pub(crate) fn line_underline_band(line: &Line<'_, Brush>, paints: &[RunPaint]) -> Option<UnderlineBand> {
+    let (mut width, mut offset, mut size) = (0.0, 0.0, 0.0);
+    for item in line.items() {
+        let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
+        let underlined = paints
+            .get(glyph_run.style().brush.0 as usize)
+            .is_some_and(|paint| paint.underline && paint.underline_from_font);
+        if underlined {
+            let (advance, metrics) = (glyph_run.advance(), glyph_run.run().font_metrics());
+            width += advance;
+            offset += advance * metrics.underline_offset;
+            size += advance * metrics.underline_size;
+        }
+    }
+    (width > 0.0).then(|| UnderlineBand {
+        offset: offset / width,
+        size: size / width,
+    })
 }
 
 /// Shears what is drawn on `baseline` (y down) by `shear` to the right above it and to the left below it.
@@ -222,18 +306,27 @@ impl Renderer {
     ) {
         for (line, baseline) in layout.lines().zip(baselines) {
             let oy = oy + baseline - line.metrics().baseline;
+            let band = line_underline_band(&line, paints);
             for item in line.items() {
                 let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
                 let paint = paints
                     .get(glyph_run.style().brush.0 as usize)
                     .expect("layout_text sets every brush to the index of the paint it pushes alongside");
-                self.draw_glyph_run(surface, &glyph_run, paint, text, (ox, oy));
+                self.draw_glyph_run(surface, &glyph_run, paint, text, (ox, oy), band);
             }
         }
     }
 
     /// One glyph run of a line whose top is `oy`: its link area and highlight, glyphs and decorations.
-    fn draw_glyph_run(&mut self, surface: &mut Surface, glyph_run: &GlyphRun<'_, Brush>, paint: &RunPaint, text: &str, (ox, oy): (f32, f32)) {
+    fn draw_glyph_run(
+        &mut self,
+        surface: &mut Surface,
+        glyph_run: &GlyphRun<'_, Brush>,
+        paint: &RunPaint,
+        text: &str,
+        (ox, oy): (f32, f32),
+        line_band: Option<UnderlineBand>,
+    ) {
         let run = glyph_run.run();
         let metrics = *run.font_metrics();
         let baseline = oy + glyph_run.baseline() - paint.baseline_offset;
@@ -257,7 +350,7 @@ impl Renderer {
             return;
         };
         self.draw_glyphs(surface, glyph_run, paint, font, text, (ox, oy));
-        self.draw_decorations(surface, paint, &metrics, start, baseline, advance);
+        self.draw_decorations(surface, paint, &metrics, start, baseline, advance, line_band);
     }
 
     /// The run's glyphs in `font`: an outline under them, the fill (synthetic bold and italic
@@ -336,17 +429,31 @@ impl Renderer {
         self.glyphs = glyphs;
     }
 
-    /// Underline and strikethrough over `advance` px from `start`.
-    fn draw_decorations(&mut self, surface: &mut Surface, paint: &RunPaint, metrics: &FontMetrics, start: f32, baseline: f32, advance: f32) {
+    /// Underline and strikethrough over `advance` px from `start`; a from-font underline takes the line's `band`.
+    #[allow(clippy::too_many_arguments)] // the run's place on its line, as draw_glyph_run has it
+    fn draw_decorations(
+        &mut self,
+        surface: &mut Surface,
+        paint: &RunPaint,
+        metrics: &FontMetrics,
+        start: f32,
+        baseline: f32,
+        advance: f32,
+        line_band: Option<UnderlineBand>,
+    ) {
         let deco = paint.underline_color.unwrap_or(paint.color);
         if paint.underline {
-            let path = underline_path(
-                paint.underline_style,
-                start,
-                baseline - metrics.underline_offset,
-                advance,
-                metrics.underline_size.max(0.5),
-            );
+            let own = UnderlineBand {
+                offset: metrics.underline_offset,
+                size: metrics.underline_size,
+            };
+            let band = if paint.underline_from_font { line_band.unwrap_or(own) } else { own };
+            let (top, t) = (baseline - band.offset, band.size.max(0.5));
+            let path = if paint.underline_from_font {
+                powerpoint_underline_path(paint.underline_style, paint.underline_heavy, start, top, advance, t)
+            } else {
+                underline_path(paint.underline_style, start, top, advance, t)
+            };
             self.fill(surface, &path, deco);
         }
         if paint.strike || paint.double_strike {
@@ -413,6 +520,34 @@ mod tests {
         assert_eq!(dots, [(0.0, 0.0, 2.0, 2.0), (4.0, 0.0, 6.0, 2.0), (8.0, 0.0, 9.0, 2.0)]);
         let dashes = pieces(&underline_path(UnderlineStyle::Dashed, 0.0, 0.0, 15.0, 2.0));
         assert_eq!(dashes, [(0.0, 0.0, 6.0, 2.0), (9.0, 0.0, 15.0, 2.0)]);
+    }
+
+    #[test]
+    fn powerpoint_double_and_heavy_underlines_fill_around_the_post_band() {
+        // The band is 20..22: double is two 1px lines from 18 to the band's bottom, heavy 3px from 18.
+        assert_eq!(
+            pieces(&powerpoint_underline_path(UnderlineStyle::Double, false, 10.0, 20.0, 100.0, 2.0)),
+            [(10.0, 18.0, 110.0, 19.0), (10.0, 21.0, 110.0, 22.0)]
+        );
+        assert_eq!(
+            pieces(&powerpoint_underline_path(UnderlineStyle::Solid, true, 10.0, 20.0, 100.0, 2.0)),
+            [(10.0, 18.0, 110.0, 21.0)]
+        );
+        assert_eq!(
+            pieces(&powerpoint_underline_path(UnderlineStyle::Solid, false, 10.0, 20.0, 100.0, 2.0)),
+            [(10.0, 20.0, 110.0, 22.0)]
+        );
+    }
+
+    #[test]
+    fn powerpoint_wavy_underline_is_a_thin_zigzag_over_twice_the_band() {
+        let [(x0, y0, x1, y1)] = pieces(&powerpoint_underline_path(UnderlineStyle::Wavy, false, 10.0, 20.0, 100.0, 2.0))[..] else {
+            panic!("one zigzag")
+        };
+        // From half a thickness above the band, 2 thicknesses tall; whole half-waves, so it may run past the text.
+        let reach = f64::from(4.0 - PPT_WAVE_LINE);
+        assert!((y0 - 19.0).abs() < 1e-4 && (y1 - 23.0).abs() < 1e-4, "{y0}..{y1}");
+        assert!(x0 == 10.0 && (x1 - (10.0 + reach * (100.0 / reach).ceil())).abs() < 1e-3, "{x0}..{x1}");
     }
 
     #[test]

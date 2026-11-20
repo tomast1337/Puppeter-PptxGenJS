@@ -8,6 +8,10 @@ import type { FaceRequest } from "#src/fonts";
 export interface Decoration {
     readonly style: "solid" | "double" | "dashed" | "dotted" | "wavy";
     readonly color: Color;
+    /** `text-decoration-thickness: from-font` on an underline: PowerPoint's shapes, on the line's averaged band (draw.ts). */
+    readonly fromFont?: boolean;
+    /** `data-underline-heavy` on a from-font underline: PowerPoint's heavy band. */
+    readonly heavy?: boolean;
 }
 
 export interface Run {
@@ -192,20 +196,24 @@ function readDecorations(element: Element, style: Style, textColor: Color, repor
     const cssStyle = take(style, "text-decoration-style") ?? "solid";
     const decorationColor = readColor(take(style, "text-decoration-color"), "text-decoration-color", report) ?? textColor;
     // The underline is always drawn from the face's post table, over the descenders (draw.ts); any other value is reported.
-    for (const [property, drawn] of UNDERLINE_FROM_FONT) {
+    const fromFont = UNDERLINE_FROM_FONT.map(([property, drawn]) => {
         const value = take(style, property);
         if (value !== undefined && value !== drawn) report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
-    }
+        return value !== undefined;
+    })[0];
+    const heavyAttribute = attribute(element, "data-underline-heavy") !== undefined;
+    if (heavyAttribute && !fromFont) report("attribute 'data-underline-heavy' without 'text-decoration-thickness: from-font' is not drawn (drawn at the normal thickness)");
+    const heavy = heavyAttribute && fromFont;
     const doubleStrike = attribute(element, "data-double-strike") !== undefined;
     // A double strike takes text-decoration-style; the underline's own style is then in data-underline-style.
     const underlineStyle = (doubleStrike ? attribute(element, "data-underline-style") : cssStyle) ?? "solid";
-    const decoration = (kind: string, styleName: string): Decoration | undefined => {
+    const decoration = (kind: string, styleName: string): Decoration => {
         if (DECORATION_STYLES.has(styleName)) return { style: styleName as Decoration["style"], color: kind === "underline" ? decorationColor : textColor }; // `as`: checked against DECORATION_STYLES
         report(`${kind} style '${styleName}' is not drawn (drawn solid)`);
         return { style: "solid", color: decorationColor };
     };
     return {
-        ...(lines.includes("underline") ? { underline: decoration("underline", underlineStyle) } : {}),
+        ...(lines.includes("underline") ? { underline: { ...decoration("underline", underlineStyle), ...(fromFont ? { fromFont } : {}), ...(heavy ? { heavy } : {}) } } : {}),
         ...(lines.includes("line-through") || doubleStrike ? { strike: decoration("strike", doubleStrike ? "double" : "solid") } : {}),
     };
 }
@@ -276,7 +284,7 @@ function readRuns(element: Element, report: Report): Run[] {
         synthesis: readSynthesis(element),
         ...(glow ? { glow } : {}),
     };
-    const read = ["data-double-strike", "data-underline-style", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"];
+    const read = ["data-double-strike", "data-underline-style", "data-underline-heavy", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"];
     reportUnread(element, style, [...read, "data-synthetic-bold", "data-synthetic-italic", "data-non-breaking-hyphen"], report);
     // One run per piece of one letter-spacing; only the first starts after a soft break.
     const pieces = runPieces(element, letterSpacing);

@@ -105,6 +105,11 @@ export interface NormalizedTextDecoration {
      * baseline), drawn over descenders; omitted: the renderer's own underline.
      */
     underlineFromFont?: boolean;
+    /**
+     * PptxGenJS's `heavy` underline, with `underlineFromFont`: a band 1.5 times the `post` band's thickness, from
+     * one thickness above its top to half one below its bottom, as PowerPoint draws it.
+     */
+    underlineHeavy?: boolean;
     strike: boolean;
     doubleStrike: boolean;
 }

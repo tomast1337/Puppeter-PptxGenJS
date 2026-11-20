@@ -31,7 +31,7 @@ rounding of glyph advances to the 0.125pt grid moved in place from one `letter-s
 word: a run's words are each in a [word span](#text) of their own `letter-spacing`, so a line breaks where
 PowerPoint's does. On the PowerPoint target an underlined run gained, in place,
 `text-decoration-thickness: from-font`, `text-underline-position: from-font` and
-`text-decoration-skip-ink: none` ([Text](#text)).
+`text-decoration-skip-ink: none` ([Text](#text)), and a `heavy` one `data-underline-heavy`.
 
 **Meta names.** The project was called pdfdeck when version 1 was frozen, so a version 1 document spells its
 meta names `pdfdeck-profile` and `pdfdeck-page-size`, and readers keep accepting exactly that. Version 2 was
@@ -270,7 +270,7 @@ rejects a shrink box without all three. A soft break is a `<br>` before the run 
 `data-soft-break-before` on it. A run is an `a` when it has a link, a `span` otherwise. Model values that
 CSS cannot state exactly are `data-*` on the run: `data-vertical-align` (`sub`, `super`),
 `data-text-shadow` (which `text-shadow` entry is the `glow` and which the `shadow`), `data-double-strike`
-with `data-underline-style`, and `data-empty` on an empty run (its text is U+200B).
+with `data-underline-style`, `data-underline-heavy` (below), and `data-empty` on an empty run (its text is U+200B).
 
 An underlined run with `NormalizedTextDecoration.underlineFromFont` (the PowerPoint target's) also has
 `text-decoration-thickness: from-font; text-underline-position: from-font; text-decoration-skip-ink: none`,
@@ -278,6 +278,16 @@ their only values: the underline is the face's `post` table band (underlineThick
 underlinePosition below the baseline), drawn over descenders, as PowerPoint draws it. Without them Chromium
 draws its own (about 0.1em, at its own offset, broken around descenders). pdf-core and the PDFKit renderer draw
 the band either way; pdf-core rejects another value and the PDFKit renderer reports it.
+
+Around that band (top P below the baseline, thickness T), a from-font underline takes PowerPoint's shapes:
+`double` is two T/2 lines from P - T to P + T; `wavy` a zigzag of 45-degree slopes, 1/600 in tall, filling the
+2T from P - T/2 in whole half-waves; and with `data-underline-heavy` (PptxGenJS's `heavy`, only on a from-font
+underline) `solid` is one 1.5T band from P - T. On one line, every from-font underline takes the same band: the
+line's from-font runs' P and T averaged by their widths, so a line mixing sizes or weights gets one band.
+`dotted` and `dashed` keep the renderer's pattern around the band. pdf-core and the PDFKit renderer draw these;
+Chromium draws its own double and wavy (two T lines 1px apart from P, a taller wave), ignores
+`data-underline-heavy` and gives each run its own band (#396). pdf-core rejects `data-underline-heavy`
+without `text-decoration-thickness: from-font`, and the PDFKit renderer reports it.
 
 A run holds text, or text and **word spans**: `<span style="letter-spacing: 1.35293px;">Lorem</span>`, a
 `span` with no class, no other attribute and no other CSS, whose only child is text with no space or tab.
@@ -832,6 +842,7 @@ object-valued field covers the field's presence; its own fields have their own r
 | `NormalizedTextDecoration.underlineStyle`       | profile | `text-decoration-style`; `data-underline-style` when `data-double-strike` replaced it with `double`.                       |
 | `NormalizedTextDecoration.underlineColor`       | profile | `text-decoration-color`.                                                                                                   |
 | `NormalizedTextDecoration.underlineFromFont`    | profile | `text-decoration-thickness`/`text-underline-position: from-font`, `text-decoration-skip-ink: none`.                        |
+| `NormalizedTextDecoration.underlineHeavy`       | profile | `data-underline-heavy` on the run.                                                                                         |
 | `NormalizedTextDecoration.strike`               | profile | `line-through` in `text-decoration-line`.                                                                                  |
 | `NormalizedTextDecoration.doubleStrike`         | profile | `data-double-strike` on the run (`text-decoration-style: double` draws it).                                                |
 | `NormalizedTextRun.verticalAlign`               | profile | `data-vertical-align="sub                                                                                                  | super"`, omitted at `baseline`. |

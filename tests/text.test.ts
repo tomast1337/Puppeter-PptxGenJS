@@ -678,6 +678,24 @@ describe("text DOM rendering", () => {
         ]);
     });
 
+    test("marks a heavy underline for PowerPoint's heavy band on the PowerPoint target only (#379)", () => {
+        const heavy = (target: "powerpoint" | "libreoffice") => {
+            const presentation = new PuppeteerGen(undefined, { target });
+            presentation.addSlide().addText(
+                [
+                    { text: "heavy ", options: { underline: { style: "heavy" } } },
+                    { text: "single ", options: { underline: { style: "sng" } } },
+                    { text: "wavy heavy", options: { underline: { style: "wavyHeavy" } } },
+                ],
+                { x: 1, y: 1, w: 4, h: 1 },
+            );
+            return [...renderedPage(presentation).querySelectorAll<HTMLElement>(".text-run")].map(run => run.dataset.underlineHeavy);
+        };
+        // Only the measured `heavy`: wavyHeavy keeps the wave's thickness (#397).
+        expect(heavy("powerpoint")).toEqual(["", undefined, undefined]);
+        expect(heavy("libreoffice")).toEqual([undefined, undefined, undefined]);
+    });
+
     test("keeps text transparency off the box and exposes direction and fit", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();

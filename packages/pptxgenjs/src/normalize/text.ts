@@ -186,6 +186,9 @@ export function normalizeTextRun(text: string, options: PptxGenJS.TextPropsOptio
             underlineStyle: underlineStyle(underline),
             underlineColor: typeof options.underline === "object" && options.underline.color ? normalizeColor(options.underline.color) : undefined,
             ...(underlined && underlineFromFont ? { underlineFromFont } : {}),
+            // shortcut: only `heavy` is measured; dashHeavy, dottedHeavy, wavyHeavy and the other heavy dashes draw at
+            // their normal thickness (#397), measure them against PowerPoint's PDF export when a deck uses one.
+            ...(underlined && underlineFromFont && underline === "heavy" ? { underlineHeavy: true } : {}),
             strike,
             doubleStrike: options.strike === "dblStrike",
         },
