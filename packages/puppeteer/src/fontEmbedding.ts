@@ -30,38 +30,56 @@ const TAG_OS2 = 0x4f532f32; // "OS/2"
  * Whether the face of an sfnt file (`index` in a collection) forbids embedding by its OS/2 fsType; undefined when the
  * file has no OS/2 table or is not an sfnt (bounds-checked: the bytes come from a font file on disk).
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function restrictedByFsType(bytes: Uint8Array, index = 0): boolean | undefined {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const u16 = (at: number) => (at + 2 <= view.byteLength ? view.getUint16(at) : undefined);
     const u32 = (at: number) => (at + 4 <= view.byteLength ? view.getUint32(at) : undefined);
     const font = u32(0) === TAG_TTCF ? u32(TTC_FONT_OFFSETS + 4 * index) : 0;
-    if (font === undefined) return undefined;
+
+    if (font === undefined) {
+        return undefined;
+    }
+
     const tables = u16(font + SFNT_TABLE_COUNT) ?? 0;
+
     for (let table = 0; table < tables; table++) {
         const record = font + SFNT_TABLE_RECORDS + table * SFNT_TABLE_RECORD_SIZE;
-        if (u32(record) !== TAG_OS2) continue;
+
+        if (u32(record) !== TAG_OS2) {
+            continue;
+        }
+
         const offset = u32(record + 8);
         const fsType = offset === undefined ? undefined : u16(offset + OS2_FS_TYPE);
+
         return fsType === undefined ? undefined : (fsType & FS_TYPE_RESTRICTED) !== 0;
     }
+
     return undefined;
 }
 
 /**
  * Whether the installed face with PostScript name `fontName` forbids embedding, found through fontconfig as the
  * PowerPoint target's metrics lookup finds fonts; false when fontconfig is missing or has no face of that name, so the
- * rewrite goes on as before.
+ * rewrite goes on as before. A function, not inlined into restrictedFonts, because its pending answer is cached.
  */
 async function isRestricted(fontName: string): Promise<boolean> {
     const name = fontName.replace(SUBSET_TAG, "");
     let output: string;
+
     try {
         ({ stdout: output } = await run("fc-match", ["-f", FC_MATCH_FORMAT, `:postscriptname=${name.replace(/[\\\-:,]/g, "\\$&")}`], { encoding: "utf8", timeout: FC_MATCH_TIMEOUT_MS }));
     } catch {
         return false; // No fontconfig: the face cannot be identified.
     }
+
     const [file, index, postscriptName] = output.split("\n");
-    if (!file || postscriptName !== name) return false;
+
+    if (!file || postscriptName !== name) {
+        return false;
+    }
+
     try {
         return restrictedByFsType(await readFile(file), Number(index) & FC_FACE_INDEX_MASK) ?? false;
     } catch {
@@ -77,16 +95,28 @@ const restricted = new Map<string, Promise<boolean>>();
 
 /** The names among `fontNames` (PDF /FontName values) whose face forbids embedding. */
 export async function restrictedFonts(fontNames: readonly string[]): Promise<ReadonlySet<string>> {
-    const answers = await Promise.all(
-        fontNames.map(async name => {
-            const key = name.replace(SUBSET_TAG, "");
-            let answer = restricted.get(key);
-            if (!answer) {
-                answer = isRestricted(key);
-                restricted.set(key, answer);
-            }
-            return [name, await answer] as const;
-        }),
-    );
-    return new Set(answers.filter(([, isRestrictedFace]) => isRestrictedFace).map(([name]) => name));
+    const pending: Promise<boolean>[] = [];
+
+    for (const name of fontNames) {
+        const key = name.replace(SUBSET_TAG, "");
+        let answer = restricted.get(key);
+
+        if (!answer) {
+            answer = isRestricted(key);
+            restricted.set(key, answer);
+        }
+
+        pending.push(answer);
+    }
+
+    const answers = await Promise.all(pending);
+    const names = new Set<string>();
+
+    for (const [index, name] of fontNames.entries()) {
+        if (answers[index]) {
+            names.add(name);
+        }
+    }
+
+    return names;
 }
