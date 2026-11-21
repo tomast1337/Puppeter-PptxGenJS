@@ -67,7 +67,6 @@ const ALL_BUT_BRACES = [...LAYOUT, "pdflapas/no-for-each", "pdflapas/no-reduce",
 // This is a ratchet: removing an entry is always fine, adding one needs a reason in the PR.
 const NOT_YET_CONVERTED: Readonly<Record<string, readonly string[]>> = {
     "packages/model/src/**": [...LAYOUT, "pdflapas/no-nullable-return"],
-    "packages/pptxgenjs/src/{*.ts,chart/**,components/**,render/**,target/**}": ALL_BUT_BRACES,
     "packages/puppeteer/src/**": ALL_BUT_BRACES,
     "packages/wasm/src/**": [...LAYOUT, "pdflapas/no-for-each"],
 };
