@@ -1,6 +1,8 @@
 import { LIBREOFFICE } from "./libreoffice";
 import { POWERPOINT } from "./powerpoint";
 
+export { POWERPOINT_FACES, type PowerPointFace, type PowerPointFaceRole } from "./powerpoint";
+
 /**
  * A rendering target: the application whose drawing of the PptxGenJS file the PDF matches, where applications differ.
  * Each quirk is a flag here; normalization reads the flags and never a target's name. Each target's values, and the

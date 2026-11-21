@@ -390,7 +390,8 @@ draws each stretch from the same font. These are Microsoft fonts that PdfLapas d
 where you render (copy the `.ttf`/`.ttc` files from a licensed Windows or Office installation into a fontconfig
 directory such as `~/.local/share/fonts` and run `fc-cache`) to get PowerPoint's glyphs and advances for arrows,
 check marks, enclosed numbers, emoji or East Asian text in a Latin run. Where one is missing, both renderers
-skip it and fall back as on the LibreOffice target, and the run is not cut for it. It draws U+2011 (non-breaking
+skip it and fall back as on the LibreOffice target, and the run is not cut for it. To see which of these
+faces a machine has, see [Fonts for the PowerPoint target](#fonts-for-the-powerpoint-target). It draws U+2011 (non-breaking
 hyphen) with the font's own hyphen, as PowerPoint does.
 
 **Font metrics for the PowerPoint target.** PowerPoint places a single-spaced line's baseline from its
@@ -688,6 +689,61 @@ image sources, options or component props come from users, set these at the serv
   rendering time grows with them. Cap the deck size your service accepts before you build the deck.
 - **Errors.** Error messages name the input that failed (a path, a URL, an object name). Log them, and
   return a generic message to users who should not see your inputs.
+
+### Fonts for the PowerPoint target
+
+The PowerPoint target matches PowerPoint only with the faces PowerPoint draws with installed: the faces the
+deck names, and the faces below, which it uses for text with no `fontFace` and for characters a run's face
+lacks. When one is missing, fontconfig substitutes another face without a warning and text moves or wraps
+differently. The list is exported as `POWERPOINT_FACES`; this table is the same list
+(`tests/powerPointFonts.test.ts` checks it).
+
+| Face               | Role                | Without it                                                                                                                             |
+| ------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Calibri            | theme default       | text and chart text with no fontFace are drawn in a substitute with other advances and line heights, so lines wrap and sit differently |
+| Calibri Light      | theme default       | text and chart text with no fontFace are drawn in a substitute with other advances and line heights, so lines wrap and sit differently |
+| Arial              | theme default       | text and chart text with no fontFace are drawn in a substitute with other advances and line heights, so lines wrap and sit differently |
+| Cambria Math       | symbol fallback     | arrows, check marks, enclosed numbers and math symbols the run's face lacks come from another face, with other widths                  |
+| Segoe UI Symbol    | symbol fallback     | arrows, check marks, enclosed numbers and math symbols the run's face lacks come from another face, with other widths                  |
+| MS Gothic          | East Asian fallback | Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently                   |
+| Yu Gothic          | East Asian fallback | Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently                   |
+| Microsoft JhengHei | East Asian fallback | Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently                   |
+| Microsoft YaHei    | East Asian fallback | Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently                   |
+| Malgun Gothic      | East Asian fallback | Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently                   |
+| PMingLiU           | East Asian fallback | Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently                   |
+| SimSun             | East Asian fallback | Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently                   |
+| Segoe UI Emoji     | emoji               | emoji the run's face lacks come from another face, at another advance                                                                  |
+
+**Where to get them.** All of them are Microsoft fonts, licensed with Windows or Microsoft Office, and none of
+them may be redistributed: PdfLapas ships none, and a container image you publish must not either. Copy the
+`.ttf`/`.ttc` files from a licensed Windows installation (`C:\Windows\Fonts`; some East Asian faces come with
+the "Supplemental Fonts" optional feature of their language) or Office installation into a fontconfig
+directory on the server, such as `/usr/local/share/fonts` or `~/.local/share/fonts`, and run `fc-cache -f`.
+Check that your license covers the server; Microsoft's [font redistribution FAQ](https://learn.microsoft.com/typography/fonts/font-faq)
+explains the terms. Metric-compatible open faces (Carlito for Calibri, Liberation Sans for Arial) keep line
+breaks close but are not the same glyphs, and the check below reports them as missing.
+
+**Checking a server.** `checkPowerPointFonts()` (Node entry) lists the faces above, then the deck's own, by
+whether fontconfig has a font of that family (compared without case, as the renderers resolve them). It never
+throws; decide in your startup code whether a missing face is a warning or an error:
+
+```typescript
+import { checkPowerPointFonts } from "@pdflapas/pptxgenjs";
+
+const { present, missing } = checkPowerPointFonts({ faces: ["My Brand Sans"] });
+if (missing.length) console.warn(`PowerPoint target: missing fonts ${missing.join(", ")}`);
+```
+
+Without fontconfig (macOS or Windows without it) every face reports missing. In a checkout,
+`bun run fonts:check "My Brand Sans"` prints the same result, with what goes wrong for each missing face, and
+exits with status 1 when one is missing.
+
+**The visual Docker image** (`tests/visual/Dockerfile`) has none of these faces: it installs Carlito, Caladea,
+Liberation, DejaVu, Noto Color Emoji and Noto Sans CJK, which serve the LibreOffice references. The tests
+that compare against PowerPoint's measured line breaks and need a Microsoft face (Arial, Times New Roman,
+Calibri, SimSun or Microsoft JhengHei, in `tests/eastAsianLineBreak.test.ts`, `tests/eastAsianJustify.test.ts`,
+`tests/fullWidthFit.test.ts` and `tests/advanceGrid.test.ts`) skip where it is not installed, so they run only
+on a machine that has it.
 
 ## Tips and Best Practices
 
