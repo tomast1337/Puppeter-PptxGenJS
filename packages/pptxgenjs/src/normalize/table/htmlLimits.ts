@@ -65,9 +65,10 @@ export function checkTableHtmlLimits(markup: string, limits: TableHtmlLimits = {
     for (let match = TAG.exec(markup); match; match = TAG.exec(markup)) {
         const [, end, rawName] = match;
 
+        // A comment.
         if (rawName === undefined) {
             continue;
-        } // a comment
+        }
 
         const name = rawName.toLowerCase();
 
