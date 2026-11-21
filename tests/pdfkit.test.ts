@@ -47,13 +47,17 @@ function pageContents(pdf: Uint8Array): string[] {
 
 /** The dictionaries of the image XObjects in `pdf`, in object order. */
 function imageObjects(pdf: Uint8Array): string[] {
-    return [
-        ...Buffer.from(pdf)
-            .toString("latin1")
-            .matchAll(/<<[^<>]*\/Subtype \/Image[^<>]*>>/g),
-    ]
-        .map(([match]) => match)
-        .filter(image => !image.includes("/DeviceGray"));
+    const images: string[] = [];
+
+    for (const [image] of Buffer.from(pdf)
+        .toString("latin1")
+        .matchAll(/<<[^<>]*\/Subtype \/Image[^<>]*>>/g)) {
+        if (!image.includes("/DeviceGray")) {
+            images.push(image);
+        }
+    }
+
+    return images;
 }
 
 /** Each drawn text object's position in CSS px from the slide's top left, and its font size in px. */
@@ -94,7 +98,15 @@ describe("PDFKit renderer", () => {
         }
 
         for (const baseline of baselines) {
-            expect(Math.min(...drawn.filter(text => text.baseline === baseline).map(text => text.x))).toBeGreaterThan(96);
+            const xs: number[] = [];
+
+            for (const text of drawn) {
+                if (text.baseline === baseline) {
+                    xs.push(text.x);
+                }
+            }
+
+            expect(Math.min(...xs)).toBeGreaterThan(96);
         }
     });
 
@@ -335,7 +347,15 @@ describe("PDFKit renderer", () => {
                 new Float32Array(w * h + 2),
                 mask,
             );
-            const sum = (values: Float32Array) => values.reduce((total, value) => total + value, 0);
+            const sum = (values: Float32Array) => {
+                let total = 0;
+
+                for (const value of values) {
+                    total += value;
+                }
+
+                return total;
+            };
 
             // The 5 x 5 square is covered exactly.
             expect(sum(mask)).toBeCloseTo(25, 4);
@@ -355,7 +375,11 @@ describe("PDFKit renderer", () => {
             expect(point[10 * w + 10]).toBe(1);
             // The three box blurs' cascade has about the Gaussian's standard deviation (pdf-core's own test).
             for (const sigma of [1, 2.5, 3.7, 7, 20]) {
-                const variance = boxRadii(sigma).reduce((total, radius) => total + ((2 * radius + 1) ** 2 - 1) / 12, 0);
+                let variance = 0;
+
+                for (const radius of boxRadii(sigma)) {
+                    variance += ((2 * radius + 1) ** 2 - 1) / 12;
+                }
 
                 expect(Math.abs(Math.sqrt(variance) - sigma)).toBeLessThan(0.25 * Math.max(sigma, 1));
             }

@@ -7,14 +7,12 @@ const TYPES = resolve(import.meta.dir, "../packages/model/src/types.ts");
 const PROFILE = resolve(import.meta.dir, "../docs/HTML_PROFILE.md");
 const STATUSES = new Set(["profile", "gap", "not drawable"]);
 
-/**
- * Every field of the model, read from the type declarations rather than from a sample deck: a sample only
- * shows the fields it happens to set, so a new optional field could slip through. The walk starts at
- * `NormalizedPresentation` and follows every property type, so a field in a new nested interface is found
- * too. Keys are `Owner.field`; an anonymous object is named by its path (`NormalizedTextParagraph.lineBox`),
- * a union variant by its discriminant (`NormalizedSlideObject<text>`), an array element by `[]`.
- */
-function modelFields(): Set<string> {
+describe("HTML profile", () => {
+    // Every field of the model, read from the type declarations rather than from a sample deck: a sample only
+    // shows the fields it happens to set, so a new optional field could slip through. The walk starts at
+    // `NormalizedPresentation` and follows every property type, so a field in a new nested interface is found
+    // too. Keys are `Owner.field`; an anonymous object is named by its path (`NormalizedTextParagraph.lineBox`),
+    // a union variant by its discriminant (`NormalizedSlideObject<text>`), an array element by `[]`.
     const program = ts.createProgram([TYPES], { strict: true, noEmit: true });
     const checker = program.getTypeChecker();
     const source = program.getSourceFile(TYPES);
@@ -28,17 +26,18 @@ function modelFields(): Set<string> {
     const fields = new Set<string>();
     const visited = new Set<string>();
 
-    const discriminant = (type: ts.Type): string | undefined => {
+    // The variant's `kind` or `type` literals, joined with "|".
+    const discriminant = (type: ts.Type): { kind: "literals"; literals: string } | { kind: "none" } => {
         const property = type.getProperty("kind") ?? type.getProperty("type");
 
         if (!property) {
-            return undefined;
+            return { kind: "none" };
         }
 
         const value = checker.getTypeOfSymbol(property);
         const literals = value.isUnion() ? value.types : [value];
 
-        return literals.map(literal => (literal.isStringLiteral() ? literal.value : "?")).join("|");
+        return { kind: "literals", literals: literals.map(literal => (literal.isStringLiteral() ? literal.value : "?")).join("|") };
     };
 
     // An object type, or an intersection of them; a branded primitive (`string & { … }`) is a leaf.
@@ -60,7 +59,7 @@ function modelFields(): Set<string> {
             const name = type.aliasSymbol?.name ?? path;
 
             // Object variants without a `kind` or `type` (NormalizedImage, split on `sourceKind`) are one owner: their fields keep one row each.
-            if (type.types.every(isObject) && type.types.every(variant => discriminant(variant) === undefined)) {
+            if (type.types.every(isObject) && type.types.every(variant => discriminant(variant).kind === "none")) {
                 if (visited.has(name)) {
                     return;
                 }
@@ -76,7 +75,9 @@ function modelFields(): Set<string> {
 
             for (const variant of type.types) {
                 if (variant.flags & ts.TypeFlags.Object) {
-                    visit(variant, `${name}<${discriminant(variant)}>`);
+                    const tag = discriminant(variant);
+
+                    visit(variant, `${name}<${tag.kind === "literals" ? tag.literals : "undefined"}>`);
                 }
             }
 
@@ -105,14 +106,8 @@ function modelFields(): Set<string> {
 
     visit(checker.getDeclaredTypeOfSymbol(root), "NormalizedPresentation");
 
-    return fields;
-}
-
-/**
- * The mapping table of docs/HTML_PROFILE.md, read from the doc itself so the doc and the check cannot drift:
- * rows of `| \`Owner.field\` | status | HTML |` from "## Field mapping" to the end of the file.
- */
-function profileRows(): Map<string, string> {
+    // The mapping table of docs/HTML_PROFILE.md, read from the doc itself so the doc and the check cannot drift:
+    // rows of `| \`Owner.field\` | status | HTML |` from "## Field mapping" to the end of the file.
     const text = readFileSync(PROFILE, "utf8");
     const start = text.indexOf("\n## Field mapping\n");
 
@@ -138,13 +133,6 @@ function profileRows(): Map<string, string> {
 
         rows.set(field, match[2]);
     }
-
-    return rows;
-}
-
-describe("HTML profile", () => {
-    const fields = modelFields();
-    const rows = profileRows();
 
     test("walks the whole model", () => {
         // Guards the walker itself: a few fields from different depths and unions.

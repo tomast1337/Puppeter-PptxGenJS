@@ -12,16 +12,12 @@ const wasm: Manifest = { name: "@pdflapas/wasm", version: "1.2.3", main: "./dist
 const files = ["package/package.json", "package/dist/browser.js", "package/dist/node.js", "package/dist/pdf_wasm_bg.wasm"];
 const packedWasm = (dependencies: Record<string, string>) => JSON.stringify({ ...wasm, dependencies });
 
-async function workspaceManifests(): Promise<Manifest[]> {
-    const directories = (await readdir(PACKAGES_DIR, { withFileTypes: true })).filter(entry => entry.isDirectory());
-    const manifests = await Promise.all(directories.map(entry => Bun.file(join(PACKAGES_DIR, entry.name, "package.json")).json() as Promise<Manifest>));
-
-    return manifests.filter(manifest => manifest.private !== true);
-}
-
 describe("publish:npm", () => {
     test("publishes the workspace's packages in dependency order", async () => {
-        const order = publishOrder(await workspaceManifests()).map(batch => batch.map(manifest => manifest.name));
+        // The workspace's manifests, but the private ones.
+        const directories = (await readdir(PACKAGES_DIR, { withFileTypes: true })).filter(entry => entry.isDirectory());
+        const manifests = await Promise.all(directories.map(entry => Bun.file(join(PACKAGES_DIR, entry.name, "package.json")).json() as Promise<Manifest>));
+        const order = publishOrder(manifests.filter(manifest => manifest.private !== true)).map(batch => batch.map(manifest => manifest.name));
 
         expect(order).toEqual([["@pdflapas/model"], ["@pdflapas/pdfkit", "@pdflapas/puppeteer", "@pdflapas/wasm"], ["@pdflapas/pptxgenjs"], ["@pdflapas/react"]]);
     });

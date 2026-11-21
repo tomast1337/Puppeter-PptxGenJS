@@ -6,7 +6,6 @@ import { buildCrossRuntimeDeck } from "./crossRuntimeDeck";
 import { populateParityFixture } from "./visual/fixture";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-const sha256 = (html: string) => createHash("sha256").update(html).digest("hex");
 
 /**
  * sha256 of toHtml() for the shared decks, taken from the DOM-built HTML before #69 phase 4a
@@ -57,7 +56,7 @@ describe("toHtml() bytes", () => {
             }
         }
 
-        expect(Object.fromEntries(Object.entries(html).map(([name, document]) => [name, sha256(document)]))).toEqual(EXPECTED_SHA256);
+        expect(Object.fromEntries(Object.entries(html).map(([name, document]) => [name, createHash("sha256").update(document).digest("hex")]))).toEqual(EXPECTED_SHA256);
         // toHtml() states every value, so the completion step returns it byte for byte.
         for (const [name, document] of Object.entries(html)) {
             expect({ name, same: completeProfileHtml(document) === document }).toEqual({ name, same: true });

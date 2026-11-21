@@ -141,15 +141,17 @@ describe("text normalization", () => {
     // 30%, -30%, 10% and -50% of the full size for 600, -600, 200 and -1000 (6.01, 6.00, 2.01, 10.01pt at 20pt; 12.01,
     // 12.01, 4.01, 20.00pt at 40pt) and draws them at 58% (11.61pt, 23.2pt), as superscript (6.00, 12.00pt).
     test("moves a custom baseline by a percent of the run's font size, as PptxGenJS writes it", async () => {
-        const written = async (baseline: number): Promise<string | undefined> => {
+        // The slide XML PptxGenJS writes for an "HH" run at `baseline`.
+        const slideXml = async (baseline: number): Promise<string> => {
             const pptx = new PptxGenJSRuntime();
 
             pptx.addSlide().addText([{ text: "HH", options: { baseline } }], { x: 1, y: 1, w: 4, h: 1 });
             // `as`: write() returns a Buffer for the nodebuffer output type.
             const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
 
-            return (await zip.file("ppt/slides/slide1.xml")?.async("string"))?.match(/<a:rPr[^>]* baseline="(-?\d+)"/)?.[1];
+            return (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
         };
+        const written = /<a:rPr[^>]* baseline="(-?\d+)"/;
 
         for (const [baseline, xml, fraction] of [
             [600, "30000", 0.3],
@@ -157,7 +159,7 @@ describe("text normalization", () => {
             [200, "10000", 0.1],
             [-1000, "-50000", -0.5],
         ] as const) {
-            expect(await written(baseline)).toBe(xml);
+            expect((await slideXml(baseline)).match(written)?.[1]).toBe(xml);
             for (const fontSize of [20, 40]) {
                 for (const target of ["libreoffice", "powerpoint"] as const) {
                     const run = normalizeText([{ text: "HH", options: { baseline } }], { fontSize }, target).paragraphs[0]!.runs[0]!;
@@ -170,7 +172,7 @@ describe("text normalization", () => {
         }
 
         // baseline="0" moves nothing and keeps the full size.
-        expect(await written(0.004)).toBe("0");
+        expect((await slideXml(0.004)).match(written)?.[1]).toBe("0");
         const zero = normalizeText([{ text: "HH", options: { baseline: 0.004 } }], { fontSize: 20 }).paragraphs[0]!.runs[0]!;
 
         expect([zero.baselineOffset, zero.fontSize]).toEqual([0, pointsToPixels(20)]);
@@ -963,28 +965,6 @@ const UNDERLINE_PLACES: Record<string, UnderlinePlace> = {
     "cell in an underlined table": (slide, underline) => slide.addTable([[{ text: "Sample" }]], { underline } as PptxGenJS.TableProps),
 };
 
-/** The `u` attribute of the first run PptxGenJS 4.0.1 writes, or undefined when it writes none. */
-async function pptxGenJsUnderline(place: UnderlinePlace, underline: unknown): Promise<string | undefined> {
-    const pptx = new PptxGenJSRuntime();
-
-    place(pptx.addSlide(), structuredClone(underline));
-    // `as`: write() returns a Buffer for the nodebuffer output type.
-    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
-    const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
-
-    return xml.match(/<a:r><a:rPr[^>]*? u="([^"]*)"/)?.[1];
-}
-
-function ourUnderline(place: UnderlinePlace, underline: unknown): NormalizedTextRun["decoration"] | undefined {
-    const presentation = new PuppeteerGen();
-
-    place(presentation.addSlide(), structuredClone(underline));
-    const object = presentation.getModel().slides[0]?.objects[0];
-    const text = object?.kind === "table" ? object.table.rows[0]?.cells[0]?.text : object?.kind === "text" ? object.text : undefined;
-
-    return text?.paragraphs[0]?.runs[0]?.decoration;
-}
-
 const UNDERLINE_STYLES: Record<string, NormalizedTextRun["decoration"]["underlineStyle"]> = { sng: "solid", heavy: "solid", dash: "dashed", dbl: "double" };
 
 describe("underline forms (the `u` PptxGenJS 4.0.1 genXmlTextRunProperties writes)", () => {
@@ -997,8 +977,21 @@ describe("underline forms (the `u` PptxGenJS 4.0.1 genXmlTextRunProperties write
             throw new Error(`no underline place ${place}`);
         }
 
-        const u = await pptxGenJsUnderline(build, underline);
-        const decoration = ourUnderline(build, underline);
+        // The `u` attribute of the first run PptxGenJS 4.0.1 writes, or undefined when it writes none.
+        const pptx = new PptxGenJSRuntime();
+
+        build(pptx.addSlide(), structuredClone(underline));
+        // `as`: write() returns a Buffer for the nodebuffer output type.
+        const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+        const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+        const u = xml.match(/<a:r><a:rPr[^>]*? u="([^"]*)"/)?.[1];
+        // Ours: the first run's decoration.
+        const presentation = new PuppeteerGen();
+
+        build(presentation.addSlide(), structuredClone(underline));
+        const object = presentation.getModel().slides[0]?.objects[0];
+        const text = object?.kind === "table" ? object.table.rows[0]?.cells[0]?.text : object?.kind === "text" ? object.text : undefined;
+        const decoration = text?.paragraphs[0]?.runs[0]?.decoration;
 
         expect(decoration?.underline).toBe(Boolean(u) && u !== "none");
         if (u && UNDERLINE_STYLES[u]) {
@@ -1120,22 +1113,18 @@ describe("paragraphs without a run", () => {
         { name: "leading empty run, no size", runs: [{ text: "", options: { breakLine: true } }, body], options: {}, size: PPTX_DEFAULTS.text.fontSizePt },
     ];
 
-    /** The `sz` PptxGenJS writes on the `<a:endParaRPr>` of the first run-less `<a:p>` of a text box, in points. */
-    async function writtenMarkSize(runs: PptxGenJS.TextProps[], options: PptxGenJS.TextPropsOptions): Promise<number | undefined> {
-        const pptx = new PptxGenJSRuntime();
-
-        pptx.addSlide().addText(structuredClone(runs), { x: 1, y: 1, w: 4, h: 2, ...options });
-        const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
-        const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
-        const runless = xml.split("<a:p>").find(paragraph => paragraph.includes("<a:endParaRPr") && !paragraph.includes("<a:r>"));
-        const size = runless?.match(/<a:endParaRPr[^>]* sz="(\d+)"/)?.[1];
-
-        return size === undefined ? undefined : Number(size) / 100;
-    }
-
     test("take the size PptxGenJS writes on the paragraph mark, in a text box", async () => {
         for (const { name, runs, options, size } of CASES) {
-            expect({ name, size: (await writtenMarkSize(runs, options)) ?? PPTX_DEFAULTS.text.fontSizePt }).toEqual({ name, size });
+            // The `sz` PptxGenJS writes on the `<a:endParaRPr>` of the first run-less `<a:p>` of a text box, in points.
+            const pptx = new PptxGenJSRuntime();
+
+            pptx.addSlide().addText(structuredClone(runs), { x: 1, y: 1, w: 4, h: 2, ...options });
+            const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+            const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+            const runless = xml.split("<a:p>").find(paragraph => paragraph.includes("<a:endParaRPr") && !paragraph.includes("<a:r>"));
+            const written = runless?.match(/<a:endParaRPr[^>]* sz="(\d+)"/)?.[1];
+
+            expect({ name, size: written === undefined ? PPTX_DEFAULTS.text.fontSizePt : Number(written) / 100 }).toEqual({ name, size });
             for (const target of ["libreoffice", "powerpoint"] as const) {
                 const empty = normalizeText(structuredClone(runs), options, target).paragraphs.find(paragraph => paragraph.runs.every(run => !run.text));
 

@@ -10,34 +10,6 @@ const FONT = { fontFace: "Arial", fontSize: 12 } as const;
 
 type Deck = { kind: "text"; text: () => PptxGenJS.TextProps[]; options: PptxGenJS.TextPropsOptions } | { kind: "table"; cell: () => PptxGenJS.TableCell[]; options: PptxGenJS.TableProps };
 
-/**
- * The text of each `<a:p>` PptxGenJS 4.0.1 writes for the deck's one text body. A line feed it keeps inside an
- * `<a:t>` (a run whose text ends with "\n") is split off as a paragraph, as PowerPoint draws it.
- */
-async function pptxGenJsParagraphs(deck: Deck): Promise<string[]> {
-    const pptx = new PptxGenJSRuntime();
-
-    pptx.layout = "LAYOUT_16x9";
-    const slide = pptx.addSlide();
-
-    if (deck.kind === "text") {
-        slide.addText(deck.text(), { ...deck.options });
-    } else {
-        slide.addTable([[{ text: deck.cell() }]], { ...deck.options });
-    }
-
-    // Stored, not deflated, so the slide XML can be read from the archive bytes without a zip reader.
-    const archive = Buffer.from((await pptx.write({ outputType: "nodebuffer", compression: false })) as Uint8Array).toString("utf8");
-    const slideXml = /<p:sld [\s\S]*?<\/p:sld>/.exec(archive)?.[0] ?? "";
-
-    return [...slideXml.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)].flatMap(([, body = ""]) =>
-        [...body.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)]
-            .map(([, text = ""]) => text)
-            .join("")
-            .split("\r\n"),
-    );
-}
-
 function modelParagraphs(deck: Deck): string[] {
     const text = deck.kind === "text" ? normalizeText(deck.text(), { ...deck.options }) : normalizeTable([[{ text: deck.cell() }]], { ...deck.options }, PAGE).rows[0]?.cells[0]?.text;
 
@@ -120,7 +92,35 @@ describe("paragraphs match the <a:p> list PptxGenJS 4.0.1 writes (genXmlTextBody
             throw new Error(`no deck ${name}`);
         }
 
-        expect(modelParagraphs(deck)).toEqual(await pptxGenJsParagraphs(deck));
+        const ours = modelParagraphs(deck);
+        // The text of each `<a:p>` PptxGenJS 4.0.1 writes for the deck's one text body. A line feed it keeps inside an
+        // `<a:t>` (a run whose text ends with "\n") is split off as a paragraph, as PowerPoint draws it.
+        const pptx = new PptxGenJSRuntime();
+
+        pptx.layout = "LAYOUT_16x9";
+        const slide = pptx.addSlide();
+
+        if (deck.kind === "text") {
+            slide.addText(deck.text(), { ...deck.options });
+        } else {
+            slide.addTable([[{ text: deck.cell() }]], { ...deck.options });
+        }
+
+        // Stored, not deflated, so the slide XML can be read from the archive bytes without a zip reader.
+        const archive = Buffer.from((await pptx.write({ outputType: "nodebuffer", compression: false })) as Uint8Array).toString("utf8");
+        const slideXml = /<p:sld [\s\S]*?<\/p:sld>/.exec(archive)?.[0] ?? "";
+        const theirs: string[] = [];
+
+        for (const [, body = ""] of slideXml.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)) {
+            theirs.push(
+                ...[...body.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)]
+                    .map(([, text = ""]) => text)
+                    .join("")
+                    .split("\r\n"),
+            );
+        }
+
+        expect(ours).toEqual(theirs);
     });
 
     test("the issue repros give the paragraphs PptxGenJS writes", () => {

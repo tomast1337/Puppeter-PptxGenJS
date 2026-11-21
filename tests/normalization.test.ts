@@ -56,9 +56,9 @@ describe("shared object normalization", () => {
 
     test("the API throws on an injected color before any HTML is written (#148)", async () => {
         const bad = "red; background-image: url(http://127.0.0.1/x)";
-        const deck = () => new PuppeteerGen();
+
         const draw = async (add: (slide: ReturnType<PuppeteerGen["addSlide"]>) => void) => {
-            const pres = deck();
+            const pres = new PuppeteerGen();
 
             add(pres.addSlide());
 
@@ -154,7 +154,10 @@ describe("shared object normalization", () => {
         const parts = line.dashArray!.split(" ").map(Number);
 
         expect(parts).toHaveLength(4);
-        [0, 3.9, 12, 5.1].forEach((value, index) => expect(parts[index]).toBeCloseTo(value, 9));
+        for (const [index, value] of [0, 3.9, 12, 5.1].entries()) {
+            expect(parts[index]).toBeCloseTo(value, 9);
+        }
+
         // The end arrowhead does not move the phase.
         expect(normalizeLine({ width: 2.25, dashType: "dash", endArrowType: "triangle" }).dashArray).toBe("12 9");
     });
@@ -204,7 +207,10 @@ describe("shared object normalization", () => {
         // 3px line, 100px long: the shaft runs from 3.9px (oval) to 100 - 8.4px (triangle).
         const solid = normalizeLine({ width: 2.25, beginArrowType: "oval", endArrowType: "triangle" }, 100).dashArray!.split(" ").map(Number);
 
-        [0, 3.9, 87.7, 100].forEach((value, index) => expect(solid[index]).toBeCloseTo(value, 9));
+        for (const [index, value] of [0, 3.9, 87.7, 100].entries()) {
+            expect(solid[index]).toBeCloseTo(value, 9);
+        }
+
         expect(solid).toHaveLength(4);
         // Dashes start at the shaft and the last one is cut where the shaft ends.
         expect(shaftDashes([12, 9], 3.9, 30, 50)).toEqual([0, 3.9, 12, 9, expect.closeTo(5.1, 9), 50]);

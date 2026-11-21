@@ -9,14 +9,14 @@ import { PuppeteerPdfRenderer } from "../packages/puppeteer/src/puppeteerPdf";
 afterAll(closeBrowser);
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
-const base64 = (bytes: number[]) => Buffer.from(bytes).toString("base64");
+
 const be32 = (value: number) => [value >>> 24, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
 
 /** A PNG that is only its signature and an RGBA IHDR declaring `width` x `height`: no pixel data at all. */
 function headerOnlyPng(width: number, height: number): number[] {
     return [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...be32(13), 0x49, 0x48, 0x44, 0x52, ...be32(width), ...be32(height), 8, 6, 0, 0, 0, 0, 0, 0, 0];
 }
-const png = (width: number, height: number) => `data:image/png;base64,${base64(headerOnlyPng(width, height))}`;
+const png = (width: number, height: number) => `data:image/png;base64,${Buffer.from(headerOnlyPng(width, height)).toString("base64")}`;
 
 describe("decoded-pixel limits (#360)", () => {
     test("reads the size from PNG, JPEG, GIF and WebP headers", () => {

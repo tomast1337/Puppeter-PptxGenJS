@@ -182,7 +182,17 @@ test("the browser WASM entry bundles without puppeteer, jsdom or node:* modules"
     const inputs = build.metafile.inputs;
 
     expect(Object.keys(inputs).filter(path => forbidden.test(path))).toEqual([]);
-    expect(Object.values(inputs).flatMap(input => input.imports.map(entry => entry.path).filter(path => forbidden.test(path)))).toEqual([]);
+    const forbiddenImports: string[] = [];
+
+    for (const input of Object.values(inputs)) {
+        for (const entry of input.imports) {
+            if (forbidden.test(entry.path)) {
+                forbiddenImports.push(entry.path);
+            }
+        }
+    }
+
+    expect(forbiddenImports).toEqual([]);
 });
 
 // These need the binary from `bun run build:wasm` and real fonts. CI downloads the binary from its
@@ -231,7 +241,13 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
         const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
         // The horizontal grid lines, in CSS px from the slide top: each row's top, then the table's bottom.
-        const lines = [...content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)].filter(([, from, to]) => from === to).map(([, y]) => Number(y) / 96);
+        const lines: number[] = [];
+
+        for (const [, from, to] of content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)) {
+            if (from === to) {
+                lines.push(Number(from) / 96);
+            }
+        }
 
         expect(lines.slice(0, -1)).toEqual(EXTRA_CELL_ROW_TOPS_IN.map(inches => expect.closeTo(inches, 3)));
     });
@@ -263,7 +279,14 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
         const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
         // The horizontal grid lines, in CSS px: each row's top, then the table's bottom.
-        const lines = [...content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)].filter(([, from, to]) => from === to).map(([, y]) => Number(y));
+        const lines: number[] = [];
+
+        for (const [, from, to] of content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)) {
+            if (from === to) {
+                lines.push(Number(from));
+            }
+        }
+
         const wasm = lines.slice(1).map((y, i) => y - (lines[i] ?? 0));
 
         // The cell text's 4.8px margins around a 19.2px line; the stylesheet's td padding made Chromium's 38.4px.
@@ -400,20 +423,20 @@ describe.skipIf(!canRender)("WASM backend render", () => {
                 return runs.map((_, page) => {
                     const listing = Bun.spawnSync([pdffonts, "-f", String(page + 1), "-l", String(page + 1), file]).stdout.toString();
 
-                    return [
-                        ...new Set(
-                            listing
-                                .split("\n")
-                                .slice(2)
-                                .filter(Boolean)
-                                .map(line =>
-                                    line
-                                        .split(/\s+/)[0]
-                                        ?.replace(/^[A-Z]{6}\+/, "")
-                                        .replace(/-Identity-H$/, ""),
-                                ),
-                        ),
-                    ].sort();
+                    const names = new Set<string | undefined>();
+
+                    for (const line of listing.split("\n").slice(2)) {
+                        if (line) {
+                            names.add(
+                                line
+                                    .split(/\s+/)[0]
+                                    ?.replace(/^[A-Z]{6}\+/, "")
+                                    .replace(/-Identity-H$/, ""),
+                            );
+                        }
+                    }
+
+                    return [...names].sort();
                 });
             };
             const chromium = await faces("chromium", await pdf(new PuppeteerGen(PAGE)));
@@ -478,21 +501,6 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test("puts the base line of a line with a lowered run where the target does, in Chromium and in WASM", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pageTopPt = inchesToPoints(PAGE.height);
-        /** Each text object's baseline in CSS px from the page top, in drawing order, from both renderers' PDFs. */
-        const baselines = async (pres: PuppeteerGen) => {
-            const options = { y: 0.4, w: 4, h: 2.2, fontFace: "Arial", fontSize: 20, valign: "middle" } as const;
-
-            pres.addSlide()
-                .addText([{ text: "Hxg" }, { text: "Hxg" }], { ...options, x: 0.5 })
-                .addText([{ text: "Hxg" }, { text: "Hxg", options: { baseline: -1000 } }], { ...options, x: 5 });
-            // The presentation's own renderer is Puppeteer's.
-            const chromium = pdfContentStreams(await pres.toPdf());
-            // Chromium draws in 1/PRINT_ZOOM CSS px from the page top; WASM in CSS px from a `cm` origin in pt from the bottom.
-            const fromChromium = chromium.flatMap(content => [...content.matchAll(/\n1 0 0 -1 [\d.]+ ([\d.]+) Tm\n/g)].map(([, y]) => Number(y) / PRINT_ZOOM));
-            const fromWasm = pdfContentStreams(await renderer.render(await pres.toHtml())).flatMap(content => [...content.matchAll(/ -0\.75 [\d.]+ ([\d.]+) cm[^\n]*\nBT [^\n]*? 1 0 0 -1 [\d.]+ ([\d.]+) Tm/g)].map(([, origin, y]) => pointsToPixels(pageTopPt - Number(origin)) + Number(y)));
-
-            return { chromium: fromChromium, wasm: fromWasm };
-        };
 
         for (const [pres, growth] of [
             [new PuppeteerGenPowerPoint(PAGE), 0],
@@ -500,7 +508,17 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             // line's 4pt; the middle-anchored line moves up by half of that.
             [new PuppeteerGenLibreOffice(PAGE), pointsToPixels((0.2 * 11.6 + 10 - 4) / 2)],
         ] as const) {
-            const { chromium, wasm } = await baselines(pres);
+            // Each text object's baseline in CSS px from the page top, in drawing order, from both renderers' PDFs.
+            const options = { y: 0.4, w: 4, h: 2.2, fontFace: "Arial", fontSize: 20, valign: "middle" } as const;
+
+            pres.addSlide()
+                .addText([{ text: "Hxg" }, { text: "Hxg" }], { ...options, x: 0.5 })
+                .addText([{ text: "Hxg" }, { text: "Hxg", options: { baseline: -1000 } }], { ...options, x: 5 });
+            // The presentation's own renderer is Puppeteer's.
+            const chromiumContents = pdfContentStreams(await pres.toPdf());
+            // Chromium draws in 1/PRINT_ZOOM CSS px from the page top; WASM in CSS px from a `cm` origin in pt from the bottom.
+            const chromium = chromiumContents.flatMap(content => [...content.matchAll(/\n1 0 0 -1 [\d.]+ ([\d.]+) Tm\n/g)].map(([, y]) => Number(y) / PRINT_ZOOM));
+            const wasm = pdfContentStreams(await renderer.render(await pres.toHtml())).flatMap(content => [...content.matchAll(/ -0\.75 [\d.]+ ([\d.]+) cm[^\n]*\nBT [^\n]*? 1 0 0 -1 [\d.]+ ([\d.]+) Tm/g)].map(([, origin, y]) => pointsToPixels(pageTopPt - Number(origin)) + Number(y)));
 
             // Plain box, then the box with the lowered run: each draws its two runs.
             expect(chromium).toHaveLength(4);
@@ -509,7 +527,9 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
             expect(plain - escaped).toBeCloseTo(growth, 1);
             // WASM draws what Chromium does: within Chromium's 1/8 px text grid.
-            wasm.forEach((y, index) => expect(Math.abs(y - (chromium[index] ?? 0))).toBeLessThan(1 / PRINT_ZOOM + 0.05));
+            for (const [index, y] of wasm.entries()) {
+                expect(Math.abs(y - (chromium[index] ?? 0))).toBeLessThan(1 / PRINT_ZOOM + 0.05);
+            }
         }
     });
 

@@ -17,8 +17,6 @@ async function sources(directory: string): Promise<string[]> {
     return nested.flat();
 }
 
-const isComment = (line: string) => /^\s*(?:\/\/|\/\*|\*)/.test(line);
-
 describe("rendering target files", () => {
     test("only src/target/ names a target, outside the entry classes and comments", async () => {
         const named = [];
@@ -33,7 +31,8 @@ describe("rendering target files", () => {
             const lines = (await readFile(file, "utf8")).split("\n");
 
             for (const [index, line] of lines.entries()) {
-                if (TARGET_NAME.test(line) && !isComment(line)) {
+                // A line that is not a comment.
+                if (TARGET_NAME.test(line) && !/^\s*(?:\/\/|\/\*|\*)/.test(line)) {
                     named.push(`${path}:${index + 1}`);
                 }
             }

@@ -66,28 +66,6 @@ function fullDeck(renderer?: ConstructorParameters<typeof PuppeteerGen>[1]): Pup
     return pres;
 }
 
-/**
- * A PDF in the shape Chromium prints: Info dictionary (object 1, dated `date`, its title holding "endobj"), a catalog,
- * `page` as object 3, a cross-reference table and a trailer with `/ID [<id><id>]`, as Skia writes it in PDF/A mode.
- */
-function chromiumLikePdf(date: string, id: string, page: string): Uint8Array {
-    const objects = [`<</Title (endobj) /Producer (Skia/PDF m138) /CreationDate (D:${date}+00'00') /ModDate (D:${date}+00'00')>>`, "<</Type /Catalog>>", page];
-    let text = "%PDF-1.4\n";
-    const offsets: number[] = [];
-
-    for (const [index, body] of objects.entries()) {
-        offsets.push(text.length);
-        text += `${index + 1} 0 obj\n${body}\nendobj\n`;
-    }
-
-    const xref = text.length;
-
-    text += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}`;
-    text += `trailer\n<</Size ${objects.length + 1} /Root 2 0 R /Info 1 0 R /ID [<${id}><${id}>]>>\nstartxref\n${xref}\n%%EOF\n`;
-
-    return Buffer.from(text, "latin1");
-}
-
 // Both renderers name PdfLapas as Creator and Producer, as PowerPoint's export names itself, and write no dates.
 const PRODUCER_INFO = { Creator: PDF_PRODUCER, Producer: PDF_PRODUCER };
 const FULL_INFO = { Title: "Q3 plan – é 漢", Author: "Ana (A)", Subject: "Sales", Company: "Acme <Labs>", Revision: "7", ...PRODUCER_INFO };
@@ -217,7 +195,26 @@ describe("Puppeteer PDF document information", () => {
     });
 
     test("Chromium's per-run dates and /ID do not reach the bytes; the new /ID is the MD5 of the content (#321)", () => {
-        const updated = (date: string, id: string, page = "<</Type /Page>>") => withDocumentInfo(chromiumLikePdf(date, id, page), { Title: "T" });
+        // `withDocumentInfo` on a PDF in the shape Chromium prints: Info dictionary (object 1, dated `date`, its title
+        // holding "endobj"), a catalog, `page` as object 3, a cross-reference table and a trailer with `/ID [<id><id>]`,
+        // as Skia writes it in PDF/A mode.
+        const updated = (date: string, id: string, page = "<</Type /Page>>") => {
+            const objects = [`<</Title (endobj) /Producer (Skia/PDF m138) /CreationDate (D:${date}+00'00') /ModDate (D:${date}+00'00')>>`, "<</Type /Catalog>>", page];
+            let text = "%PDF-1.4\n";
+            const offsets: number[] = [];
+
+            for (const [index, body] of objects.entries()) {
+                offsets.push(text.length);
+                text += `${index + 1} 0 obj\n${body}\nendobj\n`;
+            }
+
+            const xref = text.length;
+
+            text += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}`;
+            text += `trailer\n<</Size ${objects.length + 1} /Root 2 0 R /Info 1 0 R /ID [<${id}><${id}>]>>\nstartxref\n${xref}\n%%EOF\n`;
+
+            return withDocumentInfo(Buffer.from(text, "latin1"), { Title: "T" });
+        };
         const pdf = updated("20261120003421", "a143976c799f57ec00f5a8445a2f0963");
 
         expect(updated("20261120003422", "e7146a3a6508b33edb91c8ce2bdf5e58")).toEqual(pdf);

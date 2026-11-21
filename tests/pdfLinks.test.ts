@@ -30,28 +30,6 @@ const URLS = [
 
 afterAll(closeBrowser);
 
-/** The /URI strings of the PDF's link annotations, as qpdf resolves its incremental updates (and finds no error in it), decoded from UTF-8. */
-async function linkUris(pdf: Uint8Array): Promise<string[]> {
-    const directory = await mkdtemp(join(tmpdir(), "pdflapas-links-"));
-
-    try {
-        const path = join(directory, "deck.pdf");
-
-        await writeFile(path, pdf);
-        const qdf = spawnSync("qpdf", ["--qdf", "--object-streams=disable", path, "-"]);
-
-        if (qdf.status !== 0) {
-            throw new Error(`qpdf failed: ${qdf.stderr}`);
-        }
-
-        const text = qdf.stdout.toString("latin1");
-
-        return Array.from(text.matchAll(/\/URI \(((?:\\.|[^\\)])*)\)/g), match => Buffer.from((match[1] ?? "").replace(/\\(.)/g, "$1"), "latin1").toString("utf8"));
-    } finally {
-        await rm(directory, { recursive: true, force: true });
-    }
-}
-
 describe.skipIf(!hasQpdf)("Chromium PDF link URLs", () => {
     test("are the URLs the deck gives on text runs, shapes and images, not Chromium's canonical forms", async () => {
         const pres = new PuppeteerGen();
@@ -59,16 +37,36 @@ describe.skipIf(!hasQpdf)("Chromium PDF link URLs", () => {
         const shapes = pres.addSlide();
         const images = pres.addSlide();
 
-        URLS.forEach((url, index) => {
+        for (const [index, url] of URLS.entries()) {
             const y = 0.1 + index * 0.35;
 
             text.addText([{ text: `Link ${index}`, options: { hyperlink: { url } } }], { x: 0.5, y, w: 2, h: 0.3 });
             shapes.addShape("rect", { x: 0.5, y, w: 2, h: 0.3, fill: { color: "0088CC" }, hyperlink: { url } });
             images.addImage({ data: PNG, x: 0.5, y, w: 0.3, h: 0.3, hyperlink: { url } });
-        });
+        }
+
         const pdf = await pres.toPdf();
 
-        expect((await linkUris(pdf)).sort()).toEqual([...URLS, ...URLS, ...URLS].sort());
+        // The /URI strings of the PDF's link annotations, as qpdf resolves its incremental updates (and finds no error in it), decoded from UTF-8.
+        const directory = await mkdtemp(join(tmpdir(), "pdflapas-links-"));
+
+        try {
+            const path = join(directory, "deck.pdf");
+
+            await writeFile(path, pdf);
+            const qdf = spawnSync("qpdf", ["--qdf", "--object-streams=disable", path, "-"]);
+
+            if (qdf.status !== 0) {
+                throw new Error(`qpdf failed: ${qdf.stderr}`);
+            }
+
+            const qdfText = qdf.stdout.toString("latin1");
+            const uris = Array.from(qdfText.matchAll(/\/URI \(((?:\\.|[^\\)])*)\)/g), match => Buffer.from((match[1] ?? "").replace(/\\(.)/g, "$1"), "latin1").toString("utf8"));
+
+            expect(uris.sort()).toEqual([...URLS, ...URLS, ...URLS].sort());
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
     }, 60_000);
 });
 
