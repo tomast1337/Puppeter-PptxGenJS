@@ -36,6 +36,8 @@ network access and no files outside this folder.
 | [`rendering-targets.ts`](./rendering-targets.ts)         | Matching PowerPoint rendering or LibreOffice rendering (`target`, `PuppeteerGenPowerPoint`)         | `rendering-targets-libreoffice.pdf`, `rendering-targets-powerpoint.pdf` |
 | [`launch-options.ts`](./launch-options.ts)               | Puppeteer `launchOptions` on the renderer (sandbox, timeouts, executable)                           | `launch-options.pdf`                                                    |
 | [`react-component.ts`](./react-component.ts)             | A React component on a slide through `@pdflapas/react`                                              | `react-component.pdf`                                                   |
+| [`medical-report.ts`](./medical-report.ts)               | A 9-page A4 report: `autoPage` lab tables with repeated headers, flagged values, rich text, a chart | `medical-report.pdf`, `medical-report.html`                             |
+| [`company-report.ts`](./company-report.ts)               | A 14-slide annual report: KPI cards, five chart types, a financial table, a roadmap, SVG images     | `company-report.pdf`, `company-report.html`                             |
 | [`comprehensive-example.ts`](./comprehensive-example.ts) | Page sizes, positioning, text, tables and layouts, written as both PDF and PPTX for comparison      | `example-*.pdf`, `example-*.pptx`                                       |
 | [`test.ts`](./test.ts)                                   | One deck function run through PptxGenJS and PdfLapas side by side                                   | `Hello-World-PdfLapas.pdf`, `Hello-World-PptxGenJS.pptx`                |
 
