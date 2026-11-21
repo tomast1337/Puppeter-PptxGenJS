@@ -213,8 +213,16 @@ describe("table normalization", () => {
             { x: 1, y: 1, w: 2, h: 2.4, rowH },
         ] satisfies PptxGenJS.TableProps[]) {
             const ours = normalizeTable(rows, options, PAGE).rows.map(row => Number(pixelsToInches(row.height ?? px(0)).toFixed(4)));
+            // The `<a:tr h>` PptxGenJS 4.0.1 writes for a one-slide table, in inches to 4 places; 0 is a row sized to its content.
+            const pptx = new PptxGenJSRuntime();
 
-            expect({ options, ours }).toEqual({ options, ours: await pptxGenJsRowHeights(rows, options) });
+            pptx.addSlide().addTable(structuredClone(rows), structuredClone(options));
+            // `as`: write() returns a Buffer for the nodebuffer output type.
+            const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+            const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+            const theirs = [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, emu]) => Number((Number(emu) / PPTX_DEFAULTS.units.emuPerInch).toFixed(4)));
+
+            expect({ options, ours }).toEqual({ options, ours: theirs });
         }
     });
 
@@ -242,7 +250,6 @@ describe("table normalization", () => {
     });
 
     test("places cells after rowspans above, cuts a colspan at the last column, and keeps short rows", () => {
-        const texts = (rows: PptxGenJS.TableRow[]) => normalizeTable(rows, { w: 3 }, PAGE).rows.map(row => row.cells.map(cell => `${cell.text.paragraphs[0]?.runs[0]?.text ?? ""}:${cell.colspan}`));
         const rows: PptxGenJS.TableRow[] = [
             [{ text: "A", options: { rowspan: 2 } }, { text: "B" }, { text: "C" }],
             // A takes the first column, so D and E fill the grid and F is past it.
@@ -252,7 +259,7 @@ describe("table normalization", () => {
             [{ text: "J" }],
         ];
 
-        expect(texts(rows)).toEqual([["A:1", "B:1", "C:1"], ["D:1", "E:1"], ["G:2", "H:1"], ["J:1"]]);
+        expect(normalizeTable(rows, { w: 3 }, PAGE).rows.map(row => row.cells.map(cell => `${cell.text.paragraphs[0]?.runs[0]?.text ?? ""}:${cell.colspan}`))).toEqual([["A:1", "B:1", "C:1"], ["D:1", "E:1"], ["G:2", "H:1"], ["J:1"]]);
     });
 
     test("rejects empty and malformed row input", () => {
@@ -279,7 +286,21 @@ describe("table rendering", () => {
         );
         slide.addTable([[{ text: "E", options: { border: [dash, { type: "none" }, dash, { type: "none" }] } }]], { x: 1, y: 3, w: 4, fontFace: "Arial" });
         const pdf = await presentation.toPdf();
-        const content = pdfContent(pdf);
+        // Every page content stream of the Chromium PDF, inflated and joined.
+        const bytes = Buffer.from(pdf);
+        const streams: string[] = [];
+
+        for (let at = bytes.indexOf("stream\n"); at >= 0; at = bytes.indexOf("stream\n", at + 1)) {
+            const end = bytes.indexOf("endstream", at);
+
+            try {
+                streams.push(inflateSync(bytes.subarray(at + "stream\n".length, end)).toString("latin1"));
+            } catch {
+                // Not a Flate stream (fonts are, but images may not be); content streams always are.
+            }
+        }
+
+        const content = streams.join("\n");
 
         // Three row lines and three column lines of the grid, then the dashed top and bottom, one subpath per dash.
         const strokes = content.match(/(?:[-\d. ]+ [ml]\n)+S\n/g) ?? [];
@@ -290,7 +311,14 @@ describe("table rendering", () => {
         // CSS borders, as fills under a graphics state with /ca 0, so those are left out of the count.
         const raw = Buffer.from(pdf).toString("latin1");
         const transparent = new Set([...raw.matchAll(/(\d+) 0 obj\s*<<\/ca 0\b/g)].map(([, id]) => id));
-        const invisible = new Set([...raw.matchAll(/\/(G\d+) (\d+) 0 R/g)].filter(([, , id]) => transparent.has(id)).map(([, name]) => name));
+        const invisible = new Set<string | undefined>();
+
+        for (const [, name, id] of raw.matchAll(/\/(G\d+) (\d+) 0 R/g)) {
+            if (transparent.has(id)) {
+                invisible.add(name);
+            }
+        }
+
         const painted = content.split(/\/(G\d+) gs\n/).filter((segment, index, parts) => index % 2 === 0 && !(index > 0 && invisible.has(parts[index - 1] ?? "")));
 
         expect(painted.join("").match(/ re\nf\n/g)).toHaveLength(1);
@@ -484,54 +512,6 @@ describe("a merged cell's shortfall goes to its last row", () => {
     });
 });
 
-/** The `<a:tr h>` PptxGenJS 4.0.1 writes for a one-slide table, in inches to 4 places; 0 is a row sized to its content. */
-async function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Promise<number[]> {
-    const pptx = new PptxGenJSRuntime();
-
-    pptx.addSlide().addTable(structuredClone(rows), structuredClone(options));
-    // `as`: write() returns a Buffer for the nodebuffer output type.
-    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
-    const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
-
-    return [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, emu]) => Number((Number(emu) / PPTX_DEFAULTS.units.emuPerInch).toFixed(4)));
-}
-
-/** The runs PptxGenJS 4.0.1 writes for a one-slide table, per cell: each run's text and whether it has `b="1"`. */
-async function pptxGenJsRuns(rows: unknown[], options: PptxGenJS.TableProps): Promise<string[]> {
-    const pptx = new PptxGenJSRuntime();
-
-    pptx.addSlide().addTable(structuredClone(rows) as PptxGenJS.TableRow[], structuredClone(options));
-    // `as`: write() returns a Buffer for the nodebuffer output type.
-    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
-    const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
-
-    return [...xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)].map(([, cell]) => [...(cell ?? "").matchAll(/<a:r><a:rPr([^>]*)>.*?<a:t>([^<]*)<\/a:t><\/a:r>/g)].map(([, props, text]) => `${text}${props?.includes('b="1"') ? "/b" : ""}`).join("|"));
-}
-
-/** Every page content stream of a Chromium PDF, inflated and joined. */
-function pdfContent(pdf: Uint8Array): string {
-    const bytes = Buffer.from(pdf);
-    const streams: string[] = [];
-
-    for (let at = bytes.indexOf("stream\n"); at >= 0; at = bytes.indexOf("stream\n", at + 1)) {
-        const end = bytes.indexOf("endstream", at);
-
-        try {
-            streams.push(inflateSync(bytes.subarray(at + "stream\n".length, end)).toString("latin1"));
-        } catch {
-            // Not a Flate stream (fonts are, but images may not be); content streams always are.
-        }
-    }
-
-    return streams.join("\n");
-}
-
-function ourRuns(rows: unknown[], options: PptxGenJS.TableProps): string[] {
-    const table = normalizeTable(structuredClone(rows) as PptxGenJS.TableRow[], options, PAGE);
-
-    return table.rows.flatMap(row => row.cells.map(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs.filter(run => run.text).map(run => `${run.text}${run.bold ? "/b" : ""}`)).join("|")));
-}
-
 describe("falsy cell values (PptxGenJS 4.0.1 fills falsy options from the parent and keeps only truthy text)", () => {
     test.each<[string, unknown[], PptxGenJS.TableProps]>([
         ["a run's bold: false in a bold cell", [[{ text: [{ text: "a", options: { bold: false } }, { text: "b" }], options: { bold: true } }]], {}],
@@ -539,7 +519,44 @@ describe("falsy cell values (PptxGenJS 4.0.1 fills falsy options from the parent
         ["a cell's bold: null in a bold table", [[{ text: "a", options: { bold: null } }]], { bold: true }],
         ["falsy and boolean text", [[{ text: 0 }, { text: false }, { text: true }, { text: "" }, 0, "0"]], {}],
     ])("draws %s as PptxGenJS writes it", async (_, rows, options) => {
-        expect(ourRuns(rows, options)).toEqual(await pptxGenJsRuns(rows, options));
+        // Our runs per cell, then those PptxGenJS 4.0.1 writes for a one-slide table: each run's text and whether it is bold.
+        const ours: string[] = [];
+
+        for (const row of normalizeTable(structuredClone(rows) as PptxGenJS.TableRow[], options, PAGE).rows) {
+            for (const cell of row.cells) {
+                const runs: string[] = [];
+
+                for (const paragraph of cell.text.paragraphs) {
+                    for (const run of paragraph.runs) {
+                        if (run.text) {
+                            runs.push(`${run.text}${run.bold ? "/b" : ""}`);
+                        }
+                    }
+                }
+
+                ours.push(runs.join("|"));
+            }
+        }
+
+        const pptx = new PptxGenJSRuntime();
+
+        pptx.addSlide().addTable(structuredClone(rows) as PptxGenJS.TableRow[], structuredClone(options));
+        // `as`: write() returns a Buffer for the nodebuffer output type.
+        const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+        const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+        const theirs: string[] = [];
+
+        for (const [, cell] of xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)) {
+            const runs: string[] = [];
+
+            for (const [, props, text] of (cell ?? "").matchAll(/<a:r><a:rPr([^>]*)>.*?<a:t>([^<]*)<\/a:t><\/a:r>/g)) {
+                runs.push(`${text}${props?.includes('b="1"') ? "/b" : ""}`);
+            }
+
+            theirs.push(runs.join("|"));
+        }
+
+        expect(ours).toEqual(theirs);
     });
 
     test("the HTML run shows the inherited bold", () => {
