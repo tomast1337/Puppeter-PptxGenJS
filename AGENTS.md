@@ -125,9 +125,28 @@ object and pass it down. Out: service locators, global registries reachable from
 dependency-injection containers. Construction stays visible in code, so you can see where each
 dependency comes from.
 
-**Structured flow.** Short functions that read top to bottom, explicit branches and loops, `async`/
-`await` over promise chains, no webs of callbacks or event emitters. A pipeline is a function that
-calls its stages in order: `toPdf()` builds the HTML from the model, renders it, returns bytes.
+**Structured flow.** Code reads top to bottom in the function that uses it.
+
+- A function called from one place is written inline where it is called, unless it is exported, tested
+  on its own, recursive, or passed as a value because an API requires a callback. A name does not
+  justify a function; a comment above the inlined block says what it does when that is not obvious.
+- Loops are `for` and `for...of`. No `forEach` or `reduce`, and no chains of `map`, `filter` or
+  `flatMap`: write the loop and push into the result. A single `map` whose callback is one short
+  expression may stay.
+- `async`/`await` over promise chains; no webs of callbacks or event emitters.
+- A pipeline is a function that calls its stages in order: `toPdf()` builds the HTML from the model,
+  renders it, returns bytes.
+
+**Errors are values inside, exceptions only at the API.** Only the public API of
+`@pdflapas/pptxgenjs` (the PptxGenJS-compatible calls, `toPdf`, `toHtml`, `parseModel`, the renderer
+factories) throws. Every internal function returns a value that names each outcome: a tagged union
+such as `{ kind: "color"; color } | { kind: "none" } | { kind: "invalid"; input }`, never `T | undefined`
+or `T | null` standing for "absent, empty or invalid, the caller guesses which". Missing input is the
+caller's case: a function takes the value, not `value | undefined`, and the caller handles absence
+where it reads the input. The API layer turns an error value into the error the user sees (see "Fail
+loudly and helpfully"), or into a `warnings()` entry where the API reports instead of throwing. A field
+that is optional in the data (`bullet?: NormalizedTextBullet` in the model) stays optional: the rule is
+about what functions return.
 
 **One topic per file, and the path says what it is.** Folder = domain, file name = what the code
 does. Glance test: from the path alone you can tell what is inside without opening it, so no
@@ -187,6 +206,10 @@ hash changes only when Rust code or its pins change.
   with `bun fmt` and Rust with rustfmt; `bun run fmt:check` is what CI runs. Never hand-format or
   reformat generated files (`generatedPresetShapes.ts`, the wasm-bindgen glue). Do not mix unrelated
   formatting into a change.
+- **Layout the formatter does not do.** Every `if`, `else`, `for` and `while` body sits in braces on its
+  own lines, even a single `return`. A blank line goes before every `return` that is not the first
+  statement of its block, after every block (`if`, `for`, `while`, `switch`, `try`) that a statement
+  follows, and between a group of declarations and the statements after it. One statement per line.
 - **Strict types, no escape hatches.** `strict` and `noUncheckedIndexedAccess` stay on. No `any`; use
   `unknown` and narrow at the boundary. No non-null `!` on anything derived from user input, a regex
   match or an array index you have not checked; handle the missing case. `as` casts only where the type
@@ -195,9 +218,10 @@ hash changes only when Rust code or its pins change.
   paths, URLs, bytes and data URIs, font files, component props, and model JSON from another producer.
   Check it where it enters (normalization, `parseComponentProps`, `createWasmRenderer`) with zod where
   the code already uses it (`components/schema.ts`), and pass only checked values inward.
-- **Fail loudly and helpfully.** Unsupported or invalid input throws an error that names the input, what
+- **Fail loudly and helpfully.** Unsupported or invalid input ends in an error that names the input, what
   is wrong and how to fix it, like `UnsupportedChartError` (`packages/pptxgenjs/src/chart/errors.ts`) or
-  the `createWasmRenderer` font errors. Use a dedicated error class when callers need to tell cases apart.
+  the `createWasmRenderer` font errors: thrown at the public API, carried as an error value inside (see
+  "Errors are values inside"). Use a dedicated error class when callers need to tell cases apart.
   Never silently ignore an option, drop an object or substitute something else.
   `"Method not implemented."` is not an acceptable message.
 - **Build text with template literals**, not by joining strings with `+`. Appending one piece with `+=`
