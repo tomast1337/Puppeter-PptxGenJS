@@ -30,14 +30,22 @@ const root = join(tmpdir(), "wasm-parity");
 async function run(command: string[], ok = [0]): Promise<string> {
     const child = Bun.spawn(command, { stdout: "pipe", stderr: "pipe" });
     const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
-    if (!ok.includes(code)) throw new Error(`${command.join(" ")} failed (${code})\n${stderr || stdout}`);
+
+    if (!ok.includes(code)) {
+        throw new Error(`${command.join(" ")} failed (${code})\n${stderr || stdout}`);
+    }
+
     return `${stdout}\n${stderr}`;
 }
 
 async function rmse(a: string, b: string): Promise<number> {
     const output = await run(["magick", "compare", "-metric", "RMSE", a, b, "null:"], [0, 1]);
     const value = output.match(/\((\d*\.?\d+(?:e-?\d+)?)\)/)?.[1];
-    if (value === undefined) throw new Error(`cannot parse RMSE: ${output}`);
+
+    if (value === undefined) {
+        throw new Error(`cannot parse RMSE: ${output}`);
+    }
+
     return Number(value);
 }
 
@@ -49,13 +57,19 @@ const measuredSha256: Record<string, string> = {};
 
 for (const deckName of deckNames) {
     const deckSpec = DECKS[deckName];
-    if (!deckSpec) throw new Error(`unknown deck '${deckName}' (expected ${Object.keys(DECKS).join(", ")})`);
+
+    if (!deckSpec) {
+        throw new Error(`unknown deck '${deckName}' (expected ${Object.keys(DECKS).join(", ")})`);
+    }
+
     const { populate, pages: PAGES, crop } = deckSpec;
     const out = join(root, deckName);
+
     mkdirSync(out, { recursive: true });
 
     // 1. Reference: PptxGenJS -> PPTX -> LibreOffice PDF.
     const reference = new pptxgen();
+
     reference.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
     reference.layout = "PARITY";
     populate(reference);
@@ -64,22 +78,30 @@ for (const deckName of deckNames) {
 
     // 2. The same deck through the Puppeteer default and the WASM backend; toPdf() hands both toHtml().
     const deck = populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape));
+
     writeFileSync(join(out, "puppeteer.pdf"), await deck.toPdf());
     // The printed slides: a hidden one has no page.
     const model = { slides: deck.getModel().slides.filter(slide => !slide.hidden) };
     const renderer = await createRenderer();
     const wasmPdf = await populate(new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape, { renderer })).toPdf();
+
     writeFileSync(join(out, "wasm.pdf"), wasmPdf);
     const warnings = renderer.warnings();
     const sha256 = createHash("sha256").update(wasmPdf).digest("hex");
+
     measuredSha256[deckName] = sha256;
     const expectedSha256 = (pdfSha256 as Record<string, string>)[deckName];
-    if (sha256 !== expectedSha256) failures.push(`${deckName}: wasm.pdf sha256 ${sha256} != pdf-sha256.json ${expectedSha256 ?? "(none)"}`);
+
+    if (sha256 !== expectedSha256) {
+        failures.push(`${deckName}: wasm.pdf sha256 ${sha256} != pdf-sha256.json ${expectedSha256 ?? "(none)"}`);
+    }
 
     const engines = ["puppeteer", "wasm"] as const;
+
     for (const name of ["reference", ...engines]) {
         await run(["pdftoppm", "-png", "-r", "96", "-f", "1", "-l", String(PAGES), join(out, `${name}.pdf`), join(out, name)]);
     }
+
     // pdftoppm zero-pads page numbers to the document's page count.
     const rendered = readdirSync(out);
     const png = (name: string, page: number) =>
@@ -90,16 +112,23 @@ for (const deckName of deckNames) {
 
     // 3. Page RMSE and one crop per selected object.
     const pages: ({ page: number; nonText: string[] } & Record<string, unknown>)[] = [];
+
     for (let page = 1; page <= PAGES; page++) {
         const scores = Object.fromEntries(await Promise.all(engines.map(async e => [e, await rmse(png("reference", page), png(e, page))])));
+
         pages.push({ page, nonText: model.slides[page - 1]!.objects.filter(o => o.kind !== "text" && o.kind !== "shape").map(o => o.kind), ...scores });
     }
 
     const crops: Record<string, unknown>[] = [];
+
     for (const [index, slide] of model.slides.entries()) {
         const page = index + 1;
+
         for (const object of slide.objects) {
-            if (!crop(object)) continue;
+            if (!crop(object)) {
+                continue;
+            }
+
             const { x, y, width = 0, height = 0 } = object.style.geometry;
             const x0 = Math.max(0, Math.floor(x) - 3);
             const y0 = Math.max(0, Math.floor(y) - 3);
@@ -109,11 +138,14 @@ for (const deckName of deckNames) {
             const label = [shape, text].filter(Boolean).join(": ").slice(0, 40);
             const name = `p${page}-${object.style.objectName.replace(/\W+/g, "")}`;
             const files: Record<string, string> = {};
+
             for (const engine of ["reference", ...engines]) {
                 files[engine] = join(out, `crop-${name}-${engine}.png`);
                 await run(["magick", png(engine, page), "-crop", geometry, "+repage", files[engine]!]);
             }
+
             const scores = Object.fromEntries(await Promise.all(engines.map(async e => [e, await rmse(files.reference!, files[e]!)])));
+
             crops.push({ page, name, label, ...scores });
             // Side-by-side for eyeballing: reference | puppeteer | wasm.
             await run(["magick", "montage", "-label", "%t", files.reference!, files.puppeteer!, files.wasm!, "-tile", "3x", "-geometry", "+6+6", "-pointsize", "10", join(out, `montage-${name}.png`)]);
@@ -121,34 +153,53 @@ for (const deckName of deckNames) {
     }
 
     const summary = Object.fromEntries(engines.map(e => [e, { pageMedian: median(pages.map(p => p[e] as number)), cropMedian: median(crops.map(c => c[e] as number)), cropsUnder008: crops.filter(c => (c[e] as number) <= CROP_TARGET).length }]));
+
     writeFileSync(join(out, "fidelity.json"), JSON.stringify({ warnings, pages, crops, summary, cropCount: crops.length }, null, 2));
 
     // 4. Gate the WASM scores.
     const expected = (baseline as Record<string, Record<string, number>>)[deckName] ?? {};
+
     measured[deckName] = Object.fromEntries(crops.map(c => [c.name as string, Number(f(c.wasm))]));
     const improved: string[] = [];
+
     console.log(`\n## ${deckName} deck (${out})\n\n| page | non-text objects | Puppeteer | WASM |\n|---|---|---|---|`);
     for (const p of pages) {
         const fail = (p.wasm as number) > PAGE_THRESHOLD;
-        if (fail) failures.push(`${deckName} page ${p.page}: WASM ${f(p.wasm)} > ${PAGE_THRESHOLD}`);
+
+        if (fail) {
+            failures.push(`${deckName} page ${p.page}: WASM ${f(p.wasm)} > ${PAGE_THRESHOLD}`);
+        }
+
         console.log(`| ${p.page} | ${p.nonText.join(", ") || "-"} | ${f(p.puppeteer)} | ${f(p.wasm)}${fail ? " FAIL" : ""} |`);
     }
+
     console.log(`\n| crop | text | Puppeteer | WASM | baseline |\n|---|---|---|---|---|`);
     for (const c of crops) {
         const name = c.name as string;
         const limit = expected[name];
         let status = "";
+
         if (limit === undefined) {
             failures.push(`${deckName} crop ${name}: no baseline entry`);
             status = " FAIL (no baseline)";
         } else if ((c.wasm as number) > limit + BASELINE_EPSILON) {
             failures.push(`${deckName} crop ${name}: WASM ${f(c.wasm)} > baseline ${f(limit)} + ${BASELINE_EPSILON}`);
             status = " FAIL";
-        } else if ((c.wasm as number) < limit - BASELINE_EPSILON) improved.push(name);
+        } else if ((c.wasm as number) < limit - BASELINE_EPSILON) {
+            improved.push(name);
+        }
+
         console.log(`| ${name} | ${c.label} | ${f(c.puppeteer)} | ${f(c.wasm)}${status} | ${limit === undefined ? "-" : f(limit)} |`);
     }
-    for (const stale of Object.keys(expected).filter(name => !(name in measured[deckName]!))) failures.push(`${deckName} crop ${stale}: in baseline.json but no longer measured`);
-    if (improved.length) console.log(`\nImproved beyond ${BASELINE_EPSILON}: ${improved.join(", ")}. Ratchet them down with WASM_BASELINE_UPDATE=1.`);
+
+    for (const stale of Object.keys(expected).filter(name => !(name in measured[deckName]!))) {
+        failures.push(`${deckName} crop ${stale}: in baseline.json but no longer measured`);
+    }
+
+    if (improved.length) {
+        console.log(`\nImproved beyond ${BASELINE_EPSILON}: ${improved.join(", ")}. Ratchet them down with WASM_BASELINE_UPDATE=1.`);
+    }
+
     console.log(`\nsummary: ${JSON.stringify(summary)}`);
     console.log(`warnings: ${JSON.stringify(warnings)}`);
     console.log(`wasm.pdf sha256: ${sha256}${sha256 === expectedSha256 ? "" : " FAIL (pdf-sha256.json)"}`);
@@ -156,6 +207,7 @@ for (const deckName of deckNames) {
 
 if (process.env.WASM_BASELINE_UPDATE === "1") {
     const next = { ...baseline, ...measured };
+
     writeFileSync(join(root, "baseline.json"), `${JSON.stringify(next, null, 2)}\n`);
     writeFileSync(join(root, "pdf-sha256.json"), `${JSON.stringify({ ...pdfSha256, ...measuredSha256 }, null, 2)}\n`);
     console.log(`\nWrote ${join(root, "baseline.json")} and ${join(root, "pdf-sha256.json")}; review them and copy them to tests/visual/wasm/.`);

@@ -119,7 +119,10 @@ describe("compatibility manifest", () => {
 
     test("records pinned PptxGenJS text quirks explicitly", () => {
         // Declared, but without effect on what PptxGenJS 4.0.1 draws (tests/text.test.ts checks the model is unchanged).
-        for (const option of ["textDirection", "bulletNumberType", "isTextBox", "data", "path", "runShadow"] as const) expect(COMPATIBILITY.text.options[option]).toBe("ignored");
+        for (const option of ["textDirection", "bulletNumberType", "isTextBox", "data", "path", "runShadow"] as const) {
+            expect(COMPATIBILITY.text.options[option]).toBe("ignored");
+        }
+
         expect(COMPATIBILITY.shape.options.align).toBe("ignored");
         expect(COMPATIBILITY.table.options.verbose).toBe("ignored");
         expect(COMPATIBILITY.text.options.bulletDeprecatedStyle).toBe("implemented");
@@ -174,6 +177,7 @@ describe("compatibility manifest", () => {
         for (const option of SHAPE_OPTION_KEYS) {
             expect(COMPATIBILITY.shape.options[option]).toBeDefined();
         }
+
         expect(Object.keys(SHAPE_GEOMETRY_COMPATIBILITY)).toHaveLength(179);
         expect(SHAPE_GEOMETRY_COMPATIBILITY.rect).toBe("implemented");
         expect(SHAPE_GEOMETRY_COMPATIBILITY.custGeom).toBe("implemented");
@@ -196,6 +200,7 @@ describe("compatibility manifest", () => {
         for (const option of TABLE_TO_SLIDES_OPTION_KEYS) {
             expect(COMPATIBILITY.table.options[option]).toBeDefined();
         }
+
         expect(COMPATIBILITY.table.options.tableToSlides).toBe("verified");
         expect(COMPATIBILITY.table.options.masterSlideName).toBe("unsupported");
         // Both master-name options throw the same UnsupportedFeatureError (tests/unsupportedMethods.test.ts).

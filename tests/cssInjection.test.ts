@@ -14,7 +14,10 @@ const VALIGN_ERROR = `Text option \`valign\` is ${JSON.stringify(PAYLOAD)}; use 
 
 describe("alignment options", () => {
     test("keep PptxGenJS's values and read valign as PptxGenJS 4.0.1 reads it in each place", () => {
-        for (const align of ["left", "center", "right", "justify"] as const) expect(paragraphAlign(align)).toBe(align);
+        for (const align of ["left", "center", "right", "justify"] as const) {
+            expect(paragraphAlign(align)).toBe(align);
+        }
+
         expect(paragraphAlign(undefined)).toBeUndefined();
         expect(paragraphAlign("")).toBeUndefined();
         const accepted: Record<VerticalAlignSource, ReadonlyArray<readonly [string, string]>> = {
@@ -57,8 +60,12 @@ describe("alignment options", () => {
                 ["b", "bottom"],
             ],
         };
+
         for (const [source, cases] of Object.entries(accepted) as Array<[VerticalAlignSource, ReadonlyArray<readonly [string, string]>]>) {
-            for (const [valign, expected] of cases) expect([source, valign, verticalAlign(valign, source)]).toEqual([source, valign, expected]);
+            for (const [valign, expected] of cases) {
+                expect([source, valign, verticalAlign(valign, source)]).toEqual([source, valign, expected]);
+            }
+
             expect(verticalAlign(undefined, source)).toBeUndefined();
             expect(verticalAlign("", source)).toBeUndefined();
         }
@@ -78,15 +85,20 @@ describe("alignment options", () => {
             tableCell: [PAYLOAD, "Top", "Middle", "BOTTOM", "mid", "topp", "xcenter", "toString", 1],
             slideNumber: [PAYLOAD, "center", "c", "m", "Top", "btm"],
         };
+
         for (const [source, values] of Object.entries(refused) as Array<[VerticalAlignSource, readonly unknown[]]>) {
-            for (const value of values) expect(() => verticalAlign(value, source)).toThrow(`Text option \`valign\` is ${JSON.stringify(value)}; use one of top, middle, bottom`);
+            for (const value of values) {
+                expect(() => verticalAlign(value, source)).toThrow(`Text option \`valign\` is ${JSON.stringify(value)}; use one of top, middle, bottom`);
+            }
         }
     });
 
     test("a text box's valign reaches the HTML as the model's value, never as given", async () => {
         const pres = new PuppeteerGen();
+
         pres.addSlide().addText("A", { x: 1, y: 1, w: 4, h: 1, valign: "bottom;background-image:url(http://127.0.0.1:9/x)" as "bottom" });
         const { html } = await pres.toHtml();
+
         expect(html).not.toContain("url(http");
         expect(html).toContain("align-items: flex-end;");
     });
@@ -113,9 +125,11 @@ describe("alignment options", () => {
             VALIGN_ERROR,
         ],
     ];
+
     for (const [name, add, error] of cases) {
         test(`refuse ${name} before it reaches the HTML`, async () => {
             const pres = new PuppeteerGen();
+
             // Some objects are normalized when added, others when the HTML is built.
             await expect(
                 (async () => {
@@ -129,9 +143,11 @@ describe("alignment options", () => {
     test("a deck with valid and aliased alignments still builds", async () => {
         const pres = new PuppeteerGen();
         const slide = pres.addSlide();
+
         slide.addText([{ text: "A", options: { align: "justify" } }], { x: 1, y: 1, w: 4, h: 1, align: "center", valign: "Bottom" as "bottom" });
         slide.addTable([[{ text: "A", options: { valign: "C" as "middle", align: "right" } }]], { x: 1, y: 3, w: 4, valign: "bottom" });
         const { html } = await pres.toHtml();
+
         expect(html).toContain("text-align: justify;");
         expect(html).toContain("vertical-align: middle;");
         expect(html).toContain("text-align: right;");
@@ -146,6 +162,7 @@ describe("inline CSS", () => {
             ["filter", "drop-shadow(1px 2px 3px rgba(0, 0, 0, 0.5))"],
             ["width", "12.5px"],
         ]);
+
         expect(styleAttribute(css)).toEqual(["style", 'font-family: "Odd \\"Face\\" ; url(x) {}", "Arial"; transform: rotate(30deg) scaleX(-1) scaleY(-1); filter: drop-shadow(1px 2px 3px rgba(0, 0, 0, 0.5)); width: 12.5px;']);
     });
 
@@ -163,13 +180,16 @@ test("the advisory's deck sends no request: refused at the API, and blocked by t
         port: 0,
         fetch(request) {
             requests.push(new URL(request.url).pathname);
+
             return new Response("x");
         },
     });
+
     try {
         const origin = `http://127.0.0.1:${server.port}`;
         const pres = new PuppeteerGen(undefined, { imageSources: { allowRemote: false } });
         const slide = pres.addSlide();
+
         expect(() => slide.addText([{ text: "hello", options: { align: `left;background-image:url(${origin}/run-align)` as "left" } }], { x: 1, y: 1, w: 4, h: 1 })).toThrow("Text option `align`");
         expect(() => slide.addTable([[{ text: "cell", options: { valign: `top;background-image:url(${origin}/cell-valign)` as "top" } }]], { x: 1, y: 3, w: 4 })).toThrow("Text option `valign`");
         expect(() => slide.addTable([[{ text: "cell", options: { align: `left;background-image:url(${origin}/cell-align)` as "left" } }]], { x: 1, y: 3, w: 4 })).toThrow("Text option `align`");
@@ -179,13 +199,16 @@ test("the advisory's deck sends no request: refused at the API, and blocked by t
         // The HTML the advisory's deck gave before the options were checked: the print page still fetches nothing.
         const valid = new PuppeteerGen();
         const validSlide = valid.addSlide();
+
         validSlide.addText([{ text: "hello", options: { align: "left" } }], { x: 1, y: 1, w: 4, h: 1 });
         validSlide.addTable([[{ text: "cell", options: { valign: "top", align: "left" } }]], { x: 1, y: 3, w: 4 });
         const document = await valid.toHtml();
         const html = document.html.replaceAll("text-align: left;", `text-align: left;background-image:url(${origin}/align);`).replaceAll("vertical-align: top;", `vertical-align: top;background-image:url(${origin}/valign);`);
+
         expect(html).toContain(`url(${origin}/align)`);
         expect(html).toContain(`url(${origin}/valign)`);
         const pdf = await new PuppeteerPdfRenderer().render({ ...document, html });
+
         expect(new TextDecoder("latin1").decode(pdf.subarray(0, 5))).toBe("%PDF-");
         expect(requests).toEqual([]);
     } finally {

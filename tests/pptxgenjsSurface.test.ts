@@ -7,9 +7,15 @@ import { UnsupportedFeatureError } from "../packages/pptxgenjs/src/UnsupportedFe
 /** Every property and method name an object exposes through its prototype chain, without `constructor` and PptxGenJS's `_` private state. */
 function memberNames(object: object): string[] {
     const names = new Set<string>();
+
     for (let current: object | null = object; current && current !== Object.prototype; current = Object.getPrototypeOf(current)) {
-        for (const name of Object.getOwnPropertyNames(current)) if (!name.startsWith("_") && name !== "constructor") names.add(name);
+        for (const name of Object.getOwnPropertyNames(current)) {
+            if (!name.startsWith("_") && name !== "constructor") {
+                names.add(name);
+            }
+        }
     }
+
     return [...names].sort();
 }
 
@@ -22,6 +28,7 @@ function namesWith(table: Readonly<Record<string, ApiEntry>>, statuses: readonly
 
 function referenceSurface() {
     const presentation = new pptxgen();
+
     return { presentation, slide: presentation.addSlide() };
 }
 
@@ -41,6 +48,7 @@ describe("the pptxgenjs 4.0.1 runtime surface", () => {
 
         test(`classifies every public ${surface} member, and only members the runtime has`, () => {
             const runtime = memberNames(referenceSurface()[surface]);
+
             expect(runtime.filter(name => !Object.hasOwn(table, name))).toEqual([]);
             expect(Object.keys(table).filter(name => !runtime.includes(name))).toEqual([]);
         });
@@ -49,6 +57,7 @@ describe("the pptxgenjs 4.0.1 runtime surface", () => {
             const pres = new PuppeteerGen();
             const ours = surface === "presentation" ? pres : pres.addSlide();
             const expected = namesWith(table, ["implemented", "partial", "unsupported"]);
+
             expect(expected.filter(name => !(name in ours))).toEqual([]);
         });
 
@@ -63,6 +72,7 @@ describe("the pptxgenjs 4.0.1 runtime surface", () => {
                         } catch (error) {
                             return error instanceof UnsupportedFeatureError;
                         }
+
                         return "did not throw";
                     })(),
                 }).toEqual({ name, error: true });

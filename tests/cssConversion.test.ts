@@ -41,6 +41,7 @@ describe("style conversion", () => {
         const fill: NormalizedFill = { visible: true, color: colorToCSS("FF0000") };
         // @ts-expect-error a plain string is not a CssColor: it has not been through colorToCSS.
         const raw: NormalizedFill = { visible: true, color: "red; background: url(http://x)" };
+
         expect<string>(fill.color).toBe("#FF0000");
         expect(raw.visible).toBe(true);
     });

@@ -93,6 +93,7 @@ const CONTEXT_BOXES: readonly (readonly [BoxFloorContext, number, string, number
         table: [1048717, 1049387, 1049782, 1256940, 1257424, 1257745],
         rtl: [865837, 866507, 866902, 1074060, 1074544, 1074865],
     };
+
     return widths[context].map((widthEmu, index) => [context, index < 3 ? 12 : 14, index < 3 ? "Dolor sit AVA" : "Lorem AVAVA", widthEmu, index % 3 === 2] as const);
 });
 
@@ -109,13 +110,19 @@ export function boxFloorCases(font: GlyphAdvances): BoxFloorCase[] {
         [...text].reduce((sum, character, index) => {
             const next = text[index + 1] ?? " ";
             const kern = ((font.kerning?.get(code(character))?.get(code(next)) ?? 0) * size) / font.unitsPerEm;
+
             return sum + Math.round(((font.advances.get(code(character)) ?? 0) * size) / font.unitsPerEm / grid) * grid + kern;
         }, 0);
-    if (BOXES.some(([size, text, , , linePt]) => Math.abs(width(text, size) - linePt) > 1e-3)) return [];
+
+    if (BOXES.some(([size, text, , , linePt]) => Math.abs(width(text, size) - linePt) > 1e-3)) {
+        return [];
+    }
+
     return BOXES.map(([fontSize, text, insetPt, widthEmu, linePt, fits]) => {
         const inner = (widthEmu * PPTX_DEFAULTS.units.pointsPerInch) / PPTX_DEFAULTS.units.emuPerInch - 2 * insetPt;
         const slack = inner - linePt;
         const overflowPt = linePt - Math.floor(inner / grid) * grid;
+
         return { fontSize, text, insetPt, widthEmu, label: `${fontSize}pt "${text}", inset ${insetPt}pt, ${slack >= 0 ? "+" : "-"}${Math.abs(slack).toFixed(4)}pt`, overflowPt, fits };
     });
 }
@@ -126,10 +133,17 @@ export function boxFloorDeck(presentation: PuppeteerGen, cases: readonly BoxFloo
         const slide = presentation.addSlide();
         const line = `${text} xo`;
         const box = { x: 0.25, y: 0.2, w: widthEmu / PPTX_DEFAULTS.units.emuPerInch, h: context === "left" ? 1.2 : 0.5, margin: insetPt, valign: "top", fontFace: "Arial", fontSize } as const;
-        if (context === "table") slide.addTable([[{ text: line }]], { x: box.x, y: box.y, colW: [box.w], valign: "top", fontFace: "Arial", fontSize });
-        else if (context === "roundRect" || context === "ellipse") slide.addText(line, { ...box, shape: context });
-        else if (context === "rtl") slide.addText(line, { ...box, rtlMode: true, align: "left" });
-        else slide.addText(line, { ...box, align: context });
+
+        if (context === "table") {
+            slide.addTable([[{ text: line }]], { x: box.x, y: box.y, colW: [box.w], valign: "top", fontFace: "Arial", fontSize });
+        } else if (context === "roundRect" || context === "ellipse") {
+            slide.addText(line, { ...box, shape: context });
+        } else if (context === "rtl") {
+            slide.addText(line, { ...box, rtlMode: true, align: "left" });
+        } else {
+            slide.addText(line, { ...box, align: context });
+        }
     }
+
     return presentation;
 }

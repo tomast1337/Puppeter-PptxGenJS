@@ -14,7 +14,9 @@ const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 /** The source table, in a jsdom document of its own. */
 function sourceTable(rowCount = 2): HTMLTableElement {
     const document = createNodeDocument();
+
     document.body.innerHTML = tableHtml(rowCount);
+
     return document.getElementById("source") as HTMLTableElement;
 }
 
@@ -72,6 +74,7 @@ describe("HTML table normalization", () => {
     test("rejects missing and non-table element IDs", () => {
         const presentation = new PuppeteerGen(PAGE);
         const div = createNodeDocument().createElement("div");
+
         expect(() => presentation.tableToSlides("missing")).toThrow('tableToSlides: Table ID "missing" does not exist!');
         expect(() => presentation.tableToSlides(div as unknown as HTMLTableElement)).toThrow("the element is not a <table>");
         expect(() => presentation.tableToSlides("<p>no table</p>")).toThrow("the HTML string has no <table> element");
@@ -82,7 +85,9 @@ describe("HTML table normalization", () => {
 describe("tableToSlides source", () => {
     const slidesFrom = (populate: (presentation: PuppeteerGen) => void) => {
         const presentation = new PuppeteerGen(PAGE);
+
         populate(presentation);
+
         return presentation.getModel().slides;
     };
     const fromElement = slidesFrom(presentation => presentation.tableToSlides(sourceTable(30), { autoPageRepeatHeader: true }));
@@ -96,6 +101,7 @@ describe("tableToSlides source", () => {
     test("finds the id in the global document, where PptxGenJS looks, and only there", () => {
         const global = globalThis as { document?: Document };
         const previous = global.document;
+
         global.document = createNodeDocument();
         try {
             global.document.body.innerHTML = tableHtml(30);
@@ -111,6 +117,7 @@ describe("tableToSlides source", () => {
         // A browser's default, document.implementation.createHTMLDocument(), has no window to compute styles in.
         const windowless = () => createNodeDocument().implementation.createHTMLDocument();
         const presentation = new PuppeteerGen(PAGE, { createDocument: windowless });
+
         expect(() => presentation.tableToSlides(tableHtml(1))).toThrow("parsing an HTML string needs a document with a window");
     });
 });
@@ -118,6 +125,7 @@ describe("tableToSlides source", () => {
 describe("tableToSlides", () => {
     test("creates paginated slides and adds supported decorations to each", () => {
         const presentation = new PuppeteerGen(PAGE);
+
         presentation.tableToSlides(sourceTable(30), {
             w: 10,
             y: 0.75,
@@ -134,6 +142,7 @@ describe("tableToSlides", () => {
         });
 
         const slides = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-container");
+
         expect(slides.length).toBeGreaterThan(1);
         slides.forEach(slide => {
             expect(slide.querySelectorAll(".slide-table-container").length).toBe(2);
@@ -154,6 +163,7 @@ function pptxGenJsTableToSlides(rowCount: number, options: PptxGenJS.TableToSlid
     const pptx = runPptxGenJsTableToSlides(tableHtml(rowCount), options);
     // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
     const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: unknown[]; options: { h?: unknown; rowH?: unknown } }> }> })._slides;
+
     return slides.map(slide => ({ rows: slide._slideObjects[0]?.arrTabRows.length ?? 0, h: slide._slideObjects[0]?.options.h, rowH: slide._slideObjects[0]?.options.rowH }));
 }
 
@@ -161,6 +171,7 @@ function pptxGenJsTableToSlides(rowCount: number, options: PptxGenJS.TableToSlid
 function runPptxGenJsTableToSlides(html: string, options: PptxGenJS.TableToSlidesProps): PptxGenJSRuntime {
     const document = createNodeDocument();
     const view = document.defaultView!;
+
     document.body.innerHTML = html;
     Object.defineProperty(view.HTMLElement.prototype, "offsetWidth", {
         get: function (this: HTMLElement) {
@@ -174,11 +185,14 @@ function runPptxGenJsTableToSlides(html: string, options: PptxGenJS.TableToSlide
     });
     const global = globalThis as { document?: Document; window?: Window };
     const previous = { document: global.document, window: global.window };
+
     Object.assign(global, { document, window: view });
     try {
         const pptx = new PptxGenJSRuntime();
+
         pptx.layout = "LAYOUT_16x9";
         pptx.tableToSlides("source", structuredClone(options));
+
         return pptx;
     } finally {
         Object.assign(global, previous);
@@ -187,6 +201,7 @@ function runPptxGenJsTableToSlides(html: string, options: PptxGenJS.TableToSlide
 
 function textOf(node: Node, view: Window & typeof globalThis): string {
     const read = (child: Node): string => (child.nodeType === child.TEXT_NODE ? (child.nodeValue ?? "") : child instanceof view.HTMLBRElement ? "\n" : Array.from(child.childNodes).map(read).join(""));
+
     return read(node).trim();
 }
 
@@ -198,15 +213,18 @@ test.each<[string, PptxGenJS.TableToSlidesProps]>([
     ["h and rowH", { h: 4, rowH: [0.6, 0.4] }],
 ])("tableToSlides paginates with %s but leaves row heights to the content", (_, options) => {
     const presentation = new PuppeteerGen(PAGE);
+
     presentation.tableToSlides(sourceTable(30), options);
     const tables = presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? [object.table] : [])));
     const theirs = pptxGenJsTableToSlides(30, options);
+
     expect(tables.length).toBeGreaterThan(1);
     expect(theirs.every(table => table.h === undefined && table.rowH === undefined)).toBe(true);
     expect(tables.map(table => table.rows.length)).toEqual(theirs.map(table => table.rows));
     expect(tables.flatMap(table => table.rows.map(row => row.height))).toEqual(tables.flatMap(table => table.rows.map(() => undefined)));
     expect(tables.map(table => table.height)).toEqual(tables.map(() => undefined));
     const rowStyles = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-table-container tr")).map(row => row.style.height);
+
     expect(rowStyles.length).toBeGreaterThan(30);
     expect(new Set(rowStyles)).toEqual(new Set([""]));
 });
@@ -221,13 +239,16 @@ test("tableToSlides draws a jsdom cell without a font size at the deck's default
     const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
     const slide = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
     const presentation = (await zip.file("ppt/presentation.xml")?.async("string")) ?? "";
+
     expect([...slide.matchAll(/<a:rPr([^>]*)>/g)].map(([, props]) => props?.match(/sz="(\d+)"/)?.[1])).toEqual([undefined, "1000"]);
     expect(presentation).toMatch(/<p:defaultTextStyle><a:lvl1pPr[^>]*><a:defRPr sz="1800"/);
 
     const ours = new PuppeteerGen(PAGE);
     const document = createNodeDocument();
+
     document.body.innerHTML = html;
     ours.tableToSlides(document.getElementById("source") as HTMLTableElement);
     const runs = ours.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs))) : [])));
+
     expect(runs.filter(run => run.text).map(run => run.fontSize)).toEqual([pointsToPixels(PPTX_DEFAULTS.table.unsizedRunFontSizePt), pointsToPixels(10)]);
 });

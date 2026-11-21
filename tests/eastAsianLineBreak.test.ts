@@ -53,10 +53,15 @@ describe("East Asian line breaks on the PowerPoint target", () => {
     /** A model run of "，" at 10pt, as normalization gives it on the LibreOffice target (no hang). */
     const modelRun = (): NormalizedTextRun => {
         const presentation = new PuppeteerGenLibreOffice();
+
         presentation.addSlide().addText("，", { x: 0, y: 0, w: 2, h: 1, fontSize: 10 });
         const object = presentation.getModel().slides[0]?.objects[0];
         const run = object?.kind === "text" ? object.text.paragraphs[0]?.runs[0] : undefined;
-        if (!run) throw new Error("The deck has no text run.");
+
+        if (!run) {
+            throw new Error("The deck has no text run.");
+        }
+
         return run;
     };
     const mark: NormalizedTextRun = { ...modelRun(), characterSpacing: 0.25, softBreakBefore: true };
@@ -76,6 +81,7 @@ describe("East Asian line breaks on the PowerPoint target", () => {
                 [0x3000, 256],
             ]),
         };
+
         expect(hangingMarkRuns({ ...mark, text: ")" }, font)).toEqual([
             { ...mark, text: ")", characterSpacing: -size / 2 },
             { ...mark, text: "\u3000", characterSpacing: 0.25 - size / 2, softBreakBefore: false },
@@ -123,8 +129,10 @@ describe("East Asian line breaks on the PowerPoint target", () => {
     test("writes the hang and the breaks in the run text on the PowerPoint target by its language, and nothing on LibreOffice", async () => {
         const text = (presentation: PuppeteerGenPowerPoint | PuppeteerGenLibreOffice, lang?: string) => {
             presentation.addSlide().addText('他说"示例"，其他', { x: 0, y: 0, w: 2, h: 1, fontFace: "SimSun", ...(lang ? { lang } : {}) });
+
             return presentation.getModel().slides[0]?.objects.flatMap(object => (object.kind === "text" ? object.text.paragraphs.flatMap(paragraph => paragraph.runs.map(run => run.text)) : []));
         };
+
         expect(text(new PuppeteerGenPowerPoint(), "zh-CN")).toEqual(['他说\u200b"\u200b示例\u200b"', "，", "\u3000", "其他"]);
         expect(text(new PuppeteerGenPowerPoint(), "ja-JP")).toEqual(['他说\u200b"\u200b示例\u200b"', "，", "\u3000", "其他"]);
         expect(text(new PuppeteerGenPowerPoint())).toEqual(['他说\u200b"\u200b示例\u200b"\u200b，\u200b其他']);
@@ -139,10 +147,13 @@ const pdftotext = Bun.which("pdftotext");
 /** The lines of the first `pages` pages, as pdftotext reads them, by their number of characters other than white space and U+200B. */
 async function drawnLines(pdf: Uint8Array, pages: number): Promise<number[][]> {
     const directory = await mkdtemp(join(tmpdir(), "east-asian-break-"));
+
     try {
         const file = join(directory, "deck.pdf");
+
         await writeFile(file, pdf);
         const text = Bun.spawnSync([pdftotext ?? "pdftotext", "-raw", "-enc", "UTF-8", file, "-"]).stdout.toString();
+
         return text
             .split("\f")
             .slice(0, pages)
@@ -170,6 +181,7 @@ describe("the measured East Asian boxes, in both renderers", () => {
         "breaks each box where PowerPoint does, in Chromium",
         async () => {
             const pdf = await eastAsianBreakDeck(new PuppeteerGenPowerPoint(), measured).toPdf();
+
             expect(drawn(measured, await drawnLines(pdf, cases.length))).toEqual(expected(measured));
         },
         60_000,
@@ -180,6 +192,7 @@ describe("the measured East Asian boxes, in both renderers", () => {
         async () => {
             const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
             const pdf = await eastAsianBreakDeck(new PuppeteerGenPowerPoint(undefined, { renderer }), measured).toPdf();
+
             expect(drawn(measured, await drawnLines(pdf, cases.length))).toEqual(expected(measured));
         },
         60_000,
@@ -195,7 +208,11 @@ describe("the measured boxes of full-width punctuation next to digits and Latin 
     const ready = arial !== undefined && times !== undefined && pdftotext !== null;
     const fonts = (fontFace: MixedVariant["fontFace"]) => {
         const font = fontFace === "Arial" ? arial : times;
-        if (!font) throw new Error(`${fontFace} is not installed: the measured boxes need its advances`);
+
+        if (!font) {
+            throw new Error(`${fontFace} is not installed: the measured boxes need its advances`);
+        }
+
         return font;
     };
 
@@ -203,6 +220,7 @@ describe("the measured boxes of full-width punctuation next to digits and Latin 
         "breaks each box where PowerPoint does, in Chromium",
         async () => {
             const pdf = await mixedBreakDeck(new PuppeteerGenPowerPoint(), cases, fonts).toPdf();
+
             expect(drawn(await drawnLines(pdf, cases.length))).toEqual(expected);
         },
         120_000,
@@ -213,6 +231,7 @@ describe("the measured boxes of full-width punctuation next to digits and Latin 
         async () => {
             const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
             const pdf = await mixedBreakDeck(new PuppeteerGenPowerPoint(undefined, { renderer }), cases, fonts).toPdf();
+
             expect(drawn(await drawnLines(pdf, cases.length))).toEqual(expected);
         },
         120_000,

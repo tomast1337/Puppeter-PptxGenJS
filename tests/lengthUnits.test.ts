@@ -28,17 +28,21 @@ const cells = (...rows: string[][]): PptxGenJS.TableRow[] => rows.map(row => row
 /** The slide XML PptxGenJS 4.0.1 writes for one slide. */
 async function slideXml(build: Build): Promise<string> {
     const pptx = new PptxGenJSRuntime();
+
     build(pptx.addSlide());
     // `as`: write() returns a Buffer for the nodebuffer output type.
     const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+
     return (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
 }
 
 /** The objects PdfLapas models for the same slide. */
 function ourObjects(build: Build): readonly NormalizedSlideObject[] {
     const presentation = new PuppeteerGen();
+
     // `as`: PuppeteerSlide implements the PptxGenJS slide API the builders call.
     build(presentation.addSlide() as unknown as PptxGenJS.Slide);
+
     return presentation.getModel().slides[0]?.objects ?? [];
 }
 
@@ -50,11 +54,13 @@ function pixels(xml: string, pattern: RegExp): number[] {
 /** The first `<a:off>`/`<a:ext>` pair after `marker`, as [x, y, cx, cy] in pixels. */
 function frame(xml: string, marker: string): number[] {
     const match = /<a:off x="(-?\d+)" y="(-?\d+)"\/>\s*<a:ext cx="(\d+)" cy="(\d+)"\/>/.exec(xml.slice(xml.indexOf(marker)));
+
     return (match?.slice(1) ?? []).map(emu => emuToPixels(Number(emu)));
 }
 
 function geometry(object: NormalizedSlideObject | undefined): number[] {
     const { x, y, width, height } = object?.style.geometry ?? { x: Number.NaN, y: Number.NaN };
+
     return [x, y, width ?? Number.NaN, height ?? Number.NaN];
 }
 
@@ -89,6 +95,7 @@ describe("getSmartParseNumber lengths (PptxGenJS 4.0.1): a number of 100 or more
                 "<p:sp>",
             ],
         ];
+
         for (const [name, build, marker] of builders) {
             expect({ name, geometry: geometry(ourObjects(build).at(-1)) }).toEqual({ name, geometry: close(frame(await slideXml(build), marker)) });
         }
@@ -101,6 +108,7 @@ describe("getSmartParseNumber lengths (PptxGenJS 4.0.1): a number of 100 or more
         // <a:srcRect l t> is the crop offset as a share (1/100000) of the 2in source picture.
         const [, left = "", top = ""] = /<a:srcRect l="(-?\d+)" r="-?\d+" t="(-?\d+)"/.exec(xml) ?? [];
         const source = 2 * PPTX_DEFAULTS.units.cssDpi;
+
         expect(image?.kind === "image" ? image.image.sizing : undefined).toMatchObject({ type: "crop", offsetX: expect.closeTo((Number(left) / 100000) * source, 1), offsetY: expect.closeTo((Number(top) / 100000) * source, 1) });
         expect(geometry(image).slice(2)).toEqual(close(frame(xml, "<p:pic>").slice(2)));
     });
@@ -112,6 +120,7 @@ describe("getSmartParseNumber lengths (PptxGenJS 4.0.1): a number of 100 or more
         const [shape] = ourObjects(build);
         const path = shape?.kind === "shape" && shape.shape.geometry.kind === "path" ? shape.shape.geometry.data : "";
         const point = /<a:lnTo>\s*<a:pt x="(\d+)" y="(\d+)"/.exec(await slideXml(build))?.slice(1) ?? [];
+
         expect(/L (\S+) (\S+)/.exec(path)?.slice(1).map(Number)).toEqual(close(point.map(emu => emuToPixels(Number(emu)))));
     });
 
@@ -120,6 +129,7 @@ describe("getSmartParseNumber lengths (PptxGenJS 4.0.1): a number of 100 or more
         const xml = await slideXml(build);
         const [table] = ourObjects(build);
         const model = table?.kind === "table" ? table.table : undefined;
+
         expect(geometry(table).slice(0, 2)).toEqual(close(frame(xml, "<p:graphicFrame>").slice(0, 2)));
         expect(model?.columns).toEqual(close(pixels(xml, /<a:gridCol w="(\d+)"/g)));
         // h: 100 is a 100 EMU frame, but genXmlTable shares inch2Emu(100), 100 inches, among the rows.
@@ -141,9 +151,11 @@ describe("inch2Emu lengths (PptxGenJS 4.0.1): a number above 100 is EMU (#280)",
             const rows = cells(["A", "B"], ["C", "D"]);
             const xml = await slideXml(slide => slide.addTable(structuredClone(rows), structuredClone(options)));
             const table = normalizeTable(rows, options, PAGE);
+
             expect({ options, columns: table.columns }).toEqual({ options, columns: close(pixels(xml, /<a:gridCol w="(\d+)"/g)) });
             expect({ options, rows: table.rows.map(row => row.height ?? px(0)) }).toEqual({ options, rows: close(pixels(xml, /<a:tr h="(\d+)"/g)) });
             const [marL = "", marR = "", marT = "", marB = ""] = /<a:tcPr marL="(\d+)" marR="(\d+)" marT="(\d+)" marB="(\d+)"/.exec(xml)?.slice(1) ?? [];
+
             expect({ options, margin: [...(table.rows[0]?.cells[0]?.text.margin ?? [])] }).toEqual({ options, margin: close([marT, marR, marB, marL].map(emu => emuToPixels(Number(emu)))) });
         }
     });
@@ -152,8 +164,10 @@ describe("inch2Emu lengths (PptxGenJS 4.0.1): a number above 100 is EMU (#280)",
         // `as`: `inset` is deprecated and left off TextPropsOptions, but PptxGenJS 4.0.1 still writes it.
         const options = { x: 1, y: 1, w: 1, h: 1, tabStops: [{ position: value }], inset: value } as PptxGenJS.TextPropsOptions;
         const xml = await slideXml(slide => slide.addText("A", options));
+
         expect(normalizeText("A", options).paragraphs[0]?.tabStops[0]?.position).toBeCloseTo(pixels(xml, /<a:tab pos="(\d+)"/g)[0] ?? Number.NaN, 3);
         const inset = (side: string) => pixels(xml, new RegExp(`${side}Ins="(\\d+)"`, "g"));
+
         expect([...textMarginPixels(undefined, value)]).toEqual(close([...inset("t"), ...inset("r"), ...inset("b"), ...inset("l")]));
     });
 });
@@ -171,6 +185,7 @@ describe("addTableDefinition (PptxGenJS 4.0.1, step 4) reads a table size below 
         const rows = cells(["A", "B", "C"], ["D", "E", "F"]);
         const xml = await slideXml(slide => slide.addTable(structuredClone(rows), structuredClone(options)));
         const table = normalizeTable(rows, options, PAGE);
+
         expect(table.columns).toEqual(close(pixels(xml, /<a:gridCol w="(\d+)"/g)));
         expect(table.rows.map(row => row.height ?? px(0))).toEqual(close(pixels(xml, /<a:tr h="(\d+)"/g)));
     });

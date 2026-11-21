@@ -9,8 +9,10 @@ import type { PuppeteerGen as CorePuppeteerGen } from "../packages/pptxgenjs/src
  */
 export function buildCrossRuntimeDeck(Gen: typeof CorePuppeteerGen, png: string): CorePuppeteerGen {
     const pres = new Gen();
+
     pres.registerComponent("test/badge", 1, { render: props => `<strong style="color: #17365D">${String(props.label)}</strong>` });
     const slide = pres.addSlide();
+
     slide.color = "17365D";
     slide.addText(
         [
@@ -30,5 +32,6 @@ export function buildCrossRuntimeDeck(Gen: typeof CorePuppeteerGen, png: string)
         { x: 0.15, y: 2.35, w: 4.33, colW: [1.33, 3], rowH: 0.37 },
     );
     slide.addComponent({ type: "test/badge", version: 1, props: { label: "Badge" } }, { x: 5.15, y: 2.35, w: 2, h: 0.5 });
+
     return pres;
 }

@@ -21,7 +21,11 @@ const GRID = powerPointGrid();
 
 function powerPointGrid(): number {
     const grid = RENDERING_TARGETS.powerpoint.advanceGridPt;
-    if (grid === undefined) throw new Error("The PowerPoint target has no advance grid (advanceGridPt in target/powerpoint.ts).");
+
+    if (grid === undefined) {
+        throw new Error("The PowerPoint target has no advance grid (advanceGridPt in target/powerpoint.ts).");
+    }
+
     return grid;
 }
 // Arial's (and Liberation Sans's) unitsPerEm and advances: space 569, "a" 1139, "i" 455.
@@ -31,7 +35,9 @@ const ARIAL: GlyphAdvances = { unitsPerEm: 2048, advances: new Map([..." ai"].ma
 function words(...values: number[]): Uint8Array {
     const bytes = new Uint8Array(2 * values.length);
     const view = new DataView(bytes.buffer);
+
     values.forEach((value, index) => view.setUint16(2 * index, value & 0xffff));
+
     return bytes;
 }
 
@@ -48,11 +54,14 @@ function sfnt({ cmap, advances, glyphs, omit = "", kern }: { cmap: Uint8Array; a
     const directory = 12 + 16 * tables.length;
     const bytes = new Uint8Array(directory + tables.reduce((sum, table) => sum + table.bytes.length, 0));
     const view = new DataView(bytes.buffer);
+
     view.setUint32(0, 0x00010000);
     view.setUint16(4, tables.length);
     let offset = directory;
+
     tables.forEach(({ tag, bytes: table }, index) => {
         const record = 12 + 16 * index;
+
         bytes.set(
             [...tag].map(character => character.charCodeAt(0)),
             record,
@@ -60,10 +69,17 @@ function sfnt({ cmap, advances, glyphs, omit = "", kern }: { cmap: Uint8Array; a
         view.setUint32(record + 8, offset);
         view.setUint32(record + 12, table.length);
         bytes.set(table, offset);
-        if (tag === "head") view.setUint16(offset + 18, 1000);
-        if (tag === "hhea") view.setUint16(offset + 34, advances.length);
+        if (tag === "head") {
+            view.setUint16(offset + 18, 1000);
+        }
+
+        if (tag === "hhea") {
+            view.setUint16(offset + 34, advances.length);
+        }
+
         offset += table.length;
     });
+
     return bytes;
 }
 
@@ -104,8 +120,13 @@ describe("advanceGridWordSpacing", () => {
 
     test("ends each word on its rounded advances floored to a LayoutUnit and gives each space one LayoutUnit more", () => {
         const spacing = advanceGridWordSpacing("a i", 8, ARIAL, GRID, 0, false);
-        if (!spacing) throw new Error("no spacing");
+
+        if (!spacing) {
+            throw new Error("no spacing");
+        }
+
         const [a, i] = spacing.words;
+
         // "a" rounds to 4.5pt, 6 px, a whole number of LayoutUnits; laid out 1/16 LayoutUnit under it.
         expect(laidOut(natural(1139), 1, a ?? 0)).toBe(6);
         // The space rounds to 2.25pt, 3 px, and is laid out a LayoutUnit wider.
@@ -115,9 +136,14 @@ describe("advanceGridWordSpacing", () => {
     });
 
     const font = resolveInstalledGlyphAdvances("Arial", false, false);
+
     test.skipIf(!font)("keeps every line of a long run within 3/64 px under its rounded width, never over, in Arial and charSpacing", () => {
-        if (!font) throw new Error("unreachable: skipped without Arial");
+        if (!font) {
+            throw new Error("unreachable: skipped without Arial");
+        }
+
         const text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+
         for (const [fontSize, charSpacing] of [
             [7, 0],
             [8, 0],
@@ -127,7 +153,11 @@ describe("advanceGridWordSpacing", () => {
             [8, -0.3],
         ] as const) {
             const spacing = advanceGridWordSpacing(text, fontSize, font, GRID, charSpacing, false);
-            if (!spacing) throw new Error("no spacing");
+
+            if (!spacing) {
+                throw new Error("no spacing");
+            }
+
             const advance = (character: string) => ((font.advances.get(character.codePointAt(0) ?? 0) ?? 0) * fontSize) / font.unitsPerEm;
             // Each piece's PowerPoint width and laid-out width, px.
             let word = 0;
@@ -135,19 +165,29 @@ describe("advanceGridWordSpacing", () => {
                 const characters = [...piece];
                 const rounded = pointsToPixels(characters.reduce((sum, character) => sum + Math.round(advance(character) / GRID) * GRID + charSpacing, 0));
                 const naturalPx = pointsToPixels(characters.reduce((sum, character) => sum + advance(character), 0));
+
                 return { word: isWord(piece), rounded, laidOut: laidOut(naturalPx, characters.length, isWord(piece) ? (spacing.words[word++] ?? Number.NaN) : spacing.space) };
             });
+
             expect(word).toBe(spacing.words.length);
             // Every line from a word's start to a later word's end.
             pieces.forEach((start, first) => {
-                if (!start.word) return;
+                if (!start.word) {
+                    return;
+                }
+
                 let rounded = 0;
                 let width = 0;
+
                 pieces.slice(first).forEach(piece => {
                     rounded += piece.rounded;
                     width += piece.laidOut;
-                    if (!piece.word) return;
+                    if (!piece.word) {
+                        return;
+                    }
+
                     const under = rounded - width;
+
                     expect({ fontSize, charSpacing, within: under > -1e-9 && under < 3 * LAYOUT_UNIT }).toEqual({ fontSize, charSpacing, within: true });
                 });
             });
@@ -157,13 +197,21 @@ describe("advanceGridWordSpacing", () => {
     // The profile's fit (advanceGridWordSpacing): the line's pieces rounded up to LayoutUnits, kept within the width
     // floored to a LayoutUnit (Chromium at the print zoom: within 1/512 px of it, so no LayoutUnit more).
     test.skipIf(!font)("keeps every line of a long kerned run in the narrowest box on the grid PowerPoint keeps it in, and wraps a paragraph's first line in the next narrower", () => {
-        if (!font) throw new Error("unreachable: skipped without Arial");
+        if (!font) {
+            throw new Error("unreachable: skipped without Arial");
+        }
+
         const text = "AVAVA To Ty, Lorem AVA ipsum Wo Yo. dolor LT sit Va amet, PA consectetur AW adipiscing Te elit, sed AV do Ty";
         const step = pointsToPixels(GRID);
         const code = (character: string | undefined) => character?.codePointAt(0) ?? 0;
+
         for (const fontSize of [8, 10.5, 12, 14, 18, 24]) {
             const spacing = advanceGridWordSpacing(text, fontSize, font, GRID, 0, true);
-            if (!spacing) throw new Error("no spacing");
+
+            if (!spacing) {
+                throw new Error("no spacing");
+            }
+
             const units = (value: number) => pointsToPixels((value * fontSize) / font.unitsPerEm);
             const kern = (left: string | undefined, right: string | undefined) => units(font.kerning?.get(code(left))?.get(code(right)) ?? 0);
             const pieces = runPieces(text);
@@ -173,6 +221,7 @@ describe("advanceGridWordSpacing", () => {
             let rounded = 0;
             let laid = 0;
             const words: { roundedStart: number; roundedEnd: number; start: number; end: number }[] = [];
+
             pieces.forEach((piece, index) => {
                 const characters = [...piece];
                 const inner = characters.reduce((sum, character, at) => sum + kern(characters[at - 1], character), 0);
@@ -180,12 +229,15 @@ describe("advanceGridWordSpacing", () => {
                 const naturalPx = inner + characters.reduce((sum, character) => sum + units(font.advances.get(code(character)) ?? 0), 0);
                 const width = laidOut(naturalPx, characters.length, isWord(piece) ? (spacing.words[word] ?? Number.NaN) : (spacing.spaces?.[stretch] ?? spacing.space));
                 const start = { rounded, laid };
+
                 rounded += inner + edge + characters.reduce((sum, character) => sum + pointsToPixels(Math.round(((font.advances.get(code(character)) ?? 0) * fontSize) / font.unitsPerEm / GRID) * GRID), 0);
                 laid += width;
                 if (isWord(piece)) {
                     words.push({ roundedStart: start.rounded, roundedEnd: rounded, start: start.laid, end: laid });
                     word++;
-                } else stretch++;
+                } else {
+                    stretch++;
+                }
             });
             words.forEach((first, at) =>
                 words.slice(at).forEach(last => {
@@ -193,8 +245,11 @@ describe("advanceGridWordSpacing", () => {
                     const kept = Math.ceil(powerPoint / step - 1e-9) * step;
                     const width = last.end - first.start;
                     const fits = (box: number) => width <= Math.floor(box * LAYOUT_UNITS_PER_PX + 1e-9) / LAYOUT_UNITS_PER_PX + 1e-9;
+
                     expect({ fontSize, at, kept: fits(kept) }).toEqual({ fontSize, at, kept: true });
-                    if (at === 0) expect({ fontSize, wrapped: fits(kept - step) }).toEqual({ fontSize, wrapped: false });
+                    if (at === 0) {
+                        expect({ fontSize, wrapped: fits(kept - step) }).toEqual({ fontSize, wrapped: false });
+                    }
                 }),
             );
         }
@@ -206,11 +261,17 @@ describe("advanceGridWordSpacing", () => {
         const size = 12;
         const em = (units: number) => pointsToPixels((units * size) / 2048);
         const rounded = (units: number) => pointsToPixels(Math.round((units * size) / 2048 / GRID) * GRID);
+
         for (const kerned of [true, false]) {
             const spacing = advanceGridWordSpacing("A To", size, KERNED, GRID, 0, kerned);
-            if (!spacing) throw new Error("no spacing");
+
+            if (!spacing) {
+                throw new Error("no spacing");
+            }
+
             const [a, to] = spacing.words;
             const pair = (units: number) => (kerned ? em(units) : 0);
+
             // " T" starts on the space, which takes it in a span of its own; unkerned, the space keeps the run's.
             expect(spacing.spaces?.length ?? 0).toBe(kerned ? 1 : 0);
             // Chromium kerns "To" inside its span itself, and neither "A " nor " T" across the span edges.
@@ -218,6 +279,7 @@ describe("advanceGridWordSpacing", () => {
             const end = start + laidOut(em(1251) + em(1139) + pair(-227), 2, to ?? 0);
             const powerPointStart = rounded(1366) + rounded(569) + pair(-113 - 37);
             const powerPointEnd = powerPointStart + rounded(1251) + rounded(1139) + pair(-227);
+
             expect({ kerned, start: start - powerPointStart < 3 * LAYOUT_UNIT && start >= powerPointStart }).toEqual({ kerned, start: true });
             expect({ kerned, end: powerPointEnd - end < 3 * LAYOUT_UNIT && end <= powerPointEnd + 1e-9 }).toEqual({ kerned, end: true });
         }
@@ -227,6 +289,7 @@ describe("advanceGridWordSpacing", () => {
         const spacing = advanceGridWordSpacing("A T", 12, KERNED, GRID, 0, true);
         const unkerned = advanceGridWordSpacing("A T", 12, KERNED, GRID, 0, false);
         const pair = (units: number) => pointsToPixels((units * 12) / 2048);
+
         // "A " (-113 units at 12pt) narrows "A", the line's end were it to break there; " T" (-37) narrows the space.
         expect((spacing?.words[0] ?? 0) - (unkerned?.words[0] ?? 0)).toBeCloseTo(pair(-113), 1);
         expect((spacing?.spaces?.[0] ?? 0) - (unkerned?.space ?? 0)).toBeCloseTo(pair(-37), 1);
@@ -237,6 +300,7 @@ describe("advanceGridWordSpacing", () => {
         const whole = advanceGridWordSpacing("AVA To", 24, KERNED, GRID, 0, true);
         const cursor = { rounded: 0, laidOut: 0 };
         const split = ["A", "V", "A ", "To"].map((text, index, texts) => advanceGridWordSpacing(text, 24, KERNED, GRID, 0, true, cursor, wordAfter(texts.slice(index + 1).join(""))));
+
         // Every piece of "AVA" takes the whole word's spacing, so Chromium shapes it across the spans and kerns "AV" and "VA".
         expect(split.slice(0, 3).map(spacing => spacing?.words[0])).toEqual([whole?.words[0], whole?.words[0], whole?.words[0]]);
         // " T", across the edge after "A ", is on the space as in one run, and "To" ends where it does in one run.
@@ -247,11 +311,13 @@ describe("advanceGridWordSpacing", () => {
     test("spaces a stretch of spaces with no pair as the run, and leaves a tab's neighbours unkerned", () => {
         expect(advanceGridWordSpacing("T o", 12, KERNED, GRID, 0, true)?.spaces).toBeUndefined();
         const tab = (kerned: boolean) => advanceGridWordSpacing("A\tT", 12, KERNED, GRID, 0, kerned);
+
         expect(tab(true)).toEqual(tab(false) ?? { space: Number.NaN, words: [] });
     });
 
     test("starts the sums again after a tab, and leaves an unmapped character unrounded", () => {
         const spacing = advanceGridWordSpacing("a\ta Z", 8, ARIAL, GRID, 0, false);
+
         expect(spacing?.words[1]).toBe(spacing?.words[0] ?? Number.NaN);
         // "Z" is not in ARIAL: no natural advance and no rounding, so it takes what the space's extra LayoutUnit left.
         expect(spacing?.words[2]).toBeCloseTo(-LAYOUT_UNIT - LAYOUT_UNIT / 16, 6);
@@ -260,6 +326,7 @@ describe("advanceGridWordSpacing", () => {
     test("carries the sums across a paragraph's runs through the cursor, as one run would (#370)", () => {
         const whole = advanceGridWordSpacing("i a i", 7, ARIAL, GRID, 0, false);
         const cursor = { rounded: 0, laidOut: 0 };
+
         advanceGridWordSpacing("i a", 7, ARIAL, GRID, 0, false, cursor);
         // At 7pt the first run ends off a LayoutUnit: started again at 0, " i" would end on another one.
         expect(advanceGridWordSpacing(" i", 7, ARIAL, GRID, 0, false, cursor)?.words).toEqual(whole?.words.slice(2) ?? []);
@@ -281,6 +348,7 @@ describe("advanceGridWordSpacing", () => {
 describe("readGlyphAdvances", () => {
     test("maps a format 4 cmap through idDelta and glyphIdArray, glyphs past numberOfHMetrics taking the last advance", () => {
         const advances = readGlyphAdvances(sfnt({ cmap: CMAP_FORMAT_4, advances: [500, 600, 700], glyphs: 4 }));
+
         expect(advances.unitsPerEm).toBe(1000);
         expect([...advances.advances]).toEqual([
             [65, 600],
@@ -291,12 +359,14 @@ describe("readGlyphAdvances", () => {
 
     test("prefers the full-repertoire format 12 cmap and leaves out glyphs past numGlyphs", () => {
         const advances = readGlyphAdvances(sfnt({ cmap: CMAP_FORMAT_12, advances: [500, 600, 700, 800, 900], glyphs: 5 }));
+
         expect([...advances.advances]).toEqual([[0x1f600, 900]]);
     });
 
     // A version 0 kern subtable: version, a length field, coverage, nPairs, three search fields, then the pairs
     // (left glyph, right glyph, value).
     const kernSubtable = (coverage: number, pairs: number[][], length = 14 + 6 * pairs.length) => [0, length, coverage, pairs.length, 0, 0, 0, ...pairs.flat()];
+
     test("reads the kern table's horizontal format 0 pairs by character, summed over subtables, past a length that overflowed", () => {
         const kern = words(
             0,
@@ -316,6 +386,7 @@ describe("readGlyphAdvances", () => {
             ...[0, 8, 0x0201, 0],
         );
         const { kerning } = readGlyphAdvances(sfnt({ cmap: CMAP_FORMAT_4, advances: [500, 600, 700], glyphs: 4, kern }));
+
         // Glyph 3 is "C" only; glyph 1 is "A".
         expect(kerning).toEqual(
             new Map([
@@ -335,12 +406,15 @@ describe("readGlyphAdvances", () => {
         expect(() => readGlyphAdvances(new Uint8Array([0, 1]))).toThrow("readGlyphAdvances: the sfnt version at byte 0 is past the end of the 2-byte file; the font is truncated");
         // A glyphIdArray offset past the cmap table.
         const truncated = CMAP_FORMAT_4.slice(0, -2);
+
         expect(() => readGlyphAdvances(sfnt({ cmap: truncated, advances: [500, 600, 700], glyphs: 4 }))).toThrow(FontFileError);
     });
 
     const liberationSans = "/usr/share/fonts/liberation/LiberationSans-Regular.ttf";
+
     test.skipIf(!existsSync(liberationSans))("reads Liberation Sans, Arial's metric twin, with Arial's advances", () => {
         const advances = readGlyphAdvances(readFileSync(liberationSans));
+
         expect(advances.unitsPerEm).toBe(2048);
         expect([..." ai"].map(character => advances.advances.get(character.codePointAt(0) ?? 0))).toEqual([569, 1139, 455]);
     });
@@ -353,6 +427,7 @@ describe("resolveGlyphAdvances option", () => {
         const lookup = fontMetricsLookup(undefined, null, () => ARIAL);
         const runs = normalizeText([{ text: "i a" }, { text: " i" }, { text: "i a", options: { softBreakBefore: true } }, { text: "a", options: { softBreakBefore: true } }], { ...font("Arial"), fontSize: 7 }, "powerpoint", lookup).paragraphs[0]?.runs;
         const words = (text: string) => advanceGridWordSpacing(text, 7, ARIAL, GRID, 0, false)?.words;
+
         expect(runs?.[1]?.wordCharacterSpacing).toEqual(words("i a i")?.slice(2) ?? []);
         // At 7pt "i a" ends off a LayoutUnit: carried on, the "a" after it would take another spacing.
         expect(runs?.[3]?.characterSpacing).toBe(words("a")?.[0] ?? Number.NaN);
@@ -362,7 +437,11 @@ describe("resolveGlyphAdvances option", () => {
         const lookup = fontMetricsLookup(undefined, null, () => ARIAL);
         const run = (text: string, options: PptxGenJS.TextPropsOptions = {}, target: "powerpoint" | "libreoffice" = "powerpoint") => normalizeText(text, { ...font("Arial"), ...options }, target, lookup).paragraphs[0]?.runs[0];
         const spacing = (charSpacing: number) => advanceGridWordSpacing("a i", 8, ARIAL, GRID, charSpacing, false);
-        for (const charSpacing of [0, 2]) expect(run("a i", { charSpacing })).toMatchObject({ characterSpacing: spacing(charSpacing)?.space, wordCharacterSpacing: spacing(charSpacing)?.words });
+
+        for (const charSpacing of [0, 2]) {
+            expect(run("a i", { charSpacing })).toMatchObject({ characterSpacing: spacing(charSpacing)?.space, wordCharacterSpacing: spacing(charSpacing)?.words });
+        }
+
         // A superscript at 2/3 of 12pt is rounded at the 8pt it is drawn at.
         expect(run("a i", { fontSize: 12, superscript: true })).toMatchObject({ characterSpacing: spacing(0)?.space, wordCharacterSpacing: spacing(0)?.words });
         // A run of one word takes its spacing on the run; the LibreOffice target has no grid.
@@ -376,15 +455,18 @@ describe("resolveGlyphAdvances option", () => {
         const calls: string[] = [];
         const resolve = (fontFace: string, bold: boolean, italic: boolean) => {
             calls.push(`${fontFace} ${bold} ${italic}`);
+
             return undefined;
         };
         const deck = (presentation: PuppeteerGenPowerPoint | PuppeteerGenLibreOffice) => {
             const slide = presentation.addSlide();
+
             slide.addText("one", font("Arial"));
             slide.addText("two", font("ARIAL"));
             slide.addText("three", { ...font("Arial"), bold: true });
             slide.addText("four", { ...font("Arial"), bold: true, italic: true });
         };
+
         deck(new PuppeteerGenLibreOffice(undefined, { resolveGlyphAdvances: resolve }));
         expect(calls).toEqual([]);
         deck(new PuppeteerGenPowerPoint(undefined, { resolveGlyphAdvances: resolve }));
@@ -394,22 +476,28 @@ describe("resolveGlyphAdvances option", () => {
     test("keeps the natural advances for a face it does not find, or with null", async () => {
         const html = async (options: ConstructorParameters<typeof PuppeteerGenPowerPoint>[1]) => {
             const presentation = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null, ...options });
+
             presentation.addSlide().addText("a i", font("Arial"));
+
             return (await presentation.toHtml()).html;
         };
+
         expect(await html({ resolveGlyphAdvances: () => undefined })).not.toContain("letter-spacing");
         expect(await html({ resolveGlyphAdvances: null })).not.toContain("letter-spacing");
         // Each word in a span of its own letter-spacing; the space between keeps the run's, and the text reads as before.
         const spacing = advanceGridWordSpacing("a i", 8, ARIAL, GRID, 0, false);
         const grid = await html({ resolveGlyphAdvances: () => ARIAL });
+
         expect(grid).toContain(`letter-spacing: ${spacing?.space}px; font-kerning: none;" lang="en-US"><span style="letter-spacing: ${spacing?.words[0]}px;">a</span> <span style="letter-spacing: ${spacing?.words[1]}px;">i</span></span>`);
     });
 
     test("puts the spaces a kern pair starts on in a span of their own letter-spacing", async () => {
         const presentation = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null, resolveGlyphAdvances: () => KERNED });
+
         presentation.addSlide().addText("A T o", { fontFace: "Arial", fontSize: 12, margin: 0 });
         const { html } = await presentation.toHtml();
         const spacing = advanceGridWordSpacing("A T o", 12, KERNED, GRID, 0, true);
+
         // " T" starts on the first space; the second, before "o", has no pair and keeps the run's.
         expect(spacing?.spaces?.[1]).toBe(spacing?.space ?? Number.NaN);
         expect(html).toContain(`>A</span><span style="letter-spacing: ${spacing?.spaces?.[0]}px;"> </span><span style="letter-spacing: ${spacing?.words[1]}px;">T</span> <span`);
@@ -418,10 +506,13 @@ describe("resolveGlyphAdvances option", () => {
     test("throws a TypeError naming the option for a resolver that is not a function or returns invalid advances", () => {
         expect(() => new PuppeteerGenPowerPoint(undefined, { resolveGlyphAdvances: "fc-match" as unknown as null })).toThrow("`resolveGlyphAdvances` must be a function, or null to turn the lookup off; got string");
         const invalid = new PuppeteerGenPowerPoint(undefined, { resolveGlyphAdvances: () => ({ unitsPerEm: 0, advances: new Map() }) });
+
         expect(() => invalid.addSlide().addText("a", font("Arial"))).toThrow('`resolveGlyphAdvances` returned invalid advances for "Arial": unitsPerEm must be a positive integer');
         const kerning = new PuppeteerGenPowerPoint(undefined, { resolveGlyphAdvances: () => ({ ...ARIAL, kerning: new Map([[65, { 86: -152 }]]) }) as unknown as GlyphAdvances });
+
         expect(() => kerning.addSlide().addText("a", font("Arial"))).toThrow("kerning must be a Map from the left character's code point to a Map from the right one's to the pair's kerning in font units");
         const notMap = new PuppeteerGenPowerPoint(undefined, { resolveGlyphAdvances: () => ({ unitsPerEm: 2048, advances: { 97: 1139 } }) as unknown as GlyphAdvances });
+
         expect(() => notMap.addSlide().addText("a", font("Arial"))).toThrow("advances must be a Map from code point to advance width in font units");
     });
 });
@@ -442,22 +533,28 @@ describe("kerning from the kern table only on the PowerPoint target", () => {
             expect(run(fontSize, "powerpoint", GPOS_ONLY)?.kerning).toBe(false);
             // The word grid adds no pair: "A " and " T" leave the words as an unkerned run's.
             const unkerned = advanceGridWordSpacing("A To", fontSize, KERNED, GRID, 0, false)?.words ?? [];
+
             expect(run(fontSize, "powerpoint", GPOS_ONLY)?.wordCharacterSpacing).toEqual(unkerned);
             expect(run(fontSize, "powerpoint", KERNED)?.wordCharacterSpacing).not.toEqual(unkerned);
             expect(run(fontSize, "powerpoint", KERNED)).not.toHaveProperty("kerning");
-            for (const advances of [GPOS_ONLY, KERNED, undefined]) expect(run(fontSize, "libreoffice", advances)).not.toHaveProperty("kerning");
+            for (const advances of [GPOS_ONLY, KERNED, undefined]) {
+                expect(run(fontSize, "libreoffice", advances)).not.toHaveProperty("kerning");
+            }
         }
+
         // Without advances (a font that cannot be read) the face keeps the default: kerned from 12pt.
         expect(run(12, "powerpoint", undefined)).not.toHaveProperty("kerning");
     });
 
     test("writes font-kerning: none on a GPOS-only run at 12pt", async () => {
         const presentation = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null, resolveGlyphAdvances: () => GPOS_ONLY });
+
         presentation.addSlide().addText("A To", { fontFace: "My Brand Sans", fontSize: 12, margin: 0 });
         expect((await presentation.toHtml()).html).toMatch(/class="text-run"[^>]*font-kerning: none;/);
     });
 
     const arial = resolveInstalledGlyphAdvances("Arial", false, false);
+
     test.skipIf(!arial?.kerning?.size)("keeps the installed Arial's kern pairs at 12pt", () => {
         const kerned = normalizeText(
             "A To",
@@ -465,11 +562,13 @@ describe("kerning from the kern table only on the PowerPoint target", () => {
             "powerpoint",
             fontMetricsLookup(undefined, null, () => arial),
         ).paragraphs[0]?.runs[0];
+
         expect(kerned).not.toHaveProperty("kerning");
     });
 
     // Noto Sans kerns from GPOS alone (no kern table).
     const noto = resolveInstalledGlyphAdvances("Noto Sans", false, false);
+
     test.skipIf(!noto || noto.kerning !== undefined)("draws the installed Noto Sans, kerned from GPOS alone, unkerned at 12pt", () => {
         expect(
             normalizeText(
@@ -493,17 +592,21 @@ describe("the PowerPoint advance grid in Chromium", () => {
     test.skipIf(!installed)("lays an unkerned run out as wide as its advances rounded to 0.125pt, with the installed font", async () => {
         const presentation = new PuppeteerGenPowerPoint();
         const slide = presentation.addSlide();
+
         CASES.forEach(({ fontSize, bold }, index) => slide.addText(TEXT, { fontFace: "Liberation Sans", fontSize, bold, margin: 0, wrap: false, x: 0.1, y: 0.1 + 0.3 * index, w: 9, h: 0.2 }));
         const { html } = await presentation.toHtml();
         const widths = await withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(printHtml(html));
+
                 return await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".text-run"), run => run.getBoundingClientRect().width));
             } finally {
                 await page.close();
             }
         });
+
         expect(widths).toHaveLength(CASES.length);
         CASES.forEach(({ fontSize, bold }, index) => {
             const font = resolveInstalledGlyphAdvances("Liberation Sans", bold, false);
@@ -511,9 +614,14 @@ describe("the PowerPoint advance grid in Chromium", () => {
             const rounded = pointsToPixels([...TEXT].reduce((sum, character) => sum + Math.round(natural(character) / GRID) * GRID, 0));
             const size = pointsToPixels(fontSize) * PRINT_ZOOM * LAYOUT_UNITS_PER_PX;
             const truncation = pointsToPixels([...TEXT].reduce((sum, character) => sum + natural(character), 0)) * (1 - Math.floor(size) / size);
+
             // 8pt rounds 2.7px wider than the natural advances: the grid, not the font, sets the width.
-            if (fontSize === 8 && !bold) expect(rounded - pointsToPixels([...TEXT].reduce((sum, character) => sum + natural(character), 0))).toBeGreaterThan(2);
+            if (fontSize === 8 && !bold) {
+                expect(rounded - pointsToPixels([...TEXT].reduce((sum, character) => sum + natural(character), 0))).toBeGreaterThan(2);
+            }
+
             const width = (widths[index] ?? 0) / PRINT_ZOOM;
+
             expect({ fontSize, bold, under: Math.abs(rounded - truncation - width) < 1 / LAYOUT_UNITS_PER_PX }).toEqual({ fontSize, bold, under: true });
         });
     });
@@ -528,19 +636,26 @@ describe("a kerned run on the PowerPoint grid in Chromium", () => {
     // From 12pt PowerPoint puts each word at the run's advances rounded to the grid plus every kern pair unrounded,
     // "A " and " T" too, which Chromium leaves out across a word span's edge.
     test.skipIf(!font?.kerning?.size)("starts each word where PowerPoint's rounded advances and kern pairs put it, with the installed Arial", async () => {
-        if (!font) throw new Error("unreachable: skipped without Arial");
+        if (!font) {
+            throw new Error("unreachable: skipped without Arial");
+        }
+
         const presentation = new PuppeteerGenPowerPoint();
         const slide = presentation.addSlide();
+
         SIZES.forEach((fontSize, index) => slide.addText(LINE, { fontFace: "Arial", fontSize, margin: 0, wrap: false, x: 0.1, y: 0.1 + 0.9 * index, w: 9.8, h: 0.8 }));
         const { html } = await presentation.toHtml();
         const starts = await withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(printHtml(html));
+
                 return await page.evaluate(() =>
                     Array.from(document.querySelectorAll<HTMLElement>(".text-run"), run => {
                         const left = run.getBoundingClientRect().left;
                         const words = Array.from(run.querySelectorAll("span")).filter(span => span.textContent?.trim());
+
                         return words.map(word => word.getBoundingClientRect().left - left);
                     }),
                 );
@@ -549,16 +664,23 @@ describe("a kerned run on the PowerPoint grid in Chromium", () => {
             }
         });
         const characters = [...LINE];
+
         SIZES.forEach((fontSize, index) => {
             const units = (value: number) => (value * fontSize) / font.unitsPerEm;
             const expected: number[] = [];
             let x = 0;
+
             characters.forEach((character, at) => {
-                if (character !== " " && (at === 0 || characters[at - 1] === " ")) expected.push(pointsToPixels(x));
+                if (character !== " " && (at === 0 || characters[at - 1] === " ")) {
+                    expected.push(pointsToPixels(x));
+                }
+
                 const next = characters[at + 1];
+
                 x += Math.round(units(font.advances.get(character.codePointAt(0) ?? 0) ?? 0) / GRID) * GRID + units(next === undefined ? 0 : (font.kerning?.get(character.codePointAt(0) ?? 0)?.get(next.codePointAt(0) ?? 0) ?? 0));
             });
             const drawn = (starts[index] ?? []).map(start => start / PRINT_ZOOM);
+
             // At most two LayoutUnits past PowerPoint's start (advanceGridWordSpacing).
             expect(drawn.map((start, word) => ({ fontSize, word, within: start - (expected[word] ?? Number.NaN) > -1e-6 && start - (expected[word] ?? Number.NaN) < 3 / LAYOUT_UNITS_PER_PX }))).toEqual(expected.map((_, word) => ({ fontSize, word, within: true })));
         });
@@ -567,6 +689,7 @@ describe("a kerned run on the PowerPoint grid in Chromium", () => {
 
 describe("kerning across a run edge in Chromium", () => {
     const font = resolveInstalledGlyphAdvances("Arial", false, false);
+
     type Piece = { readonly text: string; readonly options?: PptxGenJS.TextPropsOptions };
     type Case = readonly [name: string, pieces: readonly Piece[], measuredPt: number];
     const split = (each: (index: number) => PptxGenJS.TextPropsOptions): Piece[] => [..."AVAVAVAV"].map((text, index) => ({ text, options: each(index) }));
@@ -591,19 +714,24 @@ describe("kerning across a run edge in Chromium", () => {
     const matches = async (cases: readonly Case[]) => {
         const presentation = new PuppeteerGenPowerPoint();
         const slide = presentation.addSlide();
+
         cases.forEach(([, pieces], index) => {
             const runs = [...pieces, { text: " xo" }].map(({ text, options }) => ({ text, options: { fontFace: "Arial", fontSize: 24, ...options } }));
+
             slide.addText(runs, { x: 0.25, y: 0.15 + 0.52 * index, w: 8.3, h: 0.5, margin: 0, valign: "top", fontFace: "Arial", fontSize: 24 });
         });
         const { html } = await presentation.toHtml();
         const starts = await withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(printHtml(html));
+
                 return await page.evaluate(() =>
                     Array.from(document.querySelectorAll(".slide-text"), box => {
                         const left = box.querySelector(".text-run")?.getBoundingClientRect().left ?? Number.NaN;
                         const xo = Array.from(box.querySelectorAll(".text-run span")).find(word => word.textContent === "xo");
+
                         return (xo?.getBoundingClientRect().left ?? Number.NaN) - left;
                     }),
                 );
@@ -611,8 +739,10 @@ describe("kerning across a run edge in Chromium", () => {
                 await page.close();
             }
         });
+
         expect(cases.map(([name, , measured], index) => ({ name, near: Math.abs(pixelsToPoints((starts[index] ?? Number.NaN) / PRINT_ZOOM) - measured) < 0.1 }))).toEqual(cases.map(([name]) => ({ name, near: true })));
     };
+
     test.skipIf(!font)("kerns a pair split across runs of one face, size and weight, as PowerPoint does", () => matches(LETTER_CASES));
     test.skipIf(!font)("kerns a space pair split across runs, as PowerPoint does", () => matches(SPACE_CASES));
 });
@@ -623,14 +753,18 @@ describe("a kerned line at the wrap limit in Chromium", () => {
     /** Whether "AVAVA" is on its box's first line, for each case, printed as the PDF is. */
     const fits = async (selected: readonly KernWrapCase[]) => {
         const { html } = await kernWrapDeck(new PuppeteerGenPowerPoint(), selected).toHtml();
+
         return withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(printHtml(html));
+
                 return await page.evaluate(() =>
                     Array.from(document.querySelectorAll(".slide-text"), box => {
                         const words = Array.from(box.querySelectorAll(".text-run span"));
                         const top = (text: string) => words.find(word => word.textContent === text)?.getBoundingClientRect().top;
+
                         return top("AVAVA") === top("Lorem");
                     }),
                 );
@@ -639,9 +773,11 @@ describe("a kerned line at the wrap limit in Chromium", () => {
             }
         });
     };
+
     // Measured against PowerPoint's PDF export of the same deck: "A " counts in the line, " T" leaves with the space.
     test.skipIf(!cases.length)("keeps or wraps the last word of each measured box as PowerPoint does", async () => {
         const drawn = await fits(cases);
+
         expect(cases.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(cases.map(({ label, fits }) => ({ label, fits })));
     });
 });
@@ -652,14 +788,18 @@ describe("a line in a box whose width inside the insets is off the 1/576 in grid
     /** Whether the line's last word is on its box's first line, for each case, printed as the PDF is. */
     const fits = async (selected: readonly BoxFloorCase[]) => {
         const { html } = await boxFloorDeck(new PuppeteerGenPowerPoint(), selected).toHtml();
+
         return withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(printHtml(html));
+
                 return await page.evaluate(() =>
                     Array.from(document.querySelectorAll(".slide-container"), box => {
                         const words = Array.from(box.querySelectorAll(".text-run span")).filter(word => word.textContent?.trim());
                         const top = (word: Element | undefined) => word?.getBoundingClientRect().top;
+
                         return top(words.at(-2)) === top(words[0]);
                     }),
                 );
@@ -668,16 +808,19 @@ describe("a line in a box whose width inside the insets is off the 1/576 in grid
             }
         });
     };
+
     // Measured against PowerPoint's PDF export of the same deck: the width inside the insets floored to 0.125pt. The two
     // 14pt "Dolor sit AVA" boxes end 0.002pt past it, under a LayoutUnit (0.0117pt), and wrap (#341).
     test.skipIf(!cases.length)("keeps or wraps the last word of each measured box as PowerPoint does", async () => {
         expect(cases.some(({ overflowPt }) => overflowPt > 0 && overflowPt < pixelsToPoints(1 / LAYOUT_UNITS_PER_PX))).toBe(true);
         const drawn = await fits(cases);
+
         expect(cases.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(cases.map(({ label, fits }) => ({ label, fits })));
     });
     test.skipIf(!font)("floors a centered, right-aligned, justified, shape, table cell and right-to-left line's width as PowerPoint does", async () => {
         const measured = contextFloorCases();
         const drawn = await fits(measured);
+
         expect(measured.map(({ label }, index) => ({ label, fits: drawn[index] }))).toEqual(measured.map(({ label, fits }) => ({ label, fits })));
     });
 });
@@ -689,14 +832,17 @@ describe("floorTextWrapWidth", () => {
     test("moves the width's remainder past the 1/576 in grid into the right inset on the PowerPoint target", () => {
         // 7.2pt insets (0.1 in) leave 100 - 9.6 - 9.6 px, 484.8 steps: 0.8 of a step goes to the end inset.
         const [top, right, bottom, left] = floorTextWrapWidth(box([0, 9.6, 0, 9.6]), 100, "powerpoint").margin;
+
         expect([top, right - 9.6, bottom, left].map(value => Number((value / step).toFixed(9)))).toEqual([0, 0.8, 0, 9.6 / step]);
         // Right-to-left text too: PowerPoint starts its left-aligned lines at the left inset whatever the remainder.
         const rtl = floorTextWrapWidth(box([0, 9.6, 0, 9.6], { rtl: true }), 100, "powerpoint").margin;
+
         expect(Number(((rtl[1] - 9.6) / step).toFixed(9))).toBe(0.8);
         expect(rtl[3]).toBe(9.6);
     });
     test("keeps a width on the grid, text that does not wrap or runs vertically, and the LibreOffice target", () => {
         const inches = box([0, 0, 0, 0]);
+
         expect(floorTextWrapWidth(inches, inchesToPixels(7.5), "powerpoint")).toBe(inches);
         expect(floorTextWrapWidth(box([0, 9.6, 0, 9.6], { wrap: false }), 100, "powerpoint").margin).toEqual([0, 9.6, 0, 9.6]);
         expect(floorTextWrapWidth(box([0, 9.6, 0, 9.6], { direction: "vertical" }), 100, "powerpoint").margin).toEqual([0, 9.6, 0, 9.6]);
@@ -715,14 +861,17 @@ describe("the PowerPoint target's wrap limit in Chromium", () => {
         const { html } = await wrapLimitDeck(new PuppeteerGenPowerPoint(), cases).toHtml();
         const drawn = await withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 // Printed as the PDF is: at the print zoom.
                 await page.setContent(printHtml(html));
+
                 return await page.evaluate(() => Array.from(document.querySelectorAll(".slide-text"), box => new Set(Array.from(box.querySelectorAll(".text-run"), run => Array.from(run.getClientRects(), rect => Math.round(rect.top))).flat()).size));
             } finally {
                 await page.close();
             }
         });
+
         expect(cases.map(({ fontSize, bold, lines, steps }, index) => ({ fontSize, bold, lines, steps, drawn: drawn[index] }))).toEqual(cases.map(({ fontSize, bold, lines, steps, expectedLines }) => ({ fontSize, bold, lines, steps, drawn: expectedLines })));
     });
 });

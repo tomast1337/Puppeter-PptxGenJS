@@ -8,6 +8,7 @@ import { createWasmRenderer } from "@pdflapas/wasm";
 export async function publicApiTypes(): Promise<void> {
     // The page size as plain inches: the constructor, setPageSize, defineLayout and layout.
     const pres = new PuppeteerGen({ width: 10, height: 5.625, name: "Custom 16:9" });
+
     pres.setPageSize({ width: 13.33, height: 7.5, name: "Wide" });
     pres.defineLayout({ name: "A3", width: 16.5, height: 11.7 });
     pres.layout = "LAYOUT_WIDE";
@@ -17,6 +18,7 @@ export async function publicApiTypes(): Promise<void> {
     pres.setPageSize(PAGE_SIZES.A4.landscape);
 
     const slide: PuppeteerSlide = pres.addSlide();
+
     slide.background = { color: "F1F1F1" };
     slide.addText("Hello World from PptxGenJS!", { x: 1.5, y: 1.5, w: 6, h: 2, fontSize: 36, color: "363636", fill: { color: "F1F1F1" }, align: "center", margin: 5 });
     slide.addText([{ text: "rich", options: { bold: true, color: "FF0000", highlight: "FFFF00" } }], { x: "10%", y: "50%", w: "80%", h: 1, line: { color: "0088CC", width: 1 } });
@@ -36,11 +38,13 @@ export async function publicApiTypes(): Promise<void> {
     const document = await pres.toHtml();
     const html: string = document.html;
     const width: number = document.pageSize.width;
+
     pres.setPageSize(document.pageSize);
     new PuppeteerGen(pres.getModel().pageSize);
 
     // A renderer called with a document the caller built from plain values.
     const renderer: PresentationRenderer = new PuppeteerPdfRenderer();
+
     await renderer.render({ html, pageSize: { width: 10, height: 5.625, name: "Custom" } });
     await (await createWasmRenderer({ fonts: [] })).render({ html, pageSize: { width, height: 7.5, name: "Custom" } });
     await renderer.render(pptxHtmlDocument(printHtml(html)));
@@ -48,6 +52,7 @@ export async function publicApiTypes(): Promise<void> {
     // The exported helpers take plain numbers and strings, and their branded results read as plain ones.
     const css: string = generatePageCSS({ width: 10, height: 5.625, name: "Custom" }) + colorToCSS("FF0000") + colorToCSS({ color: "00FF00", transparency: 50 });
     const pixels: number = inchesToPixels(1) + pointsToPixels(12) + percentageToPixels(50, 960) + convertToPixels(1, 960);
+
     void css;
     void pixels;
 }

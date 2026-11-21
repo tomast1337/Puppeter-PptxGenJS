@@ -15,6 +15,7 @@ const NO_SUCH_FONT: MissingFont = { face: "NoSuchFont", objects: ["slide 1 'Text
 afterAll(() => closeBrowser());
 
 const warn = spyOn(console, "warn").mockImplementation(() => {});
+
 afterEach(() => warn.mockClear());
 // Bun's spies outlive the file: left in place, this one would swallow later files' warnings and hand its calls to
 // their spyOn(console, "warn").
@@ -29,11 +30,13 @@ describe("missing font policy", () => {
 
     test('"throw" throws a MissingFontError carrying the list; "ignore" and an empty list do nothing', () => {
         let error: unknown;
+
         try {
             reportMissingFonts([NO_SUCH_FONT], "throw");
         } catch (caught) {
             error = caught;
         }
+
         expect(error).toBeInstanceOf(MissingFontError);
         expect(error).toMatchObject({ name: "MissingFontError", missing: [NO_SUCH_FONT] });
         reportMissingFonts([NO_SUCH_FONT], "ignore");
@@ -43,6 +46,7 @@ describe("missing font policy", () => {
 
     test("a function receives the list", () => {
         const received: (readonly MissingFont[])[] = [];
+
         reportMissingFonts([NO_SUCH_FONT], missing => received.push(missing));
         expect(received).toEqual([[NO_SUCH_FONT]]);
     });
@@ -68,6 +72,7 @@ describe("WasmRenderer missing fonts", () => {
 
     test("warns by default and keeps rendering, separately from onUnsupported", async () => {
         const renderer = new WasmRenderer(fakeBinding([{ face: "NoSuchFont", used: "Liberation Sans", objects: ["slide 1 'Text 0'"] }]));
+
         expect(new TextDecoder().decode(await renderer.render(document))).toBe("%PDF-fake");
         expect(warn.mock.calls[0]?.[0]).toContain('"NoSuchFont", drawn in "Liberation Sans"');
         expect(renderer.missingFonts()).toEqual([NO_SUCH_FONT]);
@@ -75,6 +80,7 @@ describe("WasmRenderer missing fonts", () => {
 
     test('onMissingFont: "throw" rejects with MissingFontError', async () => {
         const renderer = new WasmRenderer(fakeBinding([{ face: "NoSuchFont", objects: ["slide 1 'Text 0'"] }]), "error", "throw");
+
         await expect(renderer.render(document)).rejects.toBeInstanceOf(MissingFontError);
     });
 });
@@ -82,17 +88,21 @@ describe("WasmRenderer missing fonts", () => {
 /** Two slides: a NoSuchFont run and table cell, then the installed Arial (Liberation Sans through its metric alias) and Liberation Sans. */
 function deck(renderer: PresentationRenderer): PuppeteerGen {
     const pres = new PuppeteerGen(PAGE, { renderer });
+
     pres.addSlide()
         .addText("Missing", { x: 1, y: 1, w: 4, h: 1, fontFace: "NoSuchFont" })
         .addTable([[{ text: "Cell", options: { fontFace: "NoSuchFont" } }]], { x: 1, y: 3, w: 4 });
     pres.addSlide().addText("Installed", { x: 1, y: 1, w: 4, h: 1, fontFace: "Arial" }).addText("Installed", { x: 1, y: 2, w: 4, h: 1, fontFace: "Liberation Sans" });
+
     return pres;
 }
 
 /** The missing fonts `renderer` reports for `deck`, through the function policy. */
 async function reported(renderer: (onMissingFont: (missing: readonly MissingFont[]) => void) => Promise<PresentationRenderer>): Promise<readonly MissingFont[]> {
     let found: readonly MissingFont[] = [];
+
     await deck(await renderer(missing => (found = missing))).toPdf();
+
     return found;
 }
 
@@ -100,8 +110,10 @@ describe("renderer input", () => {
     // #347's repro passed render(pptx.toHtml()) without await; both renderers failed with a bare TypeError.
     test("rejects the toHtml() Promise and a document without html, naming the fix", async () => {
         const pptx = new PuppeteerGen();
+
         pptx.addSlide();
         const renderers: PresentationRenderer[] = [new WasmRenderer(fakeBinding([])), new PuppeteerPdfRenderer()];
+
         for (const renderer of renderers) {
             await expect(renderer.render(pptx.toHtml() as never)).rejects.toThrow("got a Promise: await toHtml() before passing its result");
             await expect(renderer.render({ pageSize: PAGE } as never)).rejects.toThrow("got object without an html string");
@@ -118,6 +130,7 @@ describe("Puppeteer backend", () => {
         const error = await deck(new PuppeteerPdfRenderer({ onMissingFont: "throw" }))
             .toPdf()
             .catch((caught: unknown) => caught);
+
         expect(error).toBeInstanceOf(MissingFontError);
         expect((error as Error).message).toContain('"NoSuchFont"');
     });
@@ -133,6 +146,7 @@ describe.skipIf(!systemFonts.length)("WASM backend", () => {
 
     test('onMissingFont: "throw" rejects naming the face', async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts, onMissingFont: "throw" });
+
         await expect(deck(renderer).toPdf()).rejects.toThrow('"NoSuchFont"');
     });
 });

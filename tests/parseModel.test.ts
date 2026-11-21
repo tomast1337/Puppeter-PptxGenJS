@@ -13,8 +13,10 @@ const internals = (pres: PuppeteerGen) => pres as unknown as { components: Compo
 
 function smallModel(): unknown {
     const pres = new PuppeteerGen();
+
     pres.addSlide().addText("Hi", { x: 0.5, y: 0.5, w: 2, h: 1, color: "FF0000", fill: { color: "00FF00" } });
     pres.addSlide().addImage({ data: PNG, x: 0, y: 0, w: 1, h: 1 });
+
     return JSON.parse(JSON.stringify(pres.getModel()));
 }
 
@@ -25,39 +27,55 @@ function rejection(path: readonly (string | number)[], value: unknown): InvalidM
     const model = smallModel();
     // `as`: smallModel() is getModel() JSON and every test path names objects and arrays it has.
     const parent = path.slice(0, -1).reduce<Json>((object, key) => object[key] as Json, model as Json);
+
     parent[path[path.length - 1] ?? ""] = value;
     try {
         parseModel(model);
     } catch (error) {
-        if (error instanceof InvalidModelError) return error;
+        if (error instanceof InvalidModelError) {
+            return error;
+        }
+
         throw error;
     }
+
     throw new Error("parseModel() accepted the model");
 }
 
 describe("parseModel()", () => {
     test("getModel() of every fixture deck round-trips through JSON and parseModel(), and modelToHtml() of it is toHtml()", async () => {
         const decks: Record<string, PuppeteerGen> = { fixture: new PuppeteerGen(), "cross-runtime": buildCrossRuntimeDeck(PuppeteerGen, PNG) };
+
         populateParityFixture(decks.fixture!);
         // Imported here: tests/visual/wasm/deck.ts installs a global jsdom `document` when loaded (see htmlBytes.test.ts).
         const hadDocument = "document" in globalThis;
+
         try {
             const { DECKS } = await import("./visual/wasm/decks");
-            for (const [name, deck] of Object.entries(DECKS)) decks[`wasm-${name}`] = deck.populate(new PuppeteerGen());
+
+            for (const [name, deck] of Object.entries(DECKS)) {
+                decks[`wasm-${name}`] = deck.populate(new PuppeteerGen());
+            }
+
             for (const [name, pres] of Object.entries(decks)) {
                 const json = JSON.parse(JSON.stringify(pres.getModel()));
+
                 expect({ name, model: parseModel(json) }).toEqual({ name, model: json });
                 const { components, resolveImage } = internals(pres);
                 const html = (await modelToHtml(json, { components, resolveImage, createDocument: createNodeDocument })).html;
+
                 expect({ name, same: html === (await pres.toHtml()).html }).toEqual({ name, same: true });
             }
         } finally {
-            if (!hadDocument) Reflect.deleteProperty(globalThis, "document");
+            if (!hadDocument) {
+                Reflect.deleteProperty(globalThis, "document");
+            }
         }
     }, 120_000);
 
     test("rejects a color that would add CSS declarations", () => {
         const error = rejection(["slides", 0, "objects", 0, "text", "paragraphs", 0, "runs", 0, "color"], "red;background:url(x)");
+
         expect(error.message).toContain("model.slides[0].objects[0].text.paragraphs[0].runs[0].color: is not a CssColor");
         expect(rejection(["slides", 0, "background"], "#FF0000; color: red").issues).toEqual([{ path: "model.slides[0].background", message: expect.stringContaining("colorToCSS") }]);
     });
@@ -86,18 +104,21 @@ describe("parseModel()", () => {
 
     test("rejects word letter-spacing that is not one finite value per word of the run", () => {
         const spacing = ["slides", 0, "objects", 0, "text", "paragraphs", 0, "runs", 0, "wordCharacterSpacing"] as const;
+
         // "Hi" is one word.
         expect(rejection(spacing, [0.1, 0.2]).message).toContain("runs[0].wordCharacterSpacing: ");
         expect(rejection(spacing, []).issues[0]?.path).toBe("model.slides[0].objects[0].text.paragraphs[0].runs[0].wordCharacterSpacing");
         expect(rejection(spacing, [Number.NaN]).issues[0]?.path).toBe("model.slides[0].objects[0].text.paragraphs[0].runs[0].wordCharacterSpacing[0]");
         // "Hi" has no stretch of spaces, and space letter-spacing comes only with word letter-spacing.
         const spaces = ["slides", 0, "objects", 0, "text", "paragraphs", 0, "runs", 0, "spaceCharacterSpacing"] as const;
+
         expect(rejection(spaces, [0.1]).message).toContain("runs[0].spaceCharacterSpacing: ");
         expect(rejection(spaces, []).message).toContain("comes with wordCharacterSpacing");
     });
 
     test("modelToHtml() checks its input; the error names the path", async () => {
         const model = smallModel() as { slides: { color: string }[] };
+
         model.slides[0]!.color = "red;background:url(x)";
         await expect(modelToHtml(model)).rejects.toThrow("model.slides[0].color: is not a CssColor");
     });

@@ -14,6 +14,7 @@ export function extraCellTable(size: Pick<PptxGenJS.TableProps, "colW" | "w">): 
     const border = { type: "solid", pt: 0.5, color: "000000" } as const;
     const cells = (texts: string[]) => texts.map(text => ({ text, options: { border } }));
     const data = ["Alpha", "Beta", "Gamma", "Delta past the grid", "Epsilon past the grid"];
+
     return {
         rows: [cells(["Name", "Value", "Note"]), cells(data), cells(data), cells(data)],
         options: { x: 0.5, y: 0.5, ...size, rowH: 0.18, margin: 0, fontFace: "Arial", fontSize: 7 },

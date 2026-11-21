@@ -14,10 +14,12 @@ const round = (sides: number[]) => sides.map(side => Number(side.toFixed(6)));
 /** Rows per slide and table y from PptxGenJS itself, run on the same input. */
 function pptxGenJsPages(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Array<{ rows: number; y: number }> {
     const pptx = new PptxGenJSRuntime();
+
     pptx.layout = "LAYOUT_16x9";
     pptx.addSlide().addTable(rows, options);
     // `as`: `_slides`, `_slideObjects`, `arrTabRows` and the EMU `options.y` are PptxGenJS 4.0.1 internals the types omit.
     const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ _type: string; arrTabRows: unknown[]; options: { y: number } }> }> })._slides;
+
     return slides.flatMap(slide => slide._slideObjects.filter(object => object._type === "table").map(table => ({ rows: table.arrTabRows.length, y: table.options.y / PPTX_DEFAULTS.units.emuPerInch })));
 }
 
@@ -41,6 +43,7 @@ describe("table cell margin convention (PptxGenJS 4.0.1 genXmlTextBody: cellMarg
         expect(tableMarginInches(margin)).toEqual([inches, inches, inches, inches]);
         expect(tableMarginToCSS(margin)).toBe(`${css} ${css} ${css} ${css}`);
         const cell = normalizeTable([[{ text: "c" }]], { margin }, PAGE).rows[0]?.cells[0];
+
         expect(round(cell?.text.margin ?? [])).toEqual(round(tableMarginPixels(margin)));
     });
 
@@ -56,6 +59,7 @@ describe("table cell margin convention (PptxGenJS 4.0.1 genXmlTextBody: cellMarg
         // 0.99 is inches (tall rows), 1 is one point (short rows): fewer rows fit per page below the boundary.
         const pagesBelow = paginateTableRows(rows(0.99), { autoPage: true, y: 1, w: 8 }, PAGE);
         const pagesAt = paginateTableRows(rows(1), { autoPage: true, y: 1, w: 8 }, PAGE);
+
         expect(pagesBelow[0]?.rows.length).toBeLessThan(pagesAt[0]?.rows.length ?? 0);
     });
 });
@@ -87,6 +91,7 @@ describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches
         // `as`: getSlidesForTableRows reads `slideMargin`, which TableProps does not declare.
         const options = { autoPage: true, y: 1, w: 8, slideMargin } as PptxGenJS.TableProps;
         const pages = paginateTableRows(rows, options, PAGE);
+
         expect(pages.map(page => page.rows.length)).toEqual(rowsPerPage);
         expect(pages.map(page => ({ rows: page.rows.length, y: page.y }))).toEqual(pptxGenJsPages(rows, options));
     });
@@ -94,6 +99,7 @@ describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches
     // getSlidesForTableRows counts a row's cell margins only on the page the row starts on (step 6, E/F reset the
     // height after adding them) and repeated header rows count nothing (step G).
     const longRows = (count: number, lines: (index: number) => number): PptxGenJS.TableRow[] => Array.from({ length: count }, (_, index) => [{ text: `Row ${index + 1}` }, { text: Array.from({ length: lines(index) }, (_, line) => `Line ${line + 1}`).join("\n") }]);
+
     test.each<[string, PptxGenJS.TableRow[]]>([
         ["40 one-line rows", longRows(40, () => 1)],
         ["35 rows of 1 to 4 lines", longRows(35, index => (index % 4) + 1)],
@@ -104,17 +110,21 @@ describe("slide margin convention (PptxGenJS 4.0.1 getSlidesForTableRows: inches
         // getSlidesForTableRows tells points from inches by the cell's own margin only (a table margin of 6 would be 6in).
         ["35 rows with a 6pt cell margin", longRows(35, index => (index % 3) + 1).map(row => row.map(cell => ({ ...cell, options: { margin: [6, 4, 6, 4] } })))],
     ])("paginates %s as PptxGenJS does", (_, rows) => {
-        for (const fontSize of [8, 12, 18])
-            for (const margin of [undefined, 0.1, 0.3, [0.2, 0.1, 0.05, 0.1]])
-                for (const slideMargin of [0.5, 1.2])
+        for (const fontSize of [8, 12, 18]) {
+            for (const margin of [undefined, 0.1, 0.3, [0.2, 0.1, 0.05, 0.1]]) {
+                for (const slideMargin of [0.5, 1.2]) {
                     for (const autoPageRepeatHeader of [false, true]) {
                         // `as`: getSlidesForTableRows reads `slideMargin`, which TableProps does not declare.
                         const options = { autoPage: true, autoPageRepeatHeader, y: 1, w: 8, fontSize, margin, slideMargin } as PptxGenJS.TableProps;
                         const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
                         // PptxGenJS writes into the rows and options it is given (cell options, colW), so it gets copies.
                         const reference = pptxGenJsPages(structuredClone(rows), { ...options });
+
                         expect({ fontSize, margin, slideMargin, autoPageRepeatHeader, pages }).toEqual({ fontSize, margin, slideMargin, autoPageRepeatHeader, pages: reference });
                     }
+                }
+            }
+        }
     });
 });
 
@@ -138,15 +148,19 @@ describe("table-level margin during autoPage (PptxGenJS 4.0.1 getSlidesForTableR
         ["cells with a 0 bottom or a number margin", rowsOf((text, index) => ({ text, options: { margin: index % 2 ? 0.4 : [0.2, 0.1, 0, 0.1] } }))],
         ["cells with a points margin", rowsOf(text => ({ text, options: { margin: [6, 4, 0, 4] } }))],
     ])("splits %s as PptxGenJS does, and throws where it throws", (_, rows) => {
-        for (const fontSize of [8, 12, 18])
-            for (const y of [0.5, 5.2])
-                for (const margin of margins)
+        for (const fontSize of [8, 12, 18]) {
+            for (const y of [0.5, 5.2]) {
+                for (const margin of margins) {
                     for (const autoPageRepeatHeader of [false, true]) {
                         const options: PptxGenJS.TableProps = { autoPage: true, autoPageRepeatHeader, y, w: 8, fontSize, margin };
                         const pages = outcome(() => paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y })));
                         const reference = outcome(() => pptxGenJsPages(structuredClone(rows), { ...options }));
+
                         expect({ fontSize, y, margin, autoPageRepeatHeader, pages }).toEqual({ fontSize, y, margin, autoPageRepeatHeader, pages: reference });
                     }
+                }
+            }
+        }
     });
 
     test("names the cause when the first row cannot fit, where PptxGenJS throws `Array expected`", () => {
@@ -166,6 +180,7 @@ describe("table-level margin during autoPage (PptxGenJS 4.0.1 getSlidesForTableR
             { autoPage: true, y: 0.5, w: 8, fontSize: 12, margin: 1 },
             PAGE,
         );
+
         expect(page?.rows).toHaveLength(2);
     });
 });
@@ -199,6 +214,7 @@ describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableD
     // `as`: PptxGenJS accepts plain string and number cells at runtime, but `TableRow` lists only cell objects.
     const plain = (cells: Array<Array<string | number | PptxGenJS.TableCell>>) => cells as PptxGenJS.TableRow[];
     const tableMargins: Array<PptxGenJS.Margin | undefined> = [undefined, 0.1, [0.2, 0.1, 0.05, 0.1]];
+
     // getSlidesForTableRows leaves a row's last line cycle out of the used height when its last cell ends earlier.
     test.each<[string, PptxGenJS.TableRow[]]>([
         ["string cells", plain(Array.from({ length: 8 }, (_, index) => [`Row ${index + 1}`, lines(60)]))],
@@ -208,15 +224,18 @@ describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableD
         ["mixed rows, last column shorter", plain(Array.from({ length: 30 }, (_, index) => [lines((index % 4) + 1), index, { text: `Row ${index + 1}` }]))],
         ["a long string row, last column shorter", plain([[lines(60), "A"], ...Array.from({ length: 20 }, (_, index) => [lines((index % 3) + 1), `Row ${index + 1}`])])],
     ])("paginates %s as PptxGenJS does", (_, rows) => {
-        for (const fontSize of [8, 12, 18])
-            for (const margin of tableMargins)
+        for (const fontSize of [8, 12, 18]) {
+            for (const margin of tableMargins) {
                 for (const autoPageRepeatHeader of [false, true]) {
                     const options: PptxGenJS.TableProps = { autoPage: true, autoPageRepeatHeader, y: 0.5, w: 8, fontSize, margin };
                     const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
                     // PptxGenJS writes into the rows and options it is given (cell options, colW), so it gets copies.
                     const reference = pptxGenJsPages(structuredClone(rows), { ...options });
+
                     expect({ fontSize, margin, autoPageRepeatHeader, pages }).toEqual({ fontSize, margin, autoPageRepeatHeader, pages: reference });
                 }
+            }
+        }
     });
 
     test("splits a long string row and continues its text on the next page", () => {
@@ -224,6 +243,7 @@ describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableD
         const pages = paginateTableRows(plain([["A", lines(60)]]), { autoPage: true, y: 0.5, w: 8, fontSize: 12 }, PAGE);
         // Each piece of a split line keeps PptxGenJS's breakLine, the page's last one too, which starts no paragraph.
         const firstCells = pages.map(page => flat(page.rows[0]?.[1]).replace(/\n$/, ""));
+
         expect(pages.length).toBeGreaterThan(1);
         expect(firstCells.every(text => text.length > 0)).toBe(true);
         expect(firstCells.join("\n")).toBe(lines(60));
@@ -232,11 +252,12 @@ describe("autoPage with plain string and number cells (PptxGenJS 4.0.1 addTableD
 
 describe("autoPage wrap width (PptxGenJS 4.0.1 parseTextToLines: the cell's own fontSize or DEF_FONT_SIZE, not the table's)", () => {
     const words = (count: number, seed: number) => Array.from({ length: count }, (_, index) => ["table", "of", "wrapping", "text", "at", "several", "widths"][(index + seed) % 7]).join(" ");
+
     test.each<[string, PptxGenJS.TableRow[]]>([
         ["long wrapping cells", Array.from({ length: 12 }, (_, index) => [{ text: `Row ${index + 1}` }, { text: words(20 + index * 9, index) }, { text: words(10 + index * 5, index + 3) }])],
         ["long wrapping cells with a cell fontSize", Array.from({ length: 12 }, (_, index) => [{ text: words(15 + index * 7, index), options: { fontSize: index % 2 ? 10 : 16 } }, { text: words(25 + index * 6, index + 1) }, { text: `Row ${index + 1}` }])],
     ])("wraps %s by the cell font size for pages, as PptxGenJS does", (_, rows) => {
-        for (const fontSize of [8, 12, 18])
+        for (const fontSize of [8, 12, 18]) {
             for (const colW of [
                 [1.5, 4, 2.5],
                 [3, 2, 1],
@@ -245,8 +266,10 @@ describe("autoPage wrap width (PptxGenJS 4.0.1 parseTextToLines: the cell's own 
                 const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
                 // PptxGenJS writes into the rows and options it is given (cell options, colW), so it gets copies.
                 const reference = pptxGenJsPages(structuredClone(rows), { ...options, colW: [...colW] });
+
                 expect({ fontSize, colW, pages }).toEqual({ fontSize, colW, pages: reference });
             }
+        }
     });
 });
 
@@ -260,6 +283,7 @@ describe("empty and missing cells (PptxGenJS 4.0.1 addTableDefinition step 2, pa
             ["A", "B"],
             ["C", cell],
         ]);
+
         expect(() => pptxGenJsPages(structuredClone(rows), {})).toThrow();
         expect(() => normalizeTable(rows, {}, PAGE)).toThrow(`addTable: rows[1][1] is ${cell}. PptxGenJS 4.0.1 fails on a missing cell; pass "" or { text: "" } for an empty cell.`);
         expect(() => paginateTableRows(rows, { autoPage: true }, PAGE)).toThrow("rows[1][1]");
@@ -273,9 +297,11 @@ describe("empty and missing cells (PptxGenJS 4.0.1 addTableDefinition step 2, pa
         ["an empty text array", { text: [] }],
     ])("counts %s as one line, as PptxGenJS does", (_, empty) => {
         const rows = loose(Array.from({ length: 30 }, (_, index) => (index % 3 ? [lines((index % 4) + 1), structuredClone(empty)] : [structuredClone(empty), structuredClone(empty)])));
+
         for (const fontSize of [8, 12, 18]) {
             const options: PptxGenJS.TableProps = { autoPage: true, y: 0.5, w: 8, fontSize };
             const pages = paginateTableRows(rows, options, PAGE).map(page => ({ rows: page.rows.length, y: page.y }));
+
             expect({ fontSize, pages }).toEqual({ fontSize, pages: pptxGenJsPages(structuredClone(rows), { ...options }) });
         }
     });

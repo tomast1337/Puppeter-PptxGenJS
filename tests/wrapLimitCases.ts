@@ -9,7 +9,11 @@ const GRID = powerPointGrid();
 
 function powerPointGrid(): number {
     const grid = RENDERING_TARGETS.powerpoint.advanceGridPt;
-    if (grid === undefined) throw new Error("The PowerPoint target has no advance grid (advanceGridPt in target/powerpoint.ts).");
+
+    if (grid === undefined) {
+        throw new Error("The PowerPoint target has no advance grid (advanceGridPt in target/powerpoint.ts).");
+    }
+
     return grid;
 }
 /** The text area's width, 7.5 in: a whole number of grid steps and of EMU, so "exactly as wide" is exact in the PPTX too. */
@@ -41,15 +45,24 @@ function steps(text: string, fontSize: number, font: GlyphAdvances): number {
 /** The shortest word of LETTERS exactly `target` steps wide. */
 function filler(target: number, width: (text: string) => number): string {
     const shortest: (string | undefined)[] = [""];
+
     for (let total = 1; total <= target; total++) {
         for (const letter of LETTERS) {
             const before = shortest[total - width(letter)];
             const current = shortest[total];
-            if (before !== undefined && (current === undefined || before.length + 1 < current.length)) shortest[total] = `${before}${letter}`;
+
+            if (before !== undefined && (current === undefined || before.length + 1 < current.length)) {
+                shortest[total] = `${before}${letter}`;
+            }
         }
     }
+
     const word = shortest[target];
-    if (!word) throw new Error(`no word of ${LETTERS} is ${target} grid steps wide`);
+
+    if (!word) {
+        throw new Error(`no word of ${LETTERS} is ${target} grid steps wide`);
+    }
+
     return word;
 }
 
@@ -58,11 +71,20 @@ function line(target: number, first: number, width: (text: string) => number): s
     const space = width(" ");
     const words: string[] = [];
     let used = -space;
+
     for (let index = first; ; index++) {
         const left = target - used - space;
-        if (left <= FILLER_STEPS.max) return [...words, filler(left, width)];
+
+        if (left <= FILLER_STEPS.max) {
+            return [...words, filler(left, width)];
+        }
+
         const word = VOCABULARY[index % VOCABULARY.length] ?? "";
-        if (left - width(word) - space < FILLER_STEPS.min) continue;
+
+        if (left - width(word) - space < FILLER_STEPS.min) {
+            continue;
+        }
+
         words.push(word);
         used += space + width(word);
     }
@@ -71,14 +93,17 @@ function line(target: number, first: number, width: (text: string) => number): s
 /** One paragraph per font size, weight, line count and step: one long run, its last line at the box's width. */
 export function wrapLimitCases(advances: (bold: boolean) => GlyphAdvances): WrapLimitCase[] {
     const full = WRAP_LIMIT_WIDTH_PT / GRID;
+
     return [7, 8, 8.5, 10].flatMap(fontSize =>
         [false, true].flatMap(bold => {
             const width = (text: string) => steps(text, fontSize, advances(bold));
+
             return [1, 2, 3].flatMap(lines =>
                 ([-1, 0, 1] as const).map(step => {
                     const text = Array.from({ length: lines }, (_, index) => line(index === lines - 1 ? full + step : full - SLACK_STEPS, 7 * index, width))
                         .flat()
                         .join(" ");
+
                     return { fontSize, bold, lines, steps: step, text, expectedLines: lines + (step > 0 ? 1 : 0) };
                 }),
             );
@@ -90,6 +115,9 @@ export function wrapLimitCases(advances: (bold: boolean) => GlyphAdvances): Wrap
 export function wrapLimitDeck(presentation: PuppeteerGen, cases: readonly WrapLimitCase[]): PuppeteerGen {
     presentation.defineLayout({ name: "WRAP_LIMIT", width: 8, height: 2 });
     presentation.layout = "WRAP_LIMIT";
-    for (const { text, fontSize, bold } of cases) presentation.addSlide().addText(text, { x: 0.25, y: 0.1, w: WRAP_LIMIT_WIDTH_PT / PPTX_DEFAULTS.units.pointsPerInch, h: 1.8, fontFace: "Arial", fontSize, bold, margin: 0, valign: "top" });
+    for (const { text, fontSize, bold } of cases) {
+        presentation.addSlide().addText(text, { x: 0.25, y: 0.1, w: WRAP_LIMIT_WIDTH_PT / PPTX_DEFAULTS.units.pointsPerInch, h: 1.8, fontFace: "Arial", fontSize, bold, margin: 0, valign: "top" });
+    }
+
     return presentation;
 }

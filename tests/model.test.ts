@@ -11,9 +11,11 @@ const resolveImage = async () => PNG;
 
 function representativeDeck(): PuppeteerGen {
     const pres = new PuppeteerGen(undefined, { resolveImage });
+
     pres.registerComponent("example/metric", 1, { render: props => `<strong>${String(props.label)}</strong><img src="logo.png">` });
 
     const text = pres.addSlide();
+
     text.background = { color: "F1F1F1" };
     text.color = "333333";
     text.addText("Plain", { x: 0.5, y: 0.5, w: 4, h: 1, fontSize: 24, bold: true, fill: { color: "FFCC00" }, line: { color: "000000", width: 1 } });
@@ -29,6 +31,7 @@ function representativeDeck(): PuppeteerGen {
     text.hidden = true;
 
     const shapes = pres.addSlide();
+
     shapes.bkgd = "112233";
     shapes.addShape("rect", { x: 0.5, y: 0.5, w: 2, h: 1, fill: { color: "00FF00", transparency: 40 }, flipH: true });
     shapes.addShape("line", { x: 3, y: 0.5, w: 2, h: 1, line: { color: "FF0000", width: 2, dashType: "dash", beginArrowType: "oval", endArrowType: "triangle" } });
@@ -39,6 +42,7 @@ function representativeDeck(): PuppeteerGen {
     shapes.addImage({ path: "https://example.com/a.png", x: 8, y: 3, w: 1, h: 1, sizing: { type: "crop", x: 0.1, y: 0.1, w: 0.5, h: 0.5 } });
 
     const tables = pres.addSlide();
+
     tables.addTable(
         Array.from({ length: 30 }, (_, row) => [
             { text: `Row ${row}`, options: { bold: row === 0, fill: { color: row === 0 ? "DDDDDD" : "FFFFFF" } } },
@@ -49,12 +53,14 @@ function representativeDeck(): PuppeteerGen {
 
     const charts = pres.addSlide();
     const data = [{ name: "Sales", labels: ["Q1", "Q2", "Q3"], values: [3, 5, 4] }];
+
     charts.addChart("bar", data, { x: 0.2, y: 0.2, w: 4, h: 2.5, showLegend: true, showTitle: true, title: "Bars" });
     charts.addChart("pie", data, { x: 4.5, y: 0.2, w: 3, h: 2.5 });
     charts.addChart("bar3D", data, { x: 0.2, y: 3, w: 4, h: 2.5 });
     charts.addChartEx({ renderer: "echarts", option: { xAxis: { data: ["A"] }, yAxis: {}, series: [{ type: "bar", data: [4] }] } }, { x: 4.5, y: 3, w: 3, h: 2 });
     charts.addChartEx({ renderer: "svg", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect id="face" width="10" height="10"/></svg>' }, { x: 8, y: 3, w: 1, h: 1, altText: "Raw" });
     charts.addComponent({ type: "example/metric", version: 1, props: { label: "Revenue" } }, { x: 8, y: 0.2, w: 1.5, h: 1 });
+
     return pres;
 }
 
@@ -62,18 +68,21 @@ describe("normalized slide-object model", () => {
     test("toHtml() is modelToHtml() of getModel(), before and after a JSON round trip", async () => {
         const pres = representativeDeck();
         const model = pres.getModel();
+
         expect(model.slides.flatMap(slide => slide.objects.map(object => object.kind))).toContain("component");
         expect(new Set(model.slides.flatMap(slide => slide.objects.map(object => object.kind)))).toEqual(new Set(["text", "shape", "image", "table", "chart", "chartExtension", "component"]));
         expect(model.slides.length).toBeGreaterThan(4);
 
         const json = JSON.stringify(model);
         const parsed = JSON.parse(json) as NormalizedPresentation;
+
         expect(JSON.stringify(parsed)).toBe(json);
 
         // `as`: the registry is private; toHtml() passes this same object.
         const components = (pres as unknown as { components: ComponentLookup }).components;
         const options = { components, resolveImage, createDocument: createNodeDocument };
         const html = await pres.toHtml();
+
         expect(html.html).toContain(`src="${PNG}"`);
         expect(html.html).not.toContain("data-source-");
         expect(await modelToHtml(model, options)).toEqual(html);
@@ -84,9 +93,11 @@ describe("normalized slide-object model", () => {
 
     test("names the page size in the HTML head, next to the profile version", async () => {
         const presentation = new PuppeteerGen();
+
         presentation.defineLayout({ name: "Poster", width: 8.5, height: 11 });
         presentation.addSlide();
         const { html } = await modelToHtml(presentation.getModel(), { createDocument: createNodeDocument });
+
         expect(presentation.getModel().pageSize.name).toBe("Poster");
         expect(html).toContain('<meta name="pdflapas-profile" content="2"><meta name="pdflapas-page-size" content="Poster"><style');
     });
@@ -94,6 +105,7 @@ describe("normalized slide-object model", () => {
     test("records slide properties and returns a detached copy", () => {
         const pres = representativeDeck();
         const [first, second] = pres.getModel().slides;
+
         expect(first).toMatchObject({ background: "#F1F1F1", color: "#333333", hidden: true });
         expect(second).toMatchObject({ background: "#112233", hidden: false });
         pres.getModel().slides[0]!.objects.length = 0;
@@ -102,9 +114,11 @@ describe("normalized slide-object model", () => {
 
     test("components need their registry to render; errors still throw from addX and leave the model unchanged", () => {
         const pres = representativeDeck();
+
         expect(() => unresolvedModelHtml(pres.getModel(), undefined, createNodeDocument)).toThrow("requires its component registry");
 
         const slide = pres.addSlide();
+
         expect(() => slide.addChart("bar", [{ name: "S", labels: ["A"], values: [1] }], { x: 0, y: 0, w: 0, h: 1 })).toThrow("greater than zero");
         expect(() => slide.addChartEx({ renderer: "svg", svg: "<div></div>" }, { x: 0, y: 0, w: 1, h: 1 })).toThrow();
         expect(() => slide.addImage({ x: 0, y: 0, w: 1, h: 1 } as never)).toThrow("requires either 'data' or 'path'");

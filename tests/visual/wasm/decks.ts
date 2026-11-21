@@ -13,6 +13,7 @@ import { LAYOUT_PAGES, populateLayoutDeck } from "./layout-deck";
 export type Populate = <T extends pptxgen | PuppeteerGen>(presentation: T) => T;
 export type SlideObject = ReturnType<PuppeteerGen["getModel"]>["slides"][number]["objects"][number];
 const isText = (object: SlideObject) => object.kind === "text";
+
 // emoji: Noto Color Emoji / Noto Sans CJK fallback (issue #14), installed in the pinned image.
 // `crop` picks the objects that get a crop each: text boxes, for the shapes deck every shape
 // (with or without text), so labels do not dilute the geometry scores, for the image format decks
@@ -31,6 +32,7 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
     svg: {
         populate: presentation => {
             populateImageFixture(presentation);
+
             return presentation;
         },
         pages: 2,
@@ -45,6 +47,7 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
     charts: {
         populate: presentation => {
             populateChartFixture(presentation);
+
             return presentation;
         },
         pages: 5,
@@ -55,6 +58,7 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
     components: {
         populate: presentation => {
             populateComponentFixture(presentation);
+
             return presentation;
         },
         pages: 1,
@@ -65,6 +69,7 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
     slides: {
         populate: presentation => {
             populateSlidePropertiesFixture(presentation);
+
             return presentation;
         },
         pages: 2,
@@ -74,6 +79,7 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
     options: {
         populate: presentation => {
             populateTextOptionsFixture(presentation);
+
             return presentation;
         },
         pages: TEXT_OPTION_PAGES,
@@ -83,6 +89,7 @@ export const DECKS: Record<string, { populate: Populate; pages: number; crop: (o
     tableOptions: {
         populate: presentation => {
             populateTableOptionsFixture(presentation);
+
             return presentation;
         },
         pages: 1,

@@ -26,6 +26,7 @@ describe("image normalization", () => {
         // @ts-expect-error a plain string is not a DataUri: only the image normalizer makes one
         const forged: NormalizedImage = { ...image, source: PNG_DATA, sourceKind: "data" };
         const path: NormalizedImage = { ...image, source: "logo.png", sourceKind: "path" };
+
         expect([forged.sourceKind, path.sourceKind]).toEqual(["data", "path"]);
         expect(image).toMatchObject({ source: PNG_DATA, sourceKind: "data" });
     });
@@ -34,6 +35,7 @@ describe("image normalization", () => {
     // `image/<type>;`, else the path extension, else png.
     test("accepts the image data forms PptxGenJS accepts", () => {
         const source = (options: { data: string; path?: string }) => normalizeImage(options, PAGE).source;
+
         expect(source({ data: PNG_DATA })).toBe(PNG_DATA);
         expect(source({ data: "image/png;base64,iVBORw0KGgo=" })).toBe(PNG_DATA);
         expect(source({ data: "IMAGE/JPEG;BASE64,/9j/" })).toBe("data:IMAGE/JPEG;base64,/9j/");
@@ -91,6 +93,7 @@ describe("image normalization", () => {
 
     test("supports file URLs", async () => {
         const path = join(tmpdir(), `puppeteer-gen-${crypto.randomUUID()}.svg`);
+
         await writeFile(path, '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
         try {
             expect(await resolveImageSource(pathToFileURL(path).href)).toStartWith("data:image/svg+xml;base64,");
@@ -101,6 +104,7 @@ describe("image normalization", () => {
 
     test("reports remote HTTP and content-type failures", async () => {
         const fetchMock = spyOn(globalThis, "fetch");
+
         try {
             fetchMock.mockResolvedValueOnce(new Response("missing", { status: 404 }));
             expect(resolveImageSource("https://example.com/missing.png")).rejects.toThrow("(404)");
@@ -121,6 +125,7 @@ describe("image DOM rendering", () => {
     test("uses sizing dimensions and clips crop offsets", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
+
         slide.addImage({
             data: PNG_DATA,
             x: 1,
@@ -135,6 +140,7 @@ describe("image DOM rendering", () => {
         const outer = renderedPage(presentation).querySelector<HTMLElement>(".slide-image");
         const frame = outer?.querySelector<HTMLElement>(".slide-image-frame");
         const image = outer?.querySelector<HTMLImageElement>("img");
+
         expect(outer?.style.width).toBe("192px");
         expect(outer?.style.height).toBe("96px");
         expect(outer?.style.borderRadius).toBe("50%");
@@ -147,6 +153,7 @@ describe("image DOM rendering", () => {
     test("renders contain, cover, and clickable accessible images", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
+
         slide.addImage({
             data: PNG_DATA,
             x: 1,
@@ -159,6 +166,7 @@ describe("image DOM rendering", () => {
 
         const objects = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-image");
         const link = objects[0] as HTMLAnchorElement;
+
         expect(link.tagName).toBe("A");
         expect(link.href).toBe("https://example.com/");
         expect(link.title).toBe("Open sample");

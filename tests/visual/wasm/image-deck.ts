@@ -21,6 +21,7 @@ const label = { fontFace: "Arial", fontSize: 14, color: "363636", align: "center
 
 export function populateImageDeck<T extends PptxGenJS | PuppeteerGen>(presentation: T): T {
     const sizing = presentation.addSlide() as PptxGenJS.Slide;
+
     sizing.addText("Image sizing and cropping", { ...title });
     for (const [x, text] of [
         [0.5, "Stretch"],
@@ -31,6 +32,7 @@ export function populateImageDeck<T extends PptxGenJS | PuppeteerGen>(presentati
         sizing.addShape("rect", { x, y: 1.05, w: 1.9, h: 2.2, fill: { color: "F2F2F2" }, line: { color: "A6A6A6", width: 1 } });
         sizing.addText(text, { ...label, x, y: 3.4, w: 1.9, h: 0.4 });
     }
+
     sizing.addImage({ data: SAMPLE_PNG, x: 0.5, y: 1.05, w: 1.9, h: 2.2, altText: "Stretched PNG" });
     sizing.addImage({ path: SAMPLE_JPG, x: 2.9, y: 1.05, w: 4, h: 2, sizing: { type: "contain", w: 1.9, h: 2.2 }, altText: "Contained JPEG" });
     sizing.addImage({ data: SAMPLE_PNG, x: 5.3, y: 1.05, w: 4, h: 2, sizing: { type: "cover", w: 1.9, h: 2.2 }, altText: "Covered PNG" });
@@ -39,6 +41,7 @@ export function populateImageDeck<T extends PptxGenJS | PuppeteerGen>(presentati
     sizing.addImage({ path: TALL_JPG, x: 5.5, y: 4.05, w: 2, h: 4, sizing: { type: "cover", w: 2.2, h: 1.2 }, altText: "Covered tall JPEG" });
 
     const effects = presentation.addSlide() as PptxGenJS.Slide;
+
     effects.addText("Image transforms and effects", { ...title });
     effects.addImage({ path: SAMPLE_JPG, x: 0.75, y: 1.25, w: 1.7, h: 1.7, rounding: true, altText: "Rounded JPEG" });
     effects.addImage({ data: SAMPLE_PNG, x: 3.1, y: 1.35, w: 2.5, h: 1.25, rotate: -12, flipH: true, altText: "Rotated and flipped PNG" });
@@ -52,5 +55,6 @@ export function populateImageDeck<T extends PptxGenJS | PuppeteerGen>(presentati
     effects.addShape("rect", { x: 0.75, y: 4.05, w: 2.4, h: 1.2, fill: { color: "5B9BD5" } });
     effects.addShape("rect", { x: 0.75, y: 4.65, w: 2.4, h: 0.6, fill: { color: "FFC000" } });
     effects.addImage({ data: BADGE_PNG, x: 1.35, y: 4.05, w: 1.2, h: 1.2, altText: "Transparent-background PNG" });
+
     return presentation;
 }

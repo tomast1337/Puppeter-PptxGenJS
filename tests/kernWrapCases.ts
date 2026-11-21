@@ -43,10 +43,15 @@ export function kernWrapCases(font: GlyphAdvances): KernWrapCase[] {
     const code = (character: string) => character.codePointAt(0) ?? 0;
     const kern = (pair: string, size: number) => ((font.kerning?.get(code(pair[0] ?? ""))?.get(code(pair[1] ?? "")) ?? 0) * size) / font.unitsPerEm;
     const width = (size: number) => [...FIRST_LINE].reduce((sum, character, index) => sum + Math.round(((font.advances.get(code(character)) ?? 0) * size) / font.unitsPerEm / grid) * grid + kern(FIRST_LINE.slice(index, index + 2), size), 0);
-    if ([12, 18].some(size => Math.abs(width(size) - (MEASURED_WIDTH_PT[size] ?? 0)) > 1e-3)) return [];
+
+    if ([12, 18].some(size => Math.abs(width(size) - (MEASURED_WIDTH_PT[size] ?? 0)) > 1e-3)) {
+        return [];
+    }
+
     return BOXES.map(({ fontSize, next, pairs, offsetPt, fits }) => {
         const pairWidth = pairs.reduce((sum, pair) => sum + kern(pair, fontSize), 0);
         const label = `${fontSize}pt ${next}: W${pairs.map(pair => ` + "${pair}"`).join("")} ${offsetPt >= 0 ? "+" : "-"} ${Math.abs(offsetPt)}pt`;
+
         return { fontSize, next, label, widthPt: width(fontSize) + pairWidth + offsetPt, fits };
     });
 }
@@ -54,8 +59,10 @@ export function kernWrapCases(font: GlyphAdvances): KernWrapCase[] {
 /** Each case in a box of its own on one slide, Arial, margin 0, top anchored, as in the measured deck. */
 export function kernWrapDeck(presentation: PuppeteerGen, cases: readonly KernWrapCase[]): PuppeteerGen {
     const slide = presentation.addSlide();
+
     cases.forEach(({ fontSize, next, widthPt }, index) => {
         slide.addText(`${FIRST_LINE} ${next}`, { x: 0.2 + (index % 2) * 4.8, y: 0.2 + Math.floor(index / 2) * 0.85, w: widthPt / PPTX_DEFAULTS.units.pointsPerInch, h: 0.8, margin: 0, valign: "top", fontFace: "Arial", fontSize });
     });
+
     return presentation;
 }

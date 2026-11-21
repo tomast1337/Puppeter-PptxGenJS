@@ -15,18 +15,21 @@ const packedWasm = (dependencies: Record<string, string>) => JSON.stringify({ ..
 async function workspaceManifests(): Promise<Manifest[]> {
     const directories = (await readdir(PACKAGES_DIR, { withFileTypes: true })).filter(entry => entry.isDirectory());
     const manifests = await Promise.all(directories.map(entry => Bun.file(join(PACKAGES_DIR, entry.name, "package.json")).json() as Promise<Manifest>));
+
     return manifests.filter(manifest => manifest.private !== true);
 }
 
 describe("publish:npm", () => {
     test("publishes the workspace's packages in dependency order", async () => {
         const order = publishOrder(await workspaceManifests()).map(batch => batch.map(manifest => manifest.name));
+
         expect(order).toEqual([["@pdflapas/model"], ["@pdflapas/pdfkit", "@pdflapas/puppeteer", "@pdflapas/wasm"], ["@pdflapas/pptxgenjs"], ["@pdflapas/react"]]);
     });
 
     test("refuses a cycle and a dependency on a package it does not publish", () => {
         const a: Manifest = { name: "@pdflapas/a", version: "1.0.0", dependencies: { "@pdflapas/b": "workspace:*" } };
         const b: Manifest = { name: "@pdflapas/b", version: "1.0.0", peerDependencies: { "@pdflapas/a": "workspace:*" } };
+
         expect(() => publishOrder([a, b])).toThrow("Dependency cycle");
         expect(() => publishOrder([a])).toThrow("@pdflapas/a depends on @pdflapas/b, which is not published");
     });
