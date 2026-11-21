@@ -16,6 +16,7 @@ import { InvalidModelError, parseModel } from "./modelSchema";
 import { modelToHtml } from "./render/document";
 import { IMAGE_SOURCE_LIMITS, UnresolvedImageError } from "./normalize/image";
 import { TABLE_HTML_LIMITS } from "./normalize/table/htmlLimits";
+import { POWERPOINT_FACES } from "./target";
 import { inchesToPixels, percentageToPixels, pointsToPixels } from "@pdflapas/model";
 import { convertToPixels } from "./units";
 
@@ -54,6 +55,8 @@ export {
     // Reads a font file's advance widths for the `resolveGlyphAdvances` option (the PowerPoint advance grid).
     readGlyphAdvances,
     pointsToPixels,
+    // The faces the PowerPoint target needs installed, with what goes wrong without each (#407).
+    POWERPOINT_FACES,
     SHAPE_GEOMETRY_COMPATIBILITY,
     // The size and nesting limits on tableToSlides() HTML markup (#359).
     TABLE_HTML_LIMITS,
@@ -72,7 +75,7 @@ export type { ChartExtensionInput, ChartExtensionOptions } from "./chart/types";
 export type { ApiEntry, ApiStatus, CompatibilityEntry, CompatibilityStatus } from "./compatibility";
 export type { ComponentContext, ComponentDefinition, ComponentInput, ComponentOptions, ComponentProps, ComponentValue } from "./components/types";
 export type { FontWinMetrics, FourSideMargin, GlyphAdvances } from "./defaults";
-export type { RenderingTarget } from "./target";
+export type { PowerPointFace, PowerPointFaceRole, RenderingTarget } from "./target";
 export type { MissingFont, MissingFontPolicy, NormalizedPresentation, NormalizedSlide, NormalizedSlideObject } from "@pdflapas/model";
 export { MissingFontError } from "@pdflapas/model";
 export type { ImageSourceOptions } from "./normalize/image";

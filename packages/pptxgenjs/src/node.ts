@@ -13,6 +13,7 @@ import { resolveFileName } from "./output";
 import type { PageSizeInput } from "./pageLayouts";
 import type { PptxWriteFileProps } from "./pptx";
 import { PuppeteerGen as CorePuppeteerGen, type PuppeteerGenOptions } from "./PuppeteerGen";
+import { POWERPOINT_FACES } from "./target";
 
 export function createNodeDocument(): Document {
     return new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;
@@ -189,6 +190,25 @@ export function resolveInstalledGlyphAdvances(fontFace: string, bold: boolean, i
     }
     installedGlyphAdvances.set(key, advances);
     return advances;
+}
+
+/** Which faces checkPowerPointFonts() found installed, as named in POWERPOINT_FACES or `faces`. */
+export interface PowerPointFontCheck {
+    readonly present: readonly string[];
+    readonly missing: readonly string[];
+}
+
+/**
+ * Which of the faces the PowerPoint target needs (POWERPOINT_FACES), then of the deck's own `faces`, fontconfig has
+ * installed: the families fc-list names, compared without case, as the font resolvers above see them. A missing face is
+ * drawn in a substitute fontconfig picks without a warning. Never throws: without fontconfig every face is missing,
+ * and the caller decides whether to warn or stop. `installedFamilies` replaces fc-list's listing.
+ */
+export function checkPowerPointFonts(options: { readonly faces?: readonly string[]; readonly installedFamilies?: Iterable<string> } = {}): PowerPointFontCheck {
+    const installed = options.installedFamilies === undefined ? undefined : new Set([...options.installedFamilies].map(family => family.toLowerCase()));
+    const faces = [...POWERPOINT_FACES.map(({ name }) => name), ...(options.faces ?? [])].filter((face, index, all) => all.findIndex(other => other.toLowerCase() === face.toLowerCase()) === index);
+    const isPresent = (face: string) => (installed ? installed.has(face.toLowerCase()) : isInstalledFamily(face));
+    return { present: faces.filter(isPresent), missing: faces.filter(face => !isPresent(face)) };
 }
 
 export class PuppeteerGen extends CorePuppeteerGen {

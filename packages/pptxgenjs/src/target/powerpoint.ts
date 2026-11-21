@@ -15,6 +15,8 @@ const EAST_ASIAN_FALLBACK = Object.freeze({
     byFace: Object.freeze({ arial: LINKED_EAST_ASIAN_FACES, calibri: LINKED_EAST_ASIAN_FACES }),
     otherFaces: Object.freeze(["Yu Gothic", "PMingLiU", "SimSun", "Malgun Gothic"]),
 });
+/** The face it draws an emoji in (`emojiFace`). */
+const EMOJI_FACE = "Segoe UI Emoji";
 /** The marks measured hanging past a line's end, by language (`hangingMarks`). */
 const HANGING_MARKS = Object.freeze({ zh: "）》」”，、。：？！；』】〕),.;:!?]}", ja: "，。" });
 
@@ -230,8 +232,42 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
     syntheticItalicShear: undefined,
     fallbackFaces: FALLBACK_FACES,
     eastAsianFallback: EAST_ASIAN_FALLBACK,
-    emojiFace: "Segoe UI Emoji",
+    emojiFace: EMOJI_FACE,
     nonBreakingHyphen: "hyphen-minus",
     drawsPictureInnerShadow: true,
     underlineFromFont: true,
 });
+
+/** What a face is to the PowerPoint target (`POWERPOINT_FACES`). */
+export type PowerPointFaceRole = "theme default" | "symbol fallback" | "East Asian fallback" | "emoji";
+
+/** A face the PowerPoint target draws with, and what goes wrong on a machine without it. */
+export interface PowerPointFace {
+    readonly name: string;
+    readonly role: PowerPointFaceRole;
+    readonly withoutIt: string;
+}
+
+// What a missing face costs, by role: fontconfig substitutes another face without a warning.
+const WITHOUT_IT: Readonly<Record<PowerPointFaceRole, string>> = Object.freeze({
+    "theme default": "text and chart text with no fontFace are drawn in a substitute with other advances and line heights, so lines wrap and sit differently",
+    "symbol fallback": "arrows, check marks, enclosed numbers and math symbols the run's face lacks come from another face, with other widths",
+    "East Asian fallback": "Han, kana and Hangul in a Latin run come from another East Asian face, with other widths, so lines break differently",
+    emoji: "emoji the run's face lacks come from another face, at another advance",
+});
+
+const facesWithRole = (names: readonly string[], role: PowerPointFaceRole) => names.map(name => ({ name, role, withoutIt: WITHOUT_IT[role] }));
+
+/**
+ * The faces the PowerPoint target draws with besides the ones a deck names, each once: the theme's defaults, its
+ * fallback chain (`fallbackFaces`, `eastAsianFallback`) and its emoji face. docs/USAGE.md lists them for operators,
+ * and the Node entry's checkPowerPointFonts() checks that they are installed.
+ */
+export const POWERPOINT_FACES: readonly PowerPointFace[] = Object.freeze(
+    [
+        ...facesWithRole([PPTX_DEFAULTS.theme.bodyFontFace, PPTX_DEFAULTS.theme.headFontFace, PPTX_DEFAULTS.chart.fontFace], "theme default"),
+        ...facesWithRole(FALLBACK_FACES, "symbol fallback"),
+        ...facesWithRole([...LINKED_EAST_ASIAN_FACES, ...EAST_ASIAN_FALLBACK.otherFaces], "East Asian fallback"),
+        ...facesWithRole([EMOJI_FACE], "emoji"),
+    ].filter(({ name }, index, all) => all.findIndex(face => face.name === name) === index),
+);
