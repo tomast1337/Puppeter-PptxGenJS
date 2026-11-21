@@ -69,7 +69,6 @@ const NOT_YET_CONVERTED: Readonly<Record<string, readonly string[]>> = {
     "packages/model/src/**": [...LAYOUT, "pdflapas/no-nullable-return"],
     "packages/pptxgenjs/src/{*.ts,chart/**,components/**,render/**,target/**}": ALL_BUT_BRACES,
     "packages/puppeteer/src/**": ALL_BUT_BRACES,
-    "packages/react/src/**": LAYOUT,
     "packages/wasm/src/**": [...LAYOUT, "pdflapas/no-for-each"],
 };
 
