@@ -11,7 +11,7 @@ import { type DefaultTreeAdapterTypes, parse } from "parse5";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { normalizeColor } from "#src/normalize/style";
 import { lineBoxOf } from "#src/normalize/text";
-import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "#src/pageLayouts";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZES, type PageSize } from "#src/pageLayouts";
 import { attributeName, getAttribute } from "./fragment";
 import { escapeAttribute } from "./markup";
 import { presentationCSS } from "./slide";
@@ -105,63 +105,91 @@ function hasClass(element: Element, name: string): boolean {
     return (getAttribute(element, "class") ?? "").split(/\s+/).includes(name);
 }
 
-/** Inline CSS declarations by property, split on `;` outside quotes and parentheses. */
-function declarations(style: string): Map<string, string> {
+/** The element's inline CSS declarations by property, split on `;` outside quotes and parentheses. */
+function styleOf(element: Element): Map<string, string> {
+    const style = getAttribute(element, "style") ?? "";
     const out = new Map<string, string>();
     let quote = "";
     let depth = 0;
     let start = 0;
+
     for (let index = 0; index <= style.length; index++) {
         const character = style[index];
+
         if (quote) {
-            if (character === "\\") index++;
-            else if (character === quote) quote = "";
-        } else if (character === '"' || character === "'") quote = character;
-        else if (character === "(") depth++;
-        else if (character === ")") depth--;
-        else if (character === undefined || (character === ";" && depth === 0)) {
+            if (character === "\\") {
+                index++;
+            } else if (character === quote) {
+                quote = "";
+            }
+        } else if (character === '"' || character === "'") {
+            quote = character;
+        } else if (character === "(") {
+            depth++;
+        } else if (character === ")") {
+            depth--;
+        } else if (character === undefined || (character === ";" && depth === 0)) {
             const declaration = style.slice(start, index);
             const colon = declaration.indexOf(":");
-            if (colon > 0) out.set(declaration.slice(0, colon).trim().toLowerCase(), declaration.slice(colon + 1).trim());
+
+            if (colon > 0) {
+                out.set(declaration.slice(0, colon).trim().toLowerCase(), declaration.slice(colon + 1).trim());
+            }
+
             start = index + 1;
         }
     }
-    return out;
-}
 
-function styleOf(element: Element): Map<string, string> {
-    return declarations(getAttribute(element, "style") ?? "");
+    return out;
 }
 
 /** `<n>px` as a number, or an error naming the property. */
 function pxValue(value: string, property: string, where: string): number {
-    if (!PX_LENGTH.test(value)) throw new Error(`invalid PdfLapas HTML: ${where}: CSS property '${property}': '${value}' is not a px length; write it in px or leave it out to get the default`);
+    if (!PX_LENGTH.test(value)) {
+        throw new Error(`invalid PdfLapas HTML: ${where}: CSS property '${property}': '${value}' is not a px length; write it in px or leave it out to get the default`);
+    }
+
     return Number.parseFloat(value);
 }
 
+/** An edit to the document's source, or none when nothing is missing. */
+type Completion = { kind: "edit"; edit: SourceEdit } | { kind: "none" };
+
 /** One edit that adds `css` to the element's style and `attributes` to its start tag; none when both are empty. */
-function addToElement(element: Element, css: Pairs, attributes: Pairs): SourceEdit | undefined {
-    if (!css.length && !attributes.length) return undefined;
+function addToElement(element: Element, css: Pairs, attributes: Pairs): Completion {
+    if (!css.length && !attributes.length) {
+        return { kind: "none" };
+    }
+
     const tag = element.sourceCodeLocation?.startTag;
+
     // Only elements the parser invented (an implied <tbody>) have no location; the profile never needs to edit one.
-    if (!tag) throw new Error(`invalid PdfLapas HTML: <${element.tagName}> must be written out in the document to be completed`);
+    if (!tag) {
+        throw new Error(`invalid PdfLapas HTML: <${element.tagName}> must be written out in the document to be completed`);
+    }
+
     const added = css.map(([property, value]) => `${property}: ${value};`).join(" ");
     const styleAt = element.sourceCodeLocation?.attrs?.style;
     const newAttributes = attributes.map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`).join("");
+
     if (styleAt && css.length) {
         const style = (getAttribute(element, "style") ?? "").trim();
         const joined = style ? `${style}${style.endsWith(";") ? "" : ";"} ${added}` : added;
-        return { start: styleAt.startOffset, end: styleAt.endOffset, text: `style="${escapeAttribute(joined)}"${newAttributes}` };
+
+        return { kind: "edit", edit: { start: styleAt.startOffset, end: styleAt.endOffset, text: `style="${escapeAttribute(joined)}"${newAttributes}` } };
     }
+
     const insert = `${css.length ? ` style="${escapeAttribute(added)}"` : ""}${newAttributes}`;
     // Right after the tag name, so a self-closed `<img … />` stays well formed.
     const at = tag.startOffset + 1 + element.tagName.length;
-    return { start: at, end: at, text: insert };
+
+    return { kind: "edit", edit: { start: at, end: at, text: insert } };
 }
 
-function missing(element: Element, defaults: Defaults): SourceEdit | undefined {
+function missing(element: Element, defaults: Defaults): Completion {
     const style = styleOf(element);
     const has = new Set(element.attrs.map(attributeName));
+
     return addToElement(
         element,
         defaults.css.filter(([property]) => !style.has(property)),
@@ -171,99 +199,132 @@ function missing(element: Element, defaults: Defaults): SourceEdit | undefined {
 
 /** A shrink box also needs the shrink rule (`shrinkAttributes`). */
 function withShrink(element: Element, defaults: Defaults): Defaults {
-    if (getAttribute(element, "data-text-fit") !== "shrink") return defaults;
+    if (getAttribute(element, "data-text-fit") !== "shrink") {
+        return defaults;
+    }
+
     return { ...defaults, attributes: [...defaults.attributes, ...shrinkAttributes()] };
 }
 
 function where(slide: number, element: Element): string {
     let object = element;
+
     for (let node: Element | undefined = element; node; node = node.parentNode && isElement(node.parentNode) ? node.parentNode : undefined) {
-        if (hasClass(node, "slide-element")) object = node;
+        if (hasClass(node, "slide-element")) {
+            object = node;
+        }
     }
+
     const name = getAttribute(object, "data-object-name");
+
     return `slide ${slide}${name !== undefined ? `: object '${name}'` : ""}`;
 }
 
 /** Where text sits, which picks its defaults: a slide's text box or a table cell. */
 type TextContext = "slide" | "cell";
 
-/** The line box from the paragraph's largest run, as normalization computes it (`paragraphLineBox`). */
-function completeParagraph(paragraph: Element, context: TextContext, slide: number): SourceEdit | undefined {
-    const style = styleOf(paragraph);
-    const defaultSize = pointsToPixels(context === "cell" ? PPTX_DEFAULTS.table.fontSizePt : PPTX_DEFAULTS.text.fontSizePt);
-    const sizes = paragraph.childNodes.filter(isElement).flatMap(child => {
-        if (!hasClass(child, "text-run")) return [];
-        const size = styleOf(child).get("font-size");
-        return [size === undefined ? defaultSize : pxValue(size, "font-size", where(slide, child))];
-    });
-    const fontSize = Math.max(...sizes, 0) || defaultSize;
-    const lineHeight = style.get("line-height");
-    const lineBox = lineBoxOf(fontSize, lineHeight === undefined ? undefined : pxValue(lineHeight, "line-height", where(slide, paragraph)));
-    const has = getAttribute(paragraph, "data-line-baseline") !== undefined;
-    return addToElement(paragraph, [...DEFAULTS.paragraph.css.filter(([property]) => !style.has(property)), ...(lineHeight === undefined ? [["line-height", px(lineBox.height)] as const] : [])], has ? [] : [["data-line-baseline", String(lineBox.baseline)]]);
-}
-
 function collectEdits(node: Parent, context: TextContext, slide: number, edits: SourceEdit[]): void {
     for (const child of node.childNodes) {
-        if (!isElement(child)) continue;
-        if (OPAQUE_CLASSES.some(name => hasClass(child, name))) continue;
+        if (!isElement(child)) {
+            continue;
+        }
+
+        if (OPAQUE_CLASSES.some(name => hasClass(child, name))) {
+            continue;
+        }
+
         const childContext = hasClass(child, "table-cell-text") ? "cell" : context;
-        const edit = completeElement(child, childContext, slide);
-        if (edit) edits.push(edit);
+        const completion = completeElement(child, childContext, slide);
+
+        if (completion.kind === "edit") {
+            edits.push(completion.edit);
+        }
+
         collectEdits(child, childContext, slide, edits);
     }
 }
 
-function completeElement(element: Element, context: TextContext, slide: number): SourceEdit | undefined {
+function completeElement(element: Element, context: TextContext, slide: number): Completion {
     const linked = element.tagName === "a";
-    if (hasClass(element, "slide-container")) return missing(element, DEFAULTS.slide);
-    if (hasClass(element, "slide-text")) return missing(element, withShrink(element, DEFAULTS.text));
-    if (hasClass(element, "table-cell-text")) return missing(element, withShrink(element, DEFAULTS.cellText));
-    if (hasClass(element, "text-paragraph")) return completeParagraph(element, context, slide);
-    if (hasClass(element, "text-run")) return missing(element, context === "cell" ? (linked ? DEFAULTS.cellLink : DEFAULTS.cellRun) : linked ? DEFAULTS.link : DEFAULTS.run);
-    if (hasClass(element, "slide-image-content")) return missing(element, DEFAULTS.image);
-    if (element.tagName === "td") return missing(element, DEFAULTS.cell);
-    return undefined;
+
+    if (hasClass(element, "slide-container")) {
+        return missing(element, DEFAULTS.slide);
+    }
+
+    if (hasClass(element, "slide-text")) {
+        return missing(element, withShrink(element, DEFAULTS.text));
+    }
+
+    if (hasClass(element, "table-cell-text")) {
+        return missing(element, withShrink(element, DEFAULTS.cellText));
+    }
+
+    // The line box from the paragraph's largest run, as normalization computes it (`paragraphLineBox`).
+    if (hasClass(element, "text-paragraph")) {
+        const style = styleOf(element);
+        const defaultSize = pointsToPixels(context === "cell" ? PPTX_DEFAULTS.table.fontSizePt : PPTX_DEFAULTS.text.fontSizePt);
+        const sizes: number[] = [];
+
+        for (const child of element.childNodes) {
+            if (!isElement(child) || !hasClass(child, "text-run")) {
+                continue;
+            }
+
+            const size = styleOf(child).get("font-size");
+
+            sizes.push(size === undefined ? defaultSize : pxValue(size, "font-size", where(slide, child)));
+        }
+
+        const fontSize = Math.max(...sizes, 0) || defaultSize;
+        const lineHeight = style.get("line-height");
+        const lineBox = lineBoxOf(fontSize, lineHeight === undefined ? undefined : pxValue(lineHeight, "line-height", where(slide, element)));
+        const has = getAttribute(element, "data-line-baseline") !== undefined;
+
+        return addToElement(element, [...DEFAULTS.paragraph.css.filter(([property]) => !style.has(property)), ...(lineHeight === undefined ? [["line-height", px(lineBox.height)] as const] : [])], has ? [] : [["data-line-baseline", String(lineBox.baseline)]]);
+    }
+
+    if (hasClass(element, "text-run")) {
+        return missing(element, context === "cell" ? (linked ? DEFAULTS.cellLink : DEFAULTS.cellRun) : linked ? DEFAULTS.link : DEFAULTS.run);
+    }
+
+    if (hasClass(element, "slide-image-content")) {
+        return missing(element, DEFAULTS.image);
+    }
+
+    if (element.tagName === "td") {
+        return missing(element, DEFAULTS.cell);
+    }
+
+    return { kind: "none" };
 }
 
-function findElement(node: Parent, test: (element: Element) => boolean): Element | undefined {
+/** The first element below `node`, in tree order, that passes `test`. */
+function findElement(node: Parent, test: (element: Element) => boolean): { kind: "found"; element: Element } | { kind: "none" } {
     for (const child of node.childNodes) {
-        if (!isElement(child)) continue;
-        if (test(child)) return child;
+        if (!isElement(child)) {
+            continue;
+        }
+
+        if (test(child)) {
+            return { kind: "found", element: child };
+        }
+
         const found = findElement(child, test);
-        if (found) return found;
+
+        if (found.kind === "found") {
+            return found;
+        }
     }
-    return undefined;
+
+    return { kind: "none" };
 }
 
-function metaContent(head: Element, name: string): string | undefined {
+/** The content of the `<meta>` named `name` in `head`; "none" without one or without a content. */
+function metaContent(head: Element, name: string): { kind: "content"; content: string } | { kind: "none" } {
     const meta = head.childNodes.find(node => isElement(node) && node.tagName === "meta" && getAttribute(node, "name") === name);
-    return meta && isElement(meta) ? getAttribute(meta, "content") : undefined;
-}
+    const content = meta && isElement(meta) ? getAttribute(meta, "content") : undefined;
 
-function pageSizeNamed(name: string) {
-    return Object.values(PAGE_SIZES)
-        .flatMap(layout => [layout.landscape, layout.portrait])
-        .find(size => size.name === name);
-}
-
-/**
- * The shared stylesheet when no `<style>` has an `@page` rule: for the size `<prefix>page-size` names, else
- * PptxGenJS's LAYOUT_16x9, whose name it also writes so `htmlDocument` reads the whole page size.
- */
-function stylesheet(head: Element, prefix: string): SourceEdit | undefined {
-    const name = metaContent(head, `${prefix}page-size`);
-    const styles = head.childNodes.filter(isElement).filter(node => node.tagName === "style");
-    if (styles.some(style => style.childNodes.some(text => "value" in text && text.value.includes("@page")))) return undefined;
-    const pageSize = name === undefined ? DEFAULT_PAGE_SIZE : pageSizeNamed(name);
-    if (!pageSize) {
-        const known = Object.values(PAGE_SIZES).flatMap(layout => [layout.landscape.name, layout.portrait.name]);
-        throw new Error(`invalid PdfLapas HTML: page size '${name}' is not a known size (${known.join(", ")}); name one of them in <meta name="${prefix}page-size">, or add a <style> with '@page { size: <width>in <height>in }'`);
-    }
-    const end = head.sourceCodeLocation?.endTag?.startOffset;
-    if (end === undefined) throw new Error("invalid PdfLapas HTML: the document must write out <head>…</head> to receive the stylesheet");
-    const meta = name === undefined ? `<meta name="${prefix}page-size" content="${escapeAttribute(pageSize.name)}">` : "";
-    return { start: end, end, text: `${meta}<style id="puppeteer-gen-styles">${presentationCSS(pageSize)}</style>` };
+    return content === undefined ? { kind: "none" } : { kind: "content", content };
 }
 
 /**
@@ -273,22 +334,88 @@ function stylesheet(head: Element, prefix: string): SourceEdit | undefined {
  * version. A complete document, such as any `toHtml()` result, is returned unchanged, byte for byte.
  */
 export function completeProfileHtml(html: string): string {
-    if (typeof html !== "string" || !html.trim()) throw new Error(`invalid PdfLapas HTML: expected a non-empty HTML string, got ${typeof html === "string" ? "an empty string" : typeof html}`);
+    if (typeof html !== "string" || !html.trim()) {
+        throw new Error(`invalid PdfLapas HTML: expected a non-empty HTML string, got ${typeof html === "string" ? "an empty string" : typeof html}`);
+    }
+
     const document = parse(html, { sourceCodeLocationInfo: true });
     const head = findElement(document, element => element.tagName === "head");
     // Without a <head> there is no profile <meta>, so profileMetaPrefix throws.
-    const prefix = profileMetaPrefix(name => (head ? metaContent(head, name) : undefined));
-    const sheet = head && stylesheet(head, prefix);
-    const edits: SourceEdit[] = sheet ? [sheet] : [];
-    const body = findElement(document, element => element.tagName === "body");
-    body?.childNodes.filter(isElement).forEach((slide, index) => {
-        const edit = completeElement(slide, "slide", index + 1);
-        if (edit) edits.push(edit);
-        collectEdits(slide, "slide", index + 1, edits);
+    const prefix = profileMetaPrefix(name => {
+        const meta = head.kind === "found" ? metaContent(head.element, name) : { kind: "none" as const };
+
+        return meta.kind === "content" ? meta.content : undefined;
     });
+    const edits: SourceEdit[] = [];
+
+    // The shared stylesheet when no `<style>` has an `@page` rule: for the size `<prefix>page-size` names, else
+    // PptxGenJS's LAYOUT_16x9, whose name it also writes so `htmlDocument` reads the whole page size.
+    if (head.kind === "found") {
+        const meta = metaContent(head.element, `${prefix}page-size`);
+        const name = meta.kind === "content" ? meta.content : undefined;
+        let hasPageRule = false;
+
+        for (const node of head.element.childNodes) {
+            if (isElement(node) && node.tagName === "style" && node.childNodes.some(text => "value" in text && text.value.includes("@page"))) {
+                hasPageRule = true;
+                break;
+            }
+        }
+
+        if (!hasPageRule) {
+            let pageSize: PageSize | undefined = name === undefined ? DEFAULT_PAGE_SIZE : undefined;
+
+            for (const layout of name === undefined ? [] : Object.values(PAGE_SIZES)) {
+                for (const size of [layout.landscape, layout.portrait]) {
+                    if (pageSize === undefined && size.name === name) {
+                        pageSize = size;
+                    }
+                }
+            }
+
+            if (!pageSize) {
+                const known = Object.values(PAGE_SIZES).flatMap(layout => [layout.landscape.name, layout.portrait.name]);
+
+                throw new Error(`invalid PdfLapas HTML: page size '${name}' is not a known size (${known.join(", ")}); name one of them in <meta name="${prefix}page-size">, or add a <style> with '@page { size: <width>in <height>in }'`);
+            }
+
+            const end = head.element.sourceCodeLocation?.endTag?.startOffset;
+
+            if (end === undefined) {
+                throw new Error("invalid PdfLapas HTML: the document must write out <head>…</head> to receive the stylesheet");
+            }
+
+            const pageSizeMeta = name === undefined ? `<meta name="${prefix}page-size" content="${escapeAttribute(pageSize.name)}">` : "";
+
+            edits.push({ start: end, end, text: `${pageSizeMeta}<style id="puppeteer-gen-styles">${presentationCSS(pageSize)}</style>` });
+        }
+    }
+
+    const body = findElement(document, element => element.tagName === "body");
+
+    if (body.kind === "found") {
+        let index = 0;
+
+        for (const slide of body.element.childNodes) {
+            if (!isElement(slide)) {
+                continue;
+            }
+
+            const completion = completeElement(slide, "slide", index + 1);
+
+            if (completion.kind === "edit") {
+                edits.push(completion.edit);
+            }
+
+            collectEdits(slide, "slide", index + 1, edits);
+            index++;
+        }
+    }
+
     const completed = applySourceEdits(html, edits);
     // Standards mode: quirks mode drops the line-box strut (render/document.ts).
     const hasDoctype = document.childNodes.some(node => node.nodeName === "#documentType");
+
     return hasDoctype ? completed : `<!DOCTYPE html>${completed}`;
 }
 

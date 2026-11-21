@@ -5,29 +5,9 @@ import { type InlineStyle, styleAttribute } from "./css";
 import { type Attribute, element, type Html } from "./markup";
 import { applyGeometry, applyTransform, lineArrowAttributes, shadowInsetAttribute } from "./style";
 
-type ColorModifier = "darken" | "darkenLess" | "lighten" | "lightenLess";
-
 const MARKER_ID_DOTS = /\./g;
 const MARKER_ID_MINUS = /-/g;
 const MARKER_ID_OTHER = /\W/g;
-
-function modifyColor(color: CssColor | "none", modifier: ColorModifier): string {
-    // No fill and a transparent one have no color to shade.
-    if (color === "none") return color;
-    const factor = PPTX_DEFAULTS.shape.faceShading[modifier];
-    const transform = (value: number) => Math.floor(modifier === "lighten" || modifier === "lightenLess" ? value + (255 - value) * factor : value * (1 - factor));
-    const parts = cssColorParts(color);
-    switch (parts.form) {
-        case "transparent":
-            return color;
-        case "hex":
-            return `#${parts.channels.map(value => transform(value).toString(16).padStart(2, "0")).join("")}`;
-        case "rgba":
-            return `rgba(${parts.channels.map(transform).join(", ")}, ${parts.alpha})`;
-        default:
-            return parts satisfies never;
-    }
-}
 
 /**
  * A marker that fills the model's head outline: drawn in user space, its origin on the line end and +x along
@@ -50,13 +30,21 @@ function marker(path: string, color: string): { id: string; markup: Html } {
         ],
         head,
     );
+
     return { id, markup };
 }
 
-/** The stroke attributes of the element that draws the outline, and the arrow-head markers they point at. */
-function strokeAttributes(style: NormalizedObjectStyle): { attributes: Attribute[]; markers: Html[] } {
+export function renderShapeSvg(shape: NormalizedShape, style: NormalizedObjectStyle): Html {
+    const css: InlineStyle = new Map([["overflow", "visible"]]);
+
+    if (style.shadow?.visible) {
+        css.set("filter", `drop-shadow(${style.shadow.offsetX}px ${style.shadow.offsetY}px ${style.shadow.blur}px ${style.shadow.color})`);
+    }
+
+    const fill = shape.geometry.kind === "line" || !style.fill?.visible ? "none" : style.fill.color;
+    // The stroke attributes of the element that draws the outline, and the arrow-head markers they point at.
     const line = style.line;
-    const attributes: Attribute[] = [
+    const stroke: Attribute[] = [
         ["stroke", line?.visible ? line.color : "none"],
         ["stroke-width", String(line?.visible ? line.width : 0)],
         ["vector-effect", "non-scaling-stroke"],
@@ -64,61 +52,85 @@ function strokeAttributes(style: NormalizedObjectStyle): { attributes: Attribute
         ["stroke-dasharray", line?.dashArray || undefined],
     ];
     const markers: Html[] = [];
+
     if (line?.visible) {
         if (line.beginHeadPath) {
             const start = marker(line.beginHeadPath, line.color);
-            attributes.push(["marker-start", `url(#${start.id})`]);
+
+            stroke.push(["marker-start", `url(#${start.id})`]);
             markers.push(start.markup);
         }
+
         if (line.endHeadPath) {
             const end = marker(line.endHeadPath, line.color);
-            attributes.push(["marker-end", `url(#${end.id})`]);
+
+            stroke.push(["marker-end", `url(#${end.id})`]);
             markers.push(end.markup);
         }
     }
-    return { attributes, markers };
-}
 
-/** The drawn geometry; `stroke` goes on the element that draws the outline. */
-function geometryElement(shape: NormalizedShape, fill: CssColor | "none", stroke: readonly Attribute[]): Html {
+    // The drawn geometry; `stroke` goes on the element that draws the outline.
     const geometry = shape.geometry;
     const painted: Attribute[] = [["class", "shape-geometry"], ["fill", fill], ...stroke];
+    let drawn: Html;
+
     if (geometry.kind === "rect") {
         const radius = String(geometry.radius);
-        return element("rect", [["x", "0"], ["y", "0"], ["width", String(shape.width)], ["height", String(shape.height)], ["rx", radius], ["ry", radius], ...painted]);
-    }
-    if (geometry.kind === "ellipse") {
+
+        drawn = element("rect", [["x", "0"], ["y", "0"], ["width", String(shape.width)], ["height", String(shape.height)], ["rx", radius], ["ry", radius], ...painted]);
+    } else if (geometry.kind === "ellipse") {
         const rx = String(shape.width / 2);
         const ry = String(shape.height / 2);
-        return element("ellipse", [["cx", rx], ["cy", ry], ["rx", rx], ["ry", ry], ...painted]);
-    }
-    if (geometry.kind === "path" && geometry.faces?.length) {
-        const faces = geometry.faces.map(face =>
-            element("path", [
-                ["class", "shape-face"],
-                ["d", face.data],
-                ["data-fill-modifier", face.fillModifier || undefined],
-                ["stroke", "none"],
-                ["fill", face.fillModifier ? modifyColor(fill, face.fillModifier) : fill],
-            ]),
-        );
-        const outline = geometry.outlineData ? element("path", [["class", "shape-outline"], ["d", geometry.outlineData], ["fill", "none"], ...stroke]) : undefined;
-        // Without an outline path the group itself carries the stroke.
-        return element("g", [["transform", geometry.transform || undefined], ["class", "shape-geometry"], ...(outline ? [] : stroke)], outline ? [...faces, outline] : faces);
-    }
-    if (geometry.kind === "line") {
-        return element("path", [["d", geometry.inverse ? `M 0 ${shape.height} L ${shape.width} 0` : `M 0 0 L ${shape.width} ${shape.height}`], ...painted]);
-    }
-    return element("path", [["d", geometry.data], ["transform", geometry.transform || undefined], ...painted]);
-}
 
-export function renderShapeSvg(shape: NormalizedShape, style: NormalizedObjectStyle): Html {
-    const css: InlineStyle = new Map([["overflow", "visible"]]);
-    if (style.shadow?.visible) {
-        css.set("filter", `drop-shadow(${style.shadow.offsetX}px ${style.shadow.offsetY}px ${style.shadow.blur}px ${style.shadow.color})`);
+        drawn = element("ellipse", [["cx", rx], ["cy", ry], ["rx", rx], ["ry", ry], ...painted]);
+    } else if (geometry.kind === "path" && geometry.faces?.length) {
+        const faces: Html[] = [];
+
+        for (const face of geometry.faces) {
+            let faceFill: string = fill;
+
+            // No fill and a transparent one have no color to shade.
+            if (face.fillModifier && fill !== "none") {
+                const modifier = face.fillModifier;
+                const factor = PPTX_DEFAULTS.shape.faceShading[modifier];
+                const transform = (value: number) => Math.floor(modifier === "lighten" || modifier === "lightenLess" ? value + (255 - value) * factor : value * (1 - factor));
+                const parts = cssColorParts(fill);
+
+                switch (parts.form) {
+                    case "transparent":
+                        break;
+                    case "hex":
+                        faceFill = `#${parts.channels.map(value => transform(value).toString(16).padStart(2, "0")).join("")}`;
+                        break;
+                    case "rgba":
+                        faceFill = `rgba(${parts.channels.map(transform).join(", ")}, ${parts.alpha})`;
+                        break;
+                    default:
+                        parts satisfies never;
+                }
+            }
+
+            faces.push(
+                element("path", [
+                    ["class", "shape-face"],
+                    ["d", face.data],
+                    ["data-fill-modifier", face.fillModifier || undefined],
+                    ["stroke", "none"],
+                    ["fill", faceFill],
+                ]),
+            );
+        }
+
+        const outline = geometry.outlineData ? element("path", [["class", "shape-outline"], ["d", geometry.outlineData], ["fill", "none"], ...stroke]) : undefined;
+
+        // Without an outline path the group itself carries the stroke.
+        drawn = element("g", [["transform", geometry.transform || undefined], ["class", "shape-geometry"], ...(outline ? [] : stroke)], outline ? [...faces, outline] : faces);
+    } else if (geometry.kind === "line") {
+        drawn = element("path", [["d", geometry.inverse ? `M 0 ${shape.height} L ${shape.width} 0` : `M 0 0 L ${shape.width} ${shape.height}`], ...painted]);
+    } else {
+        drawn = element("path", [["d", geometry.data], ["transform", geometry.transform || undefined], ...painted]);
     }
-    const fill = shape.geometry.kind === "line" || !style.fill?.visible ? "none" : style.fill.color;
-    const stroke = strokeAttributes(style);
+
     return element(
         "svg",
         [
@@ -137,15 +149,17 @@ export function renderShapeSvg(shape: NormalizedShape, style: NormalizedObjectSt
             shadowInsetAttribute(style.shadow),
             styleAttribute(css),
         ],
-        [element("defs", [], stroke.markers), geometryElement(shape, fill, stroke.attributes)],
+        [element("defs", [], markers), drawn],
     );
 }
 
 export function renderShape(shape: NormalizedShape, style: NormalizedObjectStyle): Html {
     const css: InlineStyle = new Map();
+
     applyGeometry(css, style.geometry);
     applyTransform(css, style.transform);
     const link = shape.link;
+
     return element(
         link ? "a" : "div",
         [["class", "slide-element slide-shape"], styleAttribute(css), ["data-object-name", style.objectName], ["data-shape", shape.name], ["href", link?.href], ["title", link?.tooltip || undefined], ["data-slide", link?.slide ? String(link.slide) : undefined]],

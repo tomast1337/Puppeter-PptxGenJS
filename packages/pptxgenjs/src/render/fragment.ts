@@ -29,6 +29,7 @@ function isElement(node: DefaultTreeAdapterTypes.ChildNode): node is FragmentEle
     return "tagName" in node;
 }
 
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function firstElementChild(parent: FragmentParent): FragmentElement | undefined {
     return parent.childNodes.find(isElement);
 }
@@ -36,7 +37,10 @@ export function firstElementChild(parent: FragmentParent): FragmentElement | und
 /** Every element below `parent`, in tree order (`querySelectorAll("*")`). */
 export function* descendants(parent: FragmentParent): Generator<FragmentElement> {
     for (const child of parent.childNodes) {
-        if (!isElement(child)) continue;
+        if (!isElement(child)) {
+            continue;
+        }
+
         yield child;
         yield* descendants(child);
     }
@@ -47,6 +51,7 @@ export function attributeName(attribute: FragmentElement["attrs"][number]): stri
     return attribute.prefix ? `${attribute.prefix}:${attribute.name}` : attribute.name;
 }
 
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function getAttribute(element: FragmentElement, name: string): string | undefined {
     return element.attrs.find(attribute => attributeName(attribute) === name)?.value;
 }
@@ -54,8 +59,12 @@ export function getAttribute(element: FragmentElement, name: string): string | u
 /** As `Element.setAttribute`: an existing attribute keeps its place, a new one goes last. */
 export function setAttribute(element: FragmentElement, name: string, value: string): void {
     const existing = element.attrs.find(attribute => attributeName(attribute) === name);
-    if (existing) existing.value = value;
-    else element.attrs.push({ name, value });
+
+    if (existing) {
+        existing.value = value;
+    } else {
+        element.attrs.push({ name, value });
+    }
 }
 
 export function removeAttribute(element: FragmentElement, name: string): void {

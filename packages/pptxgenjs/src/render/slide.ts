@@ -1,7 +1,7 @@
 import type { ComponentRegistry } from "#src/components/registry";
 import { PPTX_DEFAULTS } from "#src/defaults";
 import { tableMarginToCSS, textMarginToCSS } from "#src/normalize/margin";
-import { cssPx, type DataUri, HTML_PROFILE_VERSION, inchesToPixels, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, pointsToPixels, type PresentationMetadata } from "@pdflapas/model";
+import { cssPx, type DataUri, HTML_PROFILE_VERSION, inchesToPixels, type NormalizedPresentation, type NormalizedSlide, type NormalizedSlideObject, pointsToPixels } from "@pdflapas/model";
 import { normalizeColor } from "#src/normalize/style";
 import type { PageSize } from "#src/pageLayouts";
 import { renderChart, renderChartExtension } from "./chart";
@@ -30,50 +30,14 @@ export interface RenderPass {
     images?: ReadonlyMap<string, DataUri>;
 }
 
-function renderSlideObject(object: NormalizedSlideObject, idScope: string, pass: RenderPass): Html {
-    switch (object.kind) {
-        case "text": {
-            const css: InlineStyle = new Map();
-            const objectAttributes = applyObjectStyle(css, object.shape ? { ...object.style, fill: undefined, line: undefined, shadow: undefined } : object.style);
-            const svg = object.shape ? [renderShapeSvg(object.shape, object.style)] : [];
-            const text = renderText(css, object.text);
-            return element("div", [["class", "slide-element slide-text"], ...objectAttributes, ["data-shape", object.shape?.name], ...text.attributes, styleAttribute(css)], [...svg, text.content]);
-        }
-        case "shape":
-            return renderShape(object.shape, object.style);
-        case "image":
-            return renderImage(object.image, object.style, pass.images?.get(object.image.source));
-        case "table": {
-            const css: InlineStyle = new Map();
-            const objectAttributes = applyObjectStyle(css, object.style);
-            return element("div", [["class", "slide-element slide-table-container"], ...objectAttributes, styleAttribute(css)], renderTable(object.table));
-        }
-        case "chart":
-            return renderChart(object.chart, object.style, idScope);
-        case "chartExtension":
-            return renderChartExtension(object.svg, object.style, object.altText, idScope);
-        case "component": {
-            const component = pass.components.get(object);
-            // renderComponents() renders every component object of the model it is given.
-            if (!component) throw new Error(`Component ${object.component.type}@${object.component.version} was not rendered before writing its slide`);
-            return componentHtml(component, pass.images);
-        }
-    }
-}
-
-function renderSlide(slide: NormalizedSlide, index: number, pass: RenderPass): Html {
-    const objects = slide.objects.map((object, objectIndex) => renderSlideObject(object, objectIdScope(index, objectIndex), pass));
-    const css: InlineStyle = new Map([
-        ["background-color", slide.background],
-        ["--slide-text-color", slide.color],
-    ]);
-    return element("div", [["class", "slide-container"], ["id", `slide-${index + 1}`], styleAttribute(css)], objects);
-}
-
 /** Default document factory for browser runtimes; the Node entry injects jsdom instead. */
 export function createBrowserDocument(): Document {
     const document = (globalThis as { document?: Document }).document;
-    if (!document) throw new Error('No DOM is available: pass a createDocument option to PuppeteerGen, or use the Node entry ("@pdflapas/pptxgenjs")');
+
+    if (!document) {
+        throw new Error('No DOM is available: pass a createDocument option to PuppeteerGen, or use the Node entry ("@pdflapas/pptxgenjs")');
+    }
+
     return document.implementation.createHTMLDocument();
 }
 
@@ -83,14 +47,23 @@ export function createBrowserDocument(): Document {
  */
 export function renderComponents(presentation: NormalizedPresentation, components: ComponentLookup | undefined, getDocument: () => Document): Map<NormalizedSlideObject, RenderedComponent> {
     const rendered = new Map<NormalizedSlideObject, RenderedComponent>();
-    presentation.slides.forEach((slide, slideIndex) =>
-        slide.objects.forEach((object, objectIndex) => {
-            if (slide.hidden || object.kind !== "component") return;
-            if (!components) throw new Error(`Rendering component ${object.component.type}@${object.component.version} requires its component registry`);
+
+    for (const [slideIndex, slide] of presentation.slides.entries()) {
+        for (const [objectIndex, object] of slide.objects.entries()) {
+            if (slide.hidden || object.kind !== "component") {
+                continue;
+            }
+
+            if (!components) {
+                throw new Error(`Rendering component ${object.component.type}@${object.component.version} requires its component registry`);
+            }
+
             const definition = components.get(object.component.type, object.component.version);
+
             rendered.set(object, renderComponent({ input: object.component, style: object.style }, definition, objectIdScope(slideIndex, objectIndex), getDocument));
-        }),
-    );
+        }
+    }
+
     return rendered;
 }
 
@@ -107,36 +80,106 @@ export function presentationHtml(presentation: NormalizedPresentation, pass: Ren
     ]);
     // <style> holds raw text: its content is not escaped.
     const style = rawTextElement("style", [["id", "puppeteer-gen-styles"]], presentationCSS(presentation.pageSize));
-    // A hidden slide is not printed; the others keep their number in `id`, which slide links jump to.
-    const slides = presentation.slides.flatMap((slide, index) => (slide.hidden ? [] : [renderSlide(slide, index, pass)]));
-    // Standards mode: quirks mode drops the line-box strut that text.ts sizes lines with.
-    return `<!DOCTYPE html>${element("html", [], [element("head", [], [profile, pageSize, ...metadataHtml(presentation.metadata), style]), element("body", [], slides)])}`;
-}
+    const slides: Html[] = [];
 
-/** Document properties: standard HTML where it has a name for one, `pdflapas-*` meta otherwise; empty ones are left out. */
-function metadataHtml({ title, author, subject, company, revision, keywords, creator, producer, creationDate, modificationDate }: PresentationMetadata = {}): Html[] {
-    const meta = (name: string, content: string | undefined) =>
-        content
-            ? [
-                  voidElement("meta", [
-                      ["name", name],
-                      ["content", content],
-                  ]),
-              ]
-            : [];
+    for (const [index, slide] of presentation.slides.entries()) {
+        // A hidden slide is not printed; the others keep their number in `id`, which slide links jump to.
+        if (slide.hidden) {
+            continue;
+        }
+
+        const objects: Html[] = [];
+
+        for (const [objectIndex, object] of slide.objects.entries()) {
+            const idScope = objectIdScope(index, objectIndex);
+
+            switch (object.kind) {
+                case "text": {
+                    const css: InlineStyle = new Map();
+                    const objectAttributes = applyObjectStyle(css, object.shape ? { ...object.style, fill: undefined, line: undefined, shadow: undefined } : object.style);
+                    const svg = object.shape ? [renderShapeSvg(object.shape, object.style)] : [];
+                    const text = renderText(css, object.text);
+
+                    objects.push(element("div", [["class", "slide-element slide-text"], ...objectAttributes, ["data-shape", object.shape?.name], ...text.attributes, styleAttribute(css)], [...svg, text.content]));
+                    break;
+                }
+                case "shape":
+                    objects.push(renderShape(object.shape, object.style));
+                    break;
+                case "image":
+                    objects.push(renderImage(object.image, object.style, pass.images?.get(object.image.source)));
+                    break;
+                case "table": {
+                    const css: InlineStyle = new Map();
+                    const objectAttributes = applyObjectStyle(css, object.style);
+
+                    objects.push(element("div", [["class", "slide-element slide-table-container"], ...objectAttributes, styleAttribute(css)], renderTable(object.table)));
+                    break;
+                }
+                case "chart":
+                    objects.push(renderChart(object.chart, object.style, idScope));
+                    break;
+                case "chartExtension":
+                    objects.push(renderChartExtension(object.svg, object.style, object.altText, idScope));
+                    break;
+                case "component": {
+                    const component = pass.components.get(object);
+
+                    // renderComponents() renders every component object of the model it is given.
+                    if (!component) {
+                        throw new Error(`Component ${object.component.type}@${object.component.version} was not rendered before writing its slide`);
+                    }
+
+                    objects.push(componentHtml(component, pass.images));
+                    break;
+                }
+            }
+        }
+
+        const css: InlineStyle = new Map([
+            ["background-color", slide.background],
+            ["--slide-text-color", slide.color],
+        ]);
+
+        slides.push(element("div", [["class", "slide-container"], ["id", `slide-${index + 1}`], styleAttribute(css)], objects));
+    }
+
+    // Document properties: standard HTML where it has a name for one, `pdflapas-*` meta otherwise; empty ones are left out.
+    const { title, author, subject, company, revision, keywords, creator, producer, creationDate, modificationDate } = presentation.metadata ?? {};
+    const head: Html[] = [profile, pageSize];
+
+    if (title) {
+        head.push(element("title", [], escapeText(title)));
+    }
+
     // `description` is HTML's "free-form string describing the page", the PDF Subject's meaning (krilla writes it there too).
-    return [
-        ...(title ? [element("title", [], escapeText(title))] : []),
-        ...meta("author", author),
-        ...meta("description", subject),
-        ...meta("pdflapas-company", company),
-        ...meta("pdflapas-revision", revision),
-        ...meta("keywords", keywords),
-        ...meta("pdflapas-creator", creator),
-        ...meta("pdflapas-producer", producer),
-        ...meta("pdflapas-creation-date", creationDate),
-        ...meta("pdflapas-modification-date", modificationDate),
+    const meta: readonly (readonly [name: string, content: string | undefined])[] = [
+        ["author", author],
+        ["description", subject],
+        ["pdflapas-company", company],
+        ["pdflapas-revision", revision],
+        ["keywords", keywords],
+        ["pdflapas-creator", creator],
+        ["pdflapas-producer", producer],
+        ["pdflapas-creation-date", creationDate],
+        ["pdflapas-modification-date", modificationDate],
     ];
+
+    for (const [name, content] of meta) {
+        if (content) {
+            head.push(
+                voidElement("meta", [
+                    ["name", name],
+                    ["content", content],
+                ]),
+            );
+        }
+    }
+
+    head.push(style);
+
+    // Standards mode: quirks mode drops the line-box strut that text.ts sizes lines with.
+    return `<!DOCTYPE html>${element("html", [], [element("head", [], head), element("body", [], slides)])}`;
 }
 
 /** The shared stylesheet: generated from the page size only. */
