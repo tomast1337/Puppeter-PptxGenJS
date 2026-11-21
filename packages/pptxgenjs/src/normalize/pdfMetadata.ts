@@ -4,7 +4,7 @@ import type { PresentationMetadata } from "@pdflapas/model";
  * PDF document properties PptxGenJS has no field for, so a PdfLapas extension (`PuppeteerGenOptions.pdfMetadata`)
  * rather than `pres.*` properties. Unset, Creator and Producer are `PDF_PRODUCER` and the PDF has no dates.
  */
-export interface PdfMetadataOptions {
+export type PdfMetadataOptions = {
     /** The PDF /Creator: the application the document was made with. */
     creator?: string;
     /** The PDF /Producer: the software that wrote the PDF. */
@@ -15,7 +15,7 @@ export interface PdfMetadataOptions {
     creationDate?: Date;
     /** The PDF /ModDate, written in UTC to the second. Without `creationDate`, it is also the /CreationDate. */
     modificationDate?: Date;
-}
+};
 
 const STRING_KEYS = ["creator", "producer", "keywords"] as const;
 const DATE_KEYS = ["creationDate", "modificationDate"] as const;

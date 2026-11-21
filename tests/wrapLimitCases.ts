@@ -23,7 +23,7 @@ const SLACK_STEPS = 40;
 /** The last word fills the line from this many steps (20 to 40pt) left, so a filler word of that width exists. */
 const FILLER_STEPS = { min: 160, max: 320 };
 
-export interface WrapLimitCase {
+export type WrapLimitCase = {
     readonly fontSize: number;
     readonly bold: boolean;
     /** Lines when the last one fits. */
@@ -33,7 +33,7 @@ export interface WrapLimitCase {
     readonly text: string;
     /** Lines PowerPoint draws: one more when the last line is wider than the box. */
     readonly expectedLines: number;
-}
+};
 
 /** One paragraph per font size, weight, line count and step: one long run, its last line at the box's width. */
 export function wrapLimitCases(advances: (bold: boolean) => GlyphAdvances): WrapLimitCase[] {

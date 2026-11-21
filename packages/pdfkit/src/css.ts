@@ -6,10 +6,10 @@ import { attribute, type Element } from "./dom";
 export type Style = Map<string, string>;
 
 /** An sRGB color with its alpha, as PDFKit takes it: 0-255 channels, alpha 0-1. */
-export interface Color {
+export type Color = {
     readonly rgb: readonly [number, number, number];
     readonly alpha: number;
-}
+};
 
 const HEX_COLOR = /^#([\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/i;
 const RGB_COLOR = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i;

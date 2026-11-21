@@ -227,10 +227,10 @@ function descriptorFontName(text: string, offsets: ReadonlyMap<number, number>, 
     return fontName;
 }
 
-interface IndirectObject {
+type IndirectObject = {
     readonly number: number;
     readonly body: string;
-}
+};
 
 // Each rewritten font gets its own descriptor, as Skia shares one among the Type 3 fonts of a face, and a font file.
 const NEW_OBJECTS_PER_FONT = 2;
@@ -311,10 +311,10 @@ function object(text: string, offsets: ReadonlyMap<number, number>, number: numb
     return { dictionary, data: text.slice(dataStart, dataStart + length) };
 }
 
-interface Scale {
+type Scale = {
     readonly x: number;
     readonly y: number;
-}
+};
 
 /**
  * Type 1 glyph units per Type 3 glyph unit. Skia prints the float32 nearest its 1/1000 (`.00100000005`): rounded

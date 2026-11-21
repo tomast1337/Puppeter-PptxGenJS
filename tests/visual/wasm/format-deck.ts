@@ -11,12 +11,12 @@ import type { PuppeteerGen } from "../../../packages/pptxgenjs/src/node";
 export const FORMAT_PAGES = 1;
 
 /** One format's pictures: a 400x200 sample, a 200x200 one with transparency, and a third sample variant. */
-interface FormatPictures {
+type FormatPictures = {
     title: string;
     sample: string;
     badge: string;
     variant: { file: string; label: string };
-}
+};
 
 const image = (name: string) => join(import.meta.dir, "images", name);
 const dataUri = (name: string, mime: string) => `data:${mime};base64,${readFileSync(image(name)).toString("base64")}`;

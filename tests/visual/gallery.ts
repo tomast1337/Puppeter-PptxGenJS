@@ -2,12 +2,12 @@ import { copyFile, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { NormalizedPresentation } from "@pdflapas/model";
 
-export interface GalleryPage {
+export type GalleryPage = {
     page: string;
     title: string;
     referenceName: string;
     actualName: string;
-}
+};
 
 /**
  * One title per printed page, derived from the deck so it cannot fall out of step with the fixture (#225): the first

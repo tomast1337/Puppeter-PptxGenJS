@@ -214,6 +214,9 @@ hash changes only when Rust code or its pins change.
   `unknown` and narrow at the boundary. No non-null `!` on anything derived from user input, a regex
   match or an array index you have not checked; handle the missing case. `as` casts only where the type
   system cannot see an invariant, with a comment saying why it holds. `tsc` must pass with no new errors.
+- **Types, not interfaces.** An object shape is a `type` alias. `interface` is only for a contract a class
+  implements (`PresentationRenderer`, `TextPdfBinding`, `PptxGenJSLike`), marked with a lint exception
+  that says so; ESLint's `consistent-type-definitions` enforces it.
 - **Validate untrusted input at the boundary.** Untrusted: options passed to the PptxGenJS API, image
   paths, URLs, bytes and data URIs, font files, component props, and model JSON from another producer.
   Check it where it enters (normalization, `parseComponentProps`, `createWasmRenderer`) with zod where

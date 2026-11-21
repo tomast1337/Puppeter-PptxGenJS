@@ -6,7 +6,7 @@ import { inchesToPixels, pointsToPixels } from "@pdflapas/model";
 import { mapSides, slideMarginInches } from "#src/normalize/margin";
 import { checkTableHtmlLimits, type TableHtmlLimits } from "./htmlLimits";
 
-export interface NormalizedHtmlTable {
+export type NormalizedHtmlTable = {
     rows: PptxGenJS.TableRow[];
     headerRows: number;
     columnWidths: number[];
@@ -14,7 +14,7 @@ export interface NormalizedHtmlTable {
     y: number;
     continuationY: number;
     slideMargin: FourSideMargin;
-}
+};
 
 function cssPixels(value: string | null | undefined, relativeTo: number): number {
     const source = value?.trim();

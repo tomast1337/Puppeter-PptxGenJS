@@ -4,10 +4,10 @@ import { CORE_SVG_SHAPES } from "./normalize/shape";
 /** `ignored`: accepted and without effect, because PptxGenJS ignores it too. */
 export type CompatibilityStatus = "unsupported" | "partial" | "implemented" | "verified" | "ignored";
 
-export interface CompatibilityEntry {
+export type CompatibilityEntry = {
     readonly status: CompatibilityStatus;
     readonly options: Readonly<Record<string, CompatibilityStatus>>;
-}
+};
 
 export const SHAPE_GEOMETRY_COMPATIBILITY = Object.freeze(Object.fromEntries(CORE_SVG_SHAPES.map(name => [name, "implemented"]))) as Readonly<Record<string, "implemented" | "unsupported">>;
 
@@ -590,10 +590,10 @@ export const WASM_COMPATIBILITY = Object.freeze({
  * - internal: a runtime helper absent from PptxGenJS's index.d.ts; PdfLapas need not provide it.
  */
 export type ApiStatus = "implemented" | "partial" | "unsupported" | "internal";
-export interface ApiEntry {
+export type ApiEntry = {
     readonly status: ApiStatus;
     readonly note: string;
-}
+};
 
 /**
  * What PdfLapas does with each public member of a pptxgenjs 4.0.1 presentation and slide, as its runtime enumerates

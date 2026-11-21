@@ -8,11 +8,11 @@ import { drawSlide } from "./slide";
 import { Effects } from "./effect/index";
 import { createShaper } from "./text/shaper";
 
-export interface RenderResult {
+export type RenderResult = {
     readonly pdf: Uint8Array;
     readonly warnings: string[];
     readonly missingFonts: MissingFont[];
-}
+};
 
 const SLIDE_ID = /^slide-(\d+)$/;
 /**

@@ -4,10 +4,10 @@
  * bogus comments, CDATA sections in `<svg>` and `<math>`, and the text of raw-text elements (`<script>`, `<style>`,
  * `<textarea>`, ...), so markup inside those is not read as a tag. It builds no tree; the renderers validate the document.
  */
-export interface HtmlScan {
+export type HtmlScan = {
     readonly metas: ReadonlyArray<ReadonlyMap<string, string>>;
     readonly styles: readonly string[];
-}
+};
 
 /** Elements whose content is text up to their end tag (raw text and escapable raw text, with scripting enabled). */
 const RAW_TEXT_ELEMENTS: readonly string[] = Object.freeze(["iframe", "noembed", "noframes", "noscript", "script", "style", "textarea", "title", "xmp"]);

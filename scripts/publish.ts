@@ -25,7 +25,7 @@ const TARBALL_ROOT = "package/";
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 const DEPENDENCY_FIELDS = ["dependencies", "peerDependencies", "optionalDependencies"] as const;
 
-export interface Manifest {
+export type Manifest = {
     readonly name: string;
     readonly version: string;
     readonly private?: boolean;
@@ -35,25 +35,25 @@ export interface Manifest {
     readonly dependencies?: Readonly<Record<string, string>>;
     readonly peerDependencies?: Readonly<Record<string, string>>;
     readonly optionalDependencies?: Readonly<Record<string, string>>;
-}
+};
 
-export interface WorkspacePackage {
+export type WorkspacePackage = {
     readonly directory: string;
     readonly manifest: Manifest;
-}
+};
 
-interface PlannedPackage {
+type PlannedPackage = {
     readonly manifest: Manifest;
     readonly tarball: string;
     readonly sha256: string;
     readonly published: boolean;
-}
+};
 
-export interface PublishOptions {
+export type PublishOptions = {
     readonly yes: boolean;
     readonly otp?: string;
     readonly tag?: string;
-}
+};
 
 // ---- Pure checks (tests/publish.test.ts) ----
 
@@ -229,11 +229,11 @@ export function tarballName(manifest: Manifest): string {
 
 // ---- Commands ----
 
-interface Captured {
+type Captured = {
     readonly exitCode: number;
     readonly stdout: string;
     readonly stderr: string;
-}
+};
 
 async function capture(command: string[], cwd = PROJECT_ROOT): Promise<Captured> {
     const child = Bun.spawn(command, { cwd, stdin: "ignore", stdout: "pipe", stderr: "pipe" });

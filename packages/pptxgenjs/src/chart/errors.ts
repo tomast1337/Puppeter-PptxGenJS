@@ -1,10 +1,10 @@
 export type UnsupportedChartReason = "chart-type" | "chart-combination" | "chart-option";
 
-export interface UnsupportedChartDetails {
+export type UnsupportedChartDetails = {
     reason: UnsupportedChartReason;
     chartTypes?: readonly string[];
     unsupportedOptions?: readonly string[];
-}
+};
 
 export class UnsupportedChartError extends Error {
     readonly code = "UNSUPPORTED_CHART";

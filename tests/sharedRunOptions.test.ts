@@ -8,13 +8,13 @@ import { pointsToPixels } from "@pdflapas/model";
 /** The calls a deck makes, run on PptxGenJS and on PuppeteerGen alike. */
 type Deck = (pres: PptxGenJS | PuppeteerGen) => void;
 
-interface Paragraph {
+type Paragraph = {
     align: string;
     spaceBefore: number;
     spaceAfter: number;
     bullet: boolean;
     runs: Array<{ text: string; size: number; bold: boolean; italic: boolean; color: string | undefined }>;
-}
+};
 
 const XML_ALIGN: Record<string, string> = { l: "left", ctr: "center", r: "right", just: "justify" };
 const DEFAULT_SIZE = 18;

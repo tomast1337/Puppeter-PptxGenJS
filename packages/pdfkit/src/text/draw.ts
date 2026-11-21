@@ -7,12 +7,12 @@ import { type BoxLayout, layoutText } from "./layout";
 import type { Decoration, Run, TextBox } from "./read";
 import { features } from "./shaper";
 
-export interface Frame {
+export type Frame = {
     readonly x: number;
     readonly y: number;
     readonly width: number;
     readonly height: number;
-}
+};
 
 /** Lays the box's text out at `scale` in `width` px, the box's padding taken off. */
 export function measureBox(paint: Paint, box: TextBox, width: number, scale = 1): BoxLayout {
@@ -102,10 +102,10 @@ const PPT_GRID_PER_INCH = 600;
 const PPT_WAVE_LINE = CSS_PX_PER_INCH / PPT_GRID_PER_INCH;
 
 /** A `post` underline band, or the HTML's in its place: its top `position` px below the baseline, `thickness` px tall. */
-interface UnderlineBand {
+type UnderlineBand = {
     readonly position: number;
     readonly thickness: number;
-}
+};
 
 /** `on`-long pieces of the band `top`..`top + t`, `off` apart, from `x`; the last one cut at the end. */
 function dashes(doc: PDFKit.PDFDocument, x: number, top: number, width: number, t: number, on: number, off: number): void {

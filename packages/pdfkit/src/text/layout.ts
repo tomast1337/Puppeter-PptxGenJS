@@ -8,7 +8,7 @@ import type { Bullet, Run, TextBox } from "./read";
 import { type Features, features, type Shaper } from "./shaper";
 
 /** A piece of one run in one face, on one line. `x` is from the content box's left edge. */
-export interface Fragment {
+export type Fragment = {
     readonly run: Run;
     readonly face: Face;
     readonly text: string;
@@ -16,30 +16,30 @@ export interface Fragment {
     readonly features: Features;
     readonly x: number;
     readonly width: number;
-}
+};
 
-export interface Line {
+export type Line = {
     readonly fragments: readonly Fragment[];
     /** Line top and baseline, from the content box's top before the vertical anchor. */
     readonly top: number;
     readonly height: number;
     readonly baseline: number;
-}
+};
 
-export interface PlacedBullet {
+export type PlacedBullet = {
     readonly bullet: Bullet;
     readonly face: Face;
     readonly size: number;
     readonly x: number;
     readonly baseline: number;
-}
+};
 
-export interface BoxLayout {
+export type BoxLayout = {
     readonly lines: readonly Line[];
     readonly bullets: readonly PlacedBullet[];
     readonly width: number;
     readonly height: number;
-}
+};
 
 /** Characters that take part in breaking but draw nothing: U+200B (an empty run's text) and U+2060 (the profile's no-break). */
 const INVISIBLE = /[​⁠]/g;
@@ -50,7 +50,7 @@ const FIT_EPSILON = 0.01;
 const ON_STOP = 0.01;
 
 /** A measured piece before it is placed: one run, one face, no break opportunity inside. */
-interface Piece {
+type Piece = {
     readonly run: Run;
     readonly face: Face;
     readonly text: string;
@@ -61,7 +61,7 @@ interface Piece {
     readonly inkWidth: number;
     readonly tab: boolean;
     readonly spaces: number;
-}
+};
 
 /** A word: the pieces between two break opportunities. */
 type Word = Piece[];
@@ -78,11 +78,11 @@ function wordInkWidth(word: Word): number {
     return sum;
 }
 
-interface LineDraft {
+type LineDraft = {
     pieces: { piece: Piece; x: number }[];
     width: number;
     inkWidth: number;
-}
+};
 
 /** Lays out the box's paragraphs in a content box `innerWidth` wide, every font size and line box scaled by `scale`. */
 export function layoutText(box: TextBox, innerWidth: number, scale: number, shaper: Shaper, missing: (run: Run) => void): BoxLayout {

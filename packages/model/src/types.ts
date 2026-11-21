@@ -19,44 +19,45 @@ declare const dataUri: unique symbol;
 export type DataUri = string & { readonly [dataUri]: "data-uri" };
 
 /** A page size as callers write it, in plain inches: what the public API takes. */
-export interface PageSizeInput {
+export type PageSizeInput = {
     width: number;
     height: number;
     name: string;
-}
+};
 
 /** A page size in the model: checked, in branded inches. Assignable to PageSizeInput, so it can be passed back in. */
-export interface PageSize extends PageSizeInput {
+export type PageSize = {
     width: Inches;
     height: Inches;
-}
+    name: string;
+};
 
 export type ComponentValue = null | boolean | number | string | ComponentValue[] | { [key: string]: ComponentValue };
 export type ComponentProps = { [key: string]: ComponentValue };
 
 /** Names and versions are application-owned contracts, independent of document schema versions. */
-export interface ComponentInput {
+export type ComponentInput = {
     type: string;
     version: number;
     props: ComponentProps;
-}
+};
 
 export type Coord = number | `${number}%`;
 
 /** The object's frame on the slide, from the slide's top left corner. */
-export interface NormalizedGeometry {
+export type NormalizedGeometry = {
     x: Px;
     y: Px;
     width?: Px;
     height?: Px;
-}
+};
 
-export interface NormalizedFill {
+export type NormalizedFill = {
     visible: boolean;
     color: CssColor;
-}
+};
 
-export interface NormalizedLine {
+export type NormalizedLine = {
     visible: boolean;
     color: CssColor;
     width: number;
@@ -67,44 +68,44 @@ export interface NormalizedLine {
     /** Resolved head outlines: closed SVG path data (px) with the line end at the origin and +x pointing out of the line, filled in the line color. */
     beginHeadPath?: string;
     endHeadPath?: string;
-}
+};
 
-export interface NormalizedShadow {
+export type NormalizedShadow = {
     visible: boolean;
     color: CssColor;
     blur: number;
     offsetX: number;
     offsetY: number;
     inset: boolean;
-}
+};
 
-export interface NormalizedTransform {
+export type NormalizedTransform = {
     rotation: number;
     flipH: boolean;
     flipV: boolean;
     opacity: number;
-}
+};
 
-export interface NormalizedObjectStyle {
+export type NormalizedObjectStyle = {
     geometry: NormalizedGeometry;
     transform: NormalizedTransform;
     fill?: NormalizedFill;
     line?: NormalizedLine;
     shadow?: NormalizedShadow;
     objectName: string;
-}
+};
 
 export type NormalizedTextDirection = "horizontal" | "vertical" | "vertical270" | "stacked";
 
 /** An underline band in em of the run's font size. */
-export interface NormalizedUnderlineBand {
+export type NormalizedUnderlineBand = {
     /** The band's top above the baseline, negative below (the sign of `post.underlinePosition`). */
     position: number;
     /** Its height, above 0. */
     thickness: number;
-}
+};
 
-export interface NormalizedTextDecoration {
+export type NormalizedTextDecoration = {
     underline: boolean;
     underlineStyle: "solid" | "double" | "dashed" | "dotted" | "wavy";
     underlineColor?: CssColor;
@@ -122,15 +123,15 @@ export interface NormalizedTextDecoration {
     underlineHeavy?: boolean;
     strike: boolean;
     doubleStrike: boolean;
-}
+};
 
-export interface NormalizedTextLink {
+export type NormalizedTextLink = {
     href: string;
     tooltip?: string;
     slide?: number;
-}
+};
 
-export interface NormalizedTextRun {
+export type NormalizedTextRun = {
     text: string;
     fontFace: string;
     /** Faces a character `fontFace` lacks is drawn in, the first that has it, before the renderer's own fallback; omitted: only the renderer's. */
@@ -174,18 +175,18 @@ export interface NormalizedTextRun {
     language: string;
     link?: NormalizedTextLink;
     softBreakBefore: boolean;
-}
+};
 
-export interface NormalizedTextBullet {
+export type NormalizedTextBullet = {
     kind: "bullet" | "number";
     marker: string;
     indent: number;
     level: number;
     start: number;
     numberType?: string;
-}
+};
 
-export interface NormalizedTextParagraph {
+export type NormalizedTextParagraph = {
     runs: NormalizedTextRun[];
     align: "left" | "center" | "right" | "justify";
     /** With `align: "justify"`: `"inter-word"` widens only a line's spaces (CSS `text-justify`); absent, the renderer's `auto`. */
@@ -206,9 +207,9 @@ export interface NormalizedTextParagraph {
     /** Spacing of the default stops after the last explicit one, in px. */
     defaultTabStop: number;
     bullet?: NormalizedTextBullet;
-}
+};
 
-export interface NormalizedTextBox {
+export type NormalizedTextBox = {
     paragraphs: NormalizedTextParagraph[];
     margin: [number, number, number, number];
     verticalAlign: "top" | "middle" | "bottom";
@@ -216,31 +217,31 @@ export interface NormalizedTextBox {
     fit: "none" | "shrink" | "resize";
     direction: NormalizedTextDirection;
     rtl: boolean;
-}
+};
 
-export interface NormalizedTableBorder {
+export type NormalizedTableBorder = {
     visible: boolean;
     color: CssColor;
     width: number;
     style: "solid" | "dashed";
     /** SVG stroke-dasharray in px for a dashed border, resolved from the DrawingML preset dash. */
     dashArray?: string;
-}
+};
 
-export interface NormalizedTableCell {
+export type NormalizedTableCell = {
     text: NormalizedTextBox;
     colspan: number;
     rowspan: number;
     fill?: NormalizedFill;
     borders: [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder];
-}
+};
 
-export interface NormalizedTableRow {
+export type NormalizedTableRow = {
     height?: Px;
     cells: NormalizedTableCell[];
-}
+};
 
-export interface NormalizedTable {
+export type NormalizedTable = {
     width: Px;
     height?: Px;
     columns: Px[];
@@ -250,16 +251,16 @@ export interface NormalizedTable {
      * margins, as free space of each cell's text area, where the cell's vertical anchor places the text.
      */
     contentRowSlack?: Px;
-}
+};
 
 /** `contain`/`cover`: the image's box inside the object's frame; `crop`: the whole image's size and the offset of the part the frame shows. */
 export type NormalizedImageSizing = { type: "stretch" } | { type: "contain" | "cover"; x: Px; y: Px; width: Px; height: Px } | { type: "crop"; offsetX: Px; offsetY: Px; width: Px; height: Px };
 
-export interface NormalizedImageLink {
+export type NormalizedImageLink = {
     href: string;
     tooltip?: string;
     slide?: number;
-}
+};
 
 /** A `data` image is inlined at normalization; a `path` or `remote` one keeps the caller's string until `toHtml()` resolves it. */
 export type NormalizedImageSource = { source: DataUri; sourceKind: "data" } | { source: string; sourceKind: "path" | "remote" };
@@ -272,11 +273,11 @@ export type NormalizedImage = NormalizedImageSource & {
     link?: NormalizedImageLink;
 };
 
-export interface NormalizedShapeLink {
+export type NormalizedShapeLink = {
     href: string;
     tooltip?: string;
     slide?: number;
-}
+};
 
 export type NormalizedShapeGeometry =
     | { kind: "rect"; radius: Px }
@@ -290,18 +291,18 @@ export type NormalizedShapeGeometry =
           outlineData?: string;
       };
 
-export interface NormalizedShape {
+export type NormalizedShape = {
     name: string;
     width: Px;
     height: Px;
     geometry: NormalizedShapeGeometry;
     textInsets?: [number, number, number, number];
     link?: NormalizedShapeLink;
-}
+};
 
 export type NormalizedChartType = "area" | "bar" | "bar3D" | "bubble" | "doughnut" | "line" | "mixed" | "pie" | "radar" | "scatter";
 
-export interface NormalizedChartSeries {
+export type NormalizedChartSeries = {
     type: NormalizedChartType;
     name: string;
     labels: string[];
@@ -310,9 +311,9 @@ export interface NormalizedChartSeries {
     colorIndex: number;
     varyColors: boolean;
     valueAxisIndex: 0 | 1;
-}
+};
 
-export interface NormalizedChartValueAxis {
+export type NormalizedChartValueAxis = {
     minimum: number;
     maximum: number;
     hidden: boolean;
@@ -342,9 +343,9 @@ export interface NormalizedChartValueAxis {
     gridLineWidth: number;
     gridLineStyle: "solid" | "dash" | "dot" | "none";
     gridLineCap: "flat" | "round" | "square";
-}
+};
 
-export interface NormalizedChart {
+export type NormalizedChart = {
     type: NormalizedChartType;
     series: NormalizedChartSeries[];
     colors: CssColor[];
@@ -386,7 +387,7 @@ export interface NormalizedChart {
     lineSymbolSize: number;
     lineSize: number;
     altText: string;
-}
+};
 
 /**
  * One slide object as recorded by the PptxGenJS-compatible API, after option
@@ -404,7 +405,7 @@ export type NormalizedSlideObject =
     | { kind: "chartExtension"; style: NormalizedObjectStyle; svg: string; altText: string }
     | { kind: "component"; style: NormalizedObjectStyle; component: ComponentInput };
 
-export interface NormalizedSlide {
+export type NormalizedSlide = {
     /** CSS colors, as applied to the slide container. */
     background: CssColor;
     color: CssColor;
@@ -415,14 +416,14 @@ export interface NormalizedSlide {
      * slide) and its slide number the last (a text box named "Slide Number").
      */
     objects: NormalizedSlideObject[];
-}
+};
 
 /**
  * Document properties, as PptxGenJS writes them to docProps/core.xml (title, subject, author as dc:creator, revision)
  * and docProps/app.xml (company), plus the PDF-only ones PptxGenJS has no field for (`PuppeteerGenOptions.pdfMetadata`).
  * An absent or empty one is not written: no element in the HTML, no entry in the PDF.
  */
-export interface PresentationMetadata {
+export type PresentationMetadata = {
     title?: string;
     author?: string;
     subject?: string;
@@ -437,10 +438,10 @@ export interface PresentationMetadata {
     creationDate?: string;
     /** UTC, as `creationDate`. */
     modificationDate?: string;
-}
+};
 
-export interface NormalizedPresentation {
+export type NormalizedPresentation = {
     pageSize: PageSize;
     metadata?: PresentationMetadata;
     slides: NormalizedSlide[];
-}
+};

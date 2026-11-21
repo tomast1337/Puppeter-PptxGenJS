@@ -10,20 +10,20 @@ export type Matrix = readonly [number, number, number, number, number, number];
 export type Point = readonly [number, number];
 
 /** A flattened subpath: its points and whether it closes. */
-export interface Polyline {
+export type Polyline = {
     readonly points: Point[];
     readonly closed: boolean;
-}
+};
 
 /** How a path is stroked, in the same units as its points. */
-export interface StrokeStyle {
+export type StrokeStyle = {
     readonly width: number;
     readonly cap: "butt" | "square" | "round";
     readonly join: "miter" | "bevel" | "round";
     readonly miterLimit: number;
     /** SVG dash lengths; empty or undefined draws solid. */
     readonly dashes?: readonly number[];
-}
+};
 
 /** Sides of the polygon a round cap or join is approximated with: enough that a blurred silhouette cannot show them. */
 const ROUND_SIDES = 16;

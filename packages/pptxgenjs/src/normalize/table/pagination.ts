@@ -6,15 +6,15 @@ import { convertToInches } from "#src/units";
 import { slideMarginInches } from "#src/normalize/margin";
 import { addTableLeavesNoWidth, columnCount, normalizeTable, tableCell, tableRow } from "./index";
 
-export interface PaginatedTablePage {
+export type PaginatedTablePage = {
     rows: PptxGenJS.TableRow[];
     y: number;
-}
+};
 
-interface TextPiece {
+type TextPiece = {
     text: string;
     options?: PptxGenJS.TableCellProps;
-}
+};
 
 const LINE_HEIGHT_MODIFIER = 1.67;
 

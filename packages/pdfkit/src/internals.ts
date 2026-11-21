@@ -4,12 +4,12 @@
 // move under the renderer.
 import { apply, invert, type Matrix } from "./path";
 
-interface PdfReference {
+type PdfReference = {
     write(data: Uint8Array): void;
     end(data?: Uint8Array): void;
-}
+};
 
-interface PdfkitInternals {
+type PdfkitInternals = {
     readonly _ctm: number[];
     readonly page: {
         readonly width: number;
@@ -20,7 +20,7 @@ interface PdfkitInternals {
     };
     ref(data: Record<string, unknown>): PdfReference;
     addContent(data: string): void;
-}
+};
 
 export function internals(doc: PDFKit.PDFDocument): PdfkitInternals {
     return doc as unknown as PdfkitInternals; // `as`: the fields above exist on every PDFKit 0.20 document

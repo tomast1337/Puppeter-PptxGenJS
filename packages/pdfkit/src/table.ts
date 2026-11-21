@@ -9,38 +9,38 @@ import type { BoxLayout } from "#src/text/layout";
 import { type Report, readTextBox, reportUnread, type TextBox } from "#src/text/read";
 
 /** A drawn cell side. A hidden side, or one too thin or transparent to see, is undefined. */
-interface Border {
+type Border = {
     readonly width: number;
     readonly color: Color;
     readonly dashArray?: string;
-}
+};
 
 /** Top, right, bottom, left, as `TableCell.borders` orders them. */
 type Borders = readonly [Border | undefined, Border | undefined, Border | undefined, Border | undefined];
 
-interface Cell {
+type Cell = {
     readonly colspan: number;
     readonly rowspan: number;
     readonly fill?: Color;
     readonly borders: Borders;
     /** Undefined for text the renderer reports instead of drawing (vertical text). */
     readonly text?: TextBox;
-}
+};
 
-interface Row {
+type Row = {
     readonly height: number;
     readonly cells: readonly Cell[];
-}
+};
 
 /** One origin cell on the grid: its first row and column and how many it covers, and its text laid out to its width. */
-interface Placed {
+type Placed = {
     readonly cell: Cell;
     readonly row: number;
     readonly col: number;
     readonly rows: number;
     readonly cols: number;
     readonly layout?: BoxLayout;
-}
+};
 
 const SIDES = ["top", "right", "bottom", "left"] as const;
 /** What the profile's `borderCSS` writes for a hidden side. */

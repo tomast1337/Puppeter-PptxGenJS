@@ -6,14 +6,15 @@ import init, { Renderer } from "./pdf_wasm.js";
 export { type MissingFont, MissingFontError, type MissingFontPolicy } from "@pdflapas/model";
 
 /** One entry of the binding's `missingFonts()`: a wasm-owned object, released with `free()`. */
-export interface MissingFontBinding {
+export type MissingFontBinding = {
     readonly face: string;
     readonly used?: string | undefined;
     readonly objects: string[];
     free(): void;
-}
+};
 
 /** The wasm-bindgen surface the loader relies on; tests/wasm.test.ts checks the generated class against it. */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a class implements this contract
 export interface TextPdfBinding {
     addFont(data: Uint8Array): number;
     renderHtml(html: string): Uint8Array;
@@ -24,7 +25,7 @@ export interface TextPdfBinding {
 /** Where to load `pdf_wasm_bg.wasm` from; a subset of wasm-bindgen's `InitInput` without DOM-only types. */
 export type WasmSource = URL | string | Response | ArrayBuffer | ArrayBufferView | WebAssembly.Module;
 
-export interface WasmRendererOptions {
+export type WasmRendererOptions = {
     /** TTF/OTF/TTC font files. WASM cannot see system fonts; at least one is required. */
     fonts: readonly Uint8Array[];
     /** The `pdf_wasm_bg.wasm` module: a URL, bytes, a Response or a compiled module. Defaults to the file next to this module. */
@@ -41,14 +42,14 @@ export interface WasmRendererOptions {
      * `"ignore"`, or a function receiving the list. Not part of `onUnsupported`: the text is drawn, in a fallback face.
      */
     onMissingFont?: MissingFontPolicy;
-}
+};
 
-export interface SystemFontOptions {
+export type SystemFontOptions = {
     /** Directories searched recursively. Defaults to the platform's system and user font directories. */
     dirs?: readonly string[];
     /** Font file basenames to load. Defaults to the metric-compatible fallback set and the Office faces they stand in for. */
     match?: RegExp;
-}
+};
 
 /**
  * PDF backend in WebAssembly instead of Chromium: renders the PdfLapas HTML profile document

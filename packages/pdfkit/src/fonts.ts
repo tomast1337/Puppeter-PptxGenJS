@@ -3,28 +3,28 @@
 import { create, type Font } from "fontkit";
 
 /** One face of the caller's font files. `key` names it in the PDFKit document. */
-export interface Face {
+export type Face = {
     readonly key: string;
     readonly font: Font;
     readonly families: readonly string[];
     readonly bold: boolean;
     readonly italic: boolean;
-}
+};
 
 /** What a run asks for: `font-family` (its face, then the target's fallback faces), `lang`, `font-weight: bold`, `font-style: italic`. */
-export interface FaceRequest {
+export type FaceRequest = {
     readonly family: string;
     readonly fallbacks: readonly string[];
     readonly lang?: string;
     readonly bold: boolean;
     readonly italic: boolean;
-}
+};
 
 /** The faces a run's characters are looked up in, in order, and whether its own face (or alias) was among them. */
-export interface FaceChain {
+export type FaceChain = {
     readonly faces: readonly Face[];
     readonly found: boolean;
-}
+};
 
 // The metric-compatible face the visual image's fontconfig (30-metric-aliases.conf) picks for an Office face, and the
 // faces tried after it: the same table as crates/pdf-core/src/text/font.rs, so both renderers draw a deck in one face.

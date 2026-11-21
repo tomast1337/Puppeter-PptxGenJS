@@ -4,7 +4,7 @@
  */
 // shortcut: a subset of puppeteer's LaunchOptions, declared here because importing that type puts puppeteer's
 // Node typings into the public declarations; add a field when a caller needs it.
-export interface PuppeteerLaunchOptions {
+export type PuppeteerLaunchOptions = {
     readonly executablePath?: string;
     readonly args?: readonly string[];
     readonly headless?: boolean | "shell";
@@ -12,7 +12,7 @@ export interface PuppeteerLaunchOptions {
     readonly protocolTimeout?: number;
     readonly userDataDir?: string;
     readonly env?: Readonly<Record<string, string | undefined>>;
-}
+};
 
 /** The options every `PuppeteerPdfRenderer` launches Chromium with unless it is given its own. */
 export const DEFAULT_LAUNCH_OPTIONS: PuppeteerLaunchOptions = {

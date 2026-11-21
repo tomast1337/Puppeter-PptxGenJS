@@ -12,12 +12,12 @@ import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 const BOX_SLACK_PT = 0.06;
 
 /** A run set-up of the deck: face, size, alignment and `lang` (undefined: PptxGenJS's en-US). */
-export interface MixedVariant {
+export type MixedVariant = {
     readonly fontFace: "Arial" | "Times New Roman";
     readonly sizePt: number;
     readonly align: "left" | "justify";
     readonly lang: string | undefined;
-}
+};
 
 export const MIXED_VARIANTS: readonly MixedVariant[] = [
     { fontFace: "Arial", sizePt: 10, align: "left", lang: undefined },
@@ -29,14 +29,14 @@ export const MIXED_VARIANTS: readonly MixedVariant[] = [
 ];
 
 /** One box: PowerPoint's lines, each as its number of characters other than spaces. */
-export interface MixedBreakCase {
+export type MixedBreakCase = {
     readonly label: string;
     readonly text: string;
     readonly variant: MixedVariant;
     /** The characters the box is exactly as wide as. */
     readonly fits: string;
     readonly lines: readonly number[];
-}
+};
 
 type Boxes = readonly [readonly number[] | null, readonly number[] | null, readonly number[] | null];
 

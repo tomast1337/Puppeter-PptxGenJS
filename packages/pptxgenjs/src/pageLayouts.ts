@@ -5,10 +5,10 @@ import { PPTX_DEFAULTS } from "./defaults";
 
 export type { PageSize, PageSizeInput } from "@pdflapas/model";
 
-export interface PageLayout {
+export type PageLayout = {
     landscape: PageSize;
     portrait: PageSize;
-}
+};
 
 /** A page size from its width and height in inches. */
 export function pageSize(width: number, height: number, name: string): PageSize {

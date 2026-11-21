@@ -57,9 +57,9 @@ function tickOption(mark: NormalizedChart["valueAxes"][number]["majorTickMark"],
 const LEGEND_SQUARE_ICON = "path://M0 0H1V1H0Z";
 
 /** zrender's SVGPainter.renderToString; zrender is an echarts dependency, not ours, so it is typed here. */
-interface SvgPainter {
+type SvgPainter = {
     renderToString(options: { cssAnimation: boolean; cssEmphasis: boolean }): string;
-}
+};
 
 /** zrender prefixes SVG ids with its instance number (zr<N>-), taken from a process-wide counter. */
 const ZRENDER_ID_PREFIX = /^zr\d+-/;

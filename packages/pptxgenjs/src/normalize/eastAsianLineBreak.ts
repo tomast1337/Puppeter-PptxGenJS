@@ -36,10 +36,10 @@ export function languageHangingMarks(language: string, marksByLanguage: Readonly
 }
 
 /** A stretch of a run's text; `hangs`: a single mark that hangs past the line's end when the line ends after it. */
-export interface HangingSegment {
+export type HangingSegment = {
     readonly text: string;
     readonly hangs: boolean;
-}
+};
 
 /**
  * `text` cut around each of `marks` not followed by another of them or a dash (`next`, the character after `text`,

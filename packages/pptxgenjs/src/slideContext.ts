@@ -7,7 +7,7 @@ import type { PageSize } from "./pageLayouts";
 import type { PuppeteerSlide } from "./PuppeteerSlide";
 
 /** What a slide reads from the presentation that owns it. PuppeteerGen.addSlide() creates one per slide; every field is required. */
-export interface SlideContext {
+export type SlideContext = {
     /** The presentation's page size when the slide was added, which its percentage positions resolve against. */
     readonly pageSize: PageSize;
     /** The slide's 0-based position: its slide number and the scope of its object ids. */
@@ -28,4 +28,4 @@ export interface SlideContext {
     readonly continuationSlide: (offset: number) => PuppeteerSlide;
     /** PptxGenJS's `setSlideNumber` callback: every slide's `slideNumber` setter also sets the master's. */
     readonly setMasterSlideNumber: (props: PptxGenJS.SlideNumberProps | null) => void;
-}
+};

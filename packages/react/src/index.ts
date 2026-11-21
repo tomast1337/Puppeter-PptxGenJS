@@ -4,9 +4,9 @@ import type { z } from "zod";
 import { type ComponentDefinition, type ComponentProps, parseComponentProps } from "@pdflapas/pptxgenjs/html";
 
 /** Structural interface keeps the optional adapter independent of the renderer runtime. */
-export interface ReactComponentRegistrar {
+export type ReactComponentRegistrar = {
     registerComponent(type: string, version: number, definition: ComponentDefinition): unknown;
-}
+};
 
 export type ReactComponentOptions<Props extends object> = { schema: z.ZodType<Props>; parseProps?: never } | { schema?: never; parseProps?: (props: ComponentProps) => Props };
 

@@ -36,3 +36,7 @@ export function chain(values: readonly number[]): number[] {
 export function nullable(values: readonly number[]): number | undefined {
     return values[0];
 }
+
+export interface Shape {
+    width: number;
+}

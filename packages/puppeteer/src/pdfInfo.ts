@@ -9,7 +9,7 @@ import { appendObjects, pdfText, readTrailer } from "./pdfUpdate";
  * allows other keys (pdfinfo -custom lists them); the WASM renderer writes the same ones. The dates are the profile's
  * UTC ISO strings.
  */
-export interface DocumentInfo {
+export type DocumentInfo = {
     Title?: string;
     Author?: string;
     Subject?: string;
@@ -20,7 +20,7 @@ export interface DocumentInfo {
     Producer?: string;
     CreationDate?: string;
     ModDate?: string;
-}
+};
 
 /** The profile's date: UTC to the second or millisecond, as `Date.prototype.toISOString()` writes it. */
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?Z$/;

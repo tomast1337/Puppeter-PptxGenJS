@@ -18,11 +18,11 @@ const MARKER_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "markerunits", "ma
 const MARKER_URL = /^url\(#(.+)\)$/;
 
 /** The svg's viewBox scale onto the object box, and its arrow-head paths by marker id. */
-interface ShapeSpace {
+type ShapeSpace = {
     readonly scaleX: number;
     readonly scaleY: number;
     readonly heads: ReadonlyMap<string, string>;
-}
+};
 
 function numberAttribute(element: Element, name: string): number {
     const value = Number(attribute(element, name) ?? Number.NaN);

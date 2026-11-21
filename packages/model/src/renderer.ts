@@ -8,13 +8,14 @@ import type { PageSizeInput } from "./types";
  */
 export const PDF_PRODUCER = "PdfLapas";
 
-export interface HtmlPresentationDocument {
+export type HtmlPresentationDocument = {
     html: string;
     // Plain inches: a renderer also renders a document its caller built (#277).
     pageSize: PageSizeInput;
-}
+};
 
 /** Turns the HTML document (`toHtml()`, `modelToHtml()`) into PDF bytes: every renderer reads only the HTML (#69). */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a class implements this contract
 export interface PresentationRenderer {
     render(document: HtmlPresentationDocument): Promise<Uint8Array>;
 }

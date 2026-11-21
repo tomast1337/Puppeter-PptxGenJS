@@ -8,7 +8,7 @@ import { type ComponentLookup, createBrowserDocument, presentationHtml, renderCo
 export type { HtmlPresentationDocument, PresentationRenderer } from "@pdflapas/model";
 
 /** What modelToHtml() needs besides the model; each one is supplied by the caller (the Node entry passes jsdom and file paths). */
-export interface ModelToHtmlOptions {
+export type ModelToHtmlOptions = {
     /** Definitions for the model's `component` objects; required when it has any. */
     components?: ComponentLookup;
     /**
@@ -21,7 +21,7 @@ export interface ModelToHtmlOptions {
      * Default: the global `document`'s implementation.
      */
     createDocument?: () => Document;
-}
+};
 
 /** One document per call, created on first use. */
 export function lazyDocument(createDocument: () => Document): () => Document {

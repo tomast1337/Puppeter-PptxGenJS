@@ -11,7 +11,7 @@ import type { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 /** Where the line sits: a text box aligned so, a shape's text rectangle, a one-cell table, or a right-to-left box. */
 export type BoxFloorContext = "left" | "center" | "right" | "justify" | "roundRect" | "ellipse" | "table" | "rtl";
 
-export interface BoxFloorCase {
+export type BoxFloorCase = {
     readonly context?: BoxFloorContext;
     readonly fontSize: number;
     readonly text: string;
@@ -23,7 +23,7 @@ export interface BoxFloorCase {
     readonly overflowPt: number;
     /** Whether PowerPoint kept the line's last word on the first line ("xo" always wraps). */
     readonly fits: boolean;
-}
+};
 
 // The measured deck's boxes in order: size, text, inset (pt), box width (EMU), W (pt), PowerPoint's break.
 const BOXES: readonly (readonly [number, string, number, number, number, boolean])[] = [

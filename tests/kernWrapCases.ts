@@ -11,7 +11,7 @@ const FIRST_LINE = "Lorem ipsum AVAVA";
 /** W at 12 and 18pt in the measured deck (Arial's advances and kern table): a font giving others is not Arial's twin. */
 const MEASURED_WIDTH_PT: Readonly<Record<number, number>> = { 12: 108.2754, 18: 162.6631 };
 
-export interface KernWrapCase {
+export type KernWrapCase = {
     readonly fontSize: 12 | 18;
     readonly next: "xo" | "To";
     /** The box, as the measured deck wrote it: W, plus "A " and " T" when named, plus `offsetPt`. */
@@ -19,7 +19,7 @@ export interface KernWrapCase {
     readonly widthPt: number;
     /** Whether PowerPoint kept "AVAVA" on the first line. */
     readonly fits: boolean;
-}
+};
 
 // The measured deck's boxes in order, each with PowerPoint's break.
 const BOXES: readonly { fontSize: 12 | 18; next: "xo" | "To"; pairs: readonly string[]; offsetPt: number; fits: boolean }[] = [

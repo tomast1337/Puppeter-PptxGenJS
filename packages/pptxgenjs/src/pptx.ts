@@ -1,5 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a class implements this contract
 export interface PptxGenJSLike extends PptxGenJS {}
 export type PptxSlide = PptxGenJS.Slide;
 export type PptxTableRow = PptxGenJS.TableRow;

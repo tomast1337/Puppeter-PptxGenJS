@@ -8,7 +8,7 @@ export { type MissingFont, MissingFontError, type MissingFontPolicy } from "@pdf
 
 export type UnsupportedPolicy = "error" | "warn";
 
-export interface PdfkitRendererOptions {
+export type PdfkitRendererOptions = {
     /** TTF/OTF/TTC font files, parsed once here. The renderer sees no system fonts; at least one is required. */
     fonts: readonly Uint8Array[];
     /**
@@ -24,14 +24,14 @@ export interface PdfkitRendererOptions {
     onMissingFont?: MissingFontPolicy;
     /** Decoded-pixel limits on the deck's raster images, checked from their headers before drawing. Default IMAGE_PIXEL_LIMITS. */
     imageLimits?: ImagePixelLimits;
-}
+};
 
-export interface SystemFontOptions {
+export type SystemFontOptions = {
     /** Directories searched recursively. Defaults to the platform's system and user font directories. */
     dirs?: readonly string[];
     /** Font file basenames to load. Defaults to the metric-compatible fallback set and the Office faces they stand in for. */
     match?: RegExp;
-}
+};
 
 /** PDF backend on PDFKit: renders the PdfLapas HTML profile document `toHtml()` returns (docs/HTML_PROFILE.md). */
 export class PdfkitRenderer implements PresentationRenderer {
