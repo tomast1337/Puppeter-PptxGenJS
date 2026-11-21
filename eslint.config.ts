@@ -68,7 +68,6 @@ const ALL_BUT_BRACES = [...LAYOUT, "pdflapas/no-for-each", "pdflapas/no-reduce",
 const NOT_YET_CONVERTED: Readonly<Record<string, readonly string[]>> = {
     "packages/model/src/**": [...LAYOUT, "pdflapas/no-nullable-return"],
     "packages/puppeteer/src/**": ALL_BUT_BRACES,
-    "packages/wasm/src/**": [...LAYOUT, "pdflapas/no-for-each"],
 };
 
 const config: Linter.Config[] = [

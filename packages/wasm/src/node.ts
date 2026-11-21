@@ -12,11 +12,15 @@ export { WasmRenderer } from "./browser";
 
 export async function createWasmRenderer(options: WasmRendererOptions): Promise<WasmRenderer> {
     // Without fonts, let the shared loader report that before touching the filesystem.
-    if (options.wasm !== undefined || !options.fonts?.length) return createBrowserWasmRenderer(options);
+    if (options.wasm !== undefined || !options.fonts?.length) {
+        return createBrowserWasmRenderer(options);
+    }
+
     const path = fileURLToPath(new URL("./pdf_wasm_bg.wasm", import.meta.url));
     const wasm = await readFile(path).catch((error: unknown) => {
         throw new Error(`WASM renderer binary not found at ${path}; build it with \`bun run build:wasm\` or pass { wasm }`, { cause: error });
     });
+
     return createBrowserWasmRenderer({ ...options, wasm });
 }
 
@@ -27,21 +31,33 @@ export async function createWasmRenderer(options: WasmRendererOptions): Promise<
 const DEFAULT_FONT_FILES =
     /^(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?|NotoColorEmoji|NotoSansCJK-(?:Regular|Bold)|calibri.*|cambria.*|arial.*|times.*|cour.*|seguisym|seguiemj|YuGoth[RB]|msgothic|msjh(?:bd)?|msyh(?:bd)?|malgun(?:bd)?|simsun|mingliu)\.(?:ttf|otf|ttc)$/i;
 
-function systemFontDirs(): string[] {
-    if (process.platform === "win32") return [join(process.env.WINDIR ?? "C:\\Windows", "Fonts"), join(process.env.LOCALAPPDATA ?? "", "Microsoft/Windows/Fonts")];
-    if (process.platform === "darwin") return ["/System/Library/Fonts", "/Library/Fonts", join(homedir(), "Library/Fonts")];
-    return ["/usr/share/fonts", "/usr/local/share/fonts", join(homedir(), ".local/share/fonts"), join(homedir(), ".fonts")];
-}
-
 async function fontFiles(dir: string, match: RegExp): Promise<string[]> {
     const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
     const nested = await Promise.all(entries.map(entry => (entry.isDirectory() ? fontFiles(join(dir, entry.name), match) : match.test(entry.name) ? [join(dir, entry.name)] : [])));
+
     return nested.flat();
 }
 
 /** Reads font files from the system font directories, for `createWasmRenderer({ fonts })`. Throws when none match. */
-export async function loadSystemFonts({ dirs = systemFontDirs(), match = DEFAULT_FONT_FILES }: SystemFontOptions = {}): Promise<Uint8Array[]> {
+export async function loadSystemFonts({ dirs: requestedDirs, match = DEFAULT_FONT_FILES }: SystemFontOptions = {}): Promise<Uint8Array[]> {
+    // The platform's system and user font directories, unless the caller named its own.
+    let dirs: readonly string[];
+
+    if (requestedDirs !== undefined) {
+        dirs = requestedDirs;
+    } else if (process.platform === "win32") {
+        dirs = [join(process.env.WINDIR ?? "C:\\Windows", "Fonts"), join(process.env.LOCALAPPDATA ?? "", "Microsoft/Windows/Fonts")];
+    } else if (process.platform === "darwin") {
+        dirs = ["/System/Library/Fonts", "/Library/Fonts", join(homedir(), "Library/Fonts")];
+    } else {
+        dirs = ["/usr/share/fonts", "/usr/local/share/fonts", join(homedir(), ".local/share/fonts"), join(homedir(), ".fonts")];
+    }
+
     const files = (await Promise.all(dirs.map(dir => fontFiles(dir, match)))).flat().sort();
-    if (!files.length) throw new Error(`No font files matching ${match} in ${dirs.join(", ")}; install Carlito, Caladea, Liberation and DejaVu fonts or pass { dirs, match }`);
+
+    if (!files.length) {
+        throw new Error(`No font files matching ${match} in ${dirs.join(", ")}; install Carlito, Caladea, Liberation and DejaVu fonts or pass { dirs, match }`);
+    }
+
     return Promise.all(files.map(async file => new Uint8Array(await readFile(file))));
 }

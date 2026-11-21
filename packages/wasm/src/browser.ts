@@ -68,15 +68,15 @@ export class WasmRenderer implements PresentationRenderer {
     /** Parses the profile HTML in WebAssembly; out-of-profile or malformed HTML throws, naming slide, object and property. Images must be data URIs. */
     async render(document: HtmlPresentationDocument): Promise<Uint8Array> {
         assertHtmlPresentationDocument(document);
-        return this.#checked(this.#binding.renderHtml(document.html));
-    }
-
-    #checked(pdf: Uint8Array): Uint8Array {
+        const pdf = this.#binding.renderHtml(document.html);
         const skipped = this.#binding.warnings();
+
         if (skipped.length && this.#onUnsupported !== "warn") {
             throw new Error(`The WASM renderer cannot draw everything in this presentation (pass { onUnsupported: "warn" } to render anyway):\n- ${skipped.join("\n- ")}`);
         }
+
         reportMissingFonts(this.missingFonts(), this.#onMissingFont);
+
         return pdf;
     }
 
@@ -87,21 +87,33 @@ export class WasmRenderer implements PresentationRenderer {
 
     /** The font faces the last render asked for that none of the renderer's fonts provides. */
     missingFonts(): MissingFont[] {
-        return this.#binding.missingFonts().map(entry => {
+        const missing: MissingFont[] = [];
+
+        for (const entry of this.#binding.missingFonts()) {
             const { face, used, objects } = entry;
+
             entry.free();
-            return { face, objects, ...(used ? { usedFace: used } : {}) };
-        });
+            missing.push({ face, objects, ...(used ? { usedFace: used } : {}) });
+        }
+
+        return missing;
     }
 }
 
 export async function createWasmRenderer(options: WasmRendererOptions): Promise<WasmRenderer> {
-    if (!options.fonts?.length) throw new Error("createWasmRenderer() requires at least one font: pass { fonts: [Uint8Array, ...] } (Node/Bun: await loadSystemFonts())");
+    if (!options.fonts?.length) {
+        throw new Error("createWasmRenderer() requires at least one font: pass { fonts: [Uint8Array, ...] } (Node/Bun: await loadSystemFonts())");
+    }
+
     await init({ module_or_path: options.wasm ?? new URL("./pdf_wasm_bg.wasm", import.meta.url) });
     const binding: TextPdfBinding = new Renderer();
-    options.fonts.forEach((font, index) => {
-        if (binding.addFont(font) === 0) throw new Error(`Font #${index} contains no usable font faces`);
-    });
+
+    for (const [index, font] of options.fonts.entries()) {
+        if (binding.addFont(font) === 0) {
+            throw new Error(`Font #${index} contains no usable font faces`);
+        }
+    }
+
     return new WasmRenderer(binding, options.onUnsupported, options.onMissingFont);
 }
 
