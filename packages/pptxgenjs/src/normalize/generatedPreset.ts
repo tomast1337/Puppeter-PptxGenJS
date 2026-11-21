@@ -108,62 +108,6 @@ function radialParameter(angle: number, rx: number, ry: number): number {
     return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
 }
 
-function arcSegments(current: Point, rx: number, ry: number, start: number, sweep: number, sx = 1, sy = 1): { data: string; end: Point } {
-    const startParameter = radialParameter(start, rx, ry);
-    const center: Point = [current[0] - rx * Math.cos(startParameter), current[1] - ry * Math.sin(startParameter)];
-    const commands: string[] = [];
-    let travelled = 0;
-    let end = current;
-
-    while (Math.abs(sweep - travelled) > 1e-6) {
-        const remainder = sweep - travelled;
-        const step = Math.sign(remainder) * Math.min(Math.abs(remainder), 180 * ANGLE);
-
-        travelled += step;
-        const parameter = radialParameter(start + travelled, rx, ry);
-
-        end = [center[0] + rx * Math.cos(parameter), center[1] + ry * Math.sin(parameter)];
-        commands.push(`A ${clean(rx * sx)} ${clean(ry * sy)} 0 0 ${step >= 0 ? 1 : 0} ${clean(end[0] * sx)} ${clean(end[1] * sy)}`);
-    }
-
-    return { data: commands.join(" "), end };
-}
-
-function renderPath(path: GeneratedPresetDefinition["paths"][number], values: Record<string, number>, width: number, height: number): string {
-    const sourceWidth = path.w ? Number(path.w) : width;
-    const sourceHeight = path.h ? Number(path.h) : height;
-    const sx = width / sourceWidth;
-    const sy = height / sourceHeight;
-    const x = (token: string) => formulaValue(token, values);
-    const y = (token: string) => formulaValue(token, values);
-    const commands: string[] = [];
-    let current: Point = [0, 0];
-
-    for (const command of path.commands) {
-        const [kind, ...args] = command;
-
-        if (kind === "M" || kind === "L") {
-            current = [x(args[0]!), y(args[1]!)];
-            commands.push(`${kind} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
-        } else if (kind === "A") {
-            const arc = arcSegments(current, x(args[0]!), y(args[1]!), formulaValue(args[2]!, values), formulaValue(args[3]!, values), sx, sy);
-
-            commands.push(arc.data);
-            current = arc.end;
-        } else if (kind === "Q") {
-            current = [x(args[2]!), y(args[3]!)];
-            commands.push(`Q ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
-        } else if (kind === "C") {
-            current = [x(args[4]!), y(args[5]!)];
-            commands.push(`C ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(x(args[2]!) * sx)} ${clean(y(args[3]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
-        } else {
-            commands.push("Z");
-        }
-    }
-
-    return commands.join(" ");
-}
-
 export function isGeneratedPreset(name: string): name is GeneratedPresetName {
     return Object.hasOwn(GENERATED_PRESET_SHAPES, name);
 }
@@ -183,17 +127,81 @@ export function generatedPresetGeometry(name: GeneratedPresetName, width: number
         values[guide] = evaluate(formula, values);
     }
 
-    const rendered = definition.paths.map(path => ({ path, data: renderPath(path, values, width, height) }));
-    const faces = rendered
-        .filter(({ path }) => path.fill !== "none")
-        .map(({ path, data }) => ({
-            data,
-            ...(["darken", "darkenLess", "lighten", "lightenLess"].includes(path.fill ?? "") ? { fillModifier: path.fill as "darken" | "darkenLess" | "lighten" | "lightenLess" } : {}),
-        }));
-    const outlineData = rendered
-        .filter(({ path }) => path.stroke !== "false")
-        .map(({ data }) => data)
-        .join(" ");
+    const rendered: { path: GeneratedPresetDefinition["paths"][number]; data: string }[] = [];
+
+    for (const path of definition.paths) {
+        // The path's SVG data, scaled from its own coordinate space to the box.
+        const sourceWidth = path.w ? Number(path.w) : width;
+        const sourceHeight = path.h ? Number(path.h) : height;
+        const sx = width / sourceWidth;
+        const sy = height / sourceHeight;
+        const x = (token: string) => formulaValue(token, values);
+        const y = (token: string) => formulaValue(token, values);
+        const commands: string[] = [];
+        let current: Point = [0, 0];
+
+        for (const command of path.commands) {
+            const [kind, ...args] = command;
+
+            if (kind === "M" || kind === "L") {
+                current = [x(args[0]!), y(args[1]!)];
+                commands.push(`${kind} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
+            } else if (kind === "A") {
+                // The arc from `current` as SVG arcs of at most 180 degrees each.
+                const rx = x(args[0]!);
+                const ry = y(args[1]!);
+                const start = formulaValue(args[2]!, values);
+                const sweep = formulaValue(args[3]!, values);
+                const startParameter = radialParameter(start, rx, ry);
+                const center: Point = [current[0] - rx * Math.cos(startParameter), current[1] - ry * Math.sin(startParameter)];
+                const arcCommands: string[] = [];
+                let travelled = 0;
+                let end = current;
+
+                while (Math.abs(sweep - travelled) > 1e-6) {
+                    const remainder = sweep - travelled;
+                    const step = Math.sign(remainder) * Math.min(Math.abs(remainder), 180 * ANGLE);
+
+                    travelled += step;
+                    const parameter = radialParameter(start + travelled, rx, ry);
+
+                    end = [center[0] + rx * Math.cos(parameter), center[1] + ry * Math.sin(parameter)];
+                    arcCommands.push(`A ${clean(rx * sx)} ${clean(ry * sy)} 0 0 ${step >= 0 ? 1 : 0} ${clean(end[0] * sx)} ${clean(end[1] * sy)}`);
+                }
+
+                commands.push(arcCommands.join(" "));
+                current = end;
+            } else if (kind === "Q") {
+                current = [x(args[2]!), y(args[3]!)];
+                commands.push(`Q ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
+            } else if (kind === "C") {
+                current = [x(args[4]!), y(args[5]!)];
+                commands.push(`C ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(x(args[2]!) * sx)} ${clean(y(args[3]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
+            } else {
+                commands.push("Z");
+            }
+        }
+
+        rendered.push({ path, data: commands.join(" ") });
+    }
+
+    const faces: { data: string; fillModifier?: "darken" | "darkenLess" | "lighten" | "lightenLess" }[] = [];
+    const outline: string[] = [];
+
+    for (const { path, data } of rendered) {
+        if (path.fill !== "none") {
+            faces.push({
+                data,
+                ...(["darken", "darkenLess", "lighten", "lightenLess"].includes(path.fill ?? "") ? { fillModifier: path.fill as "darken" | "darkenLess" | "lighten" | "lightenLess" } : {}),
+            });
+        }
+
+        if (path.stroke !== "false") {
+            outline.push(data);
+        }
+    }
+
+    const outlineData = outline.join(" ");
 
     return { kind: "path", data: rendered.map(({ data }) => data).join(" "), faces, outlineData };
 }

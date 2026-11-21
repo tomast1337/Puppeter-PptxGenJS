@@ -79,6 +79,7 @@ export function arrowShaftStart(arrow: string, width: number): number {
  * tip at (50, 0): the oval and diamond are centred on the line end, the others put their tip on it. The
  * oval is a true ellipse as in PowerPoint (LibreOffice approximates it with 12 points).
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function arrowHeadPath(arrow: string, width: number): string | undefined {
     if (arrow === "none") {
         return undefined;
@@ -139,7 +140,12 @@ export function arrowHeadPath(arrow: string, width: number): string | undefined 
  * dash offset, so the split entry is padded with a zero-length dash or gap to keep dash/gap parity.
  */
 export function startDashAt(pattern: readonly number[], start: number): number[] {
-    const period = pattern.reduce((sum, part) => sum + part, 0);
+    let period = 0;
+
+    for (const part of pattern) {
+        period += part;
+    }
+
     let offset = (((period - start) % period) + period) % period;
 
     if (offset === 0) {
