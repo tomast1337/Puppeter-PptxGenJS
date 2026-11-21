@@ -11,7 +11,10 @@ const SPACED: Features = Object.freeze({ liga: false, clig: false });
 const SPACED_UNKERNED: Features = Object.freeze({ kern: false, liga: false, clig: false });
 
 export function features(kerning: boolean, letterSpacing: number): Features {
-    if (letterSpacing) return kerning ? SPACED : SPACED_UNKERNED;
+    if (letterSpacing) {
+        return kerning ? SPACED : SPACED_UNKERNED;
+    }
+
     return kerning ? KERNED : UNKERNED;
 }
 
@@ -27,27 +30,35 @@ export function createShaper(faces: readonly Face[]): Shaper {
     const chains = new Map<string, FaceChain>();
     // Advances in em, so one shaping serves every size.
     const advances = new Map<string, number>();
+
     return {
         chain(request) {
             const key = [request.family, ...request.fallbacks, request.lang ?? "", request.bold, request.italic].join("\u0000");
             let chain = chains.get(key);
+
             if (!chain) {
                 chain = faceChain(faces, request);
                 chains.set(key, chain);
             }
+
             return chain;
         },
         width(face, text, size, featureSet, letterSpacing) {
             const key = `${face.key}\u0000${featureSet === KERNED ? "" : Object.keys(featureSet).join()}\u0000${text}`;
             let em = advances.get(key);
+
             if (em === undefined) {
                 em = face.font.layout(text, { ...featureSet }).advanceWidth / face.font.unitsPerEm;
                 advances.set(key, em);
             }
+
             return em * size + letterSpacing * Array.from(text).length;
         },
         kern(face, first, second, size, featureSet) {
-            if (!first || !second || featureSet.kern === false) return 0;
+            if (!first || !second || featureSet.kern === false) {
+                return 0;
+            }
+
             return this.width(face, first + second, size, featureSet, 0) - this.width(face, first, size, featureSet, 0) - this.width(face, second, size, featureSet, 0);
         },
     };

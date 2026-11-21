@@ -59,6 +59,7 @@ const FAMILY_NAMES: readonly string[] = Object.freeze(["fontFamily", "preferredF
 function hasOutlines(font: Font): boolean {
     // `as`: fontkit keeps the table directory on the font; @types/fontkit does not declare it.
     const tables = (font as unknown as { directory?: { tables?: Record<string, unknown> } }).directory?.tables ?? {};
+
     return OUTLINE_TABLES.some(tag => tag in tables);
 }
 
@@ -67,30 +68,42 @@ function faceOf(font: Font, key: string): Face {
     const os2 = font["OS/2"] as { usWeightClass?: number; fsSelection?: { italic?: boolean; bold?: boolean } } | undefined; // `as`: the declared Os2Table omits these fields
     const bold = (os2?.fsSelection?.bold ?? false) || (os2?.usWeightClass ?? 0) >= BOLD_WEIGHT;
     const italic = (os2?.fsSelection?.italic ?? false) || font.italicAngle !== 0;
+
     return { key, font, families: [...new Set(families.length ? families : [font.familyName.toLowerCase()])], bold, italic };
 }
 
 /** Parses the caller's font files (TTF, OTF or TTC). Throws naming the file that holds no usable face. */
 export function parseFonts(files: readonly Uint8Array[]): Face[] {
     const faces: Face[] = [];
+
     files.forEach((bytes, index) => {
         let parsed: ReturnType<typeof create>;
+
         try {
             parsed = create(bytes as Buffer); // `as`: fontkit reads any Uint8Array; its types name Node's Buffer
         } catch (error) {
             throw new Error(`Font #${index} is not a TTF, OTF or TTC font file`, { cause: error });
         }
+
         const fonts = "fonts" in parsed ? parsed.fonts : [parsed];
         const drawable = fonts.filter(hasOutlines);
-        if (!drawable.length) throw new Error(`Font #${index} contains no usable font faces (PDFKit draws outline glyphs only, not bitmap color fonts)`);
-        for (const font of drawable) faces.push(faceOf(font, `F${faces.length}`));
+
+        if (!drawable.length) {
+            throw new Error(`Font #${index} contains no usable font faces (PDFKit draws outline glyphs only, not bitmap color fonts)`);
+        }
+
+        for (const font of drawable) {
+            faces.push(faceOf(font, `F${faces.length}`));
+        }
     });
+
     return faces;
 }
 
 /** The face of `family` that best matches the requested style: exact, then the same weight, then any. */
 function bestFace(faces: readonly Face[], family: string, bold: boolean, italic: boolean): Face | undefined {
     const candidates = faces.filter(face => face.families.includes(family));
+
     return candidates.find(face => face.bold === bold && face.italic === italic) ?? candidates.find(face => face.bold === bold) ?? candidates[0];
 }
 
@@ -98,6 +111,7 @@ function bestFace(faces: readonly Face[], family: string, bold: boolean, italic:
 function familyFace(faces: readonly Face[], family: string, bold: boolean, italic: boolean): Face | undefined {
     const name = family.toLowerCase();
     const alias = METRIC_ALIASES[name];
+
     return bestFace(faces, name, bold, italic) ?? (alias ? bestFace(faces, alias, bold, italic) : undefined);
 }
 
@@ -110,6 +124,7 @@ export function faceChain(faces: readonly Face[], { family, fallbacks, lang, bol
     const byLang = lang === undefined ? undefined : CJK_FALLBACK_BY_LANG[lang.toLowerCase()];
     const rest = [...fallbacks, ...(byLang ? [byLang] : []), ...FALLBACK_FAMILIES].map(name => familyFace(faces, name, bold, italic));
     const chain = [...new Set([own, ...rest, faces[0]].filter((face): face is Face => face !== undefined))];
+
     return { faces: chain, found: own !== undefined };
 }
 

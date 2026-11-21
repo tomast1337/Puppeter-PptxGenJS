@@ -24,56 +24,80 @@ const TRANSPARENT: Color = { rgb: [0, 0, 0], alpha: 0 };
 function declarations(text: string): string[] {
     const parts: string[] = [];
     let [start, depth, quote] = [0, 0, ""];
+
     for (let index = 0; index < text.length; index++) {
         const char = text.charAt(index);
+
         if (quote) {
-            if (char === "\\") index++;
-            else if (char === quote) quote = "";
-        } else if (char === '"' || char === "'") quote = char;
-        else if (char === "(") depth++;
-        else if (char === ")") depth = Math.max(0, depth - 1);
-        else if (char === ";" && depth === 0) {
+            if (char === "\\") {
+                index++;
+            } else if (char === quote) {
+                quote = "";
+            }
+        } else if (char === '"' || char === "'") {
+            quote = char;
+        } else if (char === "(") {
+            depth++;
+        } else if (char === ")") {
+            depth = Math.max(0, depth - 1);
+        } else if (char === ";" && depth === 0) {
             parts.push(text.slice(start, index));
             start = index + 1;
         }
     }
+
     parts.push(text.slice(start));
+
     return parts;
 }
 
 export function readStyle(element: Element): Style {
     const style: Style = new Map();
+
     for (const declaration of declarations(attribute(element, "style") ?? "")) {
         const colon = declaration.indexOf(":");
-        if (colon < 0) continue;
+
+        if (colon < 0) {
+            continue;
+        }
+
         style.set(declaration.slice(0, colon).trim().toLowerCase(), declaration.slice(colon + 1).trim());
     }
+
     return style;
 }
 
 /** The property's value, removed from `style` so it does not count as unread. */
 export function take(style: Style, property: string): string | undefined {
     const value = style.get(property);
+
     style.delete(property);
+
     return value;
 }
 
 /** A `<n>px` length (or a bare `0`); undefined for anything else. */
 export function px(value: string | undefined): number | undefined {
-    if (value === "0") return 0;
+    if (value === "0") {
+        return 0;
+    }
+
     const match = value === undefined ? null : PX_LENGTH.exec(value);
+
     return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 
 /** An `<n>em` length; undefined for anything else. */
 export function em(value: string | undefined): number | undefined {
     const match = value === undefined ? null : EM_LENGTH.exec(value);
+
     return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 
 /** A px length, or a percentage of `base`. */
 export function length(value: string | undefined, base: number): number | undefined {
     const percent = value === undefined ? null : PERCENT_LENGTH.exec(value);
+
     return percent?.[1] === undefined ? px(value) : (Number(percent[1]) / 100) * base;
 }
 
@@ -81,21 +105,35 @@ export function length(value: string | undefined, base: number): number | undefi
 export function sides(value: string | undefined): [number, number, number, number] | undefined {
     const parts = value?.split(/\s+/).map(px) ?? [];
     const [top, right, bottom, left] = parts;
+
     return parts.length === 4 && top !== undefined && right !== undefined && bottom !== undefined && left !== undefined ? [top, right, bottom, left] : undefined;
 }
 
 /** `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` or `transparent`: the forms the profile writes. Undefined for others. */
 export function color(value: string | undefined): Color | undefined {
-    if (value === undefined) return undefined;
-    if (value === "transparent" || value === "none") return TRANSPARENT;
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (value === "transparent" || value === "none") {
+        return TRANSPARENT;
+    }
+
     const hex = HEX_COLOR.exec(value)?.[1];
+
     if (hex !== undefined) {
         const full = hex.length === SHORT_HEX_LENGTH ? [...hex].map(digit => digit + digit).join("") : hex;
         const channel = (index: number) => Number.parseInt(full.slice(index * 2, index * 2 + 2), 16);
+
         return { rgb: [channel(0), channel(1), channel(2)], alpha: full.length > 6 ? channel(3) / FULL_ALPHA : 1 };
     }
+
     const rgb = RGB_COLOR.exec(value);
-    if (!rgb) return undefined;
+
+    if (!rgb) {
+        return undefined;
+    }
+
     return { rgb: [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])], alpha: rgb[4] === undefined ? 1 : Number(rgb[4]) };
 }
 
@@ -109,16 +147,26 @@ const FAMILY_SEPARATOR = ", ";
 export function cssStrings(value: string): string[] | undefined {
     const families: string[] = [];
     let index = 0;
+
     while (index < value.length) {
         if (families.length) {
-            if (!value.startsWith(FAMILY_SEPARATOR, index)) return undefined;
+            if (!value.startsWith(FAMILY_SEPARATOR, index)) {
+                return undefined;
+            }
+
             index += FAMILY_SEPARATOR.length;
         }
+
         CSS_STRING.lastIndex = index;
         const quoted = CSS_STRING.exec(value)?.[1];
-        if (quoted === undefined) return undefined;
+
+        if (quoted === undefined) {
+            return undefined;
+        }
+
         families.push(quoted.replace(/\\(.)/g, "$1"));
         index = CSS_STRING.lastIndex;
     }
+
     return families.length ? families : undefined;
 }
