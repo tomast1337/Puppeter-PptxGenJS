@@ -15,29 +15,6 @@ const ROWS: PptxGenJS.TableRow[] = [
     [{ text: "D" }, { text: "E" }, { text: "F" }],
 ];
 
-/** The `<a:gridCol>` widths PptxGenJS 4.0.1 writes on the first slide, in CSS pixels. */
-async function gridColumns(build: Build): Promise<number[]> {
-    const pptx = new PptxGenJSRuntime();
-
-    build(pptx.addSlide());
-    // `as`: write() returns a Buffer for the nodebuffer output type.
-    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
-    const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
-
-    return [...xml.matchAll(/<a:gridCol w="(\d+)"/g)].map(([, emu]) => emuToPixels(Number(emu)));
-}
-
-/** The column widths PdfLapas models for the first table of the same slide. */
-function ourColumns(build: Build): number[] {
-    const presentation = new PuppeteerGen();
-
-    // `as`: PuppeteerSlide implements the PptxGenJS slide API the builders call.
-    build(presentation.addSlide() as unknown as PptxGenJS.Slide);
-    const table = presentation.getModel().slides[0]?.objects.find(object => object.kind === "table");
-
-    return table?.kind === "table" ? [...table.table.columns] : [];
-}
-
 describe("table colW against the column count (PptxGenJS 4.0.1 gridCol)", () => {
     test.each<[string, PptxGenJS.TableProps]>([
         ["shorter colW", { colW: [1, 2] }],
@@ -61,6 +38,21 @@ describe("table colW against the column count (PptxGenJS 4.0.1 gridCol)", () => 
     ])("sizes the columns of %s as PptxGenJS does", async (_, options) => {
         const build: Build = slide => slide.addTable(structuredClone(ROWS), structuredClone(options));
 
-        expect(ourColumns(build)).toEqual((await gridColumns(build)).map(width => expect.closeTo(width, 1)));
+        // The column widths PdfLapas models for the first table of the slide.
+        const presentation = new PuppeteerGen();
+
+        // `as`: PuppeteerSlide implements the PptxGenJS slide API the builders call.
+        build(presentation.addSlide() as unknown as PptxGenJS.Slide);
+        const table = presentation.getModel().slides[0]?.objects.find(object => object.kind === "table");
+        const ours = table?.kind === "table" ? [...table.table.columns] : [];
+        // The `<a:gridCol>` widths PptxGenJS 4.0.1 writes on the same slide, in CSS pixels.
+        const pptx = new PptxGenJSRuntime();
+
+        build(pptx.addSlide());
+        // `as`: write() returns a Buffer for the nodebuffer output type.
+        const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+        const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+
+        expect(ours).toEqual([...xml.matchAll(/<a:gridCol w="(\d+)"/g)].map(([, emu]) => expect.closeTo(emuToPixels(Number(emu)), 1)));
     });
 });

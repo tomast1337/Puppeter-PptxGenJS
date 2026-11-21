@@ -3,7 +3,6 @@ import { renderedPage } from "./renderedPage";
 import PptxGenJSRuntime from "pptxgenjs";
 import type PptxGenJS from "pptxgenjs";
 import JSZip from "jszip";
-import type { NormalizedTable } from "@pdflapas/model";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
 import { paginateTableRows } from "../packages/pptxgenjs/src/normalize/table/pagination";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
@@ -85,16 +84,23 @@ describe("table auto-pagination", () => {
 
         expect(narrow.length).toBeGreaterThan(wide.length);
 
-        const reconstructed = narrow
-            .flatMap(page => page.rows)
-            .flatMap(row => {
+        const pieces: string[] = [];
+
+        for (const page of narrow) {
+            for (const row of page.rows) {
                 const value = row[0]?.text;
 
-                return Array.isArray(value) ? value.map(piece => String(piece.text ?? "")) : [String(value ?? "")];
-            })
-            .join("")
-            .replaceAll(/\s+/g, " ")
-            .trim();
+                if (Array.isArray(value)) {
+                    for (const piece of value) {
+                        pieces.push(String(piece.text ?? ""));
+                    }
+                } else {
+                    pieces.push(String(value ?? ""));
+                }
+            }
+        }
+
+        const reconstructed = pieces.join("").replaceAll(/\s+/g, " ").trim();
 
         expect(reconstructed).toBe(text);
     });
@@ -157,27 +163,6 @@ describe("table auto-pagination", () => {
     });
 });
 
-/** Row heights in inches per slide, as PptxGenJS 4.0.1 writes them to `<a:tr h>`; 0 lets the row size to its content. */
-async function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Promise<number[][]> {
-    const pptx = new PptxGenJSRuntime();
-
-    pptx.layout = "LAYOUT_16x9";
-    pptx.addSlide().addTable(rows, options);
-    // `as`: write() returns a Buffer for the nodebuffer output type.
-    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
-    const slides = Object.keys(zip.files)
-        .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
-        .sort((a, b) => Number(/\d+/.exec(a)?.[0]) - Number(/\d+/.exec(b)?.[0]));
-    const xmls = await Promise.all(slides.map(name => zip.file(name)?.async("string") ?? ""));
-
-    return xmls.map(xml => [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, emu]) => Number(emu) / PPTX_DEFAULTS.units.emuPerInch));
-}
-
-/** Row heights in inches per slide from our model; 0 is a row sized to its content. */
-function rowHeightsOf(presentation: PuppeteerGen): number[][] {
-    return presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? [object.table.rows.map(row => (row.height === undefined ? 0 : pixelsToInches(row.height)))] : [])));
-}
-
 describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: each page gets the caller's options)", () => {
     const round = (pages: number[][]) => pages.map(page => page.map(height => Number(height.toFixed(4))));
 
@@ -195,34 +180,31 @@ describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: eac
         const presentation = new PuppeteerGen(PAGE);
 
         presentation.addSlide().addTable(input, options);
-        const ours = round(rowHeightsOf(presentation));
+        // Row heights in inches per slide from our model; 0 is a row sized to its content.
+        const ours = round(presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? [object.table.rows.map(row => (row.height === undefined ? 0 : pixelsToInches(row.height)))] : []))));
 
         expect(ours.length).toBeGreaterThan(1);
-        // PptxGenJS writes into the rows and options it is given, so it gets copies.
-        expect(ours).toEqual(round(await pptxGenJsRowHeights(structuredClone(input), structuredClone(options))));
+        // Row heights in inches per slide, as PptxGenJS 4.0.1 writes them to `<a:tr h>`; 0 lets the row size to its
+        // content. PptxGenJS writes into the rows and options it is given, so it gets copies.
+        const pptx = new PptxGenJSRuntime();
+
+        pptx.layout = "LAYOUT_16x9";
+        pptx.addSlide().addTable(structuredClone(input), structuredClone(options));
+        // `as`: write() returns a Buffer for the nodebuffer output type.
+        const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+        const slides = Object.keys(zip.files)
+            .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+            .sort((a, b) => Number(/\d+/.exec(a)?.[0]) - Number(/\d+/.exec(b)?.[0]));
+        const xmls = await Promise.all(slides.map(name => zip.file(name)?.async("string") ?? ""));
+
+        expect(ours).toEqual(round(xmls.map(xml => [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, emu]) => Number(emu) / PPTX_DEFAULTS.units.emuPerInch))));
     });
 });
-
-/** PptxGenJS 4.0.1 autoPage pages: per slide, the text of each row's first cell, from its parsed word runs. */
-function pptxGenJsPages(input: unknown[], options: PptxGenJS.TableProps): string[][] {
-    const pptx = new PptxGenJSRuntime();
-
-    pptx.layout = "LAYOUT_16x9";
-    pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
-    // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
-    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: PptxGenJS.TableCell[][] }> }> })._slides;
-
-    return slides.map(slide => (slide._slideObjects[0]?.arrTabRows ?? []).map(row => firstCellText(row)));
-}
 
 function firstCellText(row: PptxGenJS.TableRow): string {
     const text: unknown = row[0]?.text;
 
     return Array.isArray(text) ? text.map(run => (typeof run.text === "string" ? run.text : "")).join("") : String(text ?? "");
-}
-
-function ourPages(input: unknown[], options: PptxGenJS.TableProps): string[][] {
-    return paginateTableRows(structuredClone(input) as PptxGenJS.TableRow[], options, PAGE).map(page => page.rows.map(row => firstCellText(row)));
 }
 
 describe("autoPage line counting (PptxGenJS 4.0.1 parseTextToLines and getSlidesForTableRows E-3)", () => {
@@ -240,38 +222,21 @@ describe("autoPage line counting (PptxGenJS 4.0.1 parseTextToLines and getSlides
         // A falsy cell or table fontSize is skipped for the line height.
         ["a zero cell fontSize", Array.from({ length: 30 }, (_, index) => [{ text: `${index}`, options: { fontSize: 0 } }, { text: "x" }]), { autoPage: true, fontSize: 20 }],
     ])("splits rows as PptxGenJS does with %s", (_, input, options) => {
-        const theirs = pptxGenJsPages(input, options);
+        // PptxGenJS 4.0.1 autoPage pages: per slide, the text of each row's first cell, from its parsed word runs.
+        const pptx = new PptxGenJSRuntime();
+
+        pptx.layout = "LAYOUT_16x9";
+        pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
+        // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
+        const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: PptxGenJS.TableCell[][] }> }> })._slides;
+        const theirs = slides.map(slide => (slide._slideObjects[0]?.arrTabRows ?? []).map(row => firstCellText(row)));
 
         expect(theirs.length).toBeGreaterThan(1);
-        expect(ourPages(input, options).map(page => page.length)).toEqual(theirs.map(page => page.length));
+        const ours = paginateTableRows(structuredClone(input) as PptxGenJS.TableRow[], options, PAGE).map(page => page.rows.map(row => firstCellText(row)));
+
+        expect(ours.map(page => page.length)).toEqual(theirs.map(page => page.length));
     });
 });
-
-/** Per slide, per cell: the paragraphs PptxGenJS 4.0.1 writes into the slide XML, each as its runs joined by "+". */
-async function pptxGenJsParagraphs(input: unknown[], options: PptxGenJS.TableProps): Promise<string[][]> {
-    const pptx = new PptxGenJSRuntime();
-
-    pptx.layout = "LAYOUT_16x9";
-    pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
-    // `as`: write() returns a Buffer for the nodebuffer output type.
-    const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
-    const names = Object.keys(zip.files)
-        .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
-        .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-    const slides = await Promise.all(names.map(async name => (await zip.file(name)?.async("string")) ?? ""));
-    const runs = (paragraph: string): string => [...paragraph.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, text]) => text).join("+");
-
-    return slides.map(xml => [...xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)].map(([, cell]) => [...(cell ?? "").matchAll(/<a:p>(.*?)<\/a:p>/g)].map(([, paragraph]) => runs(paragraph ?? "")).join(" || ")));
-}
-
-function ourParagraphs(input: unknown[], options: PptxGenJS.TableProps): string[][] {
-    const presentation = new PuppeteerGen(PAGE);
-
-    presentation.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], options);
-    const cells = (table: NormalizedTable): string[] => table.rows.flatMap(row => row.cells.map(cell => cell.text.paragraphs.map(paragraph => paragraph.runs.flatMap(run => (run.text ? [run.text] : [])).join("+")).join(" || ")));
-
-    return presentation.getModel().slides.map(slide => slide.objects.flatMap(object => (object.kind === "table" ? cells(object.table) : [])));
-}
 
 describe("autoPage rows are drawn from PptxGenJS's parsed words (getSlidesForTableRows step 6 E, 4)", () => {
     const long = Array.from({ length: 80 }, (_, index) => `word${index}`).join(" ");
@@ -297,6 +262,59 @@ describe("autoPage rows are drawn from PptxGenJS's parsed words (getSlidesForTab
             { autoPage: true },
         ],
     ])("matches the slide XML for %s", async (_, input, options) => {
-        expect(ourParagraphs(input, options)).toEqual(await pptxGenJsParagraphs(input, options));
+        // Per slide, per cell: our paragraphs, then those PptxGenJS 4.0.1 writes into the slide XML, each as its runs
+        // joined by "+".
+        const presentation = new PuppeteerGen(PAGE);
+
+        presentation.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], options);
+        const ours: string[][] = [];
+
+        for (const slide of presentation.getModel().slides) {
+            const cells: string[] = [];
+
+            for (const object of slide.objects) {
+                if (object.kind !== "table") {
+                    continue;
+                }
+
+                for (const row of object.table.rows) {
+                    for (const cell of row.cells) {
+                        cells.push(cell.text.paragraphs.map(paragraph => paragraph.runs.flatMap(run => (run.text ? [run.text] : [])).join("+")).join(" || "));
+                    }
+                }
+            }
+
+            ours.push(cells);
+        }
+
+        const pptx = new PptxGenJSRuntime();
+
+        pptx.layout = "LAYOUT_16x9";
+        pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
+        // `as`: write() returns a Buffer for the nodebuffer output type.
+        const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+        const names = Object.keys(zip.files)
+            .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+            .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+        const slides = await Promise.all(names.map(async name => (await zip.file(name)?.async("string")) ?? ""));
+        const theirs: string[][] = [];
+
+        for (const xml of slides) {
+            const cells: string[] = [];
+
+            for (const [, cell] of xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)) {
+                const paragraphs: string[] = [];
+
+                for (const [, paragraph] of (cell ?? "").matchAll(/<a:p>(.*?)<\/a:p>/g)) {
+                    paragraphs.push([...(paragraph ?? "").matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, text]) => text).join("+"));
+                }
+
+                cells.push(paragraphs.join(" || "));
+            }
+
+            theirs.push(cells);
+        }
+
+        expect(ours).toEqual(theirs);
     });
 });

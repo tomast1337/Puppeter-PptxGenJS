@@ -7,7 +7,7 @@ import { normalizeHtmlTable } from "../packages/pptxgenjs/src/normalize/table/ht
 import { createNodeDocument, PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { PAGE_SIZES } from "../packages/pptxgenjs/src/pageLayouts";
 import { PPTX_DEFAULTS } from "../packages/pptxgenjs/src/defaults";
-import { pointsToPixels } from "@pdflapas/model";
+import { type NormalizedTextRun, pointsToPixels } from "@pdflapas/model";
 
 const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 
@@ -144,30 +144,22 @@ describe("tableToSlides", () => {
         const slides = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-container");
 
         expect(slides.length).toBeGreaterThan(1);
-        slides.forEach(slide => {
+        for (const slide of slides) {
             expect(slide.querySelectorAll(".slide-table-container").length).toBe(2);
             expect(slide.querySelector(".slide-text")?.textContent).toBe("Generated");
             expect(slide.querySelectorAll(".slide-shape")).toHaveLength(1);
             expect(slide.querySelectorAll(".slide-image")).toHaveLength(1);
-        });
+        }
+
         expect(slides[1]?.querySelector("td")?.textContent).toBe("ID");
     });
 });
 
 /**
- * PptxGenJS 4.0.1 tableToSlides on the same table: per slide, its rows and the `h`/`rowH` of the table it drew. It reads
+ * PptxGenJS 4.0.1 tableToSlides("source") on `html`, in a jsdom document installed as the global one meanwhile. It reads
  * the global `document` and `window`, and the `offsetWidth` and `innerText` jsdom leaves out (shimmed as in
  * tests/visual/compare.ts).
  */
-function pptxGenJsTableToSlides(rowCount: number, options: PptxGenJS.TableToSlidesProps): Array<{ rows: number; h: unknown; rowH: unknown }> {
-    const pptx = runPptxGenJsTableToSlides(tableHtml(rowCount), options);
-    // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
-    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: unknown[]; options: { h?: unknown; rowH?: unknown } }> }> })._slides;
-
-    return slides.map(slide => ({ rows: slide._slideObjects[0]?.arrTabRows.length ?? 0, h: slide._slideObjects[0]?.options.h, rowH: slide._slideObjects[0]?.options.rowH }));
-}
-
-/** PptxGenJS 4.0.1 tableToSlides("source") on `html`, in a jsdom document installed as the global one meanwhile. */
 function runPptxGenJsTableToSlides(html: string, options: PptxGenJS.TableToSlidesProps): PptxGenJSRuntime {
     const document = createNodeDocument();
     const view = document.defaultView!;
@@ -180,7 +172,9 @@ function runPptxGenJsTableToSlides(html: string, options: PptxGenJS.TableToSlide
     });
     Object.defineProperty(view.HTMLElement.prototype, "innerText", {
         get: function (this: HTMLElement) {
-            return textOf(this, view);
+            const read = (child: Node): string => (child.nodeType === child.TEXT_NODE ? (child.nodeValue ?? "") : child instanceof view.HTMLBRElement ? "\n" : Array.from(child.childNodes).map(read).join(""));
+
+            return read(this).trim();
         },
     });
     const global = globalThis as { document?: Document; window?: Window };
@@ -199,12 +193,6 @@ function runPptxGenJsTableToSlides(html: string, options: PptxGenJS.TableToSlide
     }
 }
 
-function textOf(node: Node, view: Window & typeof globalThis): string {
-    const read = (child: Node): string => (child.nodeType === child.TEXT_NODE ? (child.nodeValue ?? "") : child instanceof view.HTMLBRElement ? "\n" : Array.from(child.childNodes).map(read).join(""));
-
-    return read(node).trim();
-}
-
 // PptxGenJS 4.0.1 genTableToSlides (step 5 C) adds each table with only x, y, w and colW: `h` and `rowH` decide how
 // many rows fit on a slide, then the drawn rows size to their content on every slide.
 test.each<[string, PptxGenJS.TableToSlidesProps]>([
@@ -216,7 +204,11 @@ test.each<[string, PptxGenJS.TableToSlidesProps]>([
 
     presentation.tableToSlides(sourceTable(30), options);
     const tables = presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? [object.table] : [])));
-    const theirs = pptxGenJsTableToSlides(30, options);
+    // PptxGenJS 4.0.1 tableToSlides on the same table: per slide, its rows and the `h`/`rowH` of the table it drew.
+    const pptx = runPptxGenJsTableToSlides(tableHtml(30), options);
+    // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
+    const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: unknown[]; options: { h?: unknown; rowH?: unknown } }> }> })._slides;
+    const theirs = slides.map(slide => ({ rows: slide._slideObjects[0]?.arrTabRows.length ?? 0, h: slide._slideObjects[0]?.options.h, rowH: slide._slideObjects[0]?.options.rowH }));
 
     expect(tables.length).toBeGreaterThan(1);
     expect(theirs.every(table => table.h === undefined && table.rowH === undefined)).toBe(true);
@@ -250,5 +242,13 @@ test("tableToSlides draws a jsdom cell without a font size at the deck's default
     ours.tableToSlides(document.getElementById("source") as HTMLTableElement);
     const runs = ours.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs))) : [])));
 
-    expect(runs.filter(run => run.text).map(run => run.fontSize)).toEqual([pointsToPixels(PPTX_DEFAULTS.table.unsizedRunFontSizePt), pointsToPixels(10)]);
+    const sizes: NormalizedTextRun["fontSize"][] = [];
+
+    for (const run of runs) {
+        if (run.text) {
+            sizes.push(run.fontSize);
+        }
+    }
+
+    expect(sizes).toEqual([pointsToPixels(PPTX_DEFAULTS.table.unsizedRunFontSizePt), pointsToPixels(10)]);
 });
