@@ -20,15 +20,18 @@ describe("POWERPOINT_FACES", () => {
 
     test("is the table in docs/USAGE.md", async () => {
         const section = (await readFile(USAGE, "utf8")).split("### Fonts for the PowerPoint target")[1] ?? "";
-        const rows = section
-            .split("\n")
-            .filter(line => line.startsWith("| ") && !line.startsWith("| Face") && !line.startsWith("| --"))
-            .map(line =>
-                line
-                    .split("|")
-                    .slice(1, -1)
-                    .map(cell => cell.trim()),
-            );
+        const rows: string[][] = [];
+
+        for (const line of section.split("\n")) {
+            if (line.startsWith("| ") && !line.startsWith("| Face") && !line.startsWith("| --")) {
+                rows.push(
+                    line
+                        .split("|")
+                        .slice(1, -1)
+                        .map(cell => cell.trim()),
+                );
+            }
+        }
 
         expect(rows).toEqual(POWERPOINT_FACES.map(({ name, role, withoutIt }) => [name, role, withoutIt]));
     });

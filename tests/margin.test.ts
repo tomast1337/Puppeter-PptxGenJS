@@ -20,7 +20,17 @@ function pptxGenJsPages(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProp
     // `as`: `_slides`, `_slideObjects`, `arrTabRows` and the EMU `options.y` are PptxGenJS 4.0.1 internals the types omit.
     const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ _type: string; arrTabRows: unknown[]; options: { y: number } }> }> })._slides;
 
-    return slides.flatMap(slide => slide._slideObjects.filter(object => object._type === "table").map(table => ({ rows: table.arrTabRows.length, y: table.options.y / PPTX_DEFAULTS.units.emuPerInch })));
+    const pages: Array<{ rows: number; y: number }> = [];
+
+    for (const slide of slides) {
+        for (const table of slide._slideObjects) {
+            if (table._type === "table") {
+                pages.push({ rows: table.arrTabRows.length, y: table.options.y / PPTX_DEFAULTS.units.emuPerInch });
+            }
+        }
+    }
+
+    return pages;
 }
 
 describe("mapSides", () => {

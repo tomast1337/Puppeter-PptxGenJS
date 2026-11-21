@@ -822,7 +822,12 @@ describe("rendering targets in Chromium", () => {
                         const style = getComputedStyle(run);
 
                         context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-                        const advances = Array.from(run.textContent ?? "").reduce((sum, character) => sum + context.measureText(character).width, 0);
+                        let advances = 0;
+
+                        for (const character of Array.from(run.textContent ?? "")) {
+                            advances += context.measureText(character).width;
+                        }
+
                         const lines = new Set(Array.from(run.getClientRects(), rect => Math.round(rect.top))).size;
 
                         return { width: run.getBoundingClientRect().width, advances, lines };

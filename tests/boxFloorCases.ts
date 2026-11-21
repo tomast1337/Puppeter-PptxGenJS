@@ -106,16 +106,20 @@ export function contextFloorCases(): BoxFloorCase[] {
 export function boxFloorCases(font: GlyphAdvances): BoxFloorCase[] {
     const grid = RENDERING_TARGETS.powerpoint.advanceGridPt ?? Number.NaN;
     const code = (character: string) => character.codePointAt(0) ?? 0;
-    const width = (text: string, size: number) =>
-        [...text].reduce((sum, character, index) => {
+
+    for (const [size, text, , , linePt] of BOXES) {
+        let width = 0;
+
+        for (const [index, character] of [...text].entries()) {
             const next = text[index + 1] ?? " ";
             const kern = ((font.kerning?.get(code(character))?.get(code(next)) ?? 0) * size) / font.unitsPerEm;
 
-            return sum + Math.round(((font.advances.get(code(character)) ?? 0) * size) / font.unitsPerEm / grid) * grid + kern;
-        }, 0);
+            width = width + Math.round(((font.advances.get(code(character)) ?? 0) * size) / font.unitsPerEm / grid) * grid + kern;
+        }
 
-    if (BOXES.some(([size, text, , , linePt]) => Math.abs(width(text, size) - linePt) > 1e-3)) {
-        return [];
+        if (Math.abs(width - linePt) > 1e-3) {
+            return [];
+        }
     }
 
     return BOXES.map(([fontSize, text, insetPt, widthEmu, linePt, fits]) => {

@@ -121,13 +121,13 @@ describe("the measured justified boxes, in both renderers", () => {
             await rm(directory, { recursive: true, force: true });
         }
     };
-    const check = (pages: Awaited<ReturnType<typeof drawnLines>>) =>
-        CASES.forEach(({ label, lines, justified }, index) => {
+    const check = (pages: Awaited<ReturnType<typeof drawnLines>>) => {
+        for (const [index, { label, lines, justified }] of CASES.entries()) {
             const drawn = pages[index] ?? [];
 
             // Without spaces: pdftotext also splits words at the U+200B the target writes around full-width punctuation.
             expect({ label, lines: drawn.map(words => words.map(({ text }) => text).join("")) }).toEqual({ label, lines: lines.map(line => line.replaceAll(" ", "")) });
-            drawn.slice(0, -1).forEach(words => {
+            for (const words of drawn.slice(0, -1)) {
                 const end = words[words.length - 1]?.right ?? 0;
 
                 // PowerPoint: to the edge with a space on the line, else short of it, where the left-aligned line ends (a
@@ -137,8 +137,9 @@ describe("the measured justified boxes, in both renderers", () => {
                 for (const { text, left, right } of words.filter(({ raw }) => HAN.test(raw))) {
                     expect({ label, text, width: Math.abs(right - left - [...text].length * SIZE_PT) < 0.15 }).toEqual({ label, text, width: true });
                 }
-            });
-        });
+            }
+        }
+    };
 
     test.skipIf(!ready)("widens only the spaces of each line, in Chromium", async () => check(await drawnLines(await deck(new PuppeteerGenPowerPoint()).toPdf())), 60_000);
 

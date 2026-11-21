@@ -50,21 +50,18 @@ describe("East Asian line breaks on the PowerPoint target", () => {
         expect(hangingSegments("内容，其他", undefined, "")).toEqual([{ text: "内容，其他", hangs: false }]);
     });
 
-    /** A model run of "，" at 10pt, as normalization gives it on the LibreOffice target (no hang). */
-    const modelRun = (): NormalizedTextRun => {
-        const presentation = new PuppeteerGenLibreOffice();
+    // A model run of "，" at 10pt, as normalization gives it on the LibreOffice target (no hang).
+    const libreOffice = new PuppeteerGenLibreOffice();
 
-        presentation.addSlide().addText("，", { x: 0, y: 0, w: 2, h: 1, fontSize: 10 });
-        const object = presentation.getModel().slides[0]?.objects[0];
-        const run = object?.kind === "text" ? object.text.paragraphs[0]?.runs[0] : undefined;
+    libreOffice.addSlide().addText("，", { x: 0, y: 0, w: 2, h: 1, fontSize: 10 });
+    const modelObject = libreOffice.getModel().slides[0]?.objects[0];
+    const modelRun = modelObject?.kind === "text" ? modelObject.text.paragraphs[0]?.runs[0] : undefined;
 
-        if (!run) {
-            throw new Error("The deck has no text run.");
-        }
+    if (!modelRun) {
+        throw new Error("The deck has no text run.");
+    }
 
-        return run;
-    };
-    const mark: NormalizedTextRun = { ...modelRun(), characterSpacing: 0.25, softBreakBefore: true };
+    const mark: NormalizedTextRun = { ...modelRun, characterSpacing: 0.25, softBreakBefore: true };
     const size = mark.fontSize;
 
     test("draws a hanging mark with no advance, then a U+3000 as wide as the mark was laid out", () => {
@@ -157,12 +154,19 @@ async function drawnLines(pdf: Uint8Array, pages: number): Promise<number[][]> {
         return text
             .split("\f")
             .slice(0, pages)
-            .map(page =>
-                page
-                    .split("\n")
-                    .map(line => [...line.replace(/[\s\u3000\u200b⁠]/gu, "")].length)
-                    .filter(Boolean),
-            );
+            .map(page => {
+                const counts: number[] = [];
+
+                for (const line of page.split("\n")) {
+                    const count = [...line.replace(/[\s\u3000\u200b⁠]/gu, "")].length;
+
+                    if (count) {
+                        counts.push(count);
+                    }
+                }
+
+                return counts;
+            });
     } finally {
         await rm(directory, { recursive: true, force: true });
     }

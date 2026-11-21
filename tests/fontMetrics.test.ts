@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type PptxGenJS from "pptxgenjs";
 import { existsSync, readFileSync } from "node:fs";
 import { FontFileError, PuppeteerGen, PuppeteerGenLibreOffice, PuppeteerGenPowerPoint, readFontWinMetrics } from "../packages/pptxgenjs/src/index";
-import { FONT_WIN_METRICS, type FontWinMetrics } from "../packages/pptxgenjs/src/defaults";
+import { FONT_WIN_METRICS, type FontMetricsLookup, type FontWinMetrics } from "../packages/pptxgenjs/src/defaults";
 import { normalizeText } from "../packages/pptxgenjs/src/normalize/text";
 import { fontMetricsLookup } from "../packages/pptxgenjs/src/fontMetrics";
 import { resolveInstalledFontMetrics, resolveInstalledGlyphAdvances } from "../packages/pptxgenjs/src/node";
@@ -15,14 +15,20 @@ import { resolveInstalledFontMetrics, resolveInstalledGlyphAdvances } from "../p
 function sfnt({ unitsPerEm = 1000, winAscent = 950, winDescent = 250, os2Length = 78, base = 0, kern = undefined as Uint8Array | undefined, gpos = false, version = 0x00010000 } = {}): Uint8Array {
     const tables = [{ tag: "OS/2", length: os2Length }, { tag: "head", length: 54 }, ...(kern ? [{ tag: "kern", length: kern.length }] : []), ...(gpos ? [{ tag: "GPOS", length: 10 }] : [])];
     const directory = 12 + 16 * tables.length;
-    const bytes = new Uint8Array(directory + tables.reduce((sum, table) => sum + table.length, 0));
+    let tableBytes = 0;
+
+    for (const table of tables) {
+        tableBytes += table.length;
+    }
+
+    const bytes = new Uint8Array(directory + tableBytes);
     const view = new DataView(bytes.buffer);
 
     view.setUint32(0, version);
     view.setUint16(4, tables.length);
     let offset = directory;
 
-    tables.forEach((table, index) => {
+    for (const [index, table] of tables.entries()) {
         const record = 12 + 16 * index;
 
         bytes.set(
@@ -41,7 +47,7 @@ function sfnt({ unitsPerEm = 1000, winAscent = 950, winDescent = 250, os2Length 
         }
 
         offset += table.length;
-    });
+    }
 
     return bytes;
 }
@@ -66,22 +72,23 @@ function ttc(...faces: ((base: number) => Uint8Array)[]): Uint8Array {
     view.setUint32(4, 0x00010000);
     view.setUint32(8, faces.length);
     offset = header;
-    fonts.forEach((font, index) => {
+    for (const [index, font] of fonts.entries()) {
         view.setUint32(12 + 4 * index, offset);
         bytes.set(font, offset);
         offset += font.length;
-    });
+    }
 
     return bytes;
 }
 
-function installedFont(family: string): string | undefined {
+/** The file fontconfig matches `family` to, when it exists. */
+function installedFont(family: string): { kind: "installed"; file: string } | { kind: "missing" } {
     try {
         const file = Bun.spawnSync(["fc-match", "-f", "%{file}", family]).stdout.toString();
 
-        return file && existsSync(file) ? file : undefined;
+        return file && existsSync(file) ? { kind: "installed", file } : { kind: "missing" };
     } catch {
-        return undefined;
+        return { kind: "missing" };
     }
 }
 
@@ -90,7 +97,9 @@ function words(...values: number[]): Uint8Array {
     const bytes = new Uint8Array(2 * values.length);
     const view = new DataView(bytes.buffer);
 
-    values.forEach((value, index) => view.setUint16(2 * index, value));
+    for (const [index, value] of values.entries()) {
+        view.setUint16(2 * index, value);
+    }
 
     return bytes;
 }
@@ -162,12 +171,15 @@ describe("fontMetrics option", () => {
 
             return (await presentation.toHtml()).html;
         };
-        const geometry = (document: string) => [...document.matchAll(/class="text-run"[^>]*style="[^"]*?(text-decoration-thickness: [^;]*;(?: text-underline-[a-z]*: [^;]*;)?)/g)].map(match => match[1]);
+
         const fontMetrics = { "My Brand Sans": { ...BRAND, underline }, "My Brand Serif": BRAND };
         const powerPoint = await html(new PuppeteerGenPowerPoint(undefined, { fontMetrics }));
 
         // CSS's offset is the band's top below the baseline: post's position negated.
-        expect(geometry(powerPoint)).toEqual(["text-decoration-thickness: 0.072em; text-underline-offset: 0.045em;", "text-decoration-thickness: from-font; text-underline-position: from-font;"]);
+        expect([...powerPoint.matchAll(/class="text-run"[^>]*style="[^"]*?(text-decoration-thickness: [^;]*;(?: text-underline-[a-z]*: [^;]*;)?)/g)].map(match => match[1])).toEqual([
+            "text-decoration-thickness: 0.072em; text-underline-offset: 0.045em;",
+            "text-decoration-thickness: from-font; text-underline-position: from-font;",
+        ]);
         expect(await html(new PuppeteerGenPowerPoint(undefined, { fontMetrics }))).toBe(powerPoint);
         expect(await html(new PuppeteerGenLibreOffice(undefined, { fontMetrics }))).toBe(await html(new PuppeteerGenLibreOffice()));
     });
@@ -185,7 +197,7 @@ describe("fontMetrics option", () => {
 
     // 18pt = 24px on a 28.8px line: the baseline is the line's winAscent share, on the PowerPoint target's 1/600 in grid.
     test("the PowerPoint target places a single-spaced baseline from the caller's metrics; LibreOffice ignores them", () => {
-        const baseline = (fontFace: string, target: "libreoffice" | "powerpoint", fontMetrics?: (face: string) => FontWinMetrics | undefined) => normalizeText("Line", { fontFace, fontSize: 18 }, target, fontMetrics).paragraphs[0]?.lineBox.baseline;
+        const baseline = (fontFace: string, target: "libreoffice" | "powerpoint", fontMetrics?: FontMetricsLookup) => normalizeText("Line", { fontFace, fontSize: 18 }, target, fontMetrics).paragraphs[0]?.lineBox.baseline;
         const table = fontMetricsLookup({ "My Brand Sans": BRAND, Arial: { unitsPerEm: 1000, winAscent: 800, winDescent: 200 } }, null);
 
         // An unlisted face: 1em without the option, 28.8 x 950/1200 = 22.8 (22.72 on the grid) with it.
@@ -229,8 +241,8 @@ describe("fontMetrics option", () => {
 describe("readFontWinMetrics", () => {
     const liberationSans = installedFont("Liberation Sans");
 
-    test.skipIf(liberationSans === undefined || !liberationSans.endsWith("LiberationSans-Regular.ttf"))("reads Liberation Sans, Arial's metric-compatible face, as FONT_WIN_METRICS.arial", () => {
-        const metrics = readFontWinMetrics(readFileSync(liberationSans ?? ""));
+    test.skipIf(liberationSans.kind === "missing" || !liberationSans.file.endsWith("LiberationSans-Regular.ttf"))("reads Liberation Sans, Arial's metric-compatible face, as FONT_WIN_METRICS.arial", () => {
+        const metrics = readFontWinMetrics(readFileSync(liberationSans.kind === "installed" ? liberationSans.file : ""));
 
         expect(metrics).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
         expect(metrics).toEqual(FONT_WIN_METRICS.arial!);
@@ -334,7 +346,10 @@ describe("resolveFontMetrics option", () => {
     const baselines = async (presentation: PuppeteerGen, faces: string[]) => {
         const slide = presentation.addSlide();
 
-        faces.forEach((fontFace, index) => slide.addText("Line", { x: 1, y: 0.5 + index, w: 3, h: 1, fontFace, fontSize: 18 }));
+        for (const [index, fontFace] of faces.entries()) {
+            slide.addText("Line", { x: 1, y: 0.5 + index, w: 3, h: 1, fontFace, fontSize: 18 });
+        }
+
         const { html } = await presentation.toHtml();
 
         return [...html.matchAll(/class="text-paragraph" data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
@@ -375,7 +390,7 @@ describe("resolveFontMetrics option", () => {
 describe("resolveInstalledFontMetrics (the Node entry's default)", () => {
     const liberationSans = installedFont("Liberation Sans");
 
-    test.skipIf(liberationSans === undefined || !liberationSans.endsWith("LiberationSans-Regular.ttf"))("reads the installed Liberation Sans through fontconfig, case-insensitively", () => {
+    test.skipIf(liberationSans.kind === "missing" || !liberationSans.file.endsWith("LiberationSans-Regular.ttf"))("reads the installed Liberation Sans through fontconfig, case-insensitively", () => {
         // Liberation Sans carries a version 0 kern table, as Arial does.
         expect(resolveInstalledFontMetrics("Liberation Sans")).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
         expect(resolveInstalledFontMetrics("LIBERATION SANS")).toEqual({ unitsPerEm: 2048, winAscent: 1854, winDescent: 434, pairKerning: true });
@@ -383,7 +398,7 @@ describe("resolveInstalledFontMetrics (the Node entry's default)", () => {
 
     const liberationMono = installedFont("Liberation Mono");
 
-    test.skipIf(liberationMono === undefined || !liberationMono.endsWith("LiberationMono-Regular.ttf"))("reports a font with a GPOS table and no kern table as not pair-kerned", () => {
+    test.skipIf(liberationMono.kind === "missing" || !liberationMono.file.endsWith("LiberationMono-Regular.ttf"))("reports a font with a GPOS table and no kern table as not pair-kerned", () => {
         expect(resolveInstalledFontMetrics("Liberation Mono")?.pairKerning).toBe(false);
     });
 
