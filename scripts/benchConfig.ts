@@ -6,8 +6,16 @@ export const BENCH_RUNS_DEFAULT = { puppeteer: 5, wasmWarm: 20 } as const;
 /** `BENCH_RUNS` when set, else the bench's default. */
 export function benchRuns(bench: keyof typeof BENCH_RUNS_DEFAULT): number {
     const value = process.env.BENCH_RUNS;
-    if (value === undefined) return BENCH_RUNS_DEFAULT[bench];
+
+    if (value === undefined) {
+        return BENCH_RUNS_DEFAULT[bench];
+    }
+
     const runs = Number(value);
-    if (!Number.isInteger(runs) || runs < 1) throw new Error(`BENCH_RUNS must be a positive integer, got "${value}"`);
+
+    if (!Number.isInteger(runs) || runs < 1) {
+        throw new Error(`BENCH_RUNS must be a positive integer, got "${value}"`);
+    }
+
     return runs;
 }
