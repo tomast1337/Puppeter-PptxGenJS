@@ -26,6 +26,7 @@ export interface ModelToHtmlOptions {
 /** One document per call, created on first use. */
 export function lazyDocument(createDocument: () => Document): () => Document {
     let document: Document | undefined;
+
     return () => (document ??= createDocument());
 }
 
@@ -55,8 +56,12 @@ export async function trustedModelToHtml(model: NormalizedPresentation, options:
     const images = new Map<string, DataUri>();
     const pending = sources.values();
     const worker = async () => {
-        for (const source of pending) images.set(source, resolvedImageDataUri(source, await resolveImage(source)));
+        for (const source of pending) {
+            images.set(source, resolvedImageDataUri(source, await resolveImage(source)));
+        }
     };
+
     await Promise.all(Array.from({ length: Math.min(IMAGE_SOURCE_LIMITS.concurrency, sources.size) }, worker));
+
     return { html: presentationHtml(model, { components, images }), pageSize: model.pageSize };
 }

@@ -30,7 +30,13 @@ export type Attribute = readonly [name: string, value: string | undefined];
 /** The attributes in order, each with its leading space, as ` name="value"`. */
 function attributes(list: readonly Attribute[]): string {
     let html = "";
-    for (const [name, value] of list) if (value !== undefined) html += ` ${name}="${escapeAttribute(value)}"`;
+
+    for (const [name, value] of list) {
+        if (value !== undefined) {
+            html += ` ${name}="${escapeAttribute(value)}"`;
+        }
+    }
+
     return html;
 }
 
@@ -46,6 +52,9 @@ export function voidElement(tag: string, list: readonly Attribute[]): Html {
 
 /** A raw-text element (`<style>`): its text is written unescaped, so it must not hold its own end tag. */
 export function rawTextElement(tag: "style", list: readonly Attribute[], text: string): Html {
-    if (text.toLowerCase().includes(`</${tag}`)) throw new Error(`<${tag}> text must not contain "</${tag}": it would end the element early`);
+    if (text.toLowerCase().includes(`</${tag}`)) {
+        throw new Error(`<${tag}> text must not contain "</${tag}": it would end the element early`);
+    }
+
     return `<${tag}${attributes(list)}>${text}</${tag}>` as Html;
 }

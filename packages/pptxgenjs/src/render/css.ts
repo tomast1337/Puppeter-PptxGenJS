@@ -19,16 +19,24 @@ const CSS_FUNCTIONS: ReadonlySet<string> = new Set(["rotate", "scaleX", "scaleY"
 
 /** The `style` attribute, verbatim; an element without declarations gets none. */
 export function styleAttribute(style: InlineStyle): Attribute {
-    return ["style", style.size ? Array.from(style, ([property, value]) => `${property}: ${checkedValue(property, value)};`).join(" ") : undefined];
-}
+    if (!style.size) {
+        return ["style", undefined];
+    }
 
-/**
- * A value as it is, or an error if it could add a declaration or load a URL. Normalization checks every option that
- * reaches a value (GHSA-c8m6-398f-qcxr was an unchecked `align`), so this throwing is a PdfLapas bug, not bad input.
- */
-function checkedValue(property: string, value: string): string {
-    const bare = value.replace(CSS_STRING, "");
-    const calls = Array.from(bare.matchAll(CSS_FUNCTION), ([, name]) => name ?? "");
-    if (!CSS_DELIMITER.test(bare) && calls.every(name => CSS_FUNCTIONS.has(name))) return value;
-    throw new Error(`Refusing inline CSS ${property}: ${JSON.stringify(value)}: outside a quoted string a value holds no ; { } \\ or quote and calls only ${[...CSS_FUNCTIONS].join(", ")}. This is a PdfLapas bug: the option behind it should have been refused when it was normalized; please report it.`);
+    const declarations: string[] = [];
+
+    for (const [property, value] of style) {
+        // A value goes as it is, or throws if it could add a declaration or load a URL. Normalization checks every option
+        // that reaches a value (GHSA-c8m6-398f-qcxr was an unchecked `align`), so this throwing is a PdfLapas bug, not bad input.
+        const bare = value.replace(CSS_STRING, "");
+        const calls = Array.from(bare.matchAll(CSS_FUNCTION), ([, name]) => name ?? "");
+
+        if (CSS_DELIMITER.test(bare) || !calls.every(name => CSS_FUNCTIONS.has(name))) {
+            throw new Error(`Refusing inline CSS ${property}: ${JSON.stringify(value)}: outside a quoted string a value holds no ; { } \\ or quote and calls only ${[...CSS_FUNCTIONS].join(", ")}. This is a PdfLapas bug: the option behind it should have been refused when it was normalized; please report it.`);
+        }
+
+        declarations.push(`${property}: ${value};`);
+    }
+
+    return ["style", declarations.join(" ")];
 }

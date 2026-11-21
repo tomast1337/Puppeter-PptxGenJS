@@ -21,11 +21,8 @@ function shade(hex: string, amount: number): string {
     const value = hex.replace(/^#/, "");
     const channels = [0, 2, 4].map(offset => Number.parseInt(value.slice(offset, offset + 2), 16));
     const adjusted = channels.map(channel => (amount >= 0 ? Math.round(channel + (255 - channel) * amount) : Math.round(channel * (1 + amount))));
-    return `#${adjusted.map(channel => channel.toString(16).padStart(2, "0")).join("")}`;
-}
 
-function tickLabel(value: number): string {
-    return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+    return `#${adjusted.map(channel => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
 interface CameraPoint extends Point {
@@ -47,6 +44,7 @@ function view3D(chart: NormalizedChart, depth: number, height: number): (x: numb
     const pitch = chart.rotationX3D * DEGREE;
     const fieldOfView = (chart.perspective3D / 2) * DEGREE;
     const distance = chart.rightAngleAxes3D || fieldOfView === 0 ? Infinity : Math.hypot(1, depth, height) / (2 * Math.tan(fieldOfView / 2));
+
     return (x, y, z) => {
         const cx = x - 0.5;
         const cy = (y - 0.5) * height;
@@ -55,6 +53,7 @@ function view3D(chart: NormalizedChart, depth: number, height: number): (x: numb
         const up = cy * Math.cos(pitch) + turned * Math.sin(pitch);
         const along = -cy * Math.sin(pitch) + turned * Math.cos(pitch);
         const scale = distance === Infinity ? 1 : distance / (distance + along);
+
         return { x: (cx * Math.cos(yaw) + cz * Math.sin(yaw)) * scale, y: -up * scale, distance: along };
     };
 }
@@ -66,33 +65,8 @@ function boxBounds(camera: (x: number, y: number, z: number) => CameraPoint) {
     const points = BOX_CORNERS.map(([x, y, z]) => camera(x, y, z));
     const xs = points.map(point => point.x);
     const ys = points.map(point => point.y);
-    return { left: Math.min(...xs), top: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
-}
 
-/**
- * Fits the box into `area`. The depth is fixed (one series slot per category slot); the height is automatic, as in
- * LibreOffice (chart2 BarChart::getPreferredDiagramAspectRatio leaves Y free), so it is chosen to fill the area.
- */
-function fitView3D(chart: NormalizedChart, depth: number, area: { x: number; y: number; width: number; height: number }) {
-    const aspect = area.width / Math.max(1e-9, area.height);
-    // The box's screen aspect falls as it grows taller: bisect the height on a log scale.
-    let low = Math.log(0.02);
-    let high = Math.log(50);
-    for (let step = 0; step < 40; step++) {
-        const middle = (low + high) / 2;
-        const bounds = boxBounds(view3D(chart, depth, Math.exp(middle)));
-        if (bounds.width / Math.max(1e-9, bounds.height) > aspect) low = middle;
-        else high = middle;
-    }
-    const camera = view3D(chart, depth, Math.exp((low + high) / 2));
-    const bounds = boxBounds(camera);
-    const scale = Math.min(area.width / bounds.width, area.height / bounds.height);
-    const left = area.x + (area.width - bounds.width * scale) / 2 - bounds.left * scale;
-    const top = area.y + (area.height - bounds.height * scale) / 2 - bounds.top * scale;
-    return (x: number, y: number, z: number): CameraPoint => {
-        const point = camera(x, y, z);
-        return { x: left + point.x * scale, y: top + point.y * scale, distance: point.distance };
-    };
+    return { left: Math.min(...xs), top: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
 }
 
 /** Deterministic, browser-independent 3D bar projection used instead of WebGL. */
@@ -107,7 +81,36 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
     const top = gap + (chart.showTitle ? pointsToPixels(chart.titleFontSize) * lineEm + gap : 0);
     const bottom = gap + (chart.showLegend ? pointsToPixels(chart.legendFontSize) * lineEm + gap : 0) + pointsToPixels(chart.fontSize) * lineEm;
     const side = width * PPTX_DEFAULTS.chart.bar3DSideMarginRatio;
-    const camera = fitView3D(chart, (stacked ? 1 : seriesCount) / categoryCount, { x: side, y: top, width: width - 2 * side, height: height - top - bottom });
+    // Fits the box into the plot area. The depth is fixed (one series slot per category slot); the height is automatic, as
+    // in LibreOffice (chart2 BarChart::getPreferredDiagramAspectRatio leaves Y free), so it is chosen to fill the area.
+    const boxDepth = (stacked ? 1 : seriesCount) / categoryCount;
+    const area = { x: side, y: top, width: width - 2 * side, height: height - top - bottom };
+    const aspect = area.width / Math.max(1e-9, area.height);
+    // The box's screen aspect falls as it grows taller: bisect the height on a log scale.
+    let low = Math.log(0.02);
+    let high = Math.log(50);
+
+    for (let step = 0; step < 40; step++) {
+        const middle = (low + high) / 2;
+        const bounds = boxBounds(view3D(chart, boxDepth, Math.exp(middle)));
+
+        if (bounds.width / Math.max(1e-9, bounds.height) > aspect) {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+
+    const view = view3D(chart, boxDepth, Math.exp((low + high) / 2));
+    const bounds = boxBounds(view);
+    const fitScale = Math.min(area.width / bounds.width, area.height / bounds.height);
+    const fitLeft = area.x + (area.width - bounds.width * fitScale) / 2 - bounds.left * fitScale;
+    const fitTop = area.y + (area.height - bounds.height * fitScale) / 2 - bounds.top * fitScale;
+    const camera = (x: number, y: number, z: number): CameraPoint => {
+        const point = view(x, y, z);
+
+        return { x: fitLeft + point.x * fitScale, y: fitTop + point.y * fitScale, distance: point.distance };
+    };
     const minimum = chart.grouping === "percentStacked" ? 0 : chart.valueAxisMinimum;
     const maximum = chart.grouping === "percentStacked" ? 100 : chart.valueAxisMaximum;
     const range = Math.max(1e-9, maximum - minimum);
@@ -131,7 +134,9 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
         ["stroke-width", n(pointsToPixels(chart.gridLineWidth))],
     ];
     // Office draws the value gridlines across the side wall and the back wall, labelled at the wall's front edge.
-    const grid = Array.from({ length: tickCount + 1 }, (_, index) => {
+    const grid: Html[] = [];
+
+    for (let index = 0; index <= tickCount; index++) {
         const value = minimum + (range * index) / tickCount;
         const label = project(sideX, frontDepth, value);
         const line = [label, project(sideX, backDepth, value), project(otherX, backDepth, value)];
@@ -142,8 +147,12 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
                       ["text-anchor", "end"],
                   ]
                 : [["x", n(label.x + 8)]];
-        return [element("polyline", [["points", line.map(p).join(" ")], ...gridStroke]), element("text", [...labelX, ["y", n(label.y + 4)]], escapeText(tickLabel(value)))];
-    }).flat();
+
+        const tickLabel = Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+
+        grid.push(element("polyline", [["points", line.map(p).join(" ")], ...gridStroke]), element("text", [...labelX, ["y", n(label.y + 4)]], escapeText(tickLabel)));
+    }
+
     const backSideBottom = project(sideX, backDepth, minimum);
     const backSideTop = project(sideX, backDepth, maximum);
     const backOtherBottom = project(otherX, backDepth, minimum);
@@ -181,19 +190,34 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
     );
 
     const bars: Bar[] = [];
+
     if (chart.grouping === "stacked" || chart.grouping === "percentStacked") {
         for (let category = 0; category < categoryCount; category++) {
             let positive = 0;
             let negative = 0;
-            const total = chart.series.reduce((sum, series) => sum + Math.abs(series.values[category] ?? 0), 0);
-            chart.series.forEach((series, seriesIndex) => {
+            let total = 0;
+
+            for (const series of chart.series) {
+                total += Math.abs(series.values[category] ?? 0);
+            }
+
+            for (const [seriesIndex, series] of chart.series.entries()) {
                 let value = series.values[category] ?? 0;
-                if (chart.grouping === "percentStacked") value = total === 0 ? 0 : (value / total) * 100;
+
+                if (chart.grouping === "percentStacked") {
+                    value = total === 0 ? 0 : (value / total) * 100;
+                }
+
                 const base = value >= 0 ? positive : negative;
+
                 bars.push({ category, series: seriesIndex, base, value: base + value });
-                if (value >= 0) positive += value;
-                else negative += value;
-            });
+
+                if (value >= 0) {
+                    positive += value;
+                } else {
+                    negative += value;
+                }
+            }
         }
     } else {
         for (let series = seriesCount - 1; series >= 0; series--) {
@@ -211,50 +235,63 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
     const slotDepth = (series: number): number => (stacked ? 0.5 : (series + 0.5) * depthSlot);
     const barCenter = (bar: Bar): CameraPoint => project((bar.category + 0.5) / categoryCount, slotDepth(bar.series), (bar.base + bar.value) / 2);
     // Painter's order: the bar farthest from the camera first.
-    const barSvg = bars
-        .map(bar => ({ bar, distance: barCenter(bar).distance }))
-        .sort((a, b) => b.distance - a.distance)
-        .map(({ bar }) => {
-            const cx = (bar.category + 0.5) / categoryCount;
-            const cz = slotDepth(bar.series);
-            const x0 = cx - halfWidth;
-            const x1 = cx + halfWidth;
-            const z0 = Math.max(0, cz - depthThickness / 2);
-            const z1 = Math.min(1, cz + depthThickness / 2);
-            const base = Math.max(minimum, Math.min(maximum, bar.base));
-            const value = Math.max(minimum, Math.min(maximum, bar.value));
-            const low = Math.min(base, value);
-            const high = Math.max(base, value);
-            const color = chart.colors[bar.series % chart.colors.length] ?? "#4472C4";
-            const frontColor = `url(#bar3d-front-${bar.series % chart.colors.length})`;
-            const topColor = shade(color, PPTX_DEFAULTS.chart.bar3DLighting.topLighten);
-            const sideColor = shade(color, -PPTX_DEFAULTS.chart.bar3DLighting.sideDarken);
-            const opacity = n(chart.colorOpacity);
-            const bfl = project(x0, z0, low);
-            const bfr = project(x1, z0, low);
-            const bbr = project(x1, z1, low);
-            const bbl = project(x0, z1, low);
-            const nearZ = backDepth === 1 ? z0 : z1;
-            const nearX = sideX === 0 ? x1 : x0;
-            const cap = chart.rotationX3D >= 0 ? high : low;
-            const front = [project(x0, nearZ, low), project(x1, nearZ, low), project(x1, nearZ, high), project(x0, nearZ, high)];
-            const side = [project(nearX, z0, low), project(nearX, z1, low), project(nearX, z1, high), project(nearX, z0, high)];
-            const group: Attribute[] = [
-                ["class", `bar3d-mark bar3d-${chart.bar3DShape}`],
-                ["data-series", String(bar.series)],
-                ["data-category", String(bar.category)],
-                ["opacity", opacity],
-            ];
-            if (chart.bar3DShape === "pyramid" || chart.bar3DShape === "pyramidToMax") {
-                const apex = project(cx, (z0 + z1) / 2, high);
-                return element("g", group, [polygon("bar3d-front", [bfl, bfr, apex], frontColor), polygon("bar3d-side", [bfr, bbr, apex], sideColor), polygon("bar3d-back", [bbr, bbl, apex], topColor)]);
-            }
-            if (chart.bar3DShape === "cone" || chart.bar3DShape === "coneToMax") {
-                const bottom = project(cx, (z0 + z1) / 2, low);
-                const apex = project(cx, (z0 + z1) / 2, high);
-                const radiusX = Math.max(3, Math.hypot(bfr.x - bfl.x, bfr.y - bfl.y) / 2);
-                const radiusY = Math.max(2, Math.abs(bbr.y - bfr.y) / 2);
-                return element("g", group, [
+    const ordered: { bar: Bar; distance: number }[] = [];
+
+    for (const bar of bars) {
+        ordered.push({ bar, distance: barCenter(bar).distance });
+    }
+
+    ordered.sort((a, b) => b.distance - a.distance);
+
+    const barSvg: Html[] = [];
+
+    for (const { bar } of ordered) {
+        const cx = (bar.category + 0.5) / categoryCount;
+        const cz = slotDepth(bar.series);
+        const x0 = cx - halfWidth;
+        const x1 = cx + halfWidth;
+        const z0 = Math.max(0, cz - depthThickness / 2);
+        const z1 = Math.min(1, cz + depthThickness / 2);
+        const base = Math.max(minimum, Math.min(maximum, bar.base));
+        const value = Math.max(minimum, Math.min(maximum, bar.value));
+        const low = Math.min(base, value);
+        const high = Math.max(base, value);
+        const color = chart.colors[bar.series % chart.colors.length] ?? "#4472C4";
+        const frontColor = `url(#bar3d-front-${bar.series % chart.colors.length})`;
+        const topColor = shade(color, PPTX_DEFAULTS.chart.bar3DLighting.topLighten);
+        const sideColor = shade(color, -PPTX_DEFAULTS.chart.bar3DLighting.sideDarken);
+        const opacity = n(chart.colorOpacity);
+        const bfl = project(x0, z0, low);
+        const bfr = project(x1, z0, low);
+        const bbr = project(x1, z1, low);
+        const bbl = project(x0, z1, low);
+        const nearZ = backDepth === 1 ? z0 : z1;
+        const nearX = sideX === 0 ? x1 : x0;
+        const cap = chart.rotationX3D >= 0 ? high : low;
+        const front = [project(x0, nearZ, low), project(x1, nearZ, low), project(x1, nearZ, high), project(x0, nearZ, high)];
+        const side = [project(nearX, z0, low), project(nearX, z1, low), project(nearX, z1, high), project(nearX, z0, high)];
+        const group: Attribute[] = [
+            ["class", `bar3d-mark bar3d-${chart.bar3DShape}`],
+            ["data-series", String(bar.series)],
+            ["data-category", String(bar.category)],
+            ["opacity", opacity],
+        ];
+
+        if (chart.bar3DShape === "pyramid" || chart.bar3DShape === "pyramidToMax") {
+            const apex = project(cx, (z0 + z1) / 2, high);
+
+            barSvg.push(element("g", group, [polygon("bar3d-front", [bfl, bfr, apex], frontColor), polygon("bar3d-side", [bfr, bbr, apex], sideColor), polygon("bar3d-back", [bbr, bbl, apex], topColor)]));
+            continue;
+        }
+
+        if (chart.bar3DShape === "cone" || chart.bar3DShape === "coneToMax") {
+            const bottom = project(cx, (z0 + z1) / 2, low);
+            const apex = project(cx, (z0 + z1) / 2, high);
+            const radiusX = Math.max(3, Math.hypot(bfr.x - bfl.x, bfr.y - bfl.y) / 2);
+            const radiusY = Math.max(2, Math.abs(bbr.y - bfr.y) / 2);
+
+            barSvg.push(
+                element("g", group, [
                     element("path", [
                         ["class", "bar3d-front"],
                         ["d", `M ${n(bottom.x - radiusX)} ${n(bottom.y)} Q ${n(bottom.x)} ${n(bottom.y + radiusY)} ${n(bottom.x + radiusX)} ${n(bottom.y)} L ${n(apex.x)} ${n(apex.y)} Z`],
@@ -268,14 +305,19 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
                         ["ry", n(radiusY)],
                         ["fill", sideColor],
                     ]),
-                ]);
-            }
-            if (chart.bar3DShape === "cylinder") {
-                const bottom = project(cx, (z0 + z1) / 2, low);
-                const top = project(cx, (z0 + z1) / 2, high);
-                const radiusX = Math.max(3, Math.hypot(bfr.x - bfl.x, bfr.y - bfl.y) / 2);
-                const radiusY = Math.max(2, Math.abs(bbr.y - bfr.y) / 2);
-                return element("g", group, [
+                ]),
+            );
+            continue;
+        }
+
+        if (chart.bar3DShape === "cylinder") {
+            const bottom = project(cx, (z0 + z1) / 2, low);
+            const top = project(cx, (z0 + z1) / 2, high);
+            const radiusX = Math.max(3, Math.hypot(bfr.x - bfl.x, bfr.y - bfl.y) / 2);
+            const radiusY = Math.max(2, Math.abs(bbr.y - bfr.y) / 2);
+
+            barSvg.push(
+                element("g", group, [
                     element("path", [
                         ["class", "bar3d-front"],
                         ["d", `M ${n(top.x - radiusX)} ${n(top.y)} L ${n(bottom.x - radiusX)} ${n(bottom.y)} A ${n(radiusX)} ${n(radiusY)} 0 0 0 ${n(bottom.x + radiusX)} ${n(bottom.y)} L ${n(top.x + radiusX)} ${n(top.y)} Z`],
@@ -289,14 +331,18 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
                         ["ry", n(radiusY)],
                         ["fill", topColor],
                     ]),
-                ]);
-            }
-            return element("g", group, [polygon("bar3d-front", front, frontColor), polygon("bar3d-side", side, sideColor), polygon("bar3d-top", [project(x0, z0, cap), project(x1, z0, cap), project(x1, z1, cap), project(x0, z1, cap)], topColor)]);
-        });
+                ]),
+            );
+            continue;
+        }
+
+        barSvg.push(element("g", group, [polygon("bar3d-front", front, frontColor), polygon("bar3d-side", side, sideColor), polygon("bar3d-top", [project(x0, z0, cap), project(x1, z0, cap), project(x1, z1, cap), project(x0, z1, cap)], topColor)]));
+    }
 
     const categoryLabels = Array.from({ length: categoryCount }, (_, index) => {
         const point = project((index + 0.5) / categoryCount, frontDepth, minimum);
         const label = labels[index] ?? String(index + 1);
+
         return element(
             "text",
             [
@@ -309,6 +355,7 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
     });
     const seriesLabels = chart.series.map((series, index) => {
         const point = project(otherX, slotDepth(index), minimum);
+
         return element(
             "text",
             [
@@ -332,6 +379,7 @@ export function renderBar3DSvg(width: number, height: number, chart: NormalizedC
               const x = width / 2 + (index - (chart.series.length - 1) / 2) * itemWidth;
               const y = height - 12;
               const color = chart.colors[index % chart.colors.length] ?? "#4472C4";
+
               return [
                   element("rect", [
                       ["x", n(x - 22 - keySize)],
