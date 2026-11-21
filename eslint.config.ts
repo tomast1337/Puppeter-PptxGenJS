@@ -66,7 +66,6 @@ const ALL_BUT_BRACES = [...LAYOUT, "pdflapas/no-for-each", "pdflapas/no-reduce",
 // A refactor PR converts a folder and deletes its rules here, or narrows the glob to the subfolders left.
 // This is a ratchet: removing an entry is always fine, adding one needs a reason in the PR.
 const NOT_YET_CONVERTED: Readonly<Record<string, readonly string[]>> = {
-    "packages/model/src/**": [...LAYOUT, "pdflapas/no-nullable-return"],
     "packages/puppeteer/src/**": ALL_BUT_BRACES,
 };
 
