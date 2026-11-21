@@ -11,3 +11,15 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# A panic in wasm traps the instance and poisons the shared renderer (GHSA-fmx3-qwqc-h37c), so non-test
+# code has no panic path: errors go through `Result`, lookups through `get`. clippy.toml allows these
+# in tests.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+unreachable = "deny"
+todo = "deny"
+unimplemented = "deny"

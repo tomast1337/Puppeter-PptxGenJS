@@ -25,7 +25,8 @@ pub(crate) struct Svg {
     pub(crate) fit: Fit,
     pub(crate) items: Vec<Item>,
     pub(crate) gradients: Vec<Gradient>,
-    pub(crate) clips: Vec<Path>,
+    /// Each clip path with its bounding box (user space), which `push_clip` checks.
+    pub(crate) clips: Vec<(Path, kurbo::Rect)>,
 }
 
 /// `preserveAspectRatio`: how the viewBox maps onto the box.
@@ -120,7 +121,8 @@ fn transform_of(a: Affine) -> Transform {
 impl Renderer {
     /// Draws `svg` over the box `x, y, w, h` (px), clipped to it (`overflow: hidden`).
     pub(crate) fn draw_svg(&mut self, surface: &mut Surface, svg: &Svg, x: f32, y: f32, w: f32, h: f32) {
-        let Some(clip) = to_path(&rect_path(x, y, w, h, 0.0)) else { return };
+        let frame = rect_path(x, y, w, h, 0.0);
+        let Some(clip) = to_path(&frame) else { return };
         let view = match svg.view_box {
             Some([min_x, min_y, view_w, view_h]) => {
                 let ((sx, sy), (ax, ay)) = match svg.fit {
@@ -136,18 +138,38 @@ impl Renderer {
             }
             None => Transform::from_translate(x, y),
         };
-        surface.push_clip_path(&clip, &FillRule::NonZero);
+        if !self.push_clip(surface, &clip, frame.bounding_box(), FillRule::NonZero) {
+            return;
+        }
         surface.push_transform(&view);
+        // Open groups not drawn, the outermost because krilla could not place it; their Ends pop nothing.
+        let mut skipped = 0usize;
         for item in &svg.items {
             match item {
+                Item::Group { .. } if skipped > 0 => skipped += 1,
+                Item::End { .. } if skipped > 0 => skipped -= 1,
+                _ if skipped > 0 => {}
                 Item::Group { transform, opacity, clip } => {
                     if let Some(t) = transform {
                         surface.push_transform(&transform_of(*t));
                     }
+                    // krilla unwraps the box of the opacity layer under this transform when it pops it (a unit
+                    // box when the layer is empty), and the clip path's when it pushes it (GHSA-fmx3-qwqc-h37c).
+                    let clip = clip.and_then(|c| svg.clips.get(c));
+                    let unit_box = kurbo::Rect::new(0.0, 0.0, 1.0, 1.0);
+                    let placed = (opacity.is_none() || self.placed_box(surface, unit_box, "SVG group"))
+                        && clip.is_none_or(|(_, bbox)| self.placed_box(surface, *bbox, "clip path"));
+                    if !placed {
+                        if transform.is_some() {
+                            surface.pop();
+                        }
+                        skipped = 1;
+                        continue;
+                    }
                     if let Some(opacity) = opacity {
                         surface.push_opacity(unit(*opacity));
                     }
-                    if let Some(path) = clip.and_then(|c| svg.clips.get(c)) {
+                    if let Some((path, _)) = clip {
                         surface.push_clip_path(path, &FillRule::NonZero);
                     }
                 }

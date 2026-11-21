@@ -16,6 +16,7 @@ use krilla::geom::{Size, Transform};
 use krilla::image::Image;
 use krilla::paint::FillRule;
 use krilla::surface::Surface;
+use kurbo::Shape as _;
 use std::rc::Rc;
 
 use crate::Renderer;
@@ -248,6 +249,7 @@ impl Renderer {
             rect_path(x, y, w, h, 0.0)
         };
         let Some(clip) = to_path(&frame) else { return Ok(()) };
+        let clip_box = frame.bounding_box();
         if self.effects.capturing() {
             // Contained and cropped pictures may not fill the box: the silhouette is what is drawn.
             // shortcut: the shadow is cast by the picture rectangle, not by transparent pixels
@@ -257,7 +259,9 @@ impl Renderer {
             let silhouette = if image.rounding { frame } else { rect_path(l, t, r - l, b - t, 0.0) };
             self.effects.capture(surface.ctm(), &silhouette, image.opacity, None);
         }
-        surface.push_clip_path(&clip, &FillRule::NonZero);
+        if !self.push_clip(surface, &clip, clip_box, FillRule::NonZero) {
+            return Ok(());
+        }
         let faded = image.opacity < 1.0;
         if faded {
             surface.push_opacity(unit(image.opacity));
@@ -265,7 +269,11 @@ impl Renderer {
         match picture {
             Picture::Raster(picture) => {
                 surface.push_transform(&Transform::from_translate(x + px, y + py));
-                surface.draw_image(picture, size);
+                // krilla unwraps the image's box under the current transform.
+                let bbox = kurbo::Rect::new(0.0, 0.0, size.width().into(), size.height().into());
+                if self.placed_box(surface, bbox, "image") {
+                    surface.draw_image(picture, size);
+                }
                 surface.pop();
             }
             Picture::Svg(svg) => {

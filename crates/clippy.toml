@@ -1,0 +1,5 @@
+# Test code may panic: a failed assertion is how a test fails (see [workspace.lints.clippy]).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-panic-in-tests = true

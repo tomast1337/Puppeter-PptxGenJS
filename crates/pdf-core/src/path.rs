@@ -6,7 +6,7 @@
 use krilla::geom::{Path, PathBuilder};
 use krilla::paint::{Fill, FillRule, Stroke};
 use krilla::surface::Surface;
-use kurbo::{Affine, BezPath, PathEl, Point, Shape as _};
+use kurbo::{Affine, BezPath, PathEl, Point, Rect, Shape as _};
 
 use crate::Renderer;
 use crate::color::{Rgba, fill_of};
@@ -17,7 +17,7 @@ const KAPPA: f64 = 0.552_284_8;
 const MIN_SIDE: f32 = 0.01;
 /// Largest coordinate a drawn path's box may reach under the current transform: far past any page,
 /// and far enough below f32::MAX that krilla's own box arithmetic stays finite.
-const MAX_PLACED: f64 = 1e30;
+pub(crate) const MAX_PLACED: f64 = 1e30;
 
 impl Renderer {
     /// Fills `path` (current user space) and adds it to the silhouettes being captured.
@@ -44,15 +44,32 @@ impl Renderer {
     /// it unwraps the box of what it draws under the current transform, which fails once that box
     /// overflows f32 (GHSA-fmx3-qwqc-h37c). A path past MAX_PLACED is reported and not drawn.
     pub(crate) fn placed(&mut self, surface: &Surface, path: &BezPath, stroke: Option<&Stroke>) -> bool {
-        let t = surface.ctm();
-        let ctm = Affine::new([t.sx(), t.ky(), t.kx(), t.sy(), t.tx(), t.ty()].map(f64::from));
         // A miter can reach `miter_limit` half-widths past the path.
         let reach = stroke.map_or(0.0, |s| f64::from(s.width * s.miter_limit.max(1.0)));
-        let b = ctm.transform_rect_bbox(path.bounding_box().inflate(reach, reach));
+        self.placed_box(surface, path.bounding_box().inflate(reach, reach), "path")
+    }
+
+    /// `placed` for the box (current user space) of anything krilla draws or clips with: a glyph
+    /// run, an image or a clip path. `what` names it in the warning.
+    pub(crate) fn placed_box(&mut self, surface: &Surface, bbox: Rect, what: &str) -> bool {
+        let t = surface.ctm();
+        let ctm = Affine::new([t.sx(), t.ky(), t.kx(), t.sy(), t.tx(), t.ty()].map(f64::from));
+        let b = ctm.transform_rect_bbox(bbox);
         // In f64, so the check cannot overflow; NaN fails it.
         let placed = [b.x0, b.y0, b.x1, b.y1].iter().all(|v| v.abs() <= MAX_PLACED);
         if !placed {
-            self.warn("path past the page's coordinate range not rendered");
+            self.warn(format!("{what} past the page's coordinate range not rendered"));
+        }
+        placed
+    }
+
+    /// Pushes `clip` (current user space, its box `bbox`) as a clip path, unless it is past
+    /// MAX_PLACED: krilla unwraps the clip path under the current transform (GHSA-fmx3-qwqc-h37c).
+    /// Returns whether it pushed; when not, the caller draws nothing of what it would clip.
+    pub(crate) fn push_clip(&mut self, surface: &mut Surface, clip: &Path, bbox: Rect, rule: FillRule) -> bool {
+        let placed = self.placed_box(surface, bbox, "clip path");
+        if placed {
+            surface.push_clip_path(clip, &rule);
         }
         placed
     }

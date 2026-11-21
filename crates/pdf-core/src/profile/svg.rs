@@ -12,7 +12,7 @@
 //! `href`, `url()` other than `url(#id)`) included.
 
 use krilla::paint::{FillRule, LineCap, LineJoin};
-use kurbo::{Affine, BezPath, PathEl};
+use kurbo::{Affine, BezPath, PathEl, Shape as _};
 
 use super::allow;
 use super::dom::{self, Dom, Element};
@@ -324,7 +324,7 @@ impl Reader<'_, '_> {
                     clip.extend(path);
                 }
                 let path = to_path(&clip).ok_or_else(|| format!("<clipPath id=\"{id}\"> holds no finite path or rect"))?;
-                self.svg.clips.push(path);
+                self.svg.clips.push((path, clip.bounding_box()));
                 self.clip_ids.push(id);
             }
             "linearGradient" => {

@@ -133,6 +133,7 @@ fn check_length(what: &str, index: usize, value: f32) -> Result<f32, String> {
 }
 
 /// The cell `placed` refers to. `place_cells` only records indices it read from the table.
+#[allow(clippy::expect_used)] // internal invariant: the indices come from iterating this same table
 fn cell_of<'t>(table: &'t Table, placed: &PlacedCell) -> &'t TableCell {
     table
         .rows
