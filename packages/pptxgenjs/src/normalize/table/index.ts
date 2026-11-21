@@ -21,17 +21,13 @@ function span(value?: number): number {
 
 export function columnCount(rows: PptxGenJS.TableRow[]): number {
     const firstRow = rows[0] ?? [];
+    let total = 0;
 
-    return Math.max(
-        1,
-        firstRow.reduce((total, cell) => {
-            if (typeof cell !== "object" || cell === null) {
-                return total + 1;
-            }
+    for (const cell of firstRow) {
+        total += typeof cell !== "object" || cell === null ? 1 : span(cell.options?.colspan);
+    }
 
-            return total + span(cell.options?.colspan);
-        }, 0),
-    );
+    return Math.max(1, total);
 }
 
 /**
@@ -60,12 +56,14 @@ function widthBesideColW(w: PptxGenJS.Coord | undefined): number {
 }
 
 /** Scalar `colW`, or a single-item one over several columns: PptxGenJS 4.0.1 gives every column that width. */
-function repeatedColumnWidth(count: number, options: PptxGenJS.TableProps): number | undefined {
+function repeatedColumnWidth(count: number, options: PptxGenJS.TableProps): { kind: "repeated"; width: number } | { kind: "notRepeated" } {
     if (typeof options.colW === "number") {
-        return options.colW;
+        return { kind: "repeated", width: options.colW };
     }
 
-    return Array.isArray(options.colW) && options.colW.length === 1 && count > 1 ? options.colW[0] : undefined;
+    const only = Array.isArray(options.colW) && options.colW.length === 1 && count > 1 ? options.colW[0] : undefined;
+
+    return only === undefined ? { kind: "notRepeated" } : { kind: "repeated", width: only };
 }
 
 /**
@@ -74,155 +72,13 @@ function repeatedColumnWidth(count: number, options: PptxGenJS.TableProps): numb
  * columns and autoPage sizes them its own way (autoPageTableOptions).
  */
 export function addTableLeavesNoWidth(count: number, options: PptxGenJS.TableProps): boolean {
-    const repeatedWidth = repeatedColumnWidth(count, options);
+    const repeated = repeatedColumnWidth(count, options);
 
-    if (repeatedWidth !== undefined) {
-        return !Math.floor(repeatedWidth * count);
+    if (repeated.kind === "repeated") {
+        return !Math.floor(repeated.width * count);
     }
 
     return Array.isArray(options.colW) && options.colW.length !== count && !options.w;
-}
-
-function tableWidthAndColumns(count: number, options: PptxGenJS.TableProps, pageSize: PageSize): { width: number; columns: number[] } {
-    const evenly = (width: number) => ({ width, columns: Array<number>(count).fill(width / count) });
-
-    if (addTableLeavesNoWidth(count, options)) {
-        return evenly(inchesToPixels(count));
-    }
-
-    // PptxGenJS 4.0.1 sets `w` to the floored total for scalar/single-item colW, which addTableDefinition (step 4) reads
-    // as inches below 20 and as EMU from 20 on: colW 7 over 3 columns is a 21 EMU table, colW 914400 an inch a column.
-    const repeatedWidth = repeatedColumnWidth(count, options);
-
-    if (repeatedWidth !== undefined) {
-        const total = Math.floor(repeatedWidth * count);
-
-        return evenly(total < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(total) : emuToPixels(total));
-    }
-
-    if (Array.isArray(options.colW) && options.colW.length === count) {
-        // genXmlTable (step 2) writes each width through inch2Emu (100 is inches, 914400 EMU) and shares `w` for one
-        // that is not a number.
-        const columns = options.colW.map(width => {
-            const pixels = inch2EmuToPixels(width);
-
-            return Number.isNaN(pixels) ? widthBesideColW(options.w) / count : pixels;
-        });
-
-        return { width: columns.reduce((sum, width) => sum + width, 0), columns };
-    }
-
-    // A `colW` of the wrong length is dropped, and `w` shared as it stands.
-    if (Array.isArray(options.colW)) {
-        return evenly(widthBesideColW(options.w));
-    }
-
-    // Without `colW`, a falsy `w` (unset or 0) is the slide width less the default margins, floored to the inch.
-    return evenly(options.w ? addTableSize(options.w, pageSize.width).pixels : inchesToPixels(Math.floor(pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2)));
-}
-
-/**
- * The height genXmlTable (step 4 A) shares among the rows: `h` as addTableDefinition leaves it, through inch2Emu, which
- * reads 100 EMU or less as inches. So `h: 100` is a 100 EMU frame but 100 inches of rows.
- */
-function rowsHeight(h: PptxGenJS.Coord, pageSize: PageSize): number {
-    const { emu, pixels } = addTableSize(h, pageSize.height);
-
-    return emu >= PPTX_DEFAULTS.table.emuReadAsInchesBelow && emu <= PPTX_DEFAULTS.units.inchesBelow ? inchesToPixels(emu) : pixels;
-}
-
-/**
- * Each row's height as genXmlTable (step 4 A) writes it: `rowH[row]` when truthy, else `Number(rowH)` when it is a
- * number, else `h` shared over the rows. `Number` reads a one-item array as its item, so `rowH: [0.5]` sizes every row
- * and `[]` or `[0]` none; a longer array is NaN and leaves its missing rows to `h` (#304). 0 sizes a row to its content.
- */
-function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: PageSize): Array<Px | undefined> {
-    const { rowH, h } = options;
-    const heightFromTable = h === undefined ? undefined : px(rowsHeight(h, pageSize) / Math.max(1, rowCount));
-    const height = (inches: number): Px | undefined => (inches > 0 ? inch2EmuToPixels(inches) : undefined);
-
-    return Array.from({ length: rowCount }, (_, index) => {
-        const own = Array.isArray(rowH) ? rowH[index] : undefined;
-
-        if (own) {
-            return height(Number(own));
-        }
-
-        if (rowH && !Number.isNaN(Number(rowH))) {
-            return height(Number(rowH));
-        }
-
-        return heightFromTable;
-    });
-}
-
-/**
- * The rows with only the cells that start inside the table's `count` grid columns, a colspan that crosses the last
- * column cut at it. PptxGenJS 4.0.1 genXmlTable writes one <a:gridCol> per column of the first row but every <a:tc>
- * of each row, and PowerPoint draws only the cells that fit the grid: the rest take no text, no border and no
- * height (#286). Each cell starts in the first column of its row not taken by a rowspan above, as in <a:tc> order once
- * PptxGenJS inserts its merge cells. A row with fewer cells than columns is kept as it is.
- * The drop is documented (docs/DEFAULTS.md) rather than thrown: PptxGenJS and PowerPoint accept these rows and
- * real decks rely on it, and normalization has no warning channel.
- * shortcut: the cut of a colspan across the last column is assumed (no PowerPoint export checks it); measure it if a
- * deck relies on it.
- * Each cell's text then wraps at the width of its columns floored as a text box's is (floorTextWrapWidth).
- */
-function fitRowsToGrid(rows: NormalizedTableRow[], columns: readonly number[], target: RenderingTarget): NormalizedTableRow[] {
-    const count = columns.length;
-    const taken = new Set<string>();
-
-    return rows.map((row, rowIndex) => {
-        let column = 0;
-        const cells = row.cells.flatMap(cell => {
-            while (taken.has(`${rowIndex},${column}`)) {
-                column++;
-            }
-
-            if (column >= count) {
-                return [];
-            }
-
-            const colspan = Math.min(cell.colspan, count - column);
-
-            for (let r = rowIndex; r < rowIndex + cell.rowspan; r++) {
-                for (let c = column; c < column + colspan; c++) {
-                    taken.add(`${r},${c}`);
-                }
-            }
-
-            const width = columns.slice(column, column + colspan).reduce((sum, value) => sum + value, 0);
-
-            column += colspan;
-
-            return [{ ...cell, colspan, text: floorTextWrapWidth(cell.text, width, target) }];
-        });
-
-        return { ...row, cells };
-    });
-}
-
-// PptxGenJS 4.0.1 (addTableDefinition) gives a missing side { type: "none" } and fills a given one from
-// DEF_CELL_BORDER with `||`: `{ color, pt }` is a solid line.
-function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder {
-    const type = border ? border.type || PPTX_DEFAULTS.border.whenProvidedType : PPTX_DEFAULTS.table.border.type;
-    const width = type === "none" ? 0 : pointsToPixels(checkedSize(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt, "border.pt", PPTX_DEFAULTS.limits.lineWidthPt));
-
-    return {
-        visible: type !== "none",
-        // A "none" side is written as <a:noFill/> without its color, so PptxGenJS never checks that color either.
-        color: type === "none" ? TRANSPARENT : normalizeColor(border?.color || PPTX_DEFAULTS.table.border.color),
-        width,
-        style: type === "dash" ? "dashed" : "solid",
-        // PptxGenJS 4.0.1 writes a "dash" cell border as <a:prstDash val="sysDash"/>.
-        ...(type === "dash" && width > 0 ? { dashArray: PPTX_DEFAULTS.shape.dashPatterns.sysDash?.map(part => part * width).join(" ") } : {}),
-    };
-}
-
-function normalizeBorders(border?: PptxGenJS.BorderProps | [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps]): [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder] {
-    const sides = Array.isArray(border) ? border : [border, border, border, border];
-
-    return sides.map(side => normalizeBorder(side)) as [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder];
 }
 
 // PptxGenJS 4.0.1 genXmlTextBody (STEP 4 A) gives a run without options the cell's own options object
@@ -342,52 +198,182 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
     }
 
     const count = columnCount(tableRows);
-    const { width, columns } = tableWidthAndColumns(count, options, pageSize);
-    const heights = rowHeights(tableRows.length, options, pageSize);
+    const evenly = (width: number) => ({ width, columns: Array<number>(count).fill(width / count) });
+    let sized: { width: number; columns: number[] };
+
+    // The table width and its column widths.
+    if (addTableLeavesNoWidth(count, options)) {
+        sized = evenly(inchesToPixels(count));
+    } else {
+        // PptxGenJS 4.0.1 sets `w` to the floored total for scalar/single-item colW, which addTableDefinition (step 4) reads
+        // as inches below 20 and as EMU from 20 on: colW 7 over 3 columns is a 21 EMU table, colW 914400 an inch a column.
+        const repeated = repeatedColumnWidth(count, options);
+
+        if (repeated.kind === "repeated") {
+            const total = Math.floor(repeated.width * count);
+
+            sized = evenly(total < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(total) : emuToPixels(total));
+        } else if (Array.isArray(options.colW) && options.colW.length === count) {
+            // genXmlTable (step 2) writes each width through inch2Emu (100 is inches, 914400 EMU) and shares `w` for one
+            // that is not a number.
+            const colWColumns = options.colW.map(width => {
+                const pixels = inch2EmuToPixels(width);
+
+                return Number.isNaN(pixels) ? widthBesideColW(options.w) / count : pixels;
+            });
+            let colWTotal = 0;
+
+            for (const width of colWColumns) {
+                colWTotal += width;
+            }
+
+            sized = { width: colWTotal, columns: colWColumns };
+        } else if (Array.isArray(options.colW)) {
+            // A `colW` of the wrong length is dropped, and `w` shared as it stands.
+            sized = evenly(widthBesideColW(options.w));
+        } else {
+            // Without `colW`, a falsy `w` (unset or 0) is the slide width less the default margins, floored to the inch.
+            sized = evenly(options.w ? addTableSize(options.w, pageSize.width).pixels : inchesToPixels(Math.floor(pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2)));
+        }
+    }
+
+    const { width, columns } = sized;
+    // Each row's height as genXmlTable (step 4 A) writes it: `rowH[row]` when truthy, else `Number(rowH)` when it is a
+    // number, else `h` shared over the rows. `Number` reads a one-item array as its item, so `rowH: [0.5]` sizes every
+    // row and `[]` or `[0]` none; a longer array is NaN and leaves its missing rows to `h` (#304). 0 sizes a row to its
+    // content.
+    const { rowH, h } = options;
+    let heightFromTable: Px | undefined;
+
+    if (h !== undefined) {
+        // The height genXmlTable (step 4 A) shares among the rows: `h` as addTableDefinition leaves it, through inch2Emu,
+        // which reads 100 EMU or less as inches. So `h: 100` is a 100 EMU frame but 100 inches of rows.
+        const { emu, pixels } = addTableSize(h, pageSize.height);
+        const rowsHeight = emu >= PPTX_DEFAULTS.table.emuReadAsInchesBelow && emu <= PPTX_DEFAULTS.units.inchesBelow ? inchesToPixels(emu) : pixels;
+
+        heightFromTable = px(rowsHeight / Math.max(1, tableRows.length));
+    }
+
+    const heights = Array.from({ length: tableRows.length }, (_, index) => {
+        const own = Array.isArray(rowH) ? rowH[index] : undefined;
+        let inches: number;
+
+        if (own) {
+            inches = Number(own);
+        } else if (rowH && !Number.isNaN(Number(rowH))) {
+            inches = Number(rowH);
+        } else {
+            return heightFromTable;
+        }
+
+        return inches > 0 ? inch2EmuToPixels(inches) : undefined;
+    });
     // PptxGenJS 4.0.1 genXmlTable (step 4 A) writes `h` into the rows only without `rowH`; otherwise `h` is just the
     // frame's `cy`, which PowerPoint and LibreOffice ignore: a table is as tall as its rows (#246).
-    const height = heights.reduce<number | undefined>((sum, row) => (sum === undefined || row === undefined ? undefined : sum + row), 0);
+    let height: number | undefined = 0;
+
+    for (const row of heights) {
+        height = height === undefined || row === undefined ? undefined : height + row;
+    }
+
     const { contentRowSlackMm } = RENDERING_TARGETS[target];
+    const builtRows = tableRows.map((row, rowIndex): NormalizedTableRow => ({
+        height: heights[rowIndex],
+        cells: tableRow(row, rowIndex).map((rawCell, column) => {
+            const cell = tableCell(rawCell, rowIndex, column);
+            const cellOptions = inheritedCellOptions(options, cell.options ?? {});
+            const textOptions = cellTextOptions(cellOptions);
+            // The cell's options as genXmlTable (step 2) leaves them, which genXmlTextBody writes onto its runs.
+            // shortcut: PptxGenJS gives the table no default color when any of its cells holds a link, not only this
+            // one (addTableDefinition step 3); match it when a deck shares run options with such a table.
+            const box = writing.table ? cellTextOptions(inheritedCellOptions(writing.table, cell.options ?? {})) : textOptions;
+            const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
+            // PptxGenJS writes the cell's fontFace on <a:endParaRPr>, the paragraph mark's font in PowerPoint.
+            // shortcut: the theme font (soft breaks, a cell without fontFace) is the default Calibri whatever the
+            // deck's theme; pass pres.theme.bodyFontFace in once #256 settles the table normalizer's inputs.
+            const theme = PPTX_DEFAULTS.theme.bodyFontFace;
+            const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme, { box, shared: writing.shared, cell: true });
+
+            text.margin = tableMarginPixels(cellOptions.margin);
+            // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
+            // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.
+            text.fit = "none";
+
+            const colspan = span(cellOptions.colspan);
+            const rowspan = span(cellOptions.rowspan);
+            const fill = cellOptions.fill ? normalizeFill(cellOptions.fill) : undefined;
+            const border = cellOptions.border;
+            const sides = Array.isArray(border) ? border : [border, border, border, border];
+            // PptxGenJS 4.0.1 (addTableDefinition) gives a missing side { type: "none" } and fills a given one from
+            // DEF_CELL_BORDER with `||`: `{ color, pt }` is a solid line.
+            const borders = sides.map((side): NormalizedTableBorder => {
+                const type = side ? side.type || PPTX_DEFAULTS.border.whenProvidedType : PPTX_DEFAULTS.table.border.type;
+                const width = type === "none" ? 0 : pointsToPixels(checkedSize(side?.pt ?? PPTX_DEFAULTS.table.border.widthPt, "border.pt", PPTX_DEFAULTS.limits.lineWidthPt));
+
+                return {
+                    visible: type !== "none",
+                    // A "none" side is written as <a:noFill/> without its color, so PptxGenJS never checks that color either.
+                    color: type === "none" ? TRANSPARENT : normalizeColor(side?.color || PPTX_DEFAULTS.table.border.color),
+                    width,
+                    style: type === "dash" ? "dashed" : "solid",
+                    // PptxGenJS 4.0.1 writes a "dash" cell border as <a:prstDash val="sysDash"/>.
+                    ...(type === "dash" && width > 0 ? { dashArray: PPTX_DEFAULTS.shape.dashPatterns.sysDash?.map(part => part * width).join(" ") } : {}),
+                };
+            }) as [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder];
+
+            return { text, colspan, rowspan, fill, borders };
+        }),
+    }));
+    // The rows with only the cells that start inside the table's grid columns, a colspan that crosses the last column
+    // cut at it. PptxGenJS 4.0.1 genXmlTable writes one <a:gridCol> per column of the first row but every <a:tc> of each
+    // row, and PowerPoint draws only the cells that fit the grid: the rest take no text, no border and no height (#286).
+    // Each cell starts in the first column of its row not taken by a rowspan above, as in <a:tc> order once PptxGenJS
+    // inserts its merge cells. A row with fewer cells than columns is kept as it is.
+    // The drop is documented (docs/DEFAULTS.md) rather than thrown: PptxGenJS and PowerPoint accept these rows and
+    // real decks rely on it, and normalization has no warning channel.
+    // shortcut: the cut of a colspan across the last column is assumed (no PowerPoint export checks it); measure it if a
+    // deck relies on it.
+    // Each cell's text then wraps at the width of its columns floored as a text box's is (floorTextWrapWidth).
+    const gridColumns = columns.length;
+    const taken = new Set<string>();
+    const rows = builtRows.map((row, rowIndex) => {
+        let column = 0;
+        const cells = row.cells.flatMap(cell => {
+            while (taken.has(`${rowIndex},${column}`)) {
+                column++;
+            }
+
+            if (column >= gridColumns) {
+                return [];
+            }
+
+            const colspan = Math.min(cell.colspan, gridColumns - column);
+
+            for (let r = rowIndex; r < rowIndex + cell.rowspan; r++) {
+                for (let c = column; c < column + colspan; c++) {
+                    taken.add(`${r},${c}`);
+                }
+            }
+
+            let cellWidth = 0;
+
+            for (const value of columns.slice(column, column + colspan)) {
+                cellWidth += value;
+            }
+
+            column += colspan;
+
+            return [{ ...cell, colspan, text: floorTextWrapWidth(cell.text, cellWidth, target) }];
+        });
+
+        return { ...row, cells };
+    });
 
     return {
         width: px(width),
         height: height === undefined ? undefined : px(height),
         columns: columns.map(px),
         ...(contentRowSlackMm ? { contentRowSlack: millimetersToPixels(contentRowSlackMm) } : {}),
-        rows: fitRowsToGrid(
-            tableRows.map((row, rowIndex) => ({
-                height: heights[rowIndex],
-                cells: tableRow(row, rowIndex).map((rawCell, column) => {
-                    const cell = tableCell(rawCell, rowIndex, column);
-                    const cellOptions = inheritedCellOptions(options, cell.options ?? {});
-                    const textOptions = cellTextOptions(cellOptions);
-                    // The cell's options as genXmlTable (step 2) leaves them, which genXmlTextBody writes onto its runs.
-                    // shortcut: PptxGenJS gives the table no default color when any of its cells holds a link, not only this
-                    // one (addTableDefinition step 3); match it when a deck shares run options with such a table.
-                    const box = writing.table ? cellTextOptions(inheritedCellOptions(writing.table, cell.options ?? {})) : textOptions;
-                    const input: TextInput = Array.isArray(cell.text) ? richText(cell.text, textOptions) : String(cell.text ?? "");
-                    // PptxGenJS writes the cell's fontFace on <a:endParaRPr>, the paragraph mark's font in PowerPoint.
-                    // shortcut: the theme font (soft breaks, a cell without fontFace) is the default Calibri whatever the
-                    // deck's theme; pass pres.theme.bodyFontFace in once #256 settles the table normalizer's inputs.
-                    const theme = PPTX_DEFAULTS.theme.bodyFontFace;
-                    const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme, { box, shared: writing.shared, cell: true });
-
-                    text.margin = tableMarginPixels(cellOptions.margin);
-                    // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
-                    // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.
-                    text.fit = "none";
-
-                    return {
-                        text,
-                        colspan: span(cellOptions.colspan),
-                        rowspan: span(cellOptions.rowspan),
-                        fill: cellOptions.fill ? normalizeFill(cellOptions.fill) : undefined,
-                        borders: normalizeBorders(cellOptions.border),
-                    };
-                }),
-            })),
-            columns,
-            target,
-        ),
+        rows,
     };
 }
