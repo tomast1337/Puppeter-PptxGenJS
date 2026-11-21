@@ -34,11 +34,14 @@ const PAGE = PAGE_SIZES.SCREEN_16X9.landscape;
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 const createDocument = () => new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>").window.document;
 const ascii = (bytes: Uint8Array) => new TextDecoder("latin1").decode(bytes);
+
 /** The deck's HTML with its first shape's shadow marked inset: hand-written HTML, since addShape rejects an inner shadow. */
 async function innerShadowHtml(pres: PuppeteerGen): Promise<HtmlPresentationDocument> {
     const { html, pageSize } = await pres.toHtml();
     const inner = html.replace('<svg class="shape-svg"', '<svg class="shape-svg" data-shadow-inset=""');
+
     expect(inner).not.toBe(html);
+
     return { html: inner, pageSize };
 }
 const EMPTY = { html: "<html></html>", pageSize: PAGE };
@@ -53,6 +56,7 @@ class FakeBinding implements TextPdfBinding {
     }
     renderHtml(html: string): Uint8Array {
         this.rendered.push(html);
+
         return new TextEncoder().encode("%PDF-fake");
     }
     warnings(): string[] {
@@ -67,11 +71,13 @@ describe("renderer contract", () => {
     test("toPdf, write and stream hand toHtml() to the WASM renderer", async () => {
         const binding = new FakeBinding();
         const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer: new WasmRenderer(binding) });
+
         pres.addSlide().addText("Html", { x: 1, y: 1, w: 3, h: 1 });
         expect(ascii(await pres.toPdf())).toBe("%PDF-fake");
         expect(await pres.write({ outputType: "base64" })).toBe(btoa("%PDF-fake"));
         expect(ascii((await pres.stream()) as Uint8Array)).toBe("%PDF-fake");
         const { html } = await pres.toHtml();
+
         expect(binding.rendered).toEqual([html, html, html]);
     });
 
@@ -81,6 +87,7 @@ describe("renderer contract", () => {
         const requested: string[] = [];
         const resolveImage = async (source: string) => (requested.push(source), PNG);
         const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer, resolveImage });
+
         pres.addSlide().addImage({ path: "logo.png", x: 1, y: 1, w: 1, h: 1 }).addImage({ path: "logo.png", x: 3, y: 1, w: 1, h: 1 });
         pres.addSlide().addImage({ path: "https://example.com/a.png", x: 1, y: 1, w: 1, h: 1 }).addImage({ data: PNG, x: 3, y: 1, w: 1, h: 1 });
         await pres.toPdf();
@@ -93,16 +100,20 @@ describe("renderer contract", () => {
     test("a renderer without render() fails with an error that says what toPdf() calls", async () => {
         const renderer = { renderModel: async () => new Uint8Array() } as unknown as PresentationRenderer; // a model-only renderer from plain JS
         const pres = new HtmlPuppeteerGen(PAGE, { createDocument, renderer });
+
         await expect(pres.toPdf()).rejects.toThrow("toPdf() renderer must implement render(document: HtmlPresentationDocument)");
     });
 
     test("the Node entry renders writeFile() through the WASM renderer", async () => {
         const directory = await mkdtemp(join(tmpdir(), "wasm-file-"));
+
         try {
             const renderer = new WasmRenderer(new FakeBinding());
             const pres = new PuppeteerGen(PAGE, { renderer });
+
             pres.addSlide().addText("File", { x: 1, y: 1, w: 3, h: 1 });
             const fileName = join(directory, "deck.pdf");
+
             await pres.writeFile({ fileName });
             expect(await Bun.file(fileName).text()).toBe("%PDF-fake");
         } finally {
@@ -115,6 +126,7 @@ describe("WasmRenderer failure behavior", () => {
     test("throws and lists what the backend skipped by default", async () => {
         const binding = new FakeBinding(["object kind 'image' not rendered", "tab stops ignored"]);
         const error = await new WasmRenderer(binding).render(EMPTY).catch((e: Error) => e);
+
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toContain("- object kind 'image' not rendered\n- tab stops ignored");
         expect((error as Error).message).toContain('onUnsupported: "warn"');
@@ -122,12 +134,14 @@ describe("WasmRenderer failure behavior", () => {
 
     test('onUnsupported: "warn" returns the PDF and surfaces warnings()', async () => {
         const renderer = new WasmRenderer(new FakeBinding(["inner shadow not rendered"]), "warn");
+
         expect(ascii(await renderer.render(EMPTY))).toBe("%PDF-fake");
         expect(renderer.warnings()).toEqual(["inner shadow not rendered"]);
     });
 
     test("render() passes the HTML to the binding", async () => {
         const binding = new FakeBinding();
+
         await new WasmRenderer(binding).render(EMPTY);
         expect(binding.rendered).toEqual([EMPTY.html]);
     });
@@ -140,6 +154,7 @@ describe("WasmRenderer failure behavior", () => {
 describe("font loading", () => {
     test("loadSystemFonts reads matching files recursively and rejects empty results", async () => {
         const directory = await mkdtemp(join(tmpdir(), "wasm-fonts-"));
+
         try {
             await Bun.write(join(directory, "nested/Carlito-Regular.ttf"), new Uint8Array([1, 2]));
             await writeFile(join(directory, "Unrelated.ttf"), new Uint8Array([3]));
@@ -161,9 +176,11 @@ describe("font loading", () => {
 test("the browser WASM entry bundles without puppeteer, jsdom or node:* modules", async () => {
     const config = { entrypoints: [resolve(import.meta.dir, "../packages/wasm/src/browser.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0];
     const build = (await Bun.build(config)) as Awaited<ReturnType<typeof Bun.build>> & { metafile: { inputs: Record<string, { imports: { path: string }[] }> } };
+
     expect(build.success).toBe(true);
     const forbidden = /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/;
     const inputs = build.metafile.inputs;
+
     expect(Object.keys(inputs).filter(path => forbidden.test(path))).toEqual([]);
     expect(Object.values(inputs).flatMap(input => input.imports.map(entry => entry.path).filter(path => forbidden.test(path)))).toEqual([]);
 });
@@ -173,15 +190,21 @@ test("the browser WASM entry bundles without puppeteer, jsdom or node:* modules"
 const wasmBuilt = await Bun.file(resolve(import.meta.dir, "../packages/wasm/src/pdf_wasm_bg.wasm")).exists();
 const systemFonts = wasmBuilt ? await loadSystemFonts().catch(() => []) : [];
 const canRender = wasmBuilt && systemFonts.length > 0;
+
 if (!canRender) {
     const reason = wasmBuilt ? "no system fonts found" : "packages/wasm/src/pdf_wasm_bg.wasm is not built (bun run build:wasm)";
-    if (process.env.CI === "true") throw new Error(`WASM render tests cannot run in CI: ${reason}`);
+
+    if (process.env.CI === "true") {
+        throw new Error(`WASM render tests cannot run in CI: ${reason}`);
+    }
+
     console.warn(`Skipping WASM render tests: ${reason}`);
 }
 
 describe.skipIf(!canRender)("WASM backend render", () => {
     test("renders text slides to a PDF with one page per slide", async () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
+
         pres.addSlide().addText("Hello", { x: 1, y: 1, w: 3, h: 1, fontFace: "Calibri", bold: true });
         // Arial -> Liberation Sans has a real italic; on a host without Carlito/DejaVu, Calibri italic
         // would land on Noto Sans CJK and need synthetic italic, which (correctly) throws.
@@ -189,6 +212,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         pres.addSlide().addShape("roundRect", { x: 1, y: 1, w: 2, h: 1, fill: { color: "0088CC" }, rectRadius: 0.2 });
         const pdf = await pres.toPdf();
         const source = ascii(pdf);
+
         expect(source.startsWith("%PDF-")).toBe(true);
         expect(source.match(/\/Type\s*\/Page\b(?!s)/g)).toHaveLength(3);
     });
@@ -197,15 +221,18 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test("keeps the rows of a table with cells beyond its grid at their rowH", async () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
         const { rows, options } = extraCellTable({ colW: [1, 1, 1] });
+
         pres.addSlide().addTable(rows, options);
         const pdf = Buffer.from(await pres.toPdf());
         // The page's content stream, the object its /Contents names.
         const contents = ascii(pdf).match(/\/Contents (\d+) 0 R/)?.[1];
+
         expect(contents).toBeDefined();
         const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
         const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
         // The horizontal grid lines, in CSS px from the slide top: each row's top, then the table's bottom.
         const lines = [...content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)].filter(([, from, to]) => from === to).map(([, y]) => Number(y) / 96);
+
         expect(lines.slice(0, -1)).toEqual(EXTRA_CELL_ROW_TOPS_IN.map(inches => expect.closeTo(inches, 3)));
     });
 
@@ -221,9 +248,11 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const html = completeProfileHtml(handWrittenDocument(table));
         const chromium = await withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 // As the Puppeteer renderer prints it: zoomed, with the collapsed borders kept out of the row heights.
                 await page.setContent(printHtml(html));
+
                 return await page.evaluate(zoom => [...document.querySelectorAll("tr")].map(row => row.getBoundingClientRect().height / zoom), PRINT_ZOOM);
             } finally {
                 await page.close();
@@ -236,6 +265,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         // The horizontal grid lines, in CSS px: each row's top, then the table's bottom.
         const lines = [...content.matchAll(/ ([\d.]+) m [\d.]+ ([\d.]+) l\n/g)].filter(([, from, to]) => from === to).map(([, y]) => Number(y));
         const wasm = lines.slice(1).map((y, i) => y - (lines[i] ?? 0));
+
         // The cell text's 4.8px margins around a 19.2px line; the stylesheet's td padding made Chromium's 38.4px.
         expect(chromium).toEqual([expect.closeTo(28.8, 1), expect.closeTo(28.8, 1)]);
         expect(wasm).toEqual(chromium.map(height => expect.closeTo(height, 1)));
@@ -251,14 +281,18 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             ["letter spacing", { w: (222.140625 + 9 * 0.4) / 96, margin: 0, charSpacing: 0.3 }],
             ["a hair narrower", { w: (222.140625 - 0.04) / 96, margin: 0 }],
         ];
+
         for (const [name, options] of cases) {
             const pres = new PuppeteerGen(PAGE, { renderer });
+
             pres.addSlide().addText("mmmm mmmm", { x: 1, y: 1, h: 1, fontFace: "Arial", fontSize: 24, ...options });
             const deck = await pres.toHtml();
             const chromium = await withBrowser(async browser => {
                 const page = await browser.newPage();
+
                 try {
                     await page.setContent(printHtml(deck.html));
+
                     // The run's lines: its client rects' distinct tops (a hanging space can take a rect of its own).
                     return await page.evaluate(() => new Set([...(document.querySelector(".text-run")?.getClientRects() ?? [])].map(rect => Math.round(rect.top))).size);
                 } finally {
@@ -269,6 +303,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             const contents = ascii(pdf).match(/\/Contents (\d+) 0 R/)?.[1];
             const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
             const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
+
             // One text object per drawn line.
             expect({ name, lines: content.match(/\bBT\b/g)?.length }).toEqual({ name, lines: chromium });
         }
@@ -277,6 +312,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     // The PowerPoint target lays each word out at its advances rounded to 0.125pt: a last line exactly as wide as its
     // box or 0.125pt narrower fits, 0.125pt wider wraps, as in PowerPoint and Chromium (tests/advanceGrid.test.ts).
     const arial = (bold: boolean) => resolveInstalledGlyphAdvances("Arial", bold, false);
+
     test.skipIf(!arial(false) || !arial(true))("breaks the PowerPoint target's lines at the box's width by the rounded advances, as PowerPoint does", async () => {
         const cases = wrapLimitCases(bold => arial(bold) ?? { unitsPerEm: 1, advances: new Map() });
         const deck = await wrapLimitDeck(new PuppeteerGenPowerPoint(), cases).toHtml();
@@ -285,8 +321,10 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const drawn = [...ascii(pdf).matchAll(/\/Contents (\d+) 0 R/g)].map(([, id]) => {
             const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${id} 0 obj`)) + "stream\n".length;
             const content = inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
+
             return new Set([...content.matchAll(/(-?[\d.]+) Tm/g)].map(([, y]) => y)).size;
         });
+
         expect(cases.map(({ fontSize, bold, lines, steps }, index) => ({ fontSize, bold, lines, steps, drawn: drawn[index] }))).toEqual(cases.map(({ fontSize, bold, lines, steps, expectedLines }) => ({ fontSize, bold, lines, steps, drawn: expectedLines })));
     });
 
@@ -294,12 +332,18 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     // boxes whose line ends 0.002pt past the floored width included (#341).
     test.skipIf(!arial(false))("keeps or wraps the last word of each box floor case as PowerPoint does", async () => {
         const pdftotext = Bun.which("pdftotext");
-        if (!pdftotext) return console.warn("pdftotext (poppler-utils) not installed: box floor cases not compared");
+
+        if (!pdftotext) {
+            return console.warn("pdftotext (poppler-utils) not installed: box floor cases not compared");
+        }
+
         const cases = boxFloorCases(arial(false) ?? { unitsPerEm: 1, advances: new Map() });
         const deck = await boxFloorDeck(new PuppeteerGenPowerPoint(), cases).toHtml();
         const dir = await mkdtemp(join(tmpdir(), "box-floor-"));
+
         try {
             const file = join(dir, "deck.pdf");
+
             await writeFile(file, await (await createWasmRenderer({ fonts: systemFonts })).render(deck));
             const pages = Bun.spawnSync([pdftotext, "-layout", file, "-"]).stdout.toString().split("\f");
             // Whether the first line drawn on each case's page ends with its text's last word.
@@ -310,6 +354,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
                     ?.trim()
                     .endsWith(text.split(" ").at(-1) ?? ""),
             );
+
             expect(cases.map(({ label }, index) => ({ label, fits: kept[index] }))).toEqual(cases.map(({ label, fits }) => ({ label, fits })));
         } finally {
             await rm(dir, { recursive: true, force: true });
@@ -322,7 +367,11 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     // the shortcut at family_stack (crates/pdf-core/src/text/font.rs).
     test("falls back to the CJK face Chromium picks for the run's lang", async () => {
         const pdffonts = Bun.which("pdffonts");
-        if (!pdffonts) return console.warn("pdffonts (poppler-utils) not installed: CJK fallback faces not compared");
+
+        if (!pdffonts) {
+            return console.warn("pdffonts (poppler-utils) not installed: CJK fallback faces not compared");
+        }
+
         const runs = [
             ["zh-CN", "简体中文的文本"],
             ["zh-TW", "繁體中文的文本"],
@@ -332,18 +381,25 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             ["en-US", "lorem 1ᵉʳ dolor"],
         ] as const;
         const pdf = async (pres: PuppeteerGen) => {
-            for (const [lang, text] of runs) pres.addSlide().addText(text, { x: 1, y: 1, w: 6, h: 1, fontFace: "Arial", fontSize: 24, lang });
+            for (const [lang, text] of runs) {
+                pres.addSlide().addText(text, { x: 1, y: 1, w: 6, h: 1, fontFace: "Arial", fontSize: 24, lang });
+            }
+
             return pres.toPdf();
         };
         const dir = await mkdtemp(join(tmpdir(), "cjk-fallback-"));
+
         try {
             // The distinct faces pdffonts lists for each page, without the subset tag (Chromium embeds a face once per run)
             // or the CMap a Type 0 font name may end in (PDF 32000-1 9.7.6.1: krilla writes "-Identity-H").
             const faces = async (name: string, bytes: Uint8Array) => {
                 const file = join(dir, `${name}.pdf`);
+
                 await writeFile(file, bytes);
+
                 return runs.map((_, page) => {
                     const listing = Bun.spawnSync([pdffonts, "-f", String(page + 1), "-l", String(page + 1), file]).stdout.toString();
+
                     return [
                         ...new Set(
                             listing
@@ -361,12 +417,15 @@ describe.skipIf(!canRender)("WASM backend render", () => {
                 });
             };
             const chromium = await faces("chromium", await pdf(new PuppeteerGen(PAGE)));
+
             // Elsewhere fontconfig can pick faces loadSystemFonts does not load (Arch: Droid Sans Fallback, Arial); the
             // pinned visual image (tests/visual/Dockerfile) has Liberation, fonts-noto-cjk and its lang rules.
             if (chromium.flat().some(face => !/^(?:NotoSansCJK|LiberationSans)/.test(face ?? ""))) {
                 return console.warn(`Chromium used ${JSON.stringify(chromium)}, not only Liberation Sans and Noto Sans CJK: fallback faces not compared`);
             }
+
             const cjk = ["NotoSansCJKsc-Regular", "NotoSansCJKtc-Regular", "NotoSansCJKjp-Regular", "NotoSansCJKkr-Regular", "NotoSansCJKjp-Regular"].map(face => [face]);
+
             expect(chromium.map(page => page.filter(face => face?.startsWith("NotoSansCJK")))).toEqual([...cjk, []]);
             expect(await faces("wasm", await pdf(new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) })))).toEqual(chromium);
         } finally {
@@ -378,9 +437,11 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pdf = async (pres: PuppeteerGen) => {
             pres.addSlide().addText("AVATAR WAVY Tower Toy Yay", { x: 1, y: 1, w: 4, h: 1, fontFace: "Arial", fontSize: 10 });
+
             return ascii(await pres.toPdf());
         };
         const powerPoint = await pdf(new PuppeteerGenPowerPoint(PAGE, { renderer }));
+
         expect(powerPoint).toBe(await pdf(new PuppeteerGenPowerPoint(PAGE, { renderer })));
         expect(powerPoint).not.toBe(await pdf(new PuppeteerGenLibreOffice(PAGE, { renderer })));
     });
@@ -394,14 +455,17 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             const pdf = Buffer.from(await pres.toPdf());
             const contents = ascii(pdf).match(/\/Contents (\d+) 0 R/)?.[1];
             const start = pdf.indexOf("stream\n", pdf.indexOf(`\n${contents} 0 obj`)) + "stream\n".length;
+
             return inflateSync(pdf.subarray(start, pdf.indexOf("endstream", start))).toString("latin1");
         };
         const stroke = async (pres: PuppeteerGen) => Number((await content(pres, { bold: true })).match(/ ([\d.]+) w\n/)?.[1]);
         // The page's y flip and the shear in one matrix: shear = -c / a.
         const shear = async (pres: PuppeteerGen) => {
             const [, a, c] = (await content(pres, { italic: true })).match(/q ([\d.]+) 0 (-[\d.]+) -[\d.]+ [\d.]+ [\d.]+ cm\b/) ?? [];
+
             return -Number(c) / Number(a);
         };
+
         // 36pt is 48px: LibreOffice's stroke 48/30, Chromium's 48/32.
         expect(await stroke(new PuppeteerGenLibreOffice(PAGE, { renderer }))).toBeCloseTo(48 / 30, 5);
         expect(await stroke(new PuppeteerGenPowerPoint(PAGE, { renderer }))).toBeCloseTo(48 / 32, 5);
@@ -417,6 +481,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         /** Each text object's baseline in CSS px from the page top, in drawing order, from both renderers' PDFs. */
         const baselines = async (pres: PuppeteerGen) => {
             const options = { y: 0.4, w: 4, h: 2.2, fontFace: "Arial", fontSize: 20, valign: "middle" } as const;
+
             pres.addSlide()
                 .addText([{ text: "Hxg" }, { text: "Hxg" }], { ...options, x: 0.5 })
                 .addText([{ text: "Hxg" }, { text: "Hxg", options: { baseline: -1000 } }], { ...options, x: 5 });
@@ -425,8 +490,10 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             // Chromium draws in 1/PRINT_ZOOM CSS px from the page top; WASM in CSS px from a `cm` origin in pt from the bottom.
             const fromChromium = chromium.flatMap(content => [...content.matchAll(/\n1 0 0 -1 [\d.]+ ([\d.]+) Tm\n/g)].map(([, y]) => Number(y) / PRINT_ZOOM));
             const fromWasm = pdfContentStreams(await renderer.render(await pres.toHtml())).flatMap(content => [...content.matchAll(/ -0\.75 [\d.]+ ([\d.]+) cm[^\n]*\nBT [^\n]*? 1 0 0 -1 [\d.]+ ([\d.]+) Tm/g)].map(([, origin, y]) => pointsToPixels(pageTopPt - Number(origin)) + Number(y)));
+
             return { chromium: fromChromium, wasm: fromWasm };
         };
+
         for (const [pres, growth] of [
             [new PuppeteerGenPowerPoint(PAGE), 0],
             // LibreOffice: the 11.6pt run reaches 0.2 x 11.6 + 10pt below its line's baseline, 8.32pt past the 20pt
@@ -434,10 +501,12 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             [new PuppeteerGenLibreOffice(PAGE), pointsToPixels((0.2 * 11.6 + 10 - 4) / 2)],
         ] as const) {
             const { chromium, wasm } = await baselines(pres);
+
             // Plain box, then the box with the lowered run: each draws its two runs.
             expect(chromium).toHaveLength(4);
             expect(wasm).toHaveLength(4);
             const [plain = 0, , escaped = 0] = chromium;
+
             expect(plain - escaped).toBeCloseTo(growth, 1);
             // WASM draws what Chromium does: within Chromium's 1/8 px text grid.
             wasm.forEach((y, index) => expect(Math.abs(y - (chromium[index] ?? 0))).toBeLessThan(1 / PRINT_ZOOM + 0.05));
@@ -447,6 +516,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test("throws on unsupported objects by default and lists them", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE);
+
         pres.addSlide()
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
             .addShape("ellipse", { x: 4, y: 1, w: 1, h: 1, shadow: { type: "outer", blur: 3, offset: 3, angle: 45 } });
@@ -456,12 +526,14 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test("draws components made of sized boxes and names the slide, object and element of one that needs layout", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
         const drawn = new PuppeteerGen(PAGE, { renderer });
+
         drawn.registerComponent("test/bar", 1, { schema: z.object({}), render: () => '<div style="width:50%;height:100%;background:#4472C4"></div>' });
         drawn.addSlide().addComponent({ type: "test/bar", version: 1, props: {} }, { x: 1, y: 2, w: 2, h: 1 });
         expect(ascii(await drawn.toPdf()).startsWith("%PDF-")).toBe(true);
         expect(renderer.warnings()).toEqual([]);
         // Not skipped even with onUnsupported: "warn": the markup is outside the profile.
         const text = new PuppeteerGen(PAGE, { renderer });
+
         text.registerComponent("test/badge", 1, { schema: z.object({}), render: () => "<b>Badge</b>" });
         text.addSlide().addComponent({ type: "test/badge", version: 1, props: {} }, { x: 1, y: 2, w: 2, h: 1, objectName: "Badge" });
         await expect(text.toPdf()).rejects.toThrow("invalid PdfLapas HTML: slide 1: object 'Badge': component 'test/badge' v1: <b> is not in profile v2: component markup is nested <div> boxes");
@@ -479,19 +551,31 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             { name: "Y", values: [3, 5, 4], sizes: [1, 4, 2] },
         ];
         const box = { x: 1, y: 1, w: 5, h: 3.5, showLegend: true, showTitle: true, title: "Sales <&>" };
-        for (const type of ["bar", "line", "area", "radar", "bar3D"] as const) pres.addSlide().addChart(type, series, box);
-        for (const type of ["pie", "doughnut"] as const) pres.addSlide().addChart(type, series.slice(0, 1), box);
-        for (const type of ["scatter", "bubble"] as const) pres.addSlide().addChart(type, xy, box);
+
+        for (const type of ["bar", "line", "area", "radar", "bar3D"] as const) {
+            pres.addSlide().addChart(type, series, box);
+        }
+
+        for (const type of ["pie", "doughnut"] as const) {
+            pres.addSlide().addChart(type, series.slice(0, 1), box);
+        }
+
+        for (const type of ["scatter", "bubble"] as const) {
+            pres.addSlide().addChart(type, xy, box);
+        }
+
         pres.addSlide().addChart("bar3D", series, { ...box, bar3DShape: "cylinder", chartColorsOpacity: 50 });
         pres.addSlide()
             .addChartEx({ renderer: "echarts", option: { series: [{ type: "pie", data: [1, 2, 3] }] } }, { x: 1, y: 1, w: 3, h: 3 })
             .addChartEx({ renderer: "svg", svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="5" fill="#C00000"/></svg>' }, { x: 5, y: 1, w: 3, h: 3 });
         const source = ascii(await pres.toPdf());
+
         expect(renderer.warnings()).toEqual([]);
         expect(source.match(/\/Type\s*\/Page\b(?!s)/g)).toHaveLength(11);
 
         // A caller's SVG outside the subset the reader knows is an error naming the place, not a blank box.
         const odd = new PuppeteerGen(PAGE, { renderer });
+
         odd.addSlide().addChartEx({ renderer: "svg", svg: '<svg xmlns="http://www.w3.org/2000/svg"><use href="#a"/></svg>' }, { x: 1, y: 1, w: 3, h: 3 });
         await expect(odd.toPdf()).rejects.toThrow("slide 1: object 'Chart 0': <use> is not in the SVG subset");
     });
@@ -499,6 +583,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test("makes linked runs, shapes, images and table cells clickable", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE, { renderer });
+
         pres.addSlide()
             .addText([{ text: "Docs", options: { hyperlink: { url: "https://example.com/docs", tooltip: "Open the docs" } } }], { x: 1, y: 1, w: 3, h: 0.5 })
             .addShape("rect", { x: 1, y: 2, w: 2, h: 1, rotate: 30, fill: { color: "0088CC" }, hyperlink: { slide: 2 } })
@@ -507,8 +592,10 @@ describe.skipIf(!canRender)("WASM backend render", () => {
             .addTable([[{ text: "Cell", options: { hyperlink: { url: "https://example.com/cell" } } }, { text: [{ text: "Run", options: { hyperlink: { slide: 2 } } }] }]], { x: 1, y: 4, w: 4 });
         pres.addSlide().addText("Second", { x: 1, y: 1, w: 3, h: 0.5 });
         const source = ascii(await pres.toPdf());
+
         expect(renderer.warnings()).toEqual([]);
         const links = source.match(/\/Type\/Annot\/Subtype\/Link[^\n]*/g) ?? [];
+
         expect(links).toHaveLength(5);
         expect(links.filter(link => link.includes("/URI(https://example.com/docs)") && link.includes("/Contents(Open the docs)"))).toHaveLength(1);
         expect(links.filter(link => link.includes("/URI(mailto:team@example.com)"))).toHaveLength(1);
@@ -522,12 +609,18 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const pres = new PuppeteerGen(PAGE, { renderer });
         const line = { color: "17365D", width: 1.5, dashType: "dash", beginArrowType: "oval", endArrowType: "stealth" } as const;
         let slide = pres.addSlide();
+
         for (const [index, shape] of CORE_SVG_SHAPES.entries()) {
-            if (index > 0 && index % 30 === 0) slide = pres.addSlide();
+            if (index > 0 && index % 30 === 0) {
+                slide = pres.addSlide();
+            }
+
             const options = { x: (index % 6) * 1.6, y: Math.floor((index % 30) / 6), w: 1.4, h: 0.9, fill: { color: "5B9BD5", transparency: 20 }, line, rotate: 15, flipH: index % 2 === 0 };
             const points = [{ x: 0, y: 0 }, { x: 1.4, y: 0.9, curve: { type: "arc", wR: 0.7, hR: 0.45, stAng: 0, swAng: 90 } }, { close: true }] as const;
+
             slide.addShape(shape as PptxGenJS.SHAPE_NAME, shape === "custGeom" ? { ...options, points: [...points] } : options);
         }
+
         expect(ascii(await pres.toPdf()).startsWith("%PDF-")).toBe(true);
         expect(renderer.warnings()).toEqual([]);
     });
@@ -535,6 +628,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test('onUnsupported: "warn" renders and reports skipped objects', async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts, onUnsupported: "warn" });
         const pres = new PuppeteerGen(PAGE, { renderer });
+
         pres.addSlide()
             .addText("Text", { x: 1, y: 1, w: 3, h: 1 })
             .addImage({ data: PNG, x: 1, y: 2, w: 1, h: 1 })
@@ -549,13 +643,17 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const deck = (shadow?: PptxGenJS.ShadowProps) => {
             const pres = new PuppeteerGenPowerPoint(PAGE, { renderer });
+
             pres.addSlide().addImage({ data: PNG, x: 1, y: 1, w: 2, h: 2, shadow });
+
             return pres;
         };
         const shadowed = deck({ type: "inner", color: "000000", opacity: 0.75, blur: 8, offset: 6, angle: 45 });
+
         expect((await shadowed.toHtml()).html).toContain("box-shadow: inset ");
         const masks = (pdf: Uint8Array) => ascii(pdf).split("/SMask").length - 1;
         const drawn = masks(await shadowed.toPdf());
+
         expect(renderer.warnings()).toEqual([]);
         expect(drawn).toBe(masks(await deck().toPdf()) + 1);
     });
@@ -564,10 +662,12 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const svg = (body: string) => `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 2">${body}</svg>`)}`;
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const drawn = new PuppeteerGen(PAGE, { renderer });
+
         drawn.addSlide().addImage({ data: svg('<circle cx="1" cy="1" r="1" fill="tomato"/>'), x: 1, y: 1, w: 2, h: 1 });
         expect(ascii(await drawn.toPdf()).startsWith("%PDF-")).toBe(true);
         expect(renderer.warnings()).toEqual([]);
         const broken = new PuppeteerGen(PAGE, { renderer });
+
         broken.addSlide();
         broken.addSlide().addImage({ data: svg('<image href="https://example.com/a.png"/>'), x: 1, y: 1, w: 2, h: 1, altText: "Logo" });
         await expect(broken.toPdf()).rejects.toThrow(/^slide 2: image '[^']+': SVG image: <image> is not in the SVG subset/);
@@ -577,23 +677,29 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         // The 1x1 PNG with an IHDR claiming 100000 x 100000 pixels (40 GB as RGBA).
         const bomb = Uint8Array.from(atob(PNG.split(",")[1] ?? ""), c => c.charCodeAt(0));
+
         new DataView(bomb.buffer).setUint32(16, 100_000);
         new DataView(bomb.buffer).setUint32(20, 100_000);
         const broken = new PuppeteerGen(PAGE, { renderer });
+
         broken.addSlide().addImage({ data: `data:image/png;base64,${btoa(String.fromCharCode(...bomb))}`, x: 1, y: 1, w: 1, h: 1 });
         await expect(broken.toPdf()).rejects.toThrow(/^slide 1: image '[^']+': 100000x100000 pixels is over the limit of 67108864 pixels per image/);
         const drawn = new PuppeteerGen(PAGE, { renderer });
+
         drawn.addSlide().addImage({ data: PNG, x: 1, y: 1, w: 1, h: 1 });
         expect(ascii(await drawn.toPdf()).startsWith("%PDF-")).toBe(true);
     });
 
     test("draws data, path and repeated images in every sizing mode without warnings", async () => {
         const directory = await mkdtemp(join(tmpdir(), "wasm-image-"));
+
         try {
             const path = join(directory, "pixel.png");
+
             await writeFile(path, Buffer.from(PNG.split(",")[1] ?? "", "base64"));
             const renderer = await createWasmRenderer({ fonts: systemFonts });
             const pres = new PuppeteerGen(PAGE, { renderer });
+
             pres.addSlide()
                 .addImage({ path, x: 0.5, y: 0.5, w: 1, h: 1, rotate: 20, flipV: true, transparency: 40 })
                 .addImage({ data: PNG, x: 2, y: 0.5, w: 2, h: 1, sizing: { type: "contain", w: 1, h: 1 }, rounding: true })
@@ -608,6 +714,7 @@ describe.skipIf(!canRender)("WASM backend render", () => {
 
     test("names the image whose data cannot be decoded", async () => {
         const pres = new PuppeteerGen(PAGE, { renderer: await createWasmRenderer({ fonts: systemFonts }) });
+
         pres.addSlide().addImage({ data: "data:image/png;base64,iVBORw0KGgoAAAA=", x: 1, y: 1, w: 1, h: 1, objectName: "Logo" });
         await expect(pres.toPdf()).rejects.toThrow("image 'Logo': cannot decode image/png data");
     });
@@ -619,7 +726,9 @@ describe.skipIf(!canRender)("WASM backend render", () => {
     test("the html and browser WASM entries produce a PDF in Chromium, loading the .wasm by URL", async () => {
         const bundle = async (entry: string) => {
             const build = await Bun.build({ entrypoints: [resolve(import.meta.dir, `../packages/${entry}.ts`)], target: "browser", format: "esm" });
+
             expect(build.success).toBe(true);
+
             return build.outputs[0]!.text();
         };
         const [html, wasm] = await Promise.all([bundle("pptxgenjs/src/html"), bundle("wasm/src/browser")]);
@@ -630,12 +739,20 @@ describe.skipIf(!canRender)("WASM backend render", () => {
         const result = await withBrowser(async browser => {
             const page = await browser.newPage();
             const errors: string[] = [];
+
             page.on("pageerror", error => errors.push(`pageerror: ${error}`));
             await page.setRequestInterception(true);
             page.on("request", request => {
                 const file = files[request.url()];
-                if (file) return void request.respond({ status: 200, contentType: file.contentType, headers: { "access-control-allow-origin": "*" }, body: Buffer.from(file.body) });
-                if (request.url().startsWith("data:") || request.url().startsWith("blob:")) return void request.continue();
+
+                if (file) {
+                    return void request.respond({ status: 200, contentType: file.contentType, headers: { "access-control-allow-origin": "*" }, body: Buffer.from(file.body) });
+                }
+
+                if (request.url().startsWith("data:") || request.url().startsWith("blob:")) {
+                    return void request.continue();
+                }
+
                 errors.push(`request: ${request.url()}`);
                 void request.abort();
             });
@@ -648,19 +765,23 @@ describe.skipIf(!canRender)("WASM backend render", () => {
                         const font = new Uint8Array(await (await fetch("https://assets.test/font.ttf")).arrayBuffer());
                         const renderer = await createWasmRenderer({ fonts: [font], wasm: "https://assets.test/pdf_wasm_bg.wasm" });
                         const pres = new PuppeteerGen(undefined, { renderer });
+
                         pres.addSlide().addText("Browser WASM", { x: 1, y: 1, w: 4, h: 1 });
                         pres.addSlide().addText("Second", { x: 1, y: 1, w: 4, h: 1 });
                         const pdf = new TextDecoder("latin1").decode(await pres.toPdf());
+
                         return { header: pdf.slice(0, 5), pages: pdf.match(/\/Type\s*\/Page\b(?!s)/g)?.length };
                     },
                     html,
                     wasm,
                 );
+
                 return { ...output, errors };
             } finally {
                 await page.close();
             }
         });
+
         expect(result).toEqual({ header: "%PDF-", pages: 2, errors: [] });
     }, 60_000);
 });
@@ -671,9 +792,11 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
     test("out-of-profile HTML throws naming the slide, object and property", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE);
+
         pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1, objectName: "Title" });
         const { html, pageSize } = await pres.toHtml();
         const tampered = html.replace('style="left: 96px;', 'style="filter: blur(2px); left: 96px;');
+
         await expect(renderer.render({ html: tampered, pageSize })).rejects.toThrow("slide 1: object 'Title': CSS property 'filter'");
         await expect(renderer.render({ html: html.replace('<meta name="pdflapas-profile" content="2">', '<meta name="pdflapas-profile" content="3">'), pageSize })).rejects.toThrow(
             `profile version '3' in <meta name="pdflapas-profile"> is not supported (this renderer reads <meta name="pdfdeck-profile" content="1"> and <meta name="pdflapas-profile" content="2">)`,
@@ -683,23 +806,29 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
     test("writes title, author, subject, creator and producer to the PDF Info dictionary; a version 1 document gets no title", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE, { renderer });
+
         pres.title = "Q3 plan";
         pres.author = "Ana";
         pres.subject = "Sales";
         pres.addSlide().addText("Hi", { x: 1, y: 1, w: 3, h: 1 });
         const text = (pdf: Uint8Array) => Buffer.from(pdf).toString("latin1");
+
         expect(text(await pres.toPdf())).toContain("<</Title(Q3 plan)/Subject(Sales)/Author(Ana)/Creator(PdfLapas)/Producer(PdfLapas)>>");
         const { html, pageSize } = await pres.toHtml();
         const v1 = await renderer.render({ html: html.replace('<meta name="pdflapas-profile" content="2">', '<meta name="pdfdeck-profile" content="1">'), pageSize });
+
         expect(text(v1)).not.toContain("/Title");
     });
 
     test("hand-written minimal documents render after the completion step", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
+
         for (const [kind, object] of Object.entries(HAND_WRITTEN_OBJECTS)) {
             const pdf = await renderer.render({ html: completeProfileHtml(handWrittenDocument(object)), pageSize: PAGE });
+
             expect({ kind, pdf: ascii(pdf.subarray(0, 5)) }).toEqual({ kind, pdf: "%PDF-" });
         }
+
         // Without completion the reader names the first value the profile requires.
         await expect(renderer.render({ html: handWrittenDocument(HAND_WRITTEN_OBJECTS.text), pageSize: PAGE })).rejects.toThrow("invalid PdfLapas HTML: the stylesheet has no '@page");
     });
@@ -707,10 +836,12 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
     test("an edited toHtml() document renders through pptxHtmlDocument() and draws the edit", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const pres = new PuppeteerGen(PAGE);
+
         pres.addSlide().addText("Draft", { x: 1, y: 1, w: 3, h: 1 });
         const { html } = await pres.toHtml();
         const draft = await renderer.render(pptxHtmlDocument(html));
         const final = await renderer.render(pptxHtmlDocument(html.replace(">Draft</span>", ">Final</span>")));
+
         expect(ascii(final.subarray(0, 5))).toBe("%PDF-");
         expect(ascii(final)).not.toBe(ascii(draft));
     });
@@ -718,6 +849,7 @@ describe.skipIf(!canRender)("WASM HTML profile input", () => {
     test("an out-of-profile hand-written document fails naming the slide, the object and the property", async () => {
         const renderer = await createWasmRenderer({ fonts: systemFonts });
         const render = (object: string) => renderer.render({ html: completeProfileHtml(handWrittenDocument(object)), pageSize: PAGE });
+
         await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-variant: small-caps;"))).rejects.toThrow("invalid PdfLapas HTML: slide 1: object 'Title': paragraph 1: run 1: CSS property 'font-variant' on <span> is not in profile v2");
         await expect(render(HAND_WRITTEN_OBJECTS.text.replace("font-weight: bold;", "font-family: &quot;Calibri&quot;, Arial;"))).rejects.toThrow("font-family '\"Calibri\", Arial' is not a list of quoted families");
     });

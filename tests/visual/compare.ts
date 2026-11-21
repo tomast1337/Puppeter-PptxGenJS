@@ -9,11 +9,13 @@ import { galleryPageTitles, writeVisualGallery } from "./gallery";
 import { PAGE_THRESHOLD } from "./thresholds";
 
 const threshold = Number(process.env.VISUAL_DIFF_THRESHOLD ?? PAGE_THRESHOLD);
+
 if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
     throw new Error("VISUAL_DIFF_THRESHOLD must be a number between 0 and 1");
 }
 
 const requiredTools = ["libreoffice", "pdftoppm", "magick"] as const;
+
 for (const tool of requiredTools) {
     if (!Bun.which(tool)) {
         throw new Error(`Visual comparison requires '${tool}' on PATH`);
@@ -27,6 +29,7 @@ async function run(command: string[], acceptedExitCodes = [0]): Promise<string> 
     if (!acceptedExitCodes.includes(exitCode)) {
         throw new Error(`${command.join(" ")} failed (${exitCode})\n${stderr || stdout}`);
     }
+
     return `${stdout}\n${stderr}`.trim();
 }
 
@@ -39,6 +42,7 @@ const actualPdf = join(artifacts, "actual.pdf");
 // computed styles, while these two layout/text shims provide the properties
 // its synchronous extractor consumes.
 const sourceDom = new JSDOM("<!DOCTYPE html><html><body></body></html>");
+
 Object.defineProperty(sourceDom.window.HTMLElement.prototype, "offsetWidth", {
     configurable: true,
     get(this: HTMLElement) {
@@ -49,6 +53,7 @@ Object.defineProperty(sourceDom.window.HTMLElement.prototype, "innerText", {
     configurable: true,
     get(this: HTMLElement) {
         const read = (node: Node): string => (node.nodeType === node.TEXT_NODE ? (node.nodeValue ?? "") : node instanceof sourceDom.window.HTMLBRElement ? "\n" : Array.from(node.childNodes).map(read).join(""));
+
         return read(this).trim();
     },
 });
@@ -58,20 +63,33 @@ Object.defineProperty(sourceDom.window.HTMLElement.prototype, "innerText", {
 // without bound, so reuse declarations for this immutable fixture DOM.
 const computedStyles = new WeakMap<Element, CSSStyleDeclaration>();
 const getComputedStyle = sourceDom.window.getComputedStyle.bind(sourceDom.window);
+
 sourceDom.window.getComputedStyle = ((element: Element, pseudoElement?: string | null) => {
-    if (pseudoElement) return getComputedStyle(element, pseudoElement);
+    if (pseudoElement) {
+        return getComputedStyle(element, pseudoElement);
+    }
+
     const cached = computedStyles.get(element);
-    if (cached) return cached;
+
+    if (cached) {
+        return cached;
+    }
+
     const style = getComputedStyle(element);
+
     computedStyles.set(element, style);
+
     return style;
 }) as typeof sourceDom.window.getComputedStyle;
 Object.assign(globalThis, { document: sourceDom.window.document, window: sourceDom.window });
 const progress = (stage: string) => {
-    if (process.env.VISUAL_PROGRESS) console.log(`[visual] ${stage}`);
+    if (process.env.VISUAL_PROGRESS) {
+        console.log(`[visual] ${stage}`);
+    }
 };
 
 const reference = new pptxgen();
+
 reference.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
 reference.layout = "PARITY";
 progress("populate reference");
@@ -81,6 +99,7 @@ await reference.writeFile({ fileName: referencePptx });
 
 // The same layout calls as the reference, so the parity run exercises pres.layout too.
 const actual = new PuppeteerGen();
+
 actual.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
 actual.layout = "PARITY";
 progress("populate actual");
@@ -89,6 +108,7 @@ progress("write actual pdf");
 await actual.writeFile({ fileName: actualPdf });
 
 const libreOfficeProfile = join(artifacts, "libreoffice-profile");
+
 progress("convert reference pdf");
 await run(["libreoffice", "--headless", `-env:UserInstallation=file://${libreOfficeProfile}`, "--convert-to", "pdf", "--outdir", artifacts, referencePptx]);
 progress("rasterize PDFs");
@@ -99,51 +119,72 @@ const files = await readdir(artifacts);
 const pageNumber = (file: string) => Number(file.match(/-(\d+)\.png$/)?.[1]);
 const referencePages = files.filter(file => /^reference-\d+\.png$/.test(file)).sort((a, b) => pageNumber(a) - pageNumber(b));
 const actualPages = files.filter(file => /^actual-\d+\.png$/.test(file)).sort((a, b) => pageNumber(a) - pageNumber(b));
+
 if (referencePages.length !== actualPages.length || referencePages.length === 0) {
     throw new Error(`Page count mismatch: reference=${referencePages.length}, actual=${actualPages.length}`);
 }
+
 // Checked on every run, gallery or not, so a title rule that stops matching the printed pages fails in CI (#225).
 const pageTitles = galleryPageTitles(actual.getModel());
+
 if (pageTitles.length !== referencePages.length) {
     throw new Error(`Gallery titles do not match the pages: titles=${pageTitles.length}, pages=${referencePages.length}`);
 }
+
 const pageDigits = Math.max(2, String(referencePages.length).length);
 const pageFiles = await Promise.all(
     referencePages.map(async (referencePage, index) => {
         const page = String(index + 1).padStart(pageDigits, "0");
         const referenceName = `${page}-reference.png`;
         const actualName = `${page}-actual.png`;
+
         await Promise.all([rename(join(artifacts, referencePage), join(artifacts, referenceName)), rename(join(artifacts, actualPages[index]!), join(artifacts, actualName))]);
+
         return { page, title: pageTitles[index] ?? "", referenceName, actualName };
     }),
 );
 
 const pageScores: number[] = [];
+
 for (const page of pageFiles) {
     const output = await run(["magick", "compare", "-metric", "RMSE", join(artifacts, page.referenceName), join(artifacts, page.actualName), join(artifacts, `${page.page}-diff.png`)], [0, 1]);
     const normalizedScore = output.match(/\((\d*\.?\d+(?:e-?\d+)?)\)/)?.[1];
-    if (!normalizedScore) throw new Error(`Could not parse ImageMagick metric: ${output}`);
+
+    if (!normalizedScore) {
+        throw new Error(`Could not parse ImageMagick metric: ${output}`);
+    }
+
     pageScores.push(Number(normalizedScore));
 }
 
 const regionFailures: string[] = [];
+
 for (const region of PARITY_REGIONS) {
     const pageIndex = region.page - 1;
     const page = pageFiles[pageIndex]!;
     const geometry = `${region.w}x${region.h}+${region.x}+${region.y}`;
     const referenceCrop = join(artifacts, `${page.page}-${region.name}-reference.png`);
     const actualCrop = join(artifacts, `${page.page}-${region.name}-actual.png`);
+
     await run(["magick", join(artifacts, page.referenceName), "-crop", geometry, "+repage", referenceCrop]);
     await run(["magick", join(artifacts, page.actualName), "-crop", geometry, "+repage", actualCrop]);
     const output = await run(["magick", "compare", "-metric", "RMSE", referenceCrop, actualCrop, join(artifacts, `${page.page}-${region.name}-diff.png`)], [0, 1]);
     const metric = output.match(/\((\d*\.?\d+(?:e-?\d+)?)\)/)?.[1];
-    if (!metric) throw new Error(`Could not parse region metric: ${output}`);
+
+    if (!metric) {
+        throw new Error(`Could not parse region metric: ${output}`);
+    }
+
     const score = Number(metric);
+
     console.log(`${region.name}: ${score.toFixed(4)} (limit ${region.threshold.toFixed(4)})`);
-    if (score > region.threshold) regionFailures.push(`${region.name}: ${score.toFixed(4)} > ${region.threshold}`);
+    if (score > region.threshold) {
+        regionFailures.push(`${region.name}: ${score.toFixed(4)} > ${region.threshold}`);
+    }
 }
 
 const worstScore = Math.max(...pageScores);
+
 console.log(`Visual parity RMSE by page: ${pageScores.map(score => score.toFixed(4)).join(", ")}`);
 console.log(`Acceptance threshold: ${threshold.toFixed(4)}`);
 console.log(`Artifacts: ${artifacts}`);
@@ -151,13 +192,18 @@ console.log(`Artifacts: ${artifacts}`);
 if (worstScore > threshold) {
     throw new Error(`Visual difference ${worstScore.toFixed(4)} exceeds ${threshold.toFixed(4)}`);
 }
+
 if (regionFailures.length) {
     throw new Error(`Feature crop differences exceed acceptance:\n${regionFailures.join("\n")}`);
 }
 
 if (process.env.VISUAL_GALLERY_DIR) {
     const galleryDirectory = resolve(process.env.VISUAL_GALLERY_DIR);
-    if (galleryDirectory === resolve(".")) throw new Error("VISUAL_GALLERY_DIR must not be the repository root");
+
+    if (galleryDirectory === resolve(".")) {
+        throw new Error("VISUAL_GALLERY_DIR must not be the repository root");
+    }
+
     await writeVisualGallery(artifacts, pageFiles, pageScores, threshold, galleryDirectory);
     console.log(`Gallery: ${galleryDirectory}`);
 }

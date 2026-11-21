@@ -19,14 +19,18 @@ test("the print page requests nothing from the network and runs no script, and s
         port: 0,
         fetch(request) {
             requests.push(new URL(request.url).pathname);
+
             return new Response("<html><body>internal</body></html>", { headers: { "content-type": "text/html" } });
         },
     });
+
     try {
         const origin = `http://127.0.0.1:${server.port}`;
         const presentation = new PuppeteerGen();
+
         presentation.title = "Kept";
         const slide = presentation.addSlide();
+
         slide.addText("Text", { x: 1, y: 1, w: 4, h: 1 });
         // A GIF still freezes to its first frame with scripts off: that step runs through the DevTools protocol.
         slide.addImage({ data: GIF, x: 1, y: 2, w: 1, h: 1 });
@@ -40,9 +44,11 @@ test("the print page requests nothing from the network and runs no script, and s
             `<svg width="1" height="1" onload="document.title = 'Changed'"></svg>`,
         ].join("");
         const html = document.html.replace("</body>", `${untrusted}</body>`);
+
         expect(html).not.toBe(document.html);
 
         const pdf = new TextDecoder("latin1").decode(await new PuppeteerPdfRenderer().render({ ...document, html }));
+
         expect(pdf.startsWith("%PDF-")).toBe(true);
         expect(requests).toEqual([]);
         expect(pdf).not.toContain(hex("Changed"));

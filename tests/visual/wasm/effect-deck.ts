@@ -18,6 +18,7 @@ const soft = { type: "outer", color: "000000", opacity: 0.4, blur: 4, offset: 4,
 
 export function populateEffectDeck<T extends PptxGenJS | PuppeteerGen>(presentation: T): T {
     const shadows = presentation.addSlide() as PptxGenJS.Slide;
+
     shadows.addText("Drop shadows", { ...title });
     // Unset blur, offset, angle and opacity: PptxGenJS writes 8pt, 4pt, 270 degrees (up), 75%.
     shadows.addShape("rect", { x: 0.6, y: 1.1, w: 2, h: 1.2, fill: { color: "E2F0D9" }, line: { color: "70AD47", width: 1 }, shadow: { type: "outer" } });
@@ -32,6 +33,7 @@ export function populateEffectDeck<T extends PptxGenJS | PuppeteerGen>(presentat
     shadows.addImage({ data: SAMPLE_PNG, x: 7.2, y: 3, w: 2.2, h: 1.1, transparency: 50, shadow: { ...soft, opacity: 0.8 } });
 
     const glow = presentation.addSlide() as PptxGenJS.Slide;
+
     glow.addText("Text glow", { ...title });
     glow.addText([{ text: "Golden glow", options: { glow: { size: 8, opacity: 0.6, color: "FFC000" } } }], { x: 0.6, y: 1.1, w: 4.2, h: 1, fontFace: "Arial", fontSize: 36, bold: true, color: "17365D", align: "center", margin: 0 });
     glow.addText([{ text: "Over a fill", options: { glow: { size: 5, opacity: 0.9, color: "FFFFFF" } } }], {
@@ -48,5 +50,6 @@ export function populateEffectDeck<T extends PptxGenJS | PuppeteerGen>(presentat
     });
     glow.addText([{ text: "Rotated", options: { glow: { size: 12, opacity: 0.5, color: "00B050" } } }], { x: 0.8, y: 2.9, w: 3.6, h: 1.2, rotate: -10, fontFace: "Arial", fontSize: 40, color: "000000", align: "center", margin: 0 });
     glow.addText([{ text: "Small glow", options: { glow: { size: 3, opacity: 0.75, color: "7030A0" } } }], { x: 5.2, y: 3.1, w: 4.2, h: 0.8, fontFace: "Arial", fontSize: 24, color: "FFFFFF", align: "center", margin: 0 });
+
     return presentation;
 }

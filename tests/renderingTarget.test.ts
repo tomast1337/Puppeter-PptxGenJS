@@ -14,6 +14,7 @@ afterAll(closeBrowser);
 /** 10pt text in a text box, a table cell and a slide number (every place runs come from), then a 14pt run with and without charSpacing. */
 function deck(presentation: PuppeteerGen): PuppeteerGen {
     const slide = presentation.addSlide();
+
     slide.addText("Text box", { x: 1, y: 1, w: 3, h: 1, fontSize: 10 });
     slide.addTable([[{ text: "Cell" }]], { x: 1, y: 2.5, w: 3, fontSize: 10 });
     slide.slideNumber = { x: 9, y: 5, fontSize: 10 };
@@ -24,6 +25,7 @@ function deck(presentation: PuppeteerGen): PuppeteerGen {
         ],
         { x: 1, y: 4, w: 3, h: 1 },
     );
+
     return presentation;
 }
 
@@ -32,26 +34,40 @@ const runStyles = async (presentation: PuppeteerGen) => [...(await presentation.
 describe("rendering targets", () => {
     test("the default export and PuppeteerGen keep the LibreOffice target; both named targets are PuppeteerGen subclasses", async () => {
         expect(DefaultExport).toBe(PuppeteerGen);
-        for (const Target of [PuppeteerGenLibreOffice, PuppeteerGenPowerPoint]) expect(new Target()).toBeInstanceOf(PuppeteerGen);
+        for (const Target of [PuppeteerGenLibreOffice, PuppeteerGenPowerPoint]) {
+            expect(new Target()).toBeInstanceOf(PuppeteerGen);
+        }
+
         expect(await runStyles(deck(new PuppeteerGenLibreOffice()))).toEqual(await runStyles(deck(new PuppeteerGen())));
     });
 
     // PptxGenJS inherits kern="1200" (presentation.xml defaultTextStyle) and writes kern="0" with charSpacing.
     test("the PowerPoint target writes font-kerning: none on runs under 12pt or with charSpacing, the LibreOffice target on none", async () => {
         const unkerned = (await runStyles(deck(new PuppeteerGenPowerPoint()))).map(style => style?.includes("font-kerning: none;"));
+
         // Text box, table cell, 14pt run, 14pt run with charSpacing, slide number (written last).
         expect(unkerned).toEqual([true, true, false, true, true]);
-        for (const style of await runStyles(deck(new PuppeteerGenLibreOffice()))) expect(style).not.toContain("font-kerning");
+        for (const style of await runStyles(deck(new PuppeteerGenLibreOffice()))) {
+            expect(style).not.toContain("font-kerning");
+        }
+
         expect((await deck(new PuppeteerGenPowerPoint()).toHtml()).html).not.toContain('name="pdflapas-target"');
     });
 
     test("normalization marks runs unkerned only for the PowerPoint target", () => {
         const run = (options: Parameters<typeof normalizeText>[1], target?: Parameters<typeof normalizeText>[2]) => normalizeText("x", options, target).paragraphs[0]?.runs[0];
+
         // Measured against PowerPoint's PDF export of a synthetic deck ("AVAVAVAVAVAV xo" in Arial): unkerned at 10, 11,
         // 11.5 and 11.9pt, kerned at 12 and 12.5pt, in a text box, a table cell (11pt unkerned, 12, 18, 24pt kerned)
         // and a roundRect (12 and 24pt kerned) alike.
-        for (const fontSize of [11.5, 11.9]) expect(run({ fontSize }, "powerpoint")?.kerning).toBe(false);
-        for (const fontSize of [12, 12.5]) expect(run({ fontSize }, "powerpoint")).not.toHaveProperty("kerning");
+        for (const fontSize of [11.5, 11.9]) {
+            expect(run({ fontSize }, "powerpoint")?.kerning).toBe(false);
+        }
+
+        for (const fontSize of [12, 12.5]) {
+            expect(run({ fontSize }, "powerpoint")).not.toHaveProperty("kerning");
+        }
+
         // The 18pt default is kerned; charSpacing turns kerning off at any size.
         expect(run({}, "powerpoint")).not.toHaveProperty("kerning");
         expect(run({ fontSize: 40, charSpacing: 2 }, "powerpoint")?.kerning).toBe(false);
@@ -64,30 +80,40 @@ describe("rendering targets", () => {
     // LibreOffice's synthetic bold and italic travel on the run; the PowerPoint target leaves the browser's (Chromium's).
     test("the LibreOffice target writes its synthetic bold and italic on bold and italic runs, the PowerPoint target none", async () => {
         const run = (options: Parameters<typeof normalizeText>[1], target?: Parameters<typeof normalizeText>[2]) => normalizeText("x", options, target).paragraphs[0]?.runs[0];
+
         expect(run({ bold: true, italic: true })).toMatchObject({ syntheticBold: RENDERING_TARGETS.libreoffice.syntheticBoldStrokeEm, syntheticItalic: RENDERING_TARGETS.libreoffice.syntheticItalicShear });
         expect(run({ bold: true })).not.toHaveProperty("syntheticItalic");
         expect(run({ italic: true })).not.toHaveProperty("syntheticBold");
-        for (const target of ["powerpoint", "libreoffice"] as const) expect(Object.keys(run({}, target) ?? {})).not.toContain("syntheticBold");
+        for (const target of ["powerpoint", "libreoffice"] as const) {
+            expect(Object.keys(run({}, target) ?? {})).not.toContain("syntheticBold");
+        }
+
         const powerPoint = run({ bold: true, italic: true }, "powerpoint");
+
         expect(powerPoint).not.toHaveProperty("syntheticBold");
         expect(powerPoint).not.toHaveProperty("syntheticItalic");
         const html = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText([{ text: "Bold", options: { bold: true } }, { text: "Italic", options: { italic: true } }, { text: "Plain" }], { x: 1, y: 1, w: 3, h: 1 });
+
             return [...(await presentation.toHtml()).html.matchAll(/<span class="text-run"([^>]*)>/g)].map(match => match[1]);
         };
         const [bold, italic, plain] = await html(new PuppeteerGenLibreOffice());
+
         expect(bold).toContain(' data-synthetic-bold="0.03333333333333333"');
         expect(bold).not.toContain("data-synthetic-italic");
         expect(italic).toContain(' data-synthetic-italic="0.3462535606"');
         expect(italic).not.toContain("data-synthetic-bold");
         expect(plain).not.toContain("data-synthetic");
-        for (const attributes of await html(new PuppeteerGenPowerPoint())) expect(attributes).not.toContain("data-synthetic");
+        for (const attributes of await html(new PuppeteerGenPowerPoint())) {
+            expect(attributes).not.toContain("data-synthetic");
+        }
     });
 
     // Measured against PowerPoint's PDF export: 18pt Arial with paraSpaceBefore 6 and paraSpaceAfter 18 has a
     // 45.6pt pitch (21.6 + 6 + 18), where collapsing CSS margins gave 39.6pt (21.6 + 18).
     test("the PowerPoint target adds a paragraph's space after to the next one's space before; LibreOffice keeps both", async () => {
         const spacing = (target?: Parameters<typeof normalizeText>[2]) => normalizeText("Para one\nPara two\nPara three", { fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 }, target).paragraphs.map(({ spaceBefore, spaceAfter }) => [spaceBefore, spaceAfter]);
+
         // The first paragraph's space before is dropped too (next test).
         expect(spacing("powerpoint")).toEqual([
             [0, 0],
@@ -103,8 +129,10 @@ describe("rendering targets", () => {
 
         const margins = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText("Para one\nPara two", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 });
+
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*margin-top: ([^;]*); margin-bottom: ([^;]*);/g)].map(match => `${match[1]} ${match[2]}`);
         };
+
         expect(await margins(new PuppeteerGenPowerPoint())).toEqual(["0px 0px", "32px 0px"]);
         expect(await margins(new PuppeteerGenLibreOffice())).toEqual(["8px 24px", "8px 0px"]);
     });
@@ -113,25 +141,31 @@ describe("rendering targets", () => {
     // below the top inset, as without it, where PdfLapas drew it 29.95pt below; the next ones stay 33.6pt apart.
     test("the PowerPoint target drops the first paragraph's space before, whatever the anchor; LibreOffice keeps it", async () => {
         const before = (valign: "top" | "middle" | "bottom", target?: Parameters<typeof normalizeText>[2]) => normalizeText("Para one\nPara two\nPara three", { fontSize: 18, paraSpaceBefore: 12, valign }, target).paragraphs.map(paragraph => paragraph.spaceBefore);
+
         for (const valign of ["top", "middle", "bottom"] as const) {
             expect(before(valign, "powerpoint")).toEqual([0, 16, 16]);
             expect(before(valign, "libreoffice")).toEqual([16, 16, 16]);
             expect(before(valign)).toEqual(before(valign, "libreoffice"));
         }
+
         // Table cells go through the same text normalization. PptxGenJS writes a cell's paraSpaceBefore (genXmlTextBody)
         // although its TableCellProps type leaves it out.
         const options: PptxGenJS.TableCellProps & { paraSpaceBefore: number } = { paraSpaceBefore: 12 };
         const cell = (presentation: PuppeteerGen) => {
             presentation.addSlide().addTable([[{ text: "One\nTwo", options }]], { x: 1, y: 1, w: 3 });
+
             return presentation.getModel().slides[0]?.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.map(paragraph => paragraph.spaceBefore))) : []));
         };
+
         expect(cell(new PuppeteerGenPowerPoint())).toEqual([0, 16]);
         expect(cell(new PuppeteerGenLibreOffice())).toEqual([16, 16]);
 
         const margins = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText("Para one\nPara two", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, paraSpaceBefore: 12 });
+
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*margin-top: ([^;]*);/g)].map(match => match[1]);
         };
+
         expect(await margins(new PuppeteerGenPowerPoint())).toEqual(["0px", "16px"]);
         expect(await margins(new PuppeteerGenLibreOffice())).toEqual(["16px", "16px"]);
     });
@@ -144,6 +178,7 @@ describe("rendering targets", () => {
         const runs = (): PptxGenJS.TextProps[] => [{ text: "One\n", options: { paraSpaceAfter: 9 } }, { text: "Two\n", options: { paraSpaceBefore: 6, lineSpacing: 30 } }, { text: "Three" }];
         const text = (target: Parameters<typeof normalizeText>[2]) => normalizeText(runs(), { fontSize: 12, fontFace: "Arial", align: "left" }, target).paragraphs;
         const props = (target: Parameters<typeof normalizeText>[2]) => text(target).map(({ spaceBefore, spaceAfter, lineBox }) => [spaceBefore, spaceAfter, lineBox.height]);
+
         expect(props("powerpoint")).toEqual([
             [0, 0, 19.2],
             [12, 0, 19.2],
@@ -158,13 +193,16 @@ describe("rendering targets", () => {
         expect(text("powerpoint").map(paragraph => paragraph.lineBox.markBaseline !== undefined)).toEqual([false, false, true]);
         // The bullet is in the first <a:pPr> too.
         const bullets = normalizeText([{ text: "Item\n", options: { bullet: true } }, { text: "more" }], {}, "powerpoint").paragraphs.map(paragraph => paragraph.bullet?.marker);
+
         expect(bullets).toEqual(["•", "•"]);
 
         const html = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText(runs(), { x: 1, y: 1, w: 3, h: 2, fontSize: 12, fontFace: "Arial", align: "left" });
             const page = (await presentation.toHtml()).html;
+
             return [...page.matchAll(/class="text-paragraph"[^>]*margin-top: ([^;]*);/g)].map(match => match[1]).concat(String(page.match(/data-mark-baseline/g)?.length ?? 0));
         };
+
         expect(await html(new PuppeteerGenPowerPoint())).toEqual(["0px", "12px", "12px", "1"]);
         expect(await html(new PuppeteerGenLibreOffice())).toEqual(["0px", "8px", "0px", "0"]);
     });
@@ -175,6 +213,7 @@ describe("rendering targets", () => {
     test("with explicit line spacing the PowerPoint target puts the baseline at 0.75 of the line height; LibreOffice at 0.2em above its bottom", async () => {
         const box = (options: Parameters<typeof normalizeText>[1], target?: Parameters<typeof normalizeText>[2]) => {
             const { height, baseline } = normalizeText("Line", options, target).paragraphs[0]!.lineBox;
+
             return [height, baseline].map(px => Math.round(px * 0.75 * 1000) / 1000);
         };
         const cases: [Parameters<typeof normalizeText>[1], number, number, number][] = [
@@ -187,19 +226,25 @@ describe("rendering targets", () => {
             [{ fontSize: 18, lineSpacing: 12 }, 12, 9, 8.4],
             [{ fontSize: 12, lineSpacingMultiple: 1.5 }, 21.6, 16.2, 19.2],
         ];
+
         for (const [options, height, powerPoint, libreOffice] of cases) {
             expect(box(options, "powerpoint")).toEqual([height, powerPoint]);
             expect(box(options, "libreoffice")).toEqual([height, libreOffice]);
             expect(box(options)).toEqual(box(options, "libreoffice"));
         }
+
         // Single spacing, explicit x1.0 included, keeps the 1.2em line and the font's baseline (next test): Calibri, 16.848
         // on the grid.
-        for (const options of [{ fontSize: 18 }, { fontSize: 18, lineSpacingMultiple: 1 }]) expect(box(options, "powerpoint")).toEqual([21.6, 16.8]);
+        for (const options of [{ fontSize: 18 }, { fontSize: 18, lineSpacingMultiple: 1 }]) {
+            expect(box(options, "powerpoint")).toEqual([21.6, 16.8]);
+        }
 
         const baselines = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText("Line", { x: 1, y: 1, w: 3, h: 2, fontSize: 18, lineSpacingMultiple: 1.5 });
+
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph" data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
         };
+
         // 32.4pt = 43.2px line: 32.4px with PowerPoint, 32.48px (203/600 in) on its grid; 43.2 - 4.8 = 38.4px with LibreOffice.
         expect(await baselines(new PuppeteerGenPowerPoint())).toEqual([32.48]);
         expect(await baselines(new PuppeteerGenLibreOffice())).toEqual([expect.closeTo(38.4, 6)]);
@@ -222,15 +267,18 @@ describe("rendering targets", () => {
         ];
         const pt = (px: number | undefined) => (px === undefined ? undefined : Math.round(px * 0.75 * 1000) / 1000);
         const gap = (options: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint") => pt(normalizeText("One\nTwo", { fontSize: 12, ...options }, target).paragraphs[1]?.spaceBefore);
+
         for (const [points, powerPoint] of measured) {
             expect(gap({ paraSpaceAfter: points }, "powerpoint")).toBe(powerPoint);
             expect(gap({ paraSpaceBefore: points }, "powerpoint")).toBe(powerPoint);
             expect(gap({ paraSpaceBefore: points }, "libreoffice")).toBe(points);
             expect(pt(normalizeText("One\nTwo", { fontSize: 12, paraSpaceAfter: points }, "libreoffice").paragraphs[0]?.spaceAfter)).toBe(points);
         }
+
         // Each value on its own: 0.5 + 0.5 is 1 + 1, not round(1).
         expect(gap({ paraSpaceAfter: 0.5, paraSpaceBefore: 0.5 }, "powerpoint")).toBe(2);
         const lineHeight = (options: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint") => pt(normalizeText("Line", { fontSize: 12, ...options }, target).paragraphs[0]?.lineBox.height);
+
         expect(lineHeight({ lineSpacing: 12.5 }, "powerpoint")).toBe(13);
         expect(lineHeight({ lineSpacing: 12.5 }, "libreoffice")).toBe(12.5);
         // spcPct is not rounded.
@@ -241,8 +289,10 @@ describe("rendering targets", () => {
         const cell = (presentation: PuppeteerGen) => {
             presentation.addSlide().addTable([[{ text: "One\nTwo", options }]], { x: 1, y: 1, w: 3 });
             const table = presentation.getModel().slides[0]?.objects[0];
+
             return table?.kind === "table" ? table.table.rows[0]?.cells[0]?.text.paragraphs.map(paragraph => pt(paragraph.spaceBefore)) : undefined;
         };
+
         expect(cell(new PuppeteerGenPowerPoint())).toEqual([0, 3]);
         expect(cell(new PuppeteerGenLibreOffice())).toEqual([0, 0]);
 
@@ -251,8 +301,10 @@ describe("rendering targets", () => {
         // (9.75pt) plus Calibri's single-spaced descent (3.17pt).
         const margins = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText("One\nTwo", { shape: "rect", x: 1, y: 1, w: 3, h: 2, fontSize: 12, paraSpaceAfter: 1.5, lineSpacing: 12.5 });
+
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"[^>]*?margin-top: ([^;]*); margin-bottom: ([^;]*); line-height: ([^;]*);/g)].map(match => match.slice(1).join(" "));
         };
+
         expect(await margins(new PuppeteerGenPowerPoint())).toEqual([expect.stringMatching(/^0px 0px 17\.333\d*px$/), expect.stringMatching(/^2\.666\d*px -0\.149\d*px 17\.333\d*px$/)]);
         expect(await margins(new PuppeteerGenLibreOffice())).toEqual([expect.stringMatching(/^0px 2px 16\.666\d*px$/), expect.stringMatching(/^0px 0px 16\.666\d*px$/)]);
     });
@@ -266,6 +318,7 @@ describe("rendering targets", () => {
     test("the PowerPoint target ends spaced text at its last baseline plus the fonts' single-spaced descent; LibreOffice at the line's bottom", () => {
         const end = (options: Parameters<typeof normalizeText>[1], target: "powerpoint" | "libreoffice") => {
             const { lineBox, spaceAfter } = normalizeText("Line", { fontFace: "Arial", ...options }, target).paragraphs[0]!;
+
             return [lineBox.baseline, lineBox.height + spaceAfter].map(px => Math.round(px * 0.75 * 100) / 100);
         };
         const cases: [Parameters<typeof normalizeText>[1], number[], number[]][] = [
@@ -275,6 +328,7 @@ describe("rendering targets", () => {
             [{ fontSize: 10, lineSpacing: 12 }, [9.72, 12], [10, 12]],
             [{ fontSize: 10 }, [9.72, 12], [10, 12]],
         ];
+
         for (const [options, powerPoint, libreOffice] of cases) {
             expect(end(options, "powerpoint")).toEqual(powerPoint);
             expect(end(options, "libreoffice")).toEqual(libreOffice);
@@ -288,6 +342,7 @@ describe("rendering targets", () => {
         type Options = Parameters<typeof normalizeText>[1];
         const box = (input: Input, options: Options, target: "libreoffice" | "powerpoint") => {
             const { height, baseline } = normalizeText(input, options, target).paragraphs[0]!.lineBox;
+
             return [height, baseline].map(px => Math.round(px * 0.75 * 1000) / 1000);
         };
         const cases: [Input, Options, number, number][] = [
@@ -323,6 +378,7 @@ describe("rendering targets", () => {
                 17.04, // 16.988
             ],
         ];
+
         for (const [input, options, height, powerPoint] of cases) {
             expect(box(input, options, "powerpoint")).toEqual([height, powerPoint]);
             // LibreOffice: 0.2em above the line bottom, whatever the font.
@@ -331,8 +387,10 @@ describe("rendering targets", () => {
 
         const baselines = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText("Line", { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 18 });
+
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph" data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
         };
+
         // 18pt = 24px on a 28.8px line: 28.8 x 1854/2288 = 23.337px with PowerPoint, 23.36px (146/600 in) on its grid;
         // 24px with LibreOffice.
         expect(await baselines(new PuppeteerGenPowerPoint())).toEqual([23.36]);
@@ -353,6 +411,7 @@ describe("rendering targets", () => {
         // line. Every baseline below is the rule's on the 0.12pt grid (the rule's in the comments): 17.503 and 16.988 here.
         expect(boxes("Line", { fontFace: "Arial", fontSize: 18 })).toEqual([[17.52, 17.04, undefined]]);
         const [[baseline = 0, mark = 0]] = boxes("Line", { fontFace: "Arial", fontSize: 32 }) as [number[]];
+
         // The rule gives 37.485 and 39.315; on the grid 37.56 and 39.24 against PowerPoint's 37.55 and 39.25.
         expect([38.4 - baseline + mark, 38.4 - mark + baseline]).toEqual([expect.closeTo(37.56, 6), expect.closeTo(39.24, 6)]);
         // The mark in the line's own font, or in a theme font of the same metrics, moves nothing.
@@ -363,6 +422,7 @@ describe("rendering targets", () => {
             { text: "Small", options: { fontSize: 12, breakLine: true } },
             { text: "Big", options: { fontSize: 32 } },
         ];
+
         expect(boxes(paragraphs, { fontFace: "Arial" })).toEqual([
             [11.64, 11.28, undefined], // 11.669, 11.325
             [31.08, 30.24, undefined], // 31.116, 30.201
@@ -372,11 +432,13 @@ describe("rendering targets", () => {
             { text: "Times", options: { fontFace: "Times New Roman", fontSize: 28 } },
             { text: "Arial", options: { fontFace: "Arial", fontSize: 12, softBreakBefore: true } },
         ];
+
         expect(boxes(times, {})).toEqual([[27, undefined, 26.4]]); // 27.037, 26.386
         const rising: PptxGenJS.TextProps[] = [
             { text: "small", options: { fontSize: 12 } },
             { text: "Big", options: { fontSize: 28, softBreakBefore: true } },
         ];
+
         expect(boxes(rising, { fontFace: "Arial" })).toEqual([[27.24, 26.4, undefined]]); // 27.227, 26.425
         // Explicit spacing keeps 0.75 H on every line, and LibreOffice one baseline.
         expect(boxes("Line", { fontFace: "Arial", fontSize: 18, lineSpacingMultiple: 1.5 })).toEqual([[24.36, undefined, undefined]]); // 24.3
@@ -392,8 +454,10 @@ describe("rendering targets", () => {
                 ],
                 { x: 1, y: 1, w: 3, h: 2 },
             );
+
             return (await presentation.toHtml()).html.match(/class="text-paragraph"( data-[a-z-]*="[^"]*")*/)?.[0];
         };
+
         // From FONT_WIN_METRICS (no installed-font lookup): a 44.8px line, Times New Roman at 36.049px; the break and the
         // mark, Calibri at 28pt, pull both lines to 35.181px. On the 1/600 in grid: 36px and 35.2px.
         expect(await attributes(new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null }))).toBe('class="text-paragraph" data-line-baseline="36" data-mark-baseline="35.2" data-break-baseline="35.2"');
@@ -411,13 +475,17 @@ describe("rendering targets", () => {
         /** The baseline of each paragraph's last line below the text top, in pt. */
         const baselines = (input: Input, target: "libreoffice" | "powerpoint") => {
             let top = 0;
+
             return normalizeText(input, { fontFace: "Arial", fontSize: 12 }, target).paragraphs.map(({ spaceBefore, spaceAfter, lineBox }) => {
                 const baseline = top + spaceBefore + (lineBox.markBaseline ?? lineBox.baseline);
+
                 top += spaceBefore + lineBox.height + spaceAfter;
+
                 return pt(baseline);
             });
         };
         const escaped = (target: "libreoffice" | "powerpoint", fontSize: number, options: PptxGenJS.TextPropsOptions) => normalizeText([{ text: "2", options: { fontSize, ...options } }], {}, target).paragraphs[0]!.runs[0]!;
+
         for (const [fontSize, powerPoint] of [
             [24, 16],
             [12, 8],
@@ -425,6 +493,7 @@ describe("rendering targets", () => {
             expect(pt(escaped("powerpoint", fontSize, { superscript: true }).fontSize)).toBe(powerPoint);
             expect(pt(escaped("libreoffice", fontSize, { superscript: true }).fontSize)).toBe(pt(fontSize * 0.58 * (4 / 3)));
         }
+
         // The offset is of the full size on both targets: 0.3 x 24pt up, 0.4 x 24pt down (PptxGenJS's baseline="-40000").
         for (const target of ["libreoffice", "powerpoint"] as const) {
             expect(pt(escaped(target, 24, { superscript: true }).baselineOffset)).toBe(7.2);
@@ -432,32 +501,40 @@ describe("rendering targets", () => {
         }
 
         const plain = baselines("Text more", "powerpoint")[0]!;
+
         for (const escapement of [{ superscript: true }, { subscript: true }]) {
             const line: Input = [{ text: "Text " }, { text: "2", options: { fontSize: 24, ...escapement } }, { text: " more" }];
+
             expect(baselines(line, "powerpoint")[0]! - plain).toBeCloseTo(4.3, 0);
             // 0.58 gave 2.21. LibreOffice grows the line above by the superscript's 7.2pt raise (escapementGrowsLine); the
             // subscript grows it below, which leaves the baseline.
             const raise = escapement.superscript ? 7.2 : 0;
+
             expect(baselines(line, "libreoffice")[0]! - baselines("Text more", "libreoffice")[0]!).toBeCloseTo(13.92 - 12 + raise, 2);
         }
 
         const alone: Input = [{ text: "Before", options: { breakLine: true } }, { text: "X", options: { superscript: true, fontSize: 24, breakLine: true } }, { text: "After" }];
         const [before = 0, , after = 0] = baselines(alone, "powerpoint");
+
         expect(after - before).toBeCloseTo(43.2, 1);
         const labels: Input = [{ text: "Label: ", options: { bold: true, paraSpaceAfter: 0.5 } }, { text: "value" }, { text: "3\n", options: { superscript: true } }, { text: "Label two", options: { bold: true } }, { text: "value" }, { text: "3\n", options: { superscript: true, breakLine: true } }, { text: "Next" }];
         const lines = baselines(labels, "powerpoint");
+
         expect(lines).toHaveLength(4);
         expect(lines[3]! - lines[1]!).toBeCloseTo(30.36, 0);
         // The empty paragraph after the line feed: a 12pt line holding the superscript's empty run.
         const tail = normalizeText(labels, { fontFace: "Arial", fontSize: 12 }, "powerpoint").paragraphs[2]!;
+
         expect([pt(tail.lineBox.height), pt(tail.runs[0]!.fontSize)]).toEqual([14.4, 8]);
         expect(pt(normalizeText(labels, { fontFace: "Arial", fontSize: 12 }, "libreoffice").paragraphs[2]!.lineBox.height)).toBe(pt(12 * 0.58 * 1.2 * (4 / 3)));
 
         const html = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText(alone, { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 12, margin: 0, valign: "top" });
             const page = (await presentation.toHtml()).html;
+
             return [...page.matchAll(/class="text-paragraph"[^>]*?line-height: ([^;]*);[^>]*>(?:<span class="text-run"[^>]*?font-size: ([^;]*);)?/g)].map(match => match.slice(1).join(" "));
         };
+
         expect(await html(new PuppeteerGenPowerPoint())).toEqual(["19.2px 16px", "38.4px 21.333333333333332px", "19.2px 16px"]);
         // LibreOffice: 1.2 x 18.56px and the 9.6px raise above it.
         expect(await html(new PuppeteerGenLibreOffice())).toEqual(["19.2px 16px", expect.stringMatching(/^31\.87\d*px 18\.56\d*px$/), "19.2px 16px"]);
@@ -471,13 +548,16 @@ describe("rendering targets", () => {
         const pt = (px: number) => px * 0.75;
         const lineBox = (x: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint", options: PptxGenJS.TextPropsOptions = {}) => {
             const input: Input = [{ text: "H" }, { text: "x", options: x }, { text: "H" }];
+
             return normalizeText(input, { fontFace: "Arial", fontSize: 40, ...options }, target).paragraphs[0]!.lineBox;
         };
         const growth = (x: PptxGenJS.TextPropsOptions, target: "libreoffice" | "powerpoint", options?: PptxGenJS.TextPropsOptions) => {
             const [plain, escaped] = [lineBox({}, target, options), lineBox(x, target, options)];
             const above = pt(escaped.baseline - plain.baseline);
+
             return { above, below: pt(escaped.height - plain.height) - above };
         };
+
         for (const [x, above, below] of [
             [{ baseline: 600 }, 0, 0],
             [{ superscript: true }, 0, 0],
@@ -489,10 +569,12 @@ describe("rendering targets", () => {
             [{ baseline: -2000 }, 0, 36.62],
         ] as const) {
             const { above: up, below: down } = growth(x, "libreoffice");
+
             // The formula gives 0.03pt more than the export: 3.2, 23.2, 8.64, 12.64, 16.64, 36.64.
             expect({ x, above: up, below: down }).toEqual({ x, above: expect.closeTo(above, 1), below: expect.closeTo(below, 1) });
             expect(growth(x, "powerpoint")).toEqual({ above: 0, below: 0 });
         }
+
         // An exact line height stays what it says; a line spaced by a multiple grows as a single one.
         expect(growth({ baseline: -1000 }, "libreoffice", { lineSpacing: 50 })).toEqual({ above: 0, below: 0 });
         expect(growth({ baseline: -1000 }, "libreoffice", { lineSpacingMultiple: 1.5 }).below).toBeCloseTo(16.64, 2);
@@ -503,11 +585,13 @@ describe("rendering targets", () => {
         const html = async (presentation: PuppeteerGen) => {
             presentation.addSlide().addText([{ text: "H" }, { text: "x", options: { baseline: -1000 } }], { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 40, margin: 0 });
             const page = (await presentation.toHtml()).html;
+
             return page
                 .match(/data-line-baseline="([^"]*)"[^>]*?line-height: ([^;]*)px;.*?top: ([^;]*)px;/)
                 ?.slice(1)
                 .map(Number);
         };
+
         // 40pt Arial: PowerPoint's 1.2 x 53.33px line, its baseline from Arial's win metrics on the 0.12pt grid.
         expect(await html(new PuppeteerGenPowerPoint())).toEqual([51.84, expect.closeTo(64, 6), expect.closeTo(26.667, 3)]);
         // LibreOffice's 64px line grows 22.19px (16.64pt) below; the baseline stays 1em down.
@@ -520,11 +604,14 @@ describe("rendering targets", () => {
     test("in a table cell the paragraph mark takes the cell's fontFace and a soft break the theme font", async () => {
         const paragraphs = async (cells: PptxGenJS.TableCell[]) => {
             const presentation = new PuppeteerGenPowerPoint(undefined, { resolveFontMetrics: null });
+
             presentation.addSlide().addTable([cells], { x: 1, y: 1, w: 6 });
+
             return [...(await presentation.toHtml()).html.matchAll(/class="text-paragraph"((?: data-[a-z-]*="[^"]*")*)/g)].map(([, attributes]) => attributes);
         };
         const single = { text: "Line", options: { fontFace: "Arial", fontSize: 18 } };
         const broken = { text: [{ text: "Before" }, { text: "After", options: { softBreakBefore: true } }], options: { fontFace: "Arial", fontSize: 18 } };
+
         // 28.8px line: Arial alone 23.337px; the Calibri break scales it back to 22.650px. On the grid 23.36 and 22.72px.
         expect(await paragraphs([single, broken])).toEqual([' data-line-baseline="23.36"', ' data-line-baseline="23.36" data-break-baseline="22.72"']);
     });
@@ -548,8 +635,10 @@ describe("rendering targets", () => {
         ];
         const lastLine = (fontSize: number, target: "libreoffice" | "powerpoint", markFontFace?: string) => {
             const { baseline, markBaseline = baseline } = normalizeText("Hxg", { fontFace: "Arial", fontSize }, target, undefined, undefined, markFontFace).paragraphs[0]!.lineBox;
+
             return Math.round(markBaseline * 0.75 * 1000) / 1000;
         };
+
         for (const [size, box, cell] of measured) {
             expect([lastLine(size, "powerpoint"), lastLine(size, "powerpoint", "Arial")]).toEqual([box, cell]);
             // LibreOffice: 1em below the line top, off the grid at 9.5pt.
@@ -567,6 +656,7 @@ describe("rendering targets", () => {
             { text: "Item two", options: { bullet: { type: "number" } } },
         ];
         const markers = (input: PptxGenJS.TextProps[], target: "libreoffice" | "powerpoint") => normalizeText(input, {}, target).paragraphs.map(paragraph => paragraph.bullet?.marker ?? "");
+
         expect(markers(leading, "powerpoint")).toEqual(["", "", "I.", "", "II.", "", "III."]);
         expect(markers(leading, "libreoffice")).toEqual(["", "", "I.", "", "I.", "", "I."]);
         // A line feed kept inside <a:t> makes an empty paragraph with a run: PowerPoint draws its number without advancing.
@@ -574,21 +664,26 @@ describe("rendering targets", () => {
         expect(markers(trailing, "libreoffice")).toEqual(["1.", "2.", "3."]);
 
         const presentation = new PuppeteerGenPowerPoint();
+
         presentation.addSlide().addTable([[{ text: leading }]], { x: 1, y: 1, w: 4 });
         const paragraphs = [...(await presentation.toHtml()).html.matchAll(/<div class="text-paragraph"[^>]*>(.*?)<\/div>/g)].map(([, body = ""]) => body.match(/class="text-bullet"[^>]*>([^&<]*)/)?.[1] ?? "");
+
         expect(paragraphs).toEqual(["", "", "I.", "", "II.", "", "III."]);
     });
 
     test("the target classes keep the other constructor options and stay subclassable and proxyable", async () => {
         const rendered: string[] = [];
         const renderer = { render: async ({ html }: { html: string }) => (rendered.push(html), new Uint8Array([1])) };
+
         class AppDeck extends PuppeteerGenPowerPoint {
             addTitle(text: string) {
                 this.addSlide().addText(text, { x: 1, y: 1, w: 4, h: 1, fontSize: 10 });
+
                 return this;
             }
         }
         const app = new Proxy(new AppDeck(undefined, { renderer }), {});
+
         await app.addTitle("Title").toPdf();
         expect(rendered[0]).toContain("font-kerning: none;");
         expect(app).toBeInstanceOf(PuppeteerGen);
@@ -597,6 +692,7 @@ describe("rendering targets", () => {
     // The OOXML the PowerPoint target follows, read from the pinned PptxGenJS runtime.
     test('PptxGenJS inherits kern="1200" from defaultTextStyle and writes kern="0" with charSpacing', () => {
         const source = readFileSync(fileURLToPath(import.meta.resolve("pptxgenjs")), "utf8");
+
         expect(source).toContain(`'<a:defRPr sz="1800" kern="1200">`);
         expect(source).toContain('runProps += opts.charSpacing ? ` spc="${Math.round(opts.charSpacing * 100)}" kern="0"` : \'\';');
         expect(source).not.toMatch(/runProps \+=[^\n]*kern="(?!0")/);
@@ -608,11 +704,19 @@ describe("rendering targets", () => {
         const texts = (input: Parameters<typeof normalizeText>[0], target: "libreoffice" | "powerpoint") => normalizeText(input, { fontFace: "Arial", fontSize: 10 }, target).paragraphs.map(paragraph => paragraph.runs.map(run => run.text));
         const joined = ["word)(word", "100%(word", "Consectetur)(elit", "word]{word", "word}[word", "a)((b"];
         const untouched = ["word)word", "word(word", "word/word", "word,word", "word;word", "word%word", "word“word", "word+word", "word&word", "word-word", "word–word", "word) (word", "(word)"];
-        for (const token of [...joined, ...untouched]) expect(texts(`lorem ${token}`, "libreoffice")).toEqual([[`lorem ${token}`]]);
+
+        for (const token of [...joined, ...untouched]) {
+            expect(texts(`lorem ${token}`, "libreoffice")).toEqual([[`lorem ${token}`]]);
+        }
+
         expect(joined.map(token => texts(token, "powerpoint")[0]?.[0])).toEqual(["word)⁠(word", "100%⁠(word", "Consectetur)⁠(elit", "word]⁠{word", "word}⁠[word", "a)⁠((b"]);
-        for (const token of untouched) expect(texts(token, "powerpoint")).toEqual([[token]]);
+        for (const token of untouched) {
+            expect(texts(token, "powerpoint")).toEqual([[token]]);
+        }
+
         // Across runs of one line too, but not across a soft break or a line feed.
         const runs: PptxGenJS.TextProps[] = [{ text: "word)" }, { text: "(word", options: { bold: true } }, { text: "100%" }, { text: "(word", options: { softBreakBefore: true } }];
+
         expect(texts(runs, "powerpoint")).toEqual([["word)", "⁠(word", "100%", "(word"]]);
         expect(texts("word)\n(word", "powerpoint")).toEqual([["word)"], ["(word"]]);
     });
@@ -627,9 +731,11 @@ describe("rendering targets", () => {
                 ],
                 { x: 1, y: 1, w: 3, h: 1, bullet: true },
             );
+
             return [...(await presentation.toHtml()).html.matchAll(/class="text-(?:run|bullet)"[^>]*?style="[^"]*?font-family: (.*?); font-size/g)].map(match => match[1]?.replaceAll("&quot;", '"'));
         };
         const chain = '"Cambria Math", "Segoe UI Symbol", "MS Gothic", "Yu Gothic", "Microsoft JhengHei", "Microsoft YaHei", "Malgun Gothic"';
+
         expect(await html(new PuppeteerGenPowerPoint())).toEqual([`"Calibri", "Arial", ${chain}`, `"Calibri", "Arial", ${chain}`, `"arial", ${chain}`]);
         expect(await html(new PuppeteerGenLibreOffice())).toEqual(['"Calibri"', '"Calibri"', '"arial"']);
         expect(normalizeText("x", { fontFace: "Times New Roman" }, "libreoffice").paragraphs[0]?.runs[0]).not.toHaveProperty("fallbackFaces");
@@ -639,12 +745,14 @@ describe("rendering targets", () => {
     // Roman, the face's U+002D, though Times New Roman has a U+2011 glyph (RENDERING_TARGETS.powerpoint.nonBreakingHyphen).
     test("the PowerPoint target keeps U+2011 in the text and marks its run to draw it as U+002D, with U+002D's advance", async () => {
         const run = (text: string, target: "libreoffice" | "powerpoint") => normalizeText(text, { fontFace: "Arial", fontSize: 8 }, target).paragraphs[0]?.runs[0];
+
         expect(run("lorem‑ipsum", "powerpoint")).toMatchObject({ text: "lorem‑ipsum", nonBreakingHyphen: "hyphen-minus" });
         expect(run("lorem-ipsum", "powerpoint")).not.toHaveProperty("nonBreakingHyphen");
         expect(run("lorem‑ipsum", "libreoffice")).not.toHaveProperty("nonBreakingHyphen");
         // The word ends where "lorem-ipsum"'s rounded advances do.
         expect(run("lorem‑ipsum", "powerpoint")?.characterSpacing).toBe(run("lorem-ipsum", "powerpoint")?.characterSpacing ?? Number.NaN);
         const presentation = new PuppeteerGenPowerPoint();
+
         presentation.addSlide().addText("lorem‑ipsum", { x: 1, y: 1, w: 3, h: 1 });
         expect((await presentation.toHtml()).html).toMatch(/<span class="text-run" data-non-breaking-hyphen="hyphen-minus" style="[^"]*"[^>]*>lorem‑ipsum<\/span>/);
     });
@@ -657,12 +765,14 @@ describe("rendering targets", () => {
                 .addSlide()
                 .addImage({ data: PNG, x: 1, y: 1, w: 2, h: 2, shadow: { type: "inner", color: "000000", opacity: 0.75, blur: 8, offset: 6, angle: 45 } })
                 .addImage({ data: PNG, x: 4, y: 1, w: 2, h: 2, shadow: { type: "outer", color: "000000", opacity: 0.75, blur: 8, offset: 6, angle: 45 } });
+
             return [...(await presentation.toHtml()).html.matchAll(/box-shadow: ([^;]*);/g)].map(match => match[1]);
         };
         // 8pt blur, a 6pt (8px) offset at 45 degrees, 75% black, in px as the outer shadow; the inner one's offset points
         // the other way and its CSS blur is 2/3 of it (normalizeShadow).
         const [x, y] = [Math.cos(Math.PI / 4) * 8, Math.sin(Math.PI / 4) * 8];
         const shadow = `${x}px ${y}px ${32 / 3}px rgba(0, 0, 0, 0.75)`;
+
         expect(await html(new PuppeteerGenPowerPoint())).toEqual([`inset ${-x}px ${-y}px ${((32 / 3) * 2) / 3}px rgba(0, 0, 0, 0.75)`, shadow]);
         expect(await html(new PuppeteerGenLibreOffice())).toEqual([shadow]);
     });
@@ -675,32 +785,46 @@ describe("rendering targets", () => {
 describe("rendering targets in Chromium", () => {
     // The kerning cases compare natural advances, so the PowerPoint advance grid (tests/advanceGrid.test.ts) stays off.
     const NATURAL_ADVANCES = { resolveGlyphAdvances: null };
+
     // Every case from the visual fixture: its box is narrower than the unkerned line and wider than the kerned one.
     function kerningDeck(presentation: PuppeteerGen, wrap: boolean): PuppeteerGen {
         presentation.defineLayout({ name: "PARITY", width: 10, height: 5.625 });
         presentation.layout = "PARITY";
         const slide = presentation.addSlide();
-        for (const { text, options } of KERNING_CASES) slide.addText(text, { fontFace: "Arial", ...options, wrap });
+
+        for (const { text, options } of KERNING_CASES) {
+            slide.addText(text, { fontFace: "Arial", ...options, wrap });
+        }
+
         return presentation;
     }
 
     /** Each run: its width, the sum of its characters' widths measured one at a time (no pair to kern), and its line count. */
     async function measure(presentation: PuppeteerGen) {
         const { html } = await presentation.toHtml();
+
         return withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(html);
+
                 return await page.evaluate(() =>
                     Array.from(document.querySelectorAll<HTMLElement>(".text-run"), run => {
                         // Canvas text in the run's font, one character at a time: no neighbour, so no kerning pair.
                         const context = document.createElement("canvas").getContext("2d");
-                        if (!context) throw new Error("no 2d canvas context");
+
+                        if (!context) {
+                            throw new Error("no 2d canvas context");
+                        }
+
                         // Not the `font` shorthand: it carries the strut's line-height, which canvas rejects.
                         const style = getComputedStyle(run);
+
                         context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
                         const advances = Array.from(run.textContent ?? "").reduce((sum, character) => sum + context.measureText(character).width, 0);
                         const lines = new Set(Array.from(run.getClientRects(), rect => Math.round(rect.top))).size;
+
                         return { width: run.getBoundingClientRect().width, advances, lines };
                     }),
                 );
@@ -712,18 +836,22 @@ describe("rendering targets in Chromium", () => {
 
     test("Chromium lays the PowerPoint target's paragraphs 21.6 + 6 + 18 = 45.6pt apart, the first at the top of the text", async () => {
         const presentation = new PuppeteerGenPowerPoint();
+
         presentation.addSlide().addText("Para one\nPara two\nPara three", { x: 1, y: 1, w: 3, h: 3, fontSize: 18, paraSpaceBefore: 6, paraSpaceAfter: 18 });
         const { html } = await presentation.toHtml();
         const tops = await withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(html);
+
                 // The text content's top first: the first paragraph has no space before.
                 return await page.evaluate(() => Array.from(document.querySelectorAll(".text-content, .text-paragraph"), element => element.getBoundingClientRect().top));
             } finally {
                 await page.close();
             }
         });
+
         expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([0, 60.8, 60.8].map(px => expect.closeTo(px, 1)));
     });
 
@@ -731,27 +859,42 @@ describe("rendering targets in Chromium", () => {
         // Each text box's lines, from the top of every character's rectangle.
         async function lines(presentation: PuppeteerGen): Promise<string[][]> {
             const slide = presentation.addSlide();
-            for (const [index, token] of ["word)(word", "100%(word", "Consectetur)(elit"].entries()) slide.addText(`lorem ${token}`, { x: 0.5, y: 0.5 + index, w: 0.85, h: 0.5, margin: 0, fontFace: "Arial", fontSize: 10, valign: "top" });
+
+            for (const [index, token] of ["word)(word", "100%(word", "Consectetur)(elit"].entries()) {
+                slide.addText(`lorem ${token}`, { x: 0.5, y: 0.5 + index, w: 0.85, h: 0.5, margin: 0, fontFace: "Arial", fontSize: 10, valign: "top" });
+            }
+
             const { html } = await presentation.toHtml();
+
             return withBrowser(async browser => {
                 const page = await browser.newPage();
+
                 try {
                     await page.setContent(html);
+
                     return await page.evaluate(() =>
                         Array.from(document.querySelectorAll(".text-content"), content => {
                             const byTop = new Map<number, string>();
                             const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+
                             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
                                 for (let offset = 0; offset < (node.textContent ?? "").length; offset++) {
                                     const range = document.createRange();
+
                                     range.setStart(node, offset);
                                     range.setEnd(node, offset + 1);
                                     const rect = range.getClientRects()[0];
-                                    if (!rect) continue;
+
+                                    if (!rect) {
+                                        continue;
+                                    }
+
                                     const top = Math.round(rect.top);
+
                                     byTop.set(top, `${byTop.get(top) ?? ""}${node.textContent?.[offset] ?? ""}`);
                                 }
                             }
+
                             return Array.from(byTop.values(), line => line.replaceAll("⁠", "").trim());
                         }),
                     );
@@ -776,17 +919,21 @@ describe("rendering targets in Chromium", () => {
     test("Chromium gives the PowerPoint target's paragraph of a lone 24pt superscript a full 28.8pt line", async () => {
         const presentation = new PuppeteerGenPowerPoint();
         const runs: PptxGenJS.TextProps[] = [{ text: "Before", options: { breakLine: true } }, { text: "X", options: { superscript: true, fontSize: 24, breakLine: true } }, { text: "After" }];
+
         presentation.addSlide().addText(runs, { x: 1, y: 1, w: 3, h: 2, fontFace: "Arial", fontSize: 12, margin: 0, valign: "top" });
         const { html } = await presentation.toHtml();
         const tops = await withBrowser(async browser => {
             const page = await browser.newPage();
+
             try {
                 await page.setContent(html);
+
                 return await page.evaluate(() => Array.from(document.querySelectorAll(".text-paragraph"), element => element.getBoundingClientRect().top));
             } finally {
                 await page.close();
             }
         });
+
         // 14.4pt = 19.2px, then 28.8pt = 38.4px.
         expect(tops.slice(1).map((top, index) => top - tops[index]!)).toEqual([19.2, 38.4].map(px => expect.closeTo(px, 1)));
     });
@@ -794,14 +941,19 @@ describe("rendering targets in Chromium", () => {
     test("with the PowerPoint target a line under 12pt is the sum of its unkerned advances; from 12pt it is kerned as with LibreOffice", async () => {
         const powerPoint = await measure(kerningDeck(new PuppeteerGenPowerPoint(undefined, NATURAL_ADVANCES), false));
         const libreOffice = await measure(kerningDeck(new PuppeteerGenLibreOffice(), false));
+
         expect(powerPoint).toHaveLength(KERNING_CASES.length);
         for (const [index, { options }] of KERNING_CASES.entries()) {
             const run = powerPoint[index]!;
             const kerned = libreOffice[index]!;
+
             // A font without kerning pairs (a fallback for Arial) lays both out alike; one with pairs makes the kerned line narrower.
             expect(kerned.width).toBeLessThanOrEqual(kerned.advances + 0.05);
-            if (options.fontSize < 12) expect(Math.abs(run.width - run.advances)).toBeLessThan(0.05);
-            else expect(run.width).toBe(kerned.width);
+            if (options.fontSize < 12) {
+                expect(Math.abs(run.width - run.advances)).toBeLessThan(0.05);
+            } else {
+                expect(run.width).toBe(kerned.width);
+            }
         }
     });
 
@@ -809,11 +961,16 @@ describe("rendering targets in Chromium", () => {
         const unwrapped = await measure(kerningDeck(new PuppeteerGenLibreOffice(), false));
         const powerPoint = await measure(kerningDeck(new PuppeteerGenPowerPoint(undefined, NATURAL_ADVANCES), true));
         const libreOffice = await measure(kerningDeck(new PuppeteerGenLibreOffice(), true));
+
         for (const [index, { fontSize, w }] of KERNING_CASES.map(({ options }) => options).entries()) {
             const kerned = unwrapped[index]!;
             // shortcut: the box widths are tuned for Liberation Sans (Arial's metric twin); with another fallback, skip the wrap check.
             const tuned = kerned.width < w * 96 && kerned.advances > w * 96;
-            if (!tuned) continue;
+
+            if (!tuned) {
+                continue;
+            }
+
             expect([fontSize, libreOffice[index]!.lines]).toEqual([fontSize, 1]);
             expect([fontSize, powerPoint[index]!.lines]).toEqual([fontSize, fontSize < 12 ? 2 : 1]);
         }

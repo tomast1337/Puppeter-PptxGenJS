@@ -19,12 +19,14 @@ describe("PuppeteerGen DOM rendering", () => {
         });
 
         const element = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
+
         expect(renderedPage(presentation).querySelectorAll(".slide-container")).toHaveLength(1);
         expect(element?.querySelectorAll(".text-paragraph")).toHaveLength(2);
         expect(element?.textContent).toBe("HelloPDF");
         expect(element?.style.left).toBe("96px");
         expect(element?.style.top).toBe("108px");
         const run = element?.querySelector<HTMLElement>(".text-run");
+
         expect(run?.style.fontSize).toBe("24px");
         expect(run?.style.textDecorationLine).toBe("underline");
     });
@@ -32,6 +34,7 @@ describe("PuppeteerGen DOM rendering", () => {
     test("keeps each slide object in insertion-order stacking", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText("Earlier overflowing text", { x: 1, y: 1, w: 1, h: 1, wrap: false });
         slide.addText("Later filled text", { x: 2, y: 1, w: 1, h: 1, fill: { color: "FFFFFF" } });
 
@@ -39,6 +42,7 @@ describe("PuppeteerGen DOM rendering", () => {
         const elements = page.querySelectorAll<HTMLElement>(".slide-element");
         const earlier = elements.item(0);
         const later = elements.item(1);
+
         expect(elements).toHaveLength(2);
         expect(page.defaultView?.getComputedStyle(earlier).zIndex).toBe("0");
         expect(page.defaultView?.getComputedStyle(later).zIndex).toBe("0");
@@ -60,6 +64,7 @@ describe("PuppeteerGen DOM rendering", () => {
 
         const element = renderedPage(presentation).querySelector<HTMLElement>(".slide-shape");
         const geometry = element?.querySelector<SVGGeometryElement>(".shape-geometry");
+
         expect(geometry?.getAttribute("fill")).toBe("rgba(68, 114, 196, 0.8)");
         expect(geometry?.getAttribute("stroke")).toBe("#112233");
         expect(geometry?.getAttribute("stroke-width")).toBe(String((2 * 96) / 72));
@@ -67,6 +72,7 @@ describe("PuppeteerGen DOM rendering", () => {
 
     test("uses the deprecated shapeName alias as the object name", () => {
         const presentation = new PuppeteerGen();
+
         presentation.addSlide().addShape("rect", { shapeName: "Legacy shape" });
         expect(renderedPage(presentation).querySelector<HTMLElement>(".slide-shape")?.dataset.objectName).toBe("Legacy shape");
     });
@@ -89,6 +95,7 @@ describe("PuppeteerGen DOM rendering", () => {
 
         const cell = renderedPage(presentation).querySelector<HTMLTableCellElement>("td");
         const run = cell?.querySelector<HTMLElement>(".text-run");
+
         expect(cell?.textContent).toBe("Header");
         expect(run?.style.fontWeight).toBe("bold");
         expect(run?.style.color).toBe("rgb(255, 255, 255)");
@@ -114,6 +121,7 @@ describe("PuppeteerGen DOM rendering", () => {
 
         const image = renderedPage(presentation).querySelector<HTMLElement>(".slide-image");
         const content = image?.querySelector<HTMLImageElement>(".slide-image-content");
+
         expect(image?.style.transform).toBe("rotate(30deg) scaleX(-1)");
         expect(image?.style.opacity).toBe("");
         expect(content?.style.opacity).toBe("0.75");
@@ -124,11 +132,13 @@ describe("PuppeteerGen DOM rendering", () => {
     test("updates slide background and inherited text color", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.background = { color: "accent1" };
         slide.color = "FFFFFF";
         slide.addText("Inherited", { x: 1, y: 1, w: 2, h: 1 });
 
         const slideElement = renderedPage(presentation).querySelector<HTMLElement>(".slide-container");
+
         expect(slideElement?.style.backgroundColor).toBe("rgb(68, 114, 196)");
         expect(slideElement?.style.getPropertyValue("--slide-text-color")).toBe("#FFFFFF");
     });

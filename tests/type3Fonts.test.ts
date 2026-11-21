@@ -22,12 +22,15 @@ afterAll(closeBrowser);
 /** The newest version of every font dictionary of `pdf`, across its incremental updates. */
 function fontDictionaries(pdf: Uint8Array): string[] {
     const text = pdfText(pdf);
+
     return [...objectOffsets(text, problem => new Error(problem)).values()].map(offset => text.slice(offset, text.indexOf("endobj", offset))).filter(body => /\/Type \/Font\b/.test(body));
 }
 
 async function cffDeck(): Promise<Uint8Array> {
     const pptx = new PuppeteerGen();
+
     pptx.addSlide().addText(WORDS.join(" "), { x: 1, y: 1, w: 6, h: 1, fontFace: CFF_FACE, fontSize: FONT_SIZE });
+
     return (await pptx.write({ outputType: "uint8array" })) as Uint8Array;
 }
 
@@ -35,6 +38,7 @@ describe.skipIf(!CFF_FACE)(`a deck in a CFF face (${CFF_FACE})`, () => {
     test("embeds the face as a Type 1 font with a CFF program, no Type 3 font, the same bytes on every render", async () => {
         const pdf = await cffDeck();
         const fonts = fontDictionaries(pdf);
+
         expect(fonts.length).toBeGreaterThan(0);
         expect(fonts.filter(font => font.includes("/Subtype /Type3"))).toEqual([]);
         expect(fonts.some(font => font.includes("/Subtype /Type1\n"))).toBe(true);
@@ -44,11 +48,14 @@ describe.skipIf(!CFF_FACE)(`a deck in a CFF face (${CFF_FACE})`, () => {
 
     test.skipIf(!hasPdftotext)("keeps its words extractable, each boxed on its line at the font size", async () => {
         const directory = await mkdtemp(join(tmpdir(), "pdflapas-cff-"));
+
         try {
             const path = join(directory, "deck.pdf");
+
             await writeFile(path, await cffDeck());
             const result = spawnSync("pdftotext", ["-bbox", path, "-"], { encoding: "utf8" });
             const boxes = [...result.stdout.matchAll(WORD_BOX)].map(([, , yMin = "", , yMax = "", word]) => ({ word, top: Number(yMin), bottom: Number(yMax) }));
+
             expect(boxes.map(box => box.word)).toEqual(WORDS);
             // The Type 3 box ran from Skia's y-down font bounding box; a font's box spans about its ascent and descent.
             for (const { top, bottom } of boxes) {
@@ -76,11 +83,15 @@ function type3Pdf(procedure: string): Uint8Array {
     let body = "%PDF-1.4\n";
     const offsets = objects.map((object, index) => {
         const offset = body.length;
+
         body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+
         return offset;
     });
     const xref = offsets.map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+
     body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${xref}trailer\n<</Size ${objects.length + 1} /Root 1 0 R>>\nstartxref\n${body.length}\n%%EOF\n`;
+
     return Buffer.from(body, "latin1");
 }
 
@@ -91,6 +102,7 @@ function stream(content: string): string {
 describe("withType1CFonts", () => {
     test("rewrites a Type 3 font of filled outlines as Type 1C, upright, its heights positive", () => {
         const pdf = withType1CFonts(type3Pdf("500 0 0 -700 500 0 d1\n0 0 m\n500 0 l\n500 -700 l\nh\nf"));
+
         expect(fontDictionaries(pdf).find(font => font.includes("/BaseFont /AAAAAA+Test"))).toContain("/Subtype /Type1\n");
         expect(pdfText(pdf)).toContain("/CapHeight 700\n/FontBBox [0 -100 500 700]\n/Ascent 700\n/Descent -100\n/FontFile3 ");
     });
@@ -98,12 +110,14 @@ describe("withType1CFonts", () => {
     test("leaves a Type 3 font alone when a glyph is not a nonzero-filled outline", () => {
         for (const procedure of ["500 0 0 -700 500 0 d1\n0 0 m\n500 0 l\n500 -700 l\nh\nf*", "500 0 d0\nq 500 0 0 700 0 -700 cm /X0 Do Q", "500 0 0 -700 500 0 d1\n0 0 m\n500 0 l\nS"]) {
             const pdf = type3Pdf(procedure);
+
             expect(withType1CFonts(pdf)).toBe(pdf);
         }
     });
 
     test("leaves a Type 3 font alone when its face forbids embedding (#350)", () => {
         const pdf = type3Pdf("500 0 0 -700 500 0 d1\n0 0 m\n500 0 l\n500 -700 l\nh\nf");
+
         expect(type3FontNames(pdf)).toEqual(["AAAAAA+Test"]);
         expect(withType1CFonts(pdf, new Set(["AAAAAA+Test"]))).toBe(pdf);
         expect(withType1CFonts(pdf, new Set(["BBBBBB+Other"]))).not.toBe(pdf);
@@ -115,16 +129,19 @@ function sfntWithFsType(fsType: number, collection = false): Uint8Array {
     const font = collection ? 20 : 0; // a TTC header of two faces: tag, version, count, two offsets
     const bytes = new Uint8Array(font + 12 + 16 + 10);
     const view = new DataView(bytes.buffer);
+
     if (collection) {
         view.setUint32(0, 0x74746366); // "ttcf"
         view.setUint32(8, 2);
         view.setUint32(16, font);
     }
+
     view.setUint32(font, 0x00010000);
     view.setUint16(font + 4, 1);
     view.setUint32(font + 12, 0x4f532f32); // "OS/2"
     view.setUint32(font + 20, font + 28);
     view.setUint16(font + 28 + 8, fsType);
+
     return bytes;
 }
 
@@ -140,6 +157,8 @@ describe("font embedding permission (OS/2 fsType)", () => {
 
     test("finds the face by its PostScript name through fontconfig; an unknown face is not restricted", async () => {
         expect(await restrictedFonts(["CCCCCC+NoSuchFont-Regular"])).toEqual(new Set());
-        if (CFF_FACE === "URW Gothic") expect(await restrictedFonts(["DDDDDD+URWGothic-Book"])).toEqual(new Set());
+        if (CFF_FACE === "URW Gothic") {
+            expect(await restrictedFonts(["DDDDDD+URWGothic-Book"])).toEqual(new Set());
+        }
     });
 });

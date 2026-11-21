@@ -1725,6 +1725,7 @@ export function eastAsianBreakCases(): EastAsianBreakCase[] {
     const chinese = (["zh-CN", "zh-TW"] as const).flatMap((lang, language) =>
         CHINESE_CASES.flatMap((entry, index) => {
             const text = entry[language === 0 ? 0 : 1].replace("|", "");
+
             return entry[2].map((widthEm, box) => ({ label: `${lang} ${index + 1}${"abc"[box] ?? ""}`, lang, text, split: undefined, align: "left" as const, sizePt: SIZE_PT, widthEm, lines: entry[3][box] ?? [] }));
         }),
     );
@@ -1732,6 +1733,7 @@ export function eastAsianBreakCases(): EastAsianBreakCase[] {
     const alignments = ALIGNMENT_CASES.flatMap(([align, sizePt, text, widths, lines, secondLine], index) =>
         widths.map((widthEm, box) => ({ label: `${align} ${sizePt}pt ${index + 1}${"abc"[box] ?? ""}`, lang: undefined, text: `${secondLine ? "甲".repeat(widthEm) : ""}${text}`, split: undefined, align, sizePt, widthEm, lines: lines[box] ?? [] })),
     );
+
     return [...chinese, ...languages, ...alignments];
 }
 
@@ -1752,7 +1754,9 @@ export function eastAsianBreakDeck(presentation: PuppeteerGen, cases: readonly E
                         { text: tail, options: { ...options, fontSize: SPLIT_SIZE_PT } },
                     ]
                   : text;
+
         presentation.addSlide().addText(runs, { ...options, align, x: 0.4, y: 0.2, w: (widthEm * sizePt) / PPTX_DEFAULTS.units.pointsPerInch, h: 1, margin: 0, valign: "top" });
     }
+
     return presentation;
 }

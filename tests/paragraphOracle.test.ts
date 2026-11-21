@@ -16,13 +16,20 @@ type Deck = { kind: "text"; text: () => PptxGenJS.TextProps[]; options: PptxGenJ
  */
 async function pptxGenJsParagraphs(deck: Deck): Promise<string[]> {
     const pptx = new PptxGenJSRuntime();
+
     pptx.layout = "LAYOUT_16x9";
     const slide = pptx.addSlide();
-    if (deck.kind === "text") slide.addText(deck.text(), { ...deck.options });
-    else slide.addTable([[{ text: deck.cell() }]], { ...deck.options });
+
+    if (deck.kind === "text") {
+        slide.addText(deck.text(), { ...deck.options });
+    } else {
+        slide.addTable([[{ text: deck.cell() }]], { ...deck.options });
+    }
+
     // Stored, not deflated, so the slide XML can be read from the archive bytes without a zip reader.
     const archive = Buffer.from((await pptx.write({ outputType: "nodebuffer", compression: false })) as Uint8Array).toString("utf8");
     const slideXml = /<p:sld [\s\S]*?<\/p:sld>/.exec(archive)?.[0] ?? "";
+
     return [...slideXml.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)].flatMap(([, body = ""]) =>
         [...body.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)]
             .map(([, text = ""]) => text)
@@ -33,6 +40,7 @@ async function pptxGenJsParagraphs(deck: Deck): Promise<string[]> {
 
 function modelParagraphs(deck: Deck): string[] {
     const text = deck.kind === "text" ? normalizeText(deck.text(), { ...deck.options }) : normalizeTable([[{ text: deck.cell() }]], { ...deck.options }, PAGE).rows[0]?.cells[0]?.text;
+
     return (text?.paragraphs ?? []).map(paragraph => paragraph.runs.map(run => run.text).join(""));
 }
 
@@ -107,16 +115,25 @@ const DECKS: Record<string, Deck> = {
 describe("paragraphs match the <a:p> list PptxGenJS 4.0.1 writes (genXmlTextBody STEP 4/5)", () => {
     test.each(Object.keys(DECKS))("%s", async name => {
         const deck = DECKS[name];
-        if (!deck) throw new Error(`no deck ${name}`);
+
+        if (!deck) {
+            throw new Error(`no deck ${name}`);
+        }
+
         expect(modelParagraphs(deck)).toEqual(await pptxGenJsParagraphs(deck));
     });
 
     test("the issue repros give the paragraphs PptxGenJS writes", () => {
         const paragraphs = (name: string) => {
             const deck = DECKS[name];
-            if (!deck) throw new Error(`no deck ${name}`);
+
+            if (!deck) {
+                throw new Error(`no deck ${name}`);
+            }
+
             return modelParagraphs(deck);
         };
+
         expect(paragraphs("inner line feed ends every piece")).toEqual(["Intro", "", "TITLE", "Description", "Tail"]);
         expect(paragraphs("cell runs without options next to a run with options")).toEqual(["Alpha one.", "", "Beta two.", "", "Gamma bold."]);
         expect(paragraphs("cell align change without line feeds")).toEqual(["Heading", "Body"]);

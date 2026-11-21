@@ -25,20 +25,27 @@ const FONTS: FontMetricsLookup = Object.assign(() => undefined, { glyphAdvances:
 /** The faces a renderer draws `text` in, in order: per character, the first of the run's face and its stretch's chain that has it. */
 function drawn(text: string, fontFace = "Arial"): [string, string][] {
     const faces: [string, string][] = [];
+
     for (const { text: stretch, fallbackFaces } of fallbackSegments(text, fontFace, false, false, "powerpoint", FONTS)) {
         for (const character of stretch) {
             const face = [fontFace, ...fallbackFaces].find(candidate => COVERAGE[candidate]?.includes(character)) ?? "none";
             const last = faces.at(-1);
-            if (last?.[1] === face) last[0] += character;
-            else faces.push([character, face]);
+
+            if (last?.[1] === face) {
+                last[0] += character;
+            } else {
+                faces.push([character, face]);
+            }
         }
     }
+
     return faces;
 }
 
 describe("the PowerPoint target's fallback faces", () => {
     test("writes Arial's and Calibri's linked East Asian faces after its symbol faces, and Times New Roman's for other faces", () => {
         const linked = ["MS Gothic", "Yu Gothic", "Microsoft JhengHei", "Microsoft YaHei", "Malgun Gothic"];
+
         expect(fallbackChain("Arial", "powerpoint")).toEqual(["Cambria Math", "Segoe UI Symbol", ...linked]);
         expect(fallbackChain("CALIBRI", "powerpoint")).toEqual(["Arial", "Cambria Math", "Segoe UI Symbol", ...linked]);
         expect(fallbackChain("Times New Roman", "powerpoint")).toEqual(["Arial", "Cambria Math", "Segoe UI Symbol", "Yu Gothic", "PMingLiU", "SimSun", "Malgun Gothic"]);
@@ -107,12 +114,14 @@ describe("the PowerPoint target's fallback faces", () => {
 
     test("leaves the text whole when a face's characters are unknown, and on the LibreOffice target", () => {
         const unknown: FontMetricsLookup = Object.assign(() => undefined, { glyphAdvances: () => undefined });
+
         expect(fallbackSegments("够这", "Arial", false, false, "powerpoint", unknown)).toEqual([{ text: "够这", fallbackFaces: fallbackChain("Arial", "powerpoint") }]);
         expect(fallbackSegments("够这", "Arial", false, false, "libreoffice", FONTS)).toEqual([{ text: "够这", fallbackFaces: [] }]);
     });
 
     test("cuts a run into one run a stretch, the first keeping its soft break", () => {
         const runs = (input: PptxGenJS.TextProps[]) => normalizeText(input, { fontFace: "Arial", fontSize: 14 }, "powerpoint", FONTS).paragraphs.flatMap(paragraph => paragraph.runs.map(run => [run.text, run.fallbackFaces?.[0], run.softBreakBefore]));
+
         expect(runs([{ text: "a" }, { text: "够是", options: { softBreakBefore: true } }])).toEqual([
             ["a", "Cambria Math", false],
             ["够", "Cambria Math", true],

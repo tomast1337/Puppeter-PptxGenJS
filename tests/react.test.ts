@@ -17,8 +17,10 @@ const geometry = { x: 1, y: 2, w: 3, h: 1 };
 test("React uses the shared Zod props schema for defaults and validation", () => {
     const schema = z.object({ label: z.string().default("Revenue"), value: z.number() });
     const p = new PuppeteerGen();
+
     registerReactComponent(p, "schema/metric", 1, Metric, { schema });
     const slide = p.addSlide();
+
     expect(() => slide.addComponent({ type: "schema/metric", version: 1, props: { value: "bad" } }, geometry)).toThrow();
     expect(renderedSlide(p).children.length).toBe(0);
     slide.addComponent({ type: "schema/metric", version: 1, props: { value: 42 } }, geometry);
@@ -29,8 +31,10 @@ test("React uses the shared Zod props schema for defaults and validation", () =>
 
 test("React adapter renders typed function components through the HTML registry", () => {
     const presentation = new PuppeteerGen();
+
     expect(registerReactComponent(presentation, "metric", 1, Metric)).toBe(presentation);
     const slide = presentation.addSlide();
+
     slide.addComponent({ type: "metric", version: 1, props: { label: "<Revenue>", value: 42 } }, geometry);
     expect(renderedSlide(presentation).querySelector("strong")?.textContent).toBe("<Revenue>");
     expect(renderedSlide(presentation).querySelector("revenue")).toBeNull();
@@ -41,13 +45,18 @@ test("React adapter renders typed function components through the HTML registry"
 
 test("prop parsing validates saved data before rendering", () => {
     const presentation = new PuppeteerGen();
+
     registerReactComponent(presentation, "metric", 1, Metric, {
         parseProps(props) {
-            if (typeof props.label !== "string" || typeof props.value !== "number") throw new Error("Invalid metric props");
+            if (typeof props.label !== "string" || typeof props.value !== "number") {
+                throw new Error("Invalid metric props");
+            }
+
             return { label: props.label, value: props.value };
         },
     });
     const slide = presentation.addSlide();
+
     expect(() => slide.addComponent({ type: "metric", version: 1, props: { label: "Revenue", value: "bad" } }, geometry)).toThrow("Invalid metric props");
     expect(renderedSlide(presentation).children.length).toBe(0);
     slide.addComponent({ type: "metric", version: 1, props: { label: "Revenue", value: 42 } }, geometry);
@@ -57,23 +66,29 @@ test("prop parsing validates saved data before rendering", () => {
 test("useId stays unique across component types and slides, and deterministic across presentations", () => {
     function Label() {
         const id = useId();
+
         return createElement("div", null, createElement("label", { htmlFor: id }, "Value"), createElement("input", { id, readOnly: true, value: "42" }));
     }
     function render() {
         const p = new PuppeteerGen();
+
         registerReactComponent(p, "label", 1, Label);
         registerReactComponent(p, "other-label", 1, Label);
         const first = p.addSlide();
+
         first.addComponent({ type: "label", version: 1, props: {} }, geometry);
         first.addComponent({ type: "other-label", version: 1, props: {} }, geometry);
         p.addSlide().addComponent({ type: "label", version: 1, props: {} }, geometry);
         const ids = Array.from(renderedPage(p).querySelectorAll("input"), element => element.id);
+
         expect(Array.from(renderedPage(p).querySelectorAll("label"), element => element.htmlFor)).toEqual(ids);
         // Rendering the same deck again gives the same ids: toHtml() output stays deterministic.
         expect(Array.from(renderedPage(p).querySelectorAll("input"), element => element.id)).toEqual(ids);
+
         return ids;
     }
     const ids = render();
+
     expect(new Set(ids).size).toBe(3);
     expect(render()).toEqual(ids);
 });
@@ -85,13 +100,16 @@ test("class components work and client effects do not run during static export",
         }
     }
     let effects = 0;
+
     function WithEffect() {
         useEffect(() => {
             effects++;
         }, []);
+
         return createElement(ClassMetric, { label: "Total", value: 7 });
     }
     const p = new PuppeteerGen();
+
     registerReactComponent(p, "class", 1, WithEffect);
     p.addSlide().addComponent({ type: "class", version: 1, props: {} }, geometry);
     expect(renderedPage(p).querySelector("section")?.textContent).toBe("Total7");
@@ -103,15 +121,18 @@ test("renderer exceptions and duplicate registrations remain explicit", () => {
         throw new Error("React render failed");
     }
     const p = new PuppeteerGen();
+
     registerReactComponent(p, "broken", 1, Broken);
     expect(() => registerReactComponent(p, "broken", 1, Metric)).toThrow("already registered");
     const slide = p.addSlide();
+
     expect(() => slide.addComponent({ type: "broken", version: 1, props: {} }, geometry)).toThrow("React render failed");
     expect(renderedSlide(p).children.length).toBe(0);
 });
 
 test("prop parser return types are checked against the React component", () => {
     const p = new PuppeteerGen();
+
     registerReactComponent(p, "typecheck", 1, Metric, {
         // @ts-expect-error Metric requires a numeric value; options cannot widen its inferred props.
         parseProps: () => ({ label: "Revenue", value: "not a number" }),

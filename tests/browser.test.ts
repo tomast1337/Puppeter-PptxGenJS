@@ -9,15 +9,18 @@ afterAll(closeBrowser);
 
 test("concurrent and back-to-back writes share one browser", async () => {
     const [first, second] = await Promise.all([withBrowser(async browser => browser), withBrowser(async browser => browser)]);
+
     expect(second).toBe(first);
     expect(await withBrowser(async browser => browser)).toBe(first);
 });
 
 test("closeBrowser closes the shared browser and the next write relaunches", async () => {
     const before = await withBrowser(async browser => browser);
+
     await closeBrowser();
     expect(before.connected).toBe(false);
     const after = await withBrowser(async browser => browser);
+
     expect(after).not.toBe(before);
     expect(after.connected).toBe(true);
 });
@@ -31,6 +34,7 @@ test("each distinct set of launch options gets its own shared browser", async ()
     const options = { ...DEFAULT_LAUNCH_OPTIONS, args: [...(DEFAULT_LAUNCH_OPTIONS.args ?? []), "--mute-audio"] };
     const defaultBrowser = await withBrowser(async browser => browser);
     const custom = await withBrowser(async browser => browser, options);
+
     expect(custom).not.toBe(defaultBrowser);
     expect(await withBrowser(async browser => browser, { ...options })).toBe(custom);
     await closeBrowser();
@@ -42,16 +46,20 @@ test("PuppeteerPdfRenderer launches Chromium with its launch options", async () 
     // A missing executable proves the options reached puppeteer.launch.
     const renderer = new PuppeteerPdfRenderer({ launchOptions: { executablePath: "/nonexistent/chromium" } });
     const document = { html: "<!DOCTYPE html><html></html>", pageSize: { ...PAGE_SIZES.SCREEN_16X9.landscape, name: "Custom" } };
+
     await expect(renderer.render(document)).rejects.toThrow("/nonexistent/chromium");
 });
 
 test("PuppeteerPdfRenderer shrinks by the rule the box states, and names a shrink box without one", async () => {
     const presentation = new PuppeteerGen();
+
     presentation.addSlide().addText("Shrink this oversized text until it fits", { x: 1, y: 1, w: 1, h: 0.5, fit: "shrink", fontSize: 24, objectName: "Fit" });
     const document = await presentation.toHtml();
     const renderer = new PuppeteerPdfRenderer();
+
     expect(new TextDecoder("latin1").decode((await renderer.render(document)).subarray(0, 5))).toBe("%PDF-");
     const html = document.html.replace(/ data-text-fit-step="[^"]*"/, "");
+
     expect(html).not.toBe(document.html);
     await expect(renderer.render({ ...document, html })).rejects.toThrow(`Cannot print 'Fit': a data-text-fit="shrink" box needs data-text-fit-step`);
 });

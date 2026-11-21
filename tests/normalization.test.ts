@@ -42,12 +42,14 @@ describe("shared object normalization", () => {
             expect(() => normalizeLine({ color })).toThrow("is not a valid color");
             expect(() => normalizeShadow({ type: "outer", color })).toThrow("is not a valid color");
         }
+
         // PptxGenJS 4.0.1 writes no color element for a "none" line, fill or shadow, so their color is never read.
         for (const color of ["transparent", "red; background-image: url(http://x)"]) {
             expect<unknown>(normalizeLine({ type: "none", color, width: 0 })).toEqual({ visible: false, color: "transparent", width: 0, style: "solid" });
             expect<unknown>(normalizeFill({ type: "none", color })).toEqual({ visible: false, color: "transparent" });
             expect(normalizeShadow({ type: "none", color })).toMatchObject({ visible: false, color: "transparent" });
         }
+
         expect<string>(normalizeColor("#ED7D31")).toBe("#ED7D31");
         expect<string>(normalizeColor({ color: "tx1", transparency: 50 })).toBe("rgba(0, 0, 0, 0.5)");
     });
@@ -57,9 +59,12 @@ describe("shared object normalization", () => {
         const deck = () => new PuppeteerGen();
         const draw = async (add: (slide: ReturnType<PuppeteerGen["addSlide"]>) => void) => {
             const pres = deck();
+
             add(pres.addSlide());
+
             return pres.toHtml();
         };
+
         await expect(draw(slide => slide.addText("a", { x: 0, y: 0, w: 1, h: 1, color: bad }))).rejects.toThrow("is not a valid color");
         await expect(draw(slide => slide.addText("a", { x: 0, y: 0, w: 1, h: 1, highlight: bad }))).rejects.toThrow("is not a valid color");
         await expect(draw(slide => slide.addText("a", { x: 0, y: 0, w: 1, h: 1, glow: { size: 4, opacity: 0.5, color: bad } }))).rejects.toThrow("is not a valid color");
@@ -76,7 +81,9 @@ describe("shared object normalization", () => {
         const box = { x: 0, y: 0, w: 2, h: 1 };
         const draw = async (add: (slide: ReturnType<PuppeteerGen["addSlide"]>) => void) => {
             const pres = new PuppeteerGen();
+
             add(pres.addSlide());
+
             return pres.toHtml();
         };
         // `falsy`: PptxGenJS reads the option with `||` (a cell its own way, `missing`), so NaN takes the default.
@@ -97,6 +104,7 @@ describe("shared object normalization", () => {
             ["titleFontSize", 4000, (slide, value) => slide.addChart("bar", [{ name: "s", labels: ["a"], values: [1] }], { ...box, showTitle: true, titleFontSize: value })],
             ["legendFontSize", 4000, (slide, value) => slide.addChart("bar", [{ name: "s", labels: ["a"], values: [1] }], { ...box, showLegend: true, legendFontSize: value })],
         ];
+
         for (const [name, max, add, falsy] of cases) {
             for (const value of [-1, ...(falsy ? [] : [Number.NaN]), Number.POSITIVE_INFINITY, max + 1]) {
                 await expect(
@@ -104,6 +112,7 @@ describe("shared object normalization", () => {
                     `${name} ${value}`,
                 ).rejects.toThrow(`${name} must be a number of points from 0 to ${max}, got ${value}`);
             }
+
             await draw(slide => add(slide, max));
         }
     });
@@ -117,6 +126,7 @@ describe("shared object normalization", () => {
     // addTextDefinition); the deprecated names it declares there are read only as top-level options.
     test("ignores the deprecated names inside a line object, as PptxGenJS does", () => {
         const deprecated = { color: "FF0000", pt: 4, size: 5, lineDash: "dash", lineHead: "arrow", lineTail: "oval" } as const;
+
         expect(normalizeLine(deprecated)).toEqual(normalizeLine({ color: "FF0000" }));
         expect(normalizeShapeLine({ line: { color: "FF0000" }, lineSize: 4, lineDash: "dash", lineHead: "arrow", lineTail: "oval" }, normalizeLine)).toEqual(normalizeLine({ color: "FF0000", width: 4, dashType: "dash", beginArrowType: "arrow", endArrowType: "oval" }));
     });
@@ -124,6 +134,7 @@ describe("shared object normalization", () => {
     test("uses the ECMA-376 prstDash ratios LibreOffice imports", () => {
         // 0.75pt = 1px, so the dash array is the pattern in line widths.
         const dashArray = (dashType: NonNullable<Parameters<typeof normalizeLine>[0]>["dashType"]) => normalizeLine({ width: 0.75, dashType }).dashArray;
+
         expect(dashArray("dash")).toBe("4 3");
         expect(dashArray("lgDashDotDot")).toBe("8 3 1 3 1 3");
         expect(dashArray("sysDash")).toBe("3 1");
@@ -141,6 +152,7 @@ describe("shared object normalization", () => {
         expect(arrowShaftStart("triangle", 1)).toBeCloseTo(((3 * 0.7 * 96) / 25.4) * (14 / 15), 9);
         const line = normalizeLine({ width: 2.25, dashType: "dash", beginArrowType: "oval", endArrowType: "triangle" });
         const parts = line.dashArray!.split(" ").map(Number);
+
         expect(parts).toHaveLength(4);
         [0, 3.9, 12, 5.1].forEach((value, index) => expect(parts[index]).toBeCloseTo(value, 9));
         // The end arrowhead does not move the phase.
@@ -149,6 +161,7 @@ describe("shared object normalization", () => {
 
     test("resolves line heads to LibreOffice's medium outlines, pointing out of the line", () => {
         const points = (path: string | undefined) => [...(path ?? "").matchAll(/[ML] (\S+) (\S+)/g)].map(([, x, y]) => [Number(x), Number(y)]);
+
         // 3px line: 9px heads; the tip sits on the line end and the base 9px back along the line.
         expect(points(arrowHeadPath("triangle", 3))).toEqual([
             [0, 0],
@@ -171,6 +184,7 @@ describe("shared object normalization", () => {
         expect(arrowHeadPath("oval", 3)).toBe("M 4.5 0 A 4.5 4.5 0 1 0 -4.5 0 A 4.5 4.5 0 1 0 4.5 0 Z");
         // The open arrow is 3.5 widths; its arms and stem are one line width (3px) thick and its tip points out (issue #41).
         const arrow = points(arrowHeadPath("arrow", 3));
+
         expect(arrow[0]).toEqual([0, 0]);
         expect(Math.max(...arrow.map(([x]) => x!))).toBe(0);
         expect(Math.min(...arrow.map(([x]) => x!))).toBeCloseTo(-10.5, 9);
@@ -180,6 +194,7 @@ describe("shared object normalization", () => {
         expect(arrowHeadPath("none", 3)).toBeUndefined();
         expect(() => arrowHeadPath("hook", 3)).toThrow("Unknown line arrow type 'hook'");
         const line = normalizeLine({ width: 2.25, beginArrowType: "oval", endArrowType: "triangle" });
+
         expect(line.beginHeadPath).toBe(String(arrowHeadPath("oval", 3)));
         expect(line.endHeadPath).toBe(String(arrowHeadPath("triangle", 3)));
         expect(normalizeLine({ width: 2.25 }).endHeadPath).toBeUndefined();
@@ -188,6 +203,7 @@ describe("shared object normalization", () => {
     test("strokes a straight line only between its heads, as LibreOffice does", () => {
         // 3px line, 100px long: the shaft runs from 3.9px (oval) to 100 - 8.4px (triangle).
         const solid = normalizeLine({ width: 2.25, beginArrowType: "oval", endArrowType: "triangle" }, 100).dashArray!.split(" ").map(Number);
+
         [0, 3.9, 87.7, 100].forEach((value, index) => expect(solid[index]).toBeCloseTo(value, 9));
         expect(solid).toHaveLength(4);
         // Dashes start at the shaft and the last one is cut where the shaft ends.
@@ -210,6 +226,7 @@ describe("shared object normalization", () => {
 
     test("converts PowerPoint shadows to CSS geometry", () => {
         const shadow = normalizeShadow({ type: "outer", color: "000000", opacity: 0.5, angle: 90, offset: 6, blur: 3 });
+
         expect(shadow.visible).toBe(true);
         expect(shadow.offsetX).toBeCloseTo(0, 8);
         expect(shadow.offsetY).toBeCloseTo(8, 8);
@@ -221,9 +238,11 @@ describe("shared object normalization", () => {
     // inset shadow darkens the edges away from its offset, so the offset is the angle's opposite.
     test("points an inner shadow's offset away from its angle, so it falls on the side the angle points to", () => {
         const at45 = normalizeShadow({ type: "inner", angle: 45, offset: 6 });
+
         expect(at45.offsetX).toBeCloseTo(-Math.SQRT1_2 * 8, 8);
         expect(at45.offsetY).toBeCloseTo(-Math.SQRT1_2 * 8, 8);
         const at135 = normalizeShadow({ type: "inner", angle: 135, offset: 4 });
+
         expect(at135.offsetX).toBeCloseTo((Math.SQRT1_2 * 16) / 3, 8);
         expect(at135.offsetY).toBeCloseTo((-Math.SQRT1_2 * 16) / 3, 8);
         // sigma = blurRad / 3 in PowerPoint, CSS draws sigma = blur / 2: an 8pt (32/3 px) blur is 64/9 px of CSS blur.
@@ -234,6 +253,7 @@ describe("shared object normalization", () => {
     test("fills unset and zero shadow values like PptxGenJS's slide XML (blur || 8, offset || 4, angle || 270, opacity || 0.75)", () => {
         for (const value of [{ type: "outer" as const }, { type: "outer" as const, blur: 0, offset: 0, angle: 0, opacity: 0 }]) {
             const shadow = normalizeShadow(value);
+
             expect(shadow.blur).toBeCloseTo((8 * 96) / 72, 8);
             expect(shadow.offsetX).toBeCloseTo(0, 8);
             expect(shadow.offsetY).toBeCloseTo((-4 * 96) / 72, 8);
@@ -251,6 +271,7 @@ describe("image source normalization", () => {
                 headers: { "content-type": "image/png" },
             }),
         );
+
         try {
             expect(await resolveImageSource("https://example.com/image.png")).toBe("data:image/png;base64,AQID");
         } finally {
@@ -260,6 +281,7 @@ describe("image source normalization", () => {
 
     test("embeds local files as data URLs", async () => {
         const path = join(tmpdir(), `puppeteer-gen-${crypto.randomUUID()}.png`);
+
         await writeFile(path, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
         try {
             expect(await resolveImageSource(path)).toBe("data:image/png;base64,iVBORw==");
@@ -270,6 +292,7 @@ describe("image source normalization", () => {
 
     test("reports the resolved path for missing files", async () => {
         const path = join(tmpdir(), `missing-${crypto.randomUUID()}.png`);
+
         expect(resolveImageSource(path)).rejects.toThrow(`Image file not found: ${path}`);
     });
 });

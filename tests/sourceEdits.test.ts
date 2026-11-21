@@ -4,7 +4,11 @@ import { applySourceEdits, type SourceEdit } from "../packages/model/src/index";
 /** The splice loop `printHtml` and `completeProfileHtml` used before issue #151: one full-string copy per edit. */
 function spliceOneByOne(source: string, edits: readonly SourceEdit[]): string {
     let out = source;
-    for (const edit of edits.toSorted((a, b) => b.start - a.start)) out = `${out.slice(0, edit.start)}${edit.text}${out.slice(edit.end)}`;
+
+    for (const edit of edits.toSorted((a, b) => b.start - a.start)) {
+        out = `${out.slice(0, edit.start)}${edit.text}${out.slice(edit.end)}`;
+    }
+
     return out;
 }
 
@@ -51,11 +55,14 @@ describe("applySourceEdits", () => {
         const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
         const source = SOURCE.repeat(50);
         const edits: SourceEdit[] = [];
+
         for (let start = 0; start < source.length; start += 1 + Math.floor(random() * 20)) {
             const end = start + Math.floor(random() * 3);
+
             edits.push({ start, end, text: `<${edits.length}>` });
             start = end;
         }
+
         expect(applySourceEdits(source, edits.toReversed())).toBe(spliceOneByOne(source, edits));
     });
 
@@ -93,6 +100,7 @@ describe("applySourceEdits", () => {
         const edits = Array.from({ length: 32_000 }, (_, index) => ({ start: index * run.length + 5, end: index * run.length + 5, text: " x" }));
         const started = performance.now();
         const out = applySourceEdits(source, edits);
+
         // The splice loop took about 10 s here; one pass takes a few ms. 1 s leaves room for a slow CI machine.
         expect(performance.now() - started).toBeLessThan(1000);
         expect(out.length).toBe(source.length + 2 * 32_000);

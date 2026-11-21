@@ -18,6 +18,7 @@ function boxes(slide: PptxGenJS.Slide, items: Box[]): void {
 
 export function populateEmojiDeck<T extends PptxGenJS | PuppeteerGen>(presentation: T): T {
     const emoji = presentation.addSlide();
+
     emoji.addText("Emoji fallback", { ...title });
     boxes(emoji as PptxGenJS.Slide, [
         { text: "Ship it 🚀 today", x: 0.4, y: 0.9 },
@@ -41,6 +42,7 @@ export function populateEmojiDeck<T extends PptxGenJS | PuppeteerGen>(presentati
     ]);
 
     const cjk = presentation.addSlide();
+
     cjk.addText("CJK fallback", { ...title });
     boxes(cjk as PptxGenJS.Slide, [
         { text: "日本語とEnglishの混在テキストです。", x: 0.4, y: 0.9, w: 4.4, h: 1.2 },
@@ -55,6 +57,7 @@ export function populateEmojiDeck<T extends PptxGenJS | PuppeteerGen>(presentati
     // widens a space between Latin and Han, which would shift a lang label's Han against both backends.
     const han = "骨直次化角今令";
     const regional = presentation.addSlide();
+
     regional.addText("CJK by lang", { ...title });
     boxes(regional as PptxGenJS.Slide, [
         { text: han, lang: "zh-CN", x: 0.4, y: 0.9, w: 4.4, h: 1.2, fontSize: 28 },
@@ -64,5 +67,6 @@ export function populateEmojiDeck<T extends PptxGenJS | PuppeteerGen>(presentati
         { text: han, lang: "ko-KR", x: 0.4, y: 3.9, w: 4.4, h: 1.2, fontSize: 28 },
         { text: han, lang: "zh-HK", x: 5.2, y: 3.9, w: 4.4, h: 1.2, fontSize: 28 },
     ]);
+
     return presentation;
 }

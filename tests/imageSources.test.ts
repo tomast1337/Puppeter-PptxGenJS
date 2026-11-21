@@ -23,11 +23,22 @@ beforeAll(async () => {
         fetch(request) {
             const url = new URL(request.url);
             const path = url.pathname;
+
             requests.push(path);
-            if (path === "/redirect") return new Response(null, { status: 302, headers: { location: url.searchParams.get("to") ?? "/" } });
+            if (path === "/redirect") {
+                return new Response(null, { status: 302, headers: { location: url.searchParams.get("to") ?? "/" } });
+            }
+
             const image = { "content-type": "image/png" };
-            if (path === "/hang") return new Promise<Response>(() => {});
-            if (path === "/large-declared") return new Response(new Uint8Array(64), { headers: image });
+
+            if (path === "/hang") {
+                return new Promise<Response>(() => {});
+            }
+
+            if (path === "/large-declared") {
+                return new Response(new Uint8Array(64), { headers: image });
+            }
+
             if (path === "/large-streamed") {
                 // No content-length: the limit has to hold while reading.
                 const body = new ReadableStream<Uint8Array>({
@@ -35,16 +46,20 @@ beforeAll(async () => {
                         controller.enqueue(new Uint8Array(16));
                     },
                 });
+
                 return new Response(body, { headers: image });
             }
+
             if (path === "/slow-body") {
                 const body = new ReadableStream<Uint8Array>({
                     start(controller) {
                         controller.enqueue(new Uint8Array(1));
                     },
                 });
+
                 return new Response(body, { headers: image });
             }
+
             return new Response(PNG_BYTES, { headers: image });
         },
     });
@@ -94,6 +109,7 @@ describe("image source limits (#149)", () => {
 
     test("baseDir resolves relative paths in it and confines every path, symlinks followed", async () => {
         const baseDir = join(dir, "tenant");
+
         expect(await resolveImageSource("logo.png", { baseDir })).toBe(PNG_DATA);
         expect(await resolveImageSource(join(baseDir, "logo.png"), { baseDir })).toBe(PNG_DATA);
         await expect(resolveImageSource("../other.png", { baseDir })).rejects.toThrow("Image path is outside imageSources.baseDir");
@@ -104,11 +120,13 @@ describe("image source limits (#149)", () => {
 
     test("errors name the path as given, never where it resolves", async () => {
         const baseDir = join(dir, "tenant");
+
         for (const [source, message] of [
             ["escape.png", "outside imageSources.baseDir"],
             ["missing.png", "Image file not found: missing.png"],
         ] as const) {
             const error = await resolveImageSource(source, { baseDir }).catch((caught: unknown) => caught);
+
             expect(error).toBeInstanceOf(Error);
             expect((error as Error).message).toContain(message); // `as`: checked above
             expect((error as Error).message).not.toContain(dir); // `as`: checked above
@@ -134,6 +152,7 @@ describe("image source limits (#149)", () => {
         expect(requests).toEqual([]);
         // The redirect target is checked before it is requested.
         const other = `http://127.0.0.1:${server.port}/ok.png`;
+
         await expect(resolveImageSource(`${base}/redirect?to=${encodeURIComponent(other)}`, { allowedHosts: ["localhost"] })).rejects.toThrow("Image host '127.0.0.1' is not in");
         expect(requests).toEqual(["/redirect"]);
         await expect(resolveImageSource(`${base}/redirect?to=${encodeURIComponent("file:///etc/hosts")}`, { allowedHosts: ["localhost"] })).rejects.toThrow("redirected to a file: URL");
@@ -141,6 +160,7 @@ describe("image source limits (#149)", () => {
 
     test("maxRedirects caps the redirects one image follows", async () => {
         const twice = `${base}/redirect?to=${encodeURIComponent("/redirect?to=/ok.png")}`;
+
         expect(await resolveImageSource(twice, { maxRedirects: 2 })).toBe(PNG_DATA);
         await expect(resolveImageSource(twice, { maxRedirects: 1 })).rejects.toThrow("Image fetch was redirected more than 1 times");
         await expect(resolveImageSource(`${base}/redirect?to=/ok.png`, { maxRedirects: 0 })).rejects.toThrow("raise the PuppeteerGen option imageSources.maxRedirects");
@@ -157,12 +177,15 @@ describe("image source limits (#149)", () => {
         expect(() => new PuppeteerGen(PAGE, { imageSources: { maxRedirects: -1 } })).toThrow("must be a whole number from 0");
 
         const confined = new PuppeteerGen(PAGE, { imageSources: { baseDir: join(dir, "tenant") } });
+
         confined.addSlide().addImage({ path: "logo.png" });
         expect((await confined.toHtml()).html).toContain(PNG_DATA);
         const escaped = new PuppeteerGen(PAGE, { imageSources: { baseDir: join(dir, "tenant") } });
+
         escaped.addSlide().addImage({ path: "../other.png" });
         await expect(escaped.toHtml()).rejects.toThrow("outside imageSources.baseDir");
         const core = new CorePuppeteerGen(PAGE, { imageSources: { allowRemote: false } });
+
         core.addSlide().addImage({ path: `${base}/ok.png` });
         await expect(core.toHtml()).rejects.toThrow("imageSources.allowRemote is false");
     });
@@ -171,14 +194,19 @@ describe("image source limits (#149)", () => {
     test("toHtml() throws UnresolvedImageError when resolveImage returns anything but an image data URI", async () => {
         const toHtml = (result: unknown, path = "logo.png") => {
             const presentation = new CorePuppeteerGen(PAGE, { resolveImage: async () => result as string }); // `as`: a JavaScript caller can return anything
+
             presentation.addSlide().addImage({ path });
+
             return presentation.toHtml();
         };
+
         for (const result of ["https://cdn.example.com/logo.png", "/srv/images/logo.png", "data:text/plain;base64,YQ==", "data:image/svg+xml,<svg/>", "data:image/png;base64,", 42]) {
             const error = await toHtml(result).catch((caught: unknown) => caught);
+
             expect(error).toBeInstanceOf(UnresolvedImageError);
             expect(error).toMatchObject({ name: "UnresolvedImageError", source: "logo.png", result });
         }
+
         await expect(toHtml("https://cdn.example.com/logo.png", "https://example.com/logo.png")).rejects.toThrow(
             'resolveImage returned "https://cdn.example.com/logo.png" for image "https://example.com/logo.png", not a data URI: a resolver must read or fetch the image and return its bytes as "data:image/<type>;base64,<data>"',
         );
@@ -194,12 +222,18 @@ describe("image source limits (#149)", () => {
             peak = Math.max(peak, ++active);
             await Bun.sleep(5);
             active--;
+
             return PNG_DATA;
         };
         const presentation = new CorePuppeteerGen(PAGE, { resolveImage });
         const slide = presentation.addSlide();
-        for (let index = 0; index < 20; index++) slide.addImage({ path: `image-${index}.png` });
+
+        for (let index = 0; index < 20; index++) {
+            slide.addImage({ path: `image-${index}.png` });
+        }
+
         const { html } = await presentation.toHtml();
+
         expect(peak).toBe(IMAGE_SOURCE_LIMITS.concurrency);
         expect(html.match(/data:image\/png;base64,iVBORw==/g)?.length).toBe(20);
     });

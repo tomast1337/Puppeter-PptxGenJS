@@ -13,6 +13,7 @@ describe("POWERPOINT_FACES", () => {
         const { fallbackFaces, eastAsianFallback, emojiFace } = RENDERING_TARGETS.powerpoint;
         const chains = [...fallbackFaces, ...Object.values(eastAsianFallback.byFace).flat(), ...eastAsianFallback.otherFaces, ...(emojiFace === undefined ? [] : [emojiFace])];
         const expected = [PPTX_DEFAULTS.theme.bodyFontFace, PPTX_DEFAULTS.theme.headFontFace, PPTX_DEFAULTS.chart.fontFace, ...chains];
+
         expect(new Set(names)).toEqual(new Set(expected));
         expect(names.length).toBe(new Set(names).size);
     });
@@ -28,6 +29,7 @@ describe("POWERPOINT_FACES", () => {
                     .slice(1, -1)
                     .map(cell => cell.trim()),
             );
+
         expect(rows).toEqual(POWERPOINT_FACES.map(({ name, role, withoutIt }) => [name, role, withoutIt]));
     });
 });
@@ -36,6 +38,7 @@ describe("checkPowerPointFonts", () => {
     test("reports the target's faces and the deck's by the injected family listing, without case", () => {
         const installed = ["calibri", "ARIAL", "Segoe UI Emoji", "my brand sans", "Noto Sans CJK JP"];
         const { present, missing } = checkPowerPointFonts({ faces: ["My Brand Sans", "My Brand Serif", "arial"], installedFamilies: installed });
+
         expect(present).toEqual(["Calibri", "Arial", "Segoe UI Emoji", "My Brand Sans"]);
         expect(missing).toEqual([...names.filter(name => !present.includes(name)), "My Brand Serif"]);
     });

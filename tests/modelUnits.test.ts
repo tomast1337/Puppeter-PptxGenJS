@@ -21,6 +21,7 @@ describe("model unit helpers", () => {
 
     test("a Pt or a plain number is not a Px (checked by typecheck)", () => {
         const takesPx = (value: Px) => value;
+
         // @ts-expect-error a Pt is not a Px
         takesPx(pt(12));
         // @ts-expect-error a plain number is not a Px
@@ -40,6 +41,7 @@ describe("model unit helpers", () => {
         // @ts-expect-error a plain number is not Inches
         const pageInNumbers: PageSize = { width: 10, height: inches(5.625), name: "Custom" };
         const geometry: NormalizedGeometry = { x: inchesToPixels(1), y: px(0), width: px(96) };
+
         expect<number[]>([fromPoints.x, fromNumber.x, pageInPixels.width, pageInNumbers.width, geometry.x]).toEqual([12, 12, 960, 10, 96]);
     });
 });

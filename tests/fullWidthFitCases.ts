@@ -677,9 +677,14 @@ export function fullWidthFitCases(): FitCase[] {
         const [before = "", after = ""] = marked.split("|");
         const characters = [...before];
         const ends = [characters.slice(0, -1).join(""), before, `${before}${[...after][0] ?? ""}`];
+
         return variants.flatMap((boxes, variantIndex) => {
             const variant = FIT_VARIANTS[variantIndex];
-            if (!variant) return [];
+
+            if (!variant) {
+                return [];
+            }
+
             return boxes.flatMap((lines, box) => (lines ? [{ label: `${index + 1}${"abc"[box] ?? ""} v${variantIndex + 1}`, text: `${before}${after}`, variant, fits: ends[box] ?? "", lines }] : []));
         });
     });
@@ -688,9 +693,11 @@ export function fullWidthFitCases(): FitCase[] {
 /** `text`'s width at `sizePt` on PowerPoint's advance grid; a character `font` does not map is 1em. */
 function gridWidthPt(text: string, sizePt: number, font: GlyphAdvances): number {
     const grid = RENDERING_TARGETS.powerpoint.advanceGridPt ?? 0;
+
     return [...text].reduce((sum, character) => {
         const units = font.advances.get(character.codePointAt(0) ?? 0);
         const natural = units === undefined ? sizePt : (units * sizePt) / font.unitsPerEm;
+
         return sum + Math.round(natural / grid) * grid;
     }, 0);
 }
@@ -700,7 +707,9 @@ export function fullWidthFitDeck(presentation: PuppeteerGen, cases: readonly Fit
     for (const { text, variant, fits } of cases) {
         const { fontFace, sizePt, align, lang } = variant;
         const widthPt = gridWidthPt(fits, sizePt, fonts(fontFace)) + BOX_SLACK_PT;
+
         presentation.addSlide().addText(text, { fontFace, fontSize: sizePt, align, ...(lang ? { lang } : {}), x: 0.4, y: 0.2, w: widthPt / PPTX_DEFAULTS.units.pointsPerInch, h: 1.2, margin: 0, valign: "top" });
     }
+
     return presentation;
 }

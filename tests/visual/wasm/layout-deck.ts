@@ -12,6 +12,7 @@ const body = { fontFace: "Arial", fontSize: 16, color: "363636", fill: { color: 
 
 export function populateLayoutDeck<T extends PptxGenJS | PuppeteerGen>(presentation: T): T {
     const tabs = presentation.addSlide();
+
     tabs.addText("Tab stops", { ...title });
     // No explicit stops: default stops every inch (defTabSz).
     tabs.addText("One\tTwo\tThree\nA\tBB\tCCC", { ...body, x: 0.5, y: 0.9, w: 9, h: 1 });
@@ -33,6 +34,7 @@ export function populateLayoutDeck<T extends PptxGenJS | PuppeteerGen>(presentat
     // The visual image has no DejaVu Sans Oblique (fonts-dejavu-core) and no Noto Sans CJK italic, so
     // LibreOffice and WASM both shear the regular face.
     const synthetic = presentation.addSlide();
+
     synthetic.addText("Synthetic italic", { ...title });
     synthetic.addText("Sheared DejaVu Sans: Italic Hamburgefonts", { ...body, fontFace: "DejaVu Sans", fontSize: 24, italic: true, x: 0.5, y: 0.9, w: 9, h: 0.8 });
     synthetic.addText("斜体の日本語テキスト", { ...body, fontFace: "Noto Sans CJK JP", fontSize: 24, italic: true, x: 0.5, y: 2, w: 9, h: 0.8 });
@@ -40,8 +42,10 @@ export function populateLayoutDeck<T extends PptxGenJS | PuppeteerGen>(presentat
     // LibreOffice stacks one character per line (a space is an empty line), aligned and anchored as
     // horizontal text; Chromium's upright vertical writing mode is not the same layout.
     const stacked = presentation.addSlide();
+
     stacked.addText("Stacked text", { ...title });
     const column = { ...body, fontSize: 20, y: 0.9, w: 1.4, h: 4.4, vert: "wordArtVert" } as const;
+
     stacked.addText("Stack", { ...column, x: 0.5 });
     stacked.addText("AB\nxy z", { ...column, x: 2.3, valign: "middle" });
     // Centre-aligned stacks: LibreOffice centres them vertically whatever the anchor, unlike OOXML
@@ -49,5 +53,6 @@ export function populateLayoutDeck<T extends PptxGenJS | PuppeteerGen>(presentat
     stacked.addText("Mid", { ...column, x: 4.1, align: "center", valign: "middle" });
     stacked.addText("Bot", { ...column, x: 7.7, align: "right", valign: "bottom" });
     stacked.addText("日本語", { ...column, x: 5.9, fontFace: "Noto Sans CJK JP" });
+
     return presentation;
 }

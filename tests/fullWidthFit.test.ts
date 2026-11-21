@@ -26,18 +26,22 @@ describe("Han next to Latin text on the advance grid", () => {
         // A break marker stays with the stretch before it, and a face that maps Han draws it itself: no cut.
         expect(fullWidthStretches("​参见​1999​（", LATIN)).toEqual(["​参见​", "1999​", "（"]);
         const han: GlyphAdvances = { ...LATIN, advances: new Map([...LATIN.advances, ["参".codePointAt(0) ?? 0, 2048]]) };
+
         expect(fullWidthStretches("参1999", han)).toEqual(["参1999"]);
     });
 
     test("keeps an empty paragraph's run when the face's advances are known", async () => {
         const pres = new PuppeteerGenPowerPoint(undefined, { resolveGlyphAdvances: () => LATIN });
+
         pres.addSlide().addText("1\n\n2", { x: 1, y: 1, w: 4, h: 1, fontFace: "Arial", fontSize: 10 });
         const paragraphs = pres.getModel().slides[0]?.objects.flatMap(object => (object.kind === "text" ? object.text.paragraphs : []));
+
         expect(paragraphs?.map(paragraph => paragraph.runs.map(run => run.text))).toEqual([["1"], [""], ["2"]]);
     });
 
     test("counts Han and full-width marks the face does not map as 1em, as the fallback face draws them", () => {
         const cursor: GridCursor = { rounded: 0, laidOut: 0 };
+
         advanceGridWordSpacing("示例，", 10, LATIN, GRID, 0, false, cursor);
         expect(cursor.rounded).toBeCloseTo(pointsToPixels(30), 9);
         // A character neither mapped nor full-width still counts 0.
@@ -48,8 +52,10 @@ describe("Han next to Latin text on the advance grid", () => {
     test("does not go on with a word from digits into Han or a full-width mark in the next run, or back", () => {
         const spaced = (text: string, after: string) => {
             const cursor: GridCursor = { rounded: 0, laidOut: 0 };
+
             return { spacing: advanceGridWordSpacing(text, 10, LATIN, GRID, 0, false, cursor, after), word: cursor.word };
         };
+
         expect(spaced("1999", "，然后")).toEqual(spaced("1999", ""));
         expect(spaced("然后", "1999")).toEqual(spaced("然后", ""));
         expect(spaced("1999", "2000").word).toBeDefined();
@@ -59,10 +65,13 @@ describe("Han next to Latin text on the advance grid", () => {
 /** The lines of the first `pages` pages, as pdftotext reads them, by their number of characters other than white space and U+200B. */
 async function drawnLines(pdf: Uint8Array, pages: number, pdftotext: string): Promise<number[][]> {
     const directory = await mkdtemp(join(tmpdir(), "full-width-fit-"));
+
     try {
         const file = join(directory, "deck.pdf");
+
         await writeFile(file, pdf);
         const text = Bun.spawnSync([pdftotext, "-raw", "-enc", "UTF-8", file, "-"]).stdout.toString();
+
         return text
             .split("\f")
             .slice(0, pages)
@@ -86,7 +95,11 @@ describe("the measured boxes of Han next to digits, Latin words and ASCII parent
     const drawn = (lines: number[][]) => cases.map(({ label }, index) => ({ label, lines: lines[index] }));
     const fonts = (fontFace: FitVariant["fontFace"]) => {
         const font = fontFace === "Arial" ? arial : times;
-        if (!font) throw new Error(`${fontFace} is not installed: the measured boxes need its advances`);
+
+        if (!font) {
+            throw new Error(`${fontFace} is not installed: the measured boxes need its advances`);
+        }
+
         return font;
     };
 
@@ -94,6 +107,7 @@ describe("the measured boxes of Han next to digits, Latin words and ASCII parent
         "breaks each box where PowerPoint does, in Chromium",
         async () => {
             const pdf = await fullWidthFitDeck(new PuppeteerGenPowerPoint(), cases, fonts).toPdf();
+
             expect(drawn(await drawnLines(pdf, cases.length, pdftotext ?? "pdftotext"))).toEqual(expected);
         },
         120_000,
@@ -104,6 +118,7 @@ describe("the measured boxes of Han next to digits, Latin words and ASCII parent
         async () => {
             const renderer = await createWasmRenderer({ fonts: await loadSystemFonts() });
             const pdf = await fullWidthFitDeck(new PuppeteerGenPowerPoint(undefined, { renderer }), cases, fonts).toPdf();
+
             expect(drawn(await drawnLines(pdf, cases.length, pdftotext ?? "pdftotext"))).toEqual(expected);
         },
         120_000,

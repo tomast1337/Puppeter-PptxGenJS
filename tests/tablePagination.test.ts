@@ -16,10 +16,12 @@ const rows = (count: number): PptxGenJS.TableRow[] => Array.from({ length: count
 describe("table auto-pagination", () => {
     test("allocates rows using PptxGenJS line-height and continuation heuristics", () => {
         const pages = paginateTableRows(rows(30), { autoPage: true, y: 1, w: 8 }, PAGE);
+
         expect(pages.map(page => page.rows.length)).toEqual([13, 15, 2]);
         expect(pages.map(page => page.y)).toEqual([1, 0.5, 0.5]);
 
         const percentageY = paginateTableRows(rows(2), { autoPage: true, y: "20%", w: 8 }, PAGE);
+
         expect(percentageY[0]?.y).toBe(1.125);
 
         const heavierLines = paginateTableRows(
@@ -32,6 +34,7 @@ describe("table auto-pagination", () => {
             },
             PAGE,
         );
+
         expect(heavierLines.map(page => page.rows.length)).toEqual([9, 11, 10]);
     });
 
@@ -49,6 +52,7 @@ describe("table auto-pagination", () => {
             },
             PAGE,
         );
+
         expect(pages).toHaveLength(3);
         expect(pages[1]!.y).toBe(0.8);
         expect(pages[1]!.rows.slice(0, 2).map(row => row[0]?.text)).toEqual(["Row 1", "Row 2"]);
@@ -78,23 +82,27 @@ describe("table auto-pagination", () => {
             },
             PAGE,
         );
+
         expect(narrow.length).toBeGreaterThan(wide.length);
 
         const reconstructed = narrow
             .flatMap(page => page.rows)
             .flatMap(row => {
                 const value = row[0]?.text;
+
                 return Array.isArray(value) ? value.map(piece => String(piece.text ?? "")) : [String(value ?? "")];
             })
             .join("")
             .replaceAll(/\s+/g, " ")
             .trim();
+
         expect(reconstructed).toBe(text);
     });
 
     test("creates continuation slides and reports them on the source slide", () => {
         const presentation = new PuppeteerGen(PAGE);
         const slide = presentation.addSlide();
+
         slide.addTable(rows(30), {
             autoPage: true,
             autoPageRepeatHeader: true,
@@ -108,6 +116,7 @@ describe("table auto-pagination", () => {
         });
 
         const slides = renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-container");
+
         expect(slides).toHaveLength(3);
         expect(slide.newAutoPagedSlides).toHaveLength(2);
         expect(slides[0]?.querySelectorAll(".slide-table-container")).toHaveLength(1);
@@ -119,12 +128,15 @@ describe("table auto-pagination", () => {
     test("draws plain string cells on every page they continue to", () => {
         const presentation = new PuppeteerGen(PAGE);
         const lines = Array.from({ length: 60 }, (_, line) => `Line ${line + 1}`);
+
         // `as`: PptxGenJS accepts plain string cells at runtime, but `TableRow` lists only cell objects.
         presentation.addSlide().addTable([["A", lines.join("\n")]] as unknown as PptxGenJS.TableRow[], { autoPage: true, y: 0.5, w: 8, fontSize: 12 });
 
         const slides = [...renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-container")];
+
         expect(slides.length).toBeGreaterThan(1);
         const drawn = slides.map(slide => slide.querySelectorAll("td")[1]?.textContent ?? "");
+
         expect(drawn.every(text => text.length > 0)).toBe(true);
         expect(drawn.join("").replaceAll(/\s+/g, "")).toBe(lines.join("").replaceAll(" ", ""));
     });
@@ -135,9 +147,11 @@ describe("table auto-pagination", () => {
     test.each([false, true])("keeps the table font size on rows moved to a continuation slide (repeat header %p)", autoPageRepeatHeader => {
         const presentation = new PuppeteerGen(PAGE);
         const input: PptxGenJS.TableRow[] = Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}`, options: { fontSize: undefined } }, { text: `Value ${index + 1}` }]);
+
         presentation.addSlide().addTable(input, { autoPage: true, autoPageRepeatHeader, y: 1, w: 8, fontSize: 10 });
 
         const sizes = presentation.getModel().slides.flatMap(slide => slide.objects.flatMap(object => (object.kind === "table" ? object.table.rows.flatMap(row => row.cells.flatMap(cell => cell.text.paragraphs.flatMap(paragraph => paragraph.runs.map(run => run.fontSize)))) : [])));
+
         expect(sizes.length).toBeGreaterThan(0);
         expect(new Set(sizes)).toEqual(new Set([pointsToPixels(10)]));
     });
@@ -146,6 +160,7 @@ describe("table auto-pagination", () => {
 /** Row heights in inches per slide, as PptxGenJS 4.0.1 writes them to `<a:tr h>`; 0 lets the row size to its content. */
 async function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps): Promise<number[][]> {
     const pptx = new PptxGenJSRuntime();
+
     pptx.layout = "LAYOUT_16x9";
     pptx.addSlide().addTable(rows, options);
     // `as`: write() returns a Buffer for the nodebuffer output type.
@@ -154,6 +169,7 @@ async function pptxGenJsRowHeights(rows: PptxGenJS.TableRow[], options: PptxGenJ
         .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
         .sort((a, b) => Number(/\d+/.exec(a)?.[0]) - Number(/\d+/.exec(b)?.[0]));
     const xmls = await Promise.all(slides.map(name => zip.file(name)?.async("string") ?? ""));
+
     return xmls.map(xml => [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, emu]) => Number(emu) / PPTX_DEFAULTS.units.emuPerInch));
 }
 
@@ -164,6 +180,7 @@ function rowHeightsOf(presentation: PuppeteerGen): number[][] {
 
 describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: each page gets the caller's options)", () => {
     const round = (pages: number[][]) => pages.map(page => page.map(height => Number(height.toFixed(4))));
+
     test.each<[string, PptxGenJS.TableProps]>([
         ["no rowH", {}],
         ["repeated headers", { autoPageRepeatHeader: true, autoPageHeaderRows: 2 }],
@@ -176,8 +193,10 @@ describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: eac
         const input = Array.from({ length: 30 }, (_, index) => [{ text: `Row ${index + 1}` }, { text: index % 5 ? `Value ${index + 1}` : "Two\nlines" }]);
         const options: PptxGenJS.TableProps = { autoPage: true, y: 1, w: 8, ...extra };
         const presentation = new PuppeteerGen(PAGE);
+
         presentation.addSlide().addTable(input, options);
         const ours = round(rowHeightsOf(presentation));
+
         expect(ours.length).toBeGreaterThan(1);
         // PptxGenJS writes into the rows and options it is given, so it gets copies.
         expect(ours).toEqual(round(await pptxGenJsRowHeights(structuredClone(input), structuredClone(options))));
@@ -187,15 +206,18 @@ describe("autoPage row heights (PptxGenJS 4.0.1 addTableDefinition step 6 C: eac
 /** PptxGenJS 4.0.1 autoPage pages: per slide, the text of each row's first cell, from its parsed word runs. */
 function pptxGenJsPages(input: unknown[], options: PptxGenJS.TableProps): string[][] {
     const pptx = new PptxGenJSRuntime();
+
     pptx.layout = "LAYOUT_16x9";
     pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
     // `as`: `_slides`, `_slideObjects` and `arrTabRows` are PptxGenJS 4.0.1 internals the types omit.
     const slides = (pptx as unknown as { _slides: Array<{ _slideObjects: Array<{ arrTabRows: PptxGenJS.TableCell[][] }> }> })._slides;
+
     return slides.map(slide => (slide._slideObjects[0]?.arrTabRows ?? []).map(row => firstCellText(row)));
 }
 
 function firstCellText(row: PptxGenJS.TableRow): string {
     const text: unknown = row[0]?.text;
+
     return Array.isArray(text) ? text.map(run => (typeof run.text === "string" ? run.text : "")).join("") : String(text ?? "");
 }
 
@@ -205,6 +227,7 @@ function ourPages(input: unknown[], options: PptxGenJS.TableProps): string[][] {
 
 describe("autoPage line counting (PptxGenJS 4.0.1 parseTextToLines and getSlidesForTableRows E-3)", () => {
     const filler = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor";
+
     test.each<[string, unknown[], PptxGenJS.TableProps]>([
         // A first word longer than the line adds an empty line in front of it (parseTextToLines step 4 A).
         ["an over-long first word", Array.from({ length: 24 }, (_, index) => [{ text: `Abcdefghijklmnopqrstuvwxyz${index} end` }, { text: "x" }]), { autoPage: true, colW: [1, 8] }],
@@ -218,6 +241,7 @@ describe("autoPage line counting (PptxGenJS 4.0.1 parseTextToLines and getSlides
         ["a zero cell fontSize", Array.from({ length: 30 }, (_, index) => [{ text: `${index}`, options: { fontSize: 0 } }, { text: "x" }]), { autoPage: true, fontSize: 20 }],
     ])("splits rows as PptxGenJS does with %s", (_, input, options) => {
         const theirs = pptxGenJsPages(input, options);
+
         expect(theirs.length).toBeGreaterThan(1);
         expect(ourPages(input, options).map(page => page.length)).toEqual(theirs.map(page => page.length));
     });
@@ -226,6 +250,7 @@ describe("autoPage line counting (PptxGenJS 4.0.1 parseTextToLines and getSlides
 /** Per slide, per cell: the paragraphs PptxGenJS 4.0.1 writes into the slide XML, each as its runs joined by "+". */
 async function pptxGenJsParagraphs(input: unknown[], options: PptxGenJS.TableProps): Promise<string[][]> {
     const pptx = new PptxGenJSRuntime();
+
     pptx.layout = "LAYOUT_16x9";
     pptx.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], structuredClone(options));
     // `as`: write() returns a Buffer for the nodebuffer output type.
@@ -235,18 +260,22 @@ async function pptxGenJsParagraphs(input: unknown[], options: PptxGenJS.TablePro
         .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
     const slides = await Promise.all(names.map(async name => (await zip.file(name)?.async("string")) ?? ""));
     const runs = (paragraph: string): string => [...paragraph.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, text]) => text).join("+");
+
     return slides.map(xml => [...xml.matchAll(/<a:tc>(.*?)<\/a:tc>/g)].map(([, cell]) => [...(cell ?? "").matchAll(/<a:p>(.*?)<\/a:p>/g)].map(([, paragraph]) => runs(paragraph ?? "")).join(" || ")));
 }
 
 function ourParagraphs(input: unknown[], options: PptxGenJS.TableProps): string[][] {
     const presentation = new PuppeteerGen(PAGE);
+
     presentation.addSlide().addTable(structuredClone(input) as PptxGenJS.TableRow[], options);
     const cells = (table: NormalizedTable): string[] => table.rows.flatMap(row => row.cells.map(cell => cell.text.paragraphs.map(paragraph => paragraph.runs.flatMap(run => (run.text ? [run.text] : [])).join("+")).join(" || ")));
+
     return presentation.getModel().slides.map(slide => slide.objects.flatMap(object => (object.kind === "table" ? cells(object.table) : [])));
 }
 
 describe("autoPage rows are drawn from PptxGenJS's parsed words (getSlidesForTableRows step 6 E, 4)", () => {
     const long = Array.from({ length: 80 }, (_, index) => `word${index}`).join(" ");
+
     test.each<[string, unknown[], PptxGenJS.TableProps]>([
         // A split row: single-line runs trimmed and joined ("Helloworld"), a non-string run dropped, the wrapped lines
         // of a long cell in one paragraph; the rows that fit are parsed the same way.

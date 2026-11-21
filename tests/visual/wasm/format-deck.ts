@@ -27,6 +27,7 @@ const label = { fontFace: "Arial", fontSize: 14, color: "363636", align: "center
 
 function populateFormatSlide<T extends PptxGenJS | PuppeteerGen>(presentation: T, pictures: FormatPictures, mime: string): T {
     const slide = presentation.addSlide() as PptxGenJS.Slide;
+
     slide.addText(pictures.title, { ...title });
     for (const [x, text] of [
         [0.5, "Stretch"],
@@ -37,7 +38,9 @@ function populateFormatSlide<T extends PptxGenJS | PuppeteerGen>(presentation: T
         slide.addShape("rect", { x, y: 0.95, w: 1.9, h: 1.8, fill: { color: "F2F2F2" }, line: { color: "A6A6A6", width: 1 } });
         slide.addText(text, { ...label, x, y: 2.85, w: 1.9, h: 0.35 });
     }
+
     const sample = dataUri(pictures.sample, mime);
+
     // Paths go through toHtml()'s data-URI resolution, data URIs straight in.
     slide.addImage({ path: image(pictures.sample), x: 0.5, y: 0.95, w: 1.9, h: 1.8, altText: "Stretched" });
     slide.addImage({ data: sample, x: 2.9, y: 0.95, w: 4, h: 2, sizing: { type: "contain", w: 1.9, h: 1.8 }, altText: "Contained" });
@@ -54,6 +57,7 @@ function populateFormatSlide<T extends PptxGenJS | PuppeteerGen>(presentation: T
     slide.addText("Transparency", { ...label, x: 0.5, y: 4.85, w: 2.4, h: 0.35 });
     slide.addText(pictures.variant.label, { ...label, x: 3.6, y: 4.85, w: 2.4, h: 0.35 });
     slide.addText("Rotate + flip + shadow", { ...label, x: 6.5, y: 4.85, w: 3, h: 0.35 });
+
     return presentation;
 }
 

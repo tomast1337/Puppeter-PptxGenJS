@@ -37,20 +37,30 @@ describe("toHtml() bytes", () => {
     test("match the recorded hashes for the fixture, the cross-runtime deck and every WASM deck, and need no completion", async () => {
         const html: Record<string, string> = {};
         const fixture = new PuppeteerGen();
+
         populateParityFixture(fixture);
         html.fixture = (await fixture.toHtml()).html;
         html["cross-runtime"] = (await buildCrossRuntimeDeck(PuppeteerGen, PNG).toHtml()).html;
         // Imported here: tests/visual/wasm/deck.ts installs a global jsdom `document` when loaded, which
         // tests/html.test.ts must not see; it is removed again below.
         const hadDocument = "document" in globalThis;
+
         try {
             const { DECKS } = await import("./visual/wasm/decks");
-            for (const [name, deck] of Object.entries(DECKS)) html[`wasm-${name}`] = (await deck.populate(new PuppeteerGen()).toHtml()).html;
+
+            for (const [name, deck] of Object.entries(DECKS)) {
+                html[`wasm-${name}`] = (await deck.populate(new PuppeteerGen()).toHtml()).html;
+            }
         } finally {
-            if (!hadDocument) Reflect.deleteProperty(globalThis, "document");
+            if (!hadDocument) {
+                Reflect.deleteProperty(globalThis, "document");
+            }
         }
+
         expect(Object.fromEntries(Object.entries(html).map(([name, document]) => [name, sha256(document)]))).toEqual(EXPECTED_SHA256);
         // toHtml() states every value, so the completion step returns it byte for byte.
-        for (const [name, document] of Object.entries(html)) expect({ name, same: completeProfileHtml(document) === document }).toEqual({ name, same: true });
+        for (const [name, document] of Object.entries(html)) {
+            expect({ name, same: completeProfileHtml(document) === document }).toEqual({ name, same: true });
+        }
     }, 60_000);
 });

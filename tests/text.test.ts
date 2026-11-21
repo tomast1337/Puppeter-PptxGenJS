@@ -17,6 +17,7 @@ describe("text normalization", () => {
         expect(normalizeText(42).paragraphs[0]?.runs[0]?.text).toBe("42");
 
         const text = normalizeText("first\n\nthird");
+
         expect(text.paragraphs).toHaveLength(3);
         expect(text.paragraphs.map(paragraph => paragraph.runs[0]?.text)).toEqual(["first", "", "third"]);
     });
@@ -29,6 +30,7 @@ describe("text normalization", () => {
             expect(actual.height).toBeCloseTo(height);
             expect(actual.baseline).toBeCloseTo(baseline);
         };
+
         // 18pt default = 24px: 28.8px line, baseline 1.0em below its top.
         close(box({}), 28.8, 24);
         // lineSpacingMultiple scales the 1.2em line; the extra height goes above the baseline.
@@ -49,9 +51,11 @@ describe("text normalization", () => {
     test("keeps lineSpacing in points and lineSpacingMultiple a multiple, whatever their size", async () => {
         const written = async (options: PptxGenJS.TextPropsOptions): Promise<string> => {
             const pptx = new PptxGenJSRuntime();
+
             pptx.addSlide().addText("Text", { x: 1, y: 1, w: 4, h: 2, ...options });
             // `as`: write() returns a Buffer for the nodebuffer output type.
             const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+
             return (await zip.file("ppt/slides/slide1.xml")?.async("string"))?.match(/<a:lnSpc>(.*?)<\/a:lnSpc>/)?.[1] ?? "";
         };
         // The line height in points, as LibreOffice and PowerPoint (which rounds spcPts to whole points) read it.
@@ -64,15 +68,18 @@ describe("text normalization", () => {
             [{ lineSpacingMultiple: 8.34 }, '<a:spcPct val="834000"/>', { libreoffice: 8.34 * single, powerpoint: 8.34 * single }],
             [{ lineSpacingMultiple: 1.5 }, '<a:spcPct val="150000"/>', { libreoffice: 1.5 * single, powerpoint: 1.5 * single }],
         ];
+
         for (const [options, xml, heights] of cases) {
             expect({ options, xml: await written({ fontSize: 18, ...options }) }).toEqual({ options, xml });
             for (const target of ["libreoffice", "powerpoint"] as const) {
                 const lineBox = normalizeText("Text", { fontSize: 18, ...options }, target).paragraphs[0]?.lineBox;
+
                 expect({ options, target, height: lineBox?.height }).toEqual({ options, target, height: expect.closeTo(pointsToPixels(heights[target]), 9) });
                 // Explicit spacing puts the baseline 0.2em above the line bottom (or the target's spacedLineBaseline).
                 expect(lineBox?.markBaseline).toBeUndefined();
             }
         }
+
         // A 0 writes no <a:lnSpc>: single spacing.
         expect(await written({ fontSize: 18, lineSpacing: 0, lineSpacingMultiple: 0 })).toBe("");
         expect(normalizeText("Text", { fontSize: 18, lineSpacing: 0, lineSpacingMultiple: 0 }).paragraphs[0]?.lineBox).toEqual(normalizeText("Text", { fontSize: 18 }).paragraphs[0]!.lineBox);
@@ -87,8 +94,10 @@ describe("text normalization", () => {
             { text: "Body text that wraps.\n\n", options: { fontSize: 8 } },
             { text: "More body.\n", options: { fontSize: 8 } },
         ];
+
         for (const target of ["libreoffice", "powerpoint"] as const) {
             const { paragraphs } = normalizeText(runs, { align: "justify", fontFace: "Arial" }, target);
+
             expect(paragraphs.map(paragraph => paragraph.runs.map(run => [run.text, run.fontSize, run.bold]))).toEqual([[["Head line.", 64 / 3, true]], [["", 64 / 3, true]], [["Body text that wraps.", 32 / 3, false]], [["", 32 / 3, false]], [["More body.", 32 / 3, false]], [["", 32 / 3, false]]]);
             // 1.2 x 8pt lines on every body paragraph, 1.2 x 16pt on the head and its empty paragraph.
             expect(paragraphs.map(paragraph => paragraph.lineBox.height)).toEqual([25.6, 25.6, 12.8, 12.8, 12.8, 12.8].map(height => expect.closeTo(height) as unknown as number));
@@ -102,6 +111,7 @@ describe("text normalization", () => {
             ],
             { fontFace: "Arial" },
         ).paragraphs;
+
         expect(lone.map(paragraph => [paragraph.runs.map(run => [run.text, run.fontSize]), paragraph.align, paragraph.lineBox.height])).toEqual([
             [[["Left head.", 64 / 3]], "left", expect.closeTo(25.6)],
             [[["", 64 / 3]], "left", expect.closeTo(25.6)],
@@ -116,6 +126,7 @@ describe("text normalization", () => {
             { text: "sub", options: { subscript: true, fontSize: 30 } },
             { text: "custom", options: { subscript: true, baseline: 20, fontSize: 30 } },
         ]).paragraphs[0]!.runs;
+
         expect(sup!.fontSize).toBeCloseTo(40 * 0.58);
         expect(sup!.baselineOffset).toBeCloseTo(12);
         expect(sub!.fontSize).toBeCloseTo(40 * 0.58);
@@ -132,11 +143,14 @@ describe("text normalization", () => {
     test("moves a custom baseline by a percent of the run's font size, as PptxGenJS writes it", async () => {
         const written = async (baseline: number): Promise<string | undefined> => {
             const pptx = new PptxGenJSRuntime();
+
             pptx.addSlide().addText([{ text: "HH", options: { baseline } }], { x: 1, y: 1, w: 4, h: 1 });
             // `as`: write() returns a Buffer for the nodebuffer output type.
             const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
+
             return (await zip.file("ppt/slides/slide1.xml")?.async("string"))?.match(/<a:rPr[^>]* baseline="(-?\d+)"/)?.[1];
         };
+
         for (const [baseline, xml, fraction] of [
             [600, "30000", 0.3],
             [-600, "-30000", -0.3],
@@ -147,15 +161,18 @@ describe("text normalization", () => {
             for (const fontSize of [20, 40]) {
                 for (const target of ["libreoffice", "powerpoint"] as const) {
                     const run = normalizeText([{ text: "HH", options: { baseline } }], { fontSize }, target).paragraphs[0]!.runs[0]!;
+
                     expect({ baseline, fontSize, target, offset: run.baselineOffset }).toEqual({ baseline, fontSize, target, offset: expect.closeTo(fraction * pointsToPixels(fontSize), 9) });
                     // The same size a superscript has on the target.
                     expect(run.fontSize).toBe(normalizeText([{ text: "HH", options: { superscript: true } }], { fontSize }, target).paragraphs[0]!.runs[0]!.fontSize);
                 }
             }
         }
+
         // baseline="0" moves nothing and keeps the full size.
         expect(await written(0.004)).toBe("0");
         const zero = normalizeText([{ text: "HH", options: { baseline: 0.004 } }], { fontSize: 20 }).paragraphs[0]!.runs[0]!;
+
         expect([zero.baselineOffset, zero.fontSize]).toEqual([0, pointsToPixels(20)]);
     });
 
@@ -164,6 +181,7 @@ describe("text normalization", () => {
         const paragraph = normalizeText("a\tb", {
             tabStops: [{ position: 3, alignment: "dec" }, { position: 0 }, { position: 2, alignment: "ctr" }],
         }).paragraphs[0]!;
+
         expect(paragraph.tabStops).toEqual([
             { position: 96, alignment: "left" },
             { position: 192, alignment: "center" },
@@ -180,6 +198,7 @@ describe("text normalization", () => {
             { text: "Next", options: {} },
         ];
         const texts = (align?: "center") => normalizeText(runs, align ? { align } : {}).paragraphs.map(paragraph => paragraph.runs.map(run => run.text));
+
         expect(texts("center")).toEqual([[" ", "Item"], ["Next"]]);
         expect(texts()).toEqual([[" "], ["Item", "Next"]]);
     });
@@ -210,6 +229,7 @@ describe("text normalization", () => {
             { text: "First", options: { paraSpaceAfter: 9, breakLine: true } },
             { text: "Last", options: { paraSpaceAfter: 9 } },
         ]);
+
         expect(text.paragraphs.map(paragraph => paragraph.spaceAfter)).toEqual([12, 0]);
     });
 
@@ -255,18 +275,21 @@ describe("text normalization", () => {
 
     test("normalizes custom and numbered bullets", () => {
         const custom = normalizeText("custom", { bullet: { characterCode: "25BA", indent: 18 }, indentLevel: 1 });
+
         expect(custom.paragraphs[0]?.bullet).toMatchObject({ marker: "►", indent: 48, level: 1 });
 
         const numbered = normalizeText([
             { text: "first", options: { bullet: { type: "number", numberType: "romanLcParenR", numberStartAt: 3 }, breakLine: true } },
             { text: "second", options: { bullet: { type: "number", numberType: "romanLcParenR", numberStartAt: 3 } } },
         ]);
+
         // PptxGenJS 4.0.1 ignores the documented numberType field.
         expect(numbered.paragraphs.map(paragraph => paragraph.bullet?.marker)).toEqual(["3.", "4."]);
 
         const legacyStyle = normalizeText("Roman", {
             bullet: { type: "number", style: "romanLcParenR", numberStartAt: 3 },
         });
+
         expect(legacyStyle.paragraphs[0]?.bullet?.marker).toBe("iii)");
     });
 
@@ -277,6 +300,7 @@ describe("text normalization", () => {
 
         test.each(["powerpoint", "libreoffice"] as const)("an arabic, alpha, arabic startAt 2 list (%s)", target => {
             const input = [item("Lorem ipsum", "arabicPeriod", 1), item("​", "arabicPeriod", 1), ...["a", "b", "c", "d"].map(text => item(`Dolor ${text}`, "alphaUcPeriod", 1)), item("Sit amet", "arabicPeriod", 2)];
+
             expect(markers(input, target)).toEqual(["1.", "2.", "A.", "B.", "C.", "D.", "2."]);
         });
 
@@ -542,6 +566,7 @@ describe("text DOM rendering", () => {
     test("renders semantic rich runs, bullets, soft breaks, and links", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText(
             [
                 { text: "Lead", options: { bold: true, highlight: "FFFF00" } },
@@ -554,6 +579,7 @@ describe("text DOM rendering", () => {
         const paragraph = box?.querySelector<HTMLElement>(".text-paragraph");
         const runs = box?.querySelectorAll<HTMLElement>(".text-run");
         const link = box?.querySelector<HTMLAnchorElement>("a.text-run");
+
         expect(paragraph?.dataset.bulletType).toBe("bullet");
         // 18pt (24px) default: a 28.8px line box with its baseline at 24px. The strut and the shift that
         // draw it are not in the markup (stylesheet and Puppeteer print step).
@@ -575,10 +601,12 @@ describe("text DOM rendering", () => {
     test("writes one paragraph element per paragraph PptxGenJS groups (genXmlTextBody STEP 4/5)", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText([{ text: "Intro", options: { breakLine: true } }, { text: "\nTITLE", options: { bold: true, breakLine: false } }, { text: "Description", options: { breakLine: true } }, { text: "Tail" }], { x: 1, y: 1, w: 4, h: 2, fontFace: "Arial", fontSize: 12 });
         slide.addTable([[{ text: [{ text: "Heading", options: { bold: true } }, { text: "Body" }] }]], { x: 1, y: 3.5, w: 4, align: "left", fontFace: "Arial", fontSize: 12 });
 
         const [box, cell] = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".slide-text, td"), element => Array.from(element.querySelectorAll(".text-paragraph"), paragraph => paragraph.textContent?.replace("\u200b", "")));
+
         expect(box).toEqual(["Intro", "", "TITLE", "Description", "Tail"]);
         expect(cell).toEqual(["Heading", "Body"]);
     });
@@ -586,6 +614,7 @@ describe("text DOM rendering", () => {
     test("writes no run for the empty text after a run's last line feed in the next run's paragraph", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText(
             [
                 { text: "Head line.\n\n", options: { bold: true, fontSize: 16 } },
@@ -596,6 +625,7 @@ describe("text DOM rendering", () => {
 
         const paragraphs = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph"));
         const body = paragraphs[2];
+
         expect(body?.querySelectorAll(".text-run")).toHaveLength(1);
         expect(body?.querySelector<HTMLElement>(".text-run")?.style.fontWeight).not.toBe("bold");
         // 8pt: a 12.8px line, not the 16pt head's 25.6px.
@@ -605,10 +635,12 @@ describe("text DOM rendering", () => {
     test("writes the bullet indent, start and number type that the marker only shows as a result", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText("Roman", { x: 1, y: 1, w: 4, h: 1, bullet: { type: "number", style: "romanLcParenR", numberStartAt: 3 } });
         slide.addText("custom", { x: 1, y: 2, w: 4, h: 1, bullet: { characterCode: "25BA", indent: 18 }, indentLevel: 1 });
 
         const [numbered, custom] = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph"), paragraph => paragraph.dataset);
+
         expect(numbered).toMatchObject({ bulletType: "number", bulletStart: "3", bulletNumberType: "romanLcParenR" });
         // 18pt indent per level at level 1: 48px in the model, 24px marker width.
         expect(custom).toMatchObject({ bulletType: "bullet", bulletIndent: "48", bulletLevel: "1", bulletStart: "1", bulletNumberType: "arabicPeriod" });
@@ -617,11 +649,13 @@ describe("text DOM rendering", () => {
     test("hangs a bullet paragraph's wrapped lines under its first line's text, as PptxGenJS's marL and indent", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText("Level zero", { x: 1, y: 1, w: 4, h: 1, bullet: true });
         slide.addText("Level one", { x: 1, y: 2, w: 4, h: 1, bullet: { type: "number" }, indentLevel: 1 });
 
         const page = renderedPage(presentation);
         const [zero, one] = Array.from(page.querySelectorAll<HTMLElement>(".text-paragraph"), paragraph => paragraph.style);
+
         // 27pt (36px) per level: marL 36px / 72px, indent -36px at both levels.
         expect([zero?.paddingLeft, zero?.textIndent]).toEqual(["36px", "-36px"]);
         expect([one?.paddingLeft, one?.textIndent]).toEqual(["72px", "-36px"]);
@@ -631,6 +665,7 @@ describe("text DOM rendering", () => {
 
     test("writes the run and line-box values CSS cannot state exactly as data attributes", () => {
         const presentation = new PuppeteerGen();
+
         presentation.addSlide().addText(
             [
                 { text: "glow", options: { glow: { size: 4, opacity: 0.5, color: "FF0000" }, breakLine: true } },
@@ -643,6 +678,7 @@ describe("text DOM rendering", () => {
 
         const paragraphs = renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph");
         const run = (paragraph: number, index = 0) => paragraphs[paragraph]?.querySelectorAll<HTMLElement>(".text-run")[index]?.dataset;
+
         // 18pt default: the baseline sits 0.2em above the bottom of a 1.2em line box, 24px from its top.
         expect(Number(paragraphs[0]?.dataset.lineBaseline)).toBeCloseTo(24);
         expect(run(0)?.textShadow).toBe("glow");
@@ -658,6 +694,7 @@ describe("text DOM rendering", () => {
     test("draws an underline from the face's post table, over descenders, on the PowerPoint target only (#378)", () => {
         const geometry = (target: "powerpoint" | "libreoffice") => {
             const presentation = new PuppeteerGen(undefined, { target });
+
             presentation.addSlide().addText(
                 [
                     { text: "gjpqy ", options: { underline: { style: "sng", color: "FF0000" } } },
@@ -666,8 +703,10 @@ describe("text DOM rendering", () => {
                 { x: 1, y: 1, w: 4, h: 1 },
             );
             const runs = [...renderedPage(presentation).querySelectorAll<HTMLElement>(".text-run")];
+
             return runs.map(run => ["text-decoration-thickness", "text-underline-position", "text-decoration-skip-ink"].map(property => run.style.getPropertyValue(property)));
         };
+
         expect(geometry("powerpoint")).toEqual([
             ["from-font", "from-font", "none"],
             ["", "", ""],
@@ -681,6 +720,7 @@ describe("text DOM rendering", () => {
     test("marks a heavy underline for PowerPoint's heavy band on the PowerPoint target only (#379)", () => {
         const heavy = (target: "powerpoint" | "libreoffice") => {
             const presentation = new PuppeteerGen(undefined, { target });
+
             presentation.addSlide().addText(
                 [
                     { text: "heavy ", options: { underline: { style: "heavy" } } },
@@ -689,8 +729,10 @@ describe("text DOM rendering", () => {
                 ],
                 { x: 1, y: 1, w: 4, h: 1 },
             );
+
             return [...renderedPage(presentation).querySelectorAll<HTMLElement>(".text-run")].map(run => run.dataset.underlineHeavy);
         };
+
         // Only the measured `heavy`: wavyHeavy keeps the wave's thickness (#397).
         expect(heavy("powerpoint")).toEqual(["", undefined, undefined]);
         expect(heavy("libreoffice")).toEqual([undefined, undefined, undefined]);
@@ -699,6 +741,7 @@ describe("text DOM rendering", () => {
     test("keeps text transparency off the box and exposes direction and fit", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText("Vertical", {
             x: 1,
             y: 1,
@@ -714,11 +757,13 @@ describe("text DOM rendering", () => {
         const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
         const content = box?.querySelector<HTMLElement>(".text-content");
         const run = box?.querySelector<HTMLElement>(".text-run");
+
         expect(box?.style.opacity).toBe("");
         expect(box?.dataset.textDirection).toBe("vertical270");
         expect(box?.dataset.textFit).toBe("shrink");
         // The shrink rule is on the box, so both renderers apply PPTX_DEFAULTS.text.shrink and none decides its own.
         const { step, maxSteps, tolerancePx } = PPTX_DEFAULTS.text.shrink;
+
         expect({ step: box?.dataset.textFitStep, maxSteps: box?.dataset.textFitMaxSteps, tolerance: box?.dataset.textFitTolerance }).toEqual({ step: String(step), maxSteps: String(maxSteps), tolerance: String(tolerancePx) });
         expect(content?.style.writingMode).toBe("vertical-rl");
         expect(run?.style.color).toBe("rgba(0, 0, 0, 0.6)");
@@ -728,10 +773,12 @@ describe("text DOM rendering", () => {
     test("defaults a text box to zero height and collapses its insets onto the midline", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText("No height", { x: 1, y: 1, w: 2 });
         slide.addText("Thin", { x: 1, y: 2, w: 2, h: 0.05, margin: [7, 2, 20, 7] });
         slide.addText("Tall", { x: 1, y: 3, w: 2, h: 1 });
         const [none, thin, tall] = presentation.getModel().slides[0]!.objects.map(object => (object.kind === "text" ? { height: Number(object.style.geometry.height?.toFixed(3)), margin: object.text.margin.map(value => Number(value.toFixed(3))) } : undefined));
+
         expect(none).toEqual({ height: 0, margin: [0, 9.6, 0, 9.6] });
         expect(thin).toEqual({ height: 4.8, margin: [2.4, 2.667, 2.4, 9.333] });
         expect(tall?.margin).toEqual([4.8, 9.6, 4.8, 9.6]);
@@ -740,15 +787,18 @@ describe("text DOM rendering", () => {
     // PptxGenJS writes no clip on a text body; PowerPoint and LibreOffice draw text past the box from its anchor.
     test("does not clip text boxes", () => {
         const rule = presentationCSS(PAGE_SIZES.SCREEN_16X9.landscape).match(/\n\.slide-text \{[^}]*\}/)?.[0];
+
         expect(rule).toContain("overflow: visible;");
         expect(rule).not.toContain("overflow: hidden");
     });
 
     test("allows unwrapped text to overflow its box like DrawingML wrap none", () => {
         const presentation = new PuppeteerGen();
+
         presentation.addSlide().addText("This line is wider than its box", { x: 1, y: 1, w: 1, h: 1, wrap: false });
 
         const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
+
         expect(box?.style.whiteSpace).toBe("pre");
         expect(box?.style.overflowWrap).toBe("normal");
         expect(box?.style.overflow).toBe("visible");
@@ -757,6 +807,7 @@ describe("text DOM rendering", () => {
     test("renders arbitrary preset geometry behind text without duplicating object transforms", () => {
         const presentation = new PuppeteerGen();
         const slide = presentation.addSlide();
+
         slide.addText("Decision", {
             x: 1,
             y: 1,
@@ -774,6 +825,7 @@ describe("text DOM rendering", () => {
         const svg = box?.querySelector<SVGSVGElement>(":scope > .shape-svg");
         const geometry = svg?.querySelector<SVGGElement>(".shape-geometry");
         const face = geometry?.querySelector<SVGPathElement>(".shape-face");
+
         expect(renderedPage(presentation).querySelectorAll(".slide-element")).toHaveLength(1);
         expect(box?.dataset.shape).toBe("diamond");
         expect(box?.style.width).toBe("192px");
@@ -808,8 +860,10 @@ describe("text DOM rendering", () => {
     // The roundRect outline is the shape's SVG path; the box itself stays square, so a radius never clips the text.
     test("keeps a rounded text box square", () => {
         const presentation = new PuppeteerGen();
+
         presentation.addSlide().addText("Rounded", { x: 1, y: 1, w: 3, h: 1, shape: "roundRect", rectRadius: 0.4, fill: { color: "D9E2F3" } });
         const box = renderedPage(presentation).querySelector<HTMLElement>(".slide-text");
+
         expect(box?.getAttribute("style")).not.toContain("border-radius");
         expect(Number(box?.querySelector(".shape-geometry")?.getAttribute("rx"))).toBeCloseTo(38.4);
     });
@@ -820,13 +874,16 @@ describe("text DOM rendering", () => {
         const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
         const deck = (extra: { text?: object; shape?: object }) => {
             const presentation = new PuppeteerGen();
+
             presentation
                 .addSlide()
                 .addText([{ text: "one", options: { bullet: { type: "number", numberType: "romanUcPeriod" } } }], { x: 1, y: 1, w: 3, h: 1, ...extra.text })
                 .addShape("rect", { x: 1, y: 3, w: 2, h: 1, ...extra.shape });
+
             return presentation.getModel();
         };
         const ignored = deck({ text: { isTextBox: true, textDirection: "vert", data: PNG, path: "logo.png" }, shape: { align: "center" } });
+
         expect(ignored).toEqual(deck({}));
     });
 
@@ -836,6 +893,7 @@ describe("text DOM rendering", () => {
         const runShadow = { type: "outer", color: "0000FF", blur: 3, offset: 3, angle: 45, opacity: 0.8 } as const;
         const deck = (runOptions: object) => {
             const presentation = new PuppeteerGen();
+
             presentation.addSlide().addText(
                 [
                     { text: "A", options: { ...runOptions } },
@@ -843,18 +901,22 @@ describe("text DOM rendering", () => {
                 ],
                 { x: 1, y: 1, w: 4, h: 1, shadow: { type: "outer", color: "000000", blur: 3, offset: 3, angle: 45, opacity: 0.4 } },
             );
+
             return presentation;
         };
         const shadowed = deck({ shadow: runShadow });
+
         expect(shadowed.getModel()).toEqual(deck({}).getModel());
         expect(deck({ shadow: { ...runShadow, type: "inner" } }).getModel()).toEqual(deck({}).getModel());
 
         const [object] = shadowed.getModel().slides[0]?.objects ?? [];
+
         expect(object?.kind === "text" && object.text.paragraphs[0]?.runs.map(run => run.shadow)).toEqual([undefined, undefined]);
         expect(object?.style.shadow?.visible).toBe(true);
 
         const page = renderedPage(shadowed);
         const runs = [...page.querySelectorAll<HTMLElement>(".text-run")];
+
         expect(runs.map(run => run.dataset.textShadow)).toEqual([undefined, "glow"]);
         expect(runs.some(run => run.hasAttribute("data-shadow-inset"))).toBe(false);
         expect(page.querySelector<HTMLElement>(".slide-text")?.style.boxShadow).not.toBe("");
@@ -863,6 +925,7 @@ describe("text DOM rendering", () => {
     test("creates internal slide links and rejects empty hyperlink objects", () => {
         const presentation = new PuppeteerGen();
         const first = presentation.addSlide();
+
         presentation.addSlide();
         first.addText([{ text: "Next", options: { hyperlink: { slide: 2 } } }]);
 
@@ -903,18 +966,22 @@ const UNDERLINE_PLACES: Record<string, UnderlinePlace> = {
 /** The `u` attribute of the first run PptxGenJS 4.0.1 writes, or undefined when it writes none. */
 async function pptxGenJsUnderline(place: UnderlinePlace, underline: unknown): Promise<string | undefined> {
     const pptx = new PptxGenJSRuntime();
+
     place(pptx.addSlide(), structuredClone(underline));
     // `as`: write() returns a Buffer for the nodebuffer output type.
     const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
     const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
+
     return xml.match(/<a:r><a:rPr[^>]*? u="([^"]*)"/)?.[1];
 }
 
 function ourUnderline(place: UnderlinePlace, underline: unknown): NormalizedTextRun["decoration"] | undefined {
     const presentation = new PuppeteerGen();
+
     place(presentation.addSlide(), structuredClone(underline));
     const object = presentation.getModel().slides[0]?.objects[0];
     const text = object?.kind === "table" ? object.table.rows[0]?.cells[0]?.text : object?.kind === "text" ? object.text : undefined;
+
     return text?.paragraphs[0]?.runs[0]?.decoration;
 }
 
@@ -922,21 +989,31 @@ const UNDERLINE_STYLES: Record<string, NormalizedTextRun["decoration"]["underlin
 
 describe("underline forms (the `u` PptxGenJS 4.0.1 genXmlTextRunProperties writes)", () => {
     const cases = UNDERLINE_FORMS.flatMap(([form, underline]) => Object.keys(UNDERLINE_PLACES).map(place => [form, place, underline] as const));
+
     test.each(cases)("%s on a %s draws what PptxGenJS writes", async (_form, place, underline) => {
         const build = UNDERLINE_PLACES[place];
-        if (!build) throw new Error(`no underline place ${place}`);
+
+        if (!build) {
+            throw new Error(`no underline place ${place}`);
+        }
+
         const u = await pptxGenJsUnderline(build, underline);
         const decoration = ourUnderline(build, underline);
+
         expect(decoration?.underline).toBe(Boolean(u) && u !== "none");
-        if (u && UNDERLINE_STYLES[u]) expect(decoration?.underlineStyle).toBe(UNDERLINE_STYLES[u]);
+        if (u && UNDERLINE_STYLES[u]) {
+            expect(decoration?.underlineStyle).toBe(UNDERLINE_STYLES[u]);
+        }
     });
 
     test("the HTML underlines a deprecated string underline in its style", () => {
         const presentation = new PuppeteerGen();
         // `as`: PptxGenJS's types declare only the object form; the deprecated string form is still written.
         const run = (text: string, underline: string): PptxGenJS.TextProps => ({ text, options: { underline } as unknown as PptxGenJS.TextPropsOptions });
+
         presentation.addSlide().addText([run("heavy", "heavy"), run("dash", "dash"), run("none", "none")], { x: 1, y: 1, w: 4, h: 1 });
         const runs = [...renderedPage(presentation).querySelectorAll<HTMLElement>(".text-run")];
+
         expect(runs.map(element => [element.textContent, element.style.textDecorationLine.includes("underline"), element.style.textDecorationStyle])).toEqual([
             ["heavy", true, "solid"],
             ["dash", true, "dashed"],
@@ -951,19 +1028,23 @@ const NULLED_TEXT_PLACES: Record<string, () => TextPlace> = {
     runs: () => {
         const runs: PptxGenJS.TextProps[] = [{ text: "One", options: { breakLine: true } }, { text: "Two\n" }, { text: "Three" }];
         const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2, fontSize: 12 };
+
         return slide => slide.addText(runs, options);
     },
     "runs in a spaced box": () => {
         const runs: PptxGenJS.TextProps[] = [{ text: "One", options: { breakLine: true, lineSpacingMultiple: 1.5 } }, { text: "Two" }];
         const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2, fontSize: 12, lineSpacing: 20 };
+
         return slide => slide.addText(runs, options);
     },
     string: () => {
         const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2, fontSize: 12 };
+
         return slide => slide.addText("One\nTwo", options);
     },
     shape: () => {
         const options: PptxGenJS.TextPropsOptions = { shape: "rect", x: 1, y: 1, w: 4, h: 2, fontSize: 12 };
+
         return slide => slide.addText("One\nTwo", options);
     },
 };
@@ -971,25 +1052,37 @@ const NULLED_TEXT_PLACES: Record<string, () => TextPlace> = {
 describe("options PptxGenJS 4.0.1 has written once", () => {
     test.each(Object.keys(NULLED_TEXT_PLACES))("%s: its null lineSpacing and lineSpacingMultiple leave the text as fresh options do", async place => {
         const build = NULLED_TEXT_PLACES[place];
-        if (!build) throw new Error(`no text place ${place}`);
+
+        if (!build) {
+            throw new Error(`no text place ${place}`);
+        }
+
         // The text only: PptxGenJS also writes `line: {}` into the box, which draws an outline here (a separate gap).
         const text = (add: TextPlace) => {
             const presentation = new PuppeteerGen();
+
             add(presentation.addSlide());
             const object = presentation.getModel().slides[0]?.objects[0];
+
             return object?.kind === "text" ? object.text : undefined;
         };
         const written = build();
         const pptx = new PptxGenJSRuntime();
+
         written(pptx.addSlide());
         await pptx.write({ outputType: "nodebuffer" });
         const fresh = text(build());
-        if (!fresh) throw new Error(`${place} made no text`);
+
+        if (!fresh) {
+            throw new Error(`${place} made no text`);
+        }
+
         expect(text(written)).toEqual(fresh);
     });
 
     test("PptxGenJS writes null line spacing into the options it is given", () => {
         const options: PptxGenJS.TextPropsOptions = { x: 1, y: 1, w: 4, h: 2 };
+
         new PptxGenJSRuntime().addSlide().addText("Text", options);
         expect(options).toMatchObject({ lineSpacing: null, lineSpacingMultiple: null });
     });
@@ -998,6 +1091,7 @@ describe("options PptxGenJS 4.0.1 has written once", () => {
         // `as`: PptxGenJS's types leave out the null it writes itself.
         const unset = { lineSpacing: null, lineSpacingMultiple: null } as unknown as PptxGenJS.TextPropsOptions;
         const single = normalizeText("Text", { fontSize: 12 }).paragraphs[0];
+
         expect(normalizeText("Text", { fontSize: 12, ...unset }).paragraphs[0]).toEqual(single!);
         expect(normalizeText([{ text: "Text", options: unset }], { fontSize: 12 }).paragraphs[0]).toEqual(single!);
         // A null run value inherits the box's, as PptxGenJS's `run.lineSpacing || box.lineSpacing` does.
@@ -1029,11 +1123,13 @@ describe("paragraphs without a run", () => {
     /** The `sz` PptxGenJS writes on the `<a:endParaRPr>` of the first run-less `<a:p>` of a text box, in points. */
     async function writtenMarkSize(runs: PptxGenJS.TextProps[], options: PptxGenJS.TextPropsOptions): Promise<number | undefined> {
         const pptx = new PptxGenJSRuntime();
+
         pptx.addSlide().addText(structuredClone(runs), { x: 1, y: 1, w: 4, h: 2, ...options });
         const zip = await JSZip.loadAsync((await pptx.write({ outputType: "nodebuffer" })) as Buffer);
         const xml = (await zip.file("ppt/slides/slide1.xml")?.async("string")) ?? "";
         const runless = xml.split("<a:p>").find(paragraph => paragraph.includes("<a:endParaRPr") && !paragraph.includes("<a:r>"));
         const size = runless?.match(/<a:endParaRPr[^>]* sz="(\d+)"/)?.[1];
+
         return size === undefined ? undefined : Number(size) / 100;
     }
 
@@ -1042,6 +1138,7 @@ describe("paragraphs without a run", () => {
             expect({ name, size: (await writtenMarkSize(runs, options)) ?? PPTX_DEFAULTS.text.fontSizePt }).toEqual({ name, size });
             for (const target of ["libreoffice", "powerpoint"] as const) {
                 const empty = normalizeText(structuredClone(runs), options, target).paragraphs.find(paragraph => paragraph.runs.every(run => !run.text));
+
                 expect({ name, target, size: empty?.runs[0]?.fontSize }).toEqual({ name, target, size: pointsToPixels(size) });
                 // One single line of that size: 1.2x, the line box the HTML writes as line-height.
                 expect(empty?.lineBox.height).toBeCloseTo(pointsToPixels(1.2 * size), 9);
@@ -1052,9 +1149,11 @@ describe("paragraphs without a run", () => {
     test("take the size PptxGenJS writes on the paragraph mark, in a table cell", () => {
         const cell = (runs: PptxGenJS.TextProps[], table: PptxGenJS.TableProps) => {
             const text = normalizeTable([[{ text: structuredClone(runs) as PptxGenJS.TableCell[] }]], { x: 1, y: 1, w: 4, ...table }, PAGE_SIZES.SCREEN_16X9.landscape).rows[0]?.cells[0]?.text;
+
             return text?.paragraphs.map(paragraph => paragraph.lineBox.height);
         };
         const lines = (...points: number[]) => points.map(size => expect.closeTo(pointsToPixels(1.2 * size), 9));
+
         // A table fontSize reaches the cell's <a:endParaRPr>; autoPage rebuilds the runs and keeps it.
         expect(cell([{ text: "Heading\n\nBody", options: { fontSize: 12 } }], { fontSize: 8 })).toEqual(lines(12, 8, 12));
         expect(cell([{ text: "Heading\n\nBody", options: { fontSize: 12 } }], { fontSize: 8, autoPage: true })).toEqual(lines(12, 8, 12));
@@ -1064,8 +1163,10 @@ describe("paragraphs without a run", () => {
 
     test("write the mark's line height into the HTML", () => {
         const presentation = new PuppeteerGen();
+
         presentation.addSlide().addText([{ text: "Heading\n\nBody", options: { fontSize: 12 } }], { x: 1, y: 1, w: 4, h: 2, fontSize: 8 });
         const heights = Array.from(renderedPage(presentation).querySelectorAll<HTMLElement>(".text-paragraph"), paragraph => parseFloat(paragraph.style.lineHeight));
+
         expect(heights.map(height => Number(height.toFixed(6)))).toEqual([19.2, 12.8, 19.2]);
     });
 });
