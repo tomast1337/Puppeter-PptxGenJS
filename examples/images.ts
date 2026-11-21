@@ -11,6 +11,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><rect 
 
 // A file path needs a file: this one is written to a temporary directory, which also serves as `baseDir`.
 const dir = await mkdtemp(join(tmpdir(), "pdflapas-images-"));
+
 await writeFile(join(dir, "pixel.png"), Buffer.from(png, "base64"));
 
 // imageSources (a PdfLapas option, not in PptxGenJS) bounds image loading: a fetch timeout, a size limit,
@@ -31,12 +32,17 @@ try {
 
     // With allowRemote: false a URL is rejected before any request is made.
     const remote = new pptxgen(undefined, options);
+
     remote.addSlide().addImage({ path: "https://example.com/logo.png", x: 1, y: 1, w: 2, h: 1 });
     const rejection = await remote.toHtml().then(
         () => undefined,
         (error: unknown) => error,
     );
-    if (!(rejection instanceof Error)) throw new Error("expected allowRemote: false to reject the URL");
+
+    if (!(rejection instanceof Error)) {
+        throw new Error("expected allowRemote: false to reject the URL");
+    }
+
     console.log(`Rejected as configured: ${rejection.message}`);
 } finally {
     await rm(dir, { recursive: true, force: true });

@@ -14,9 +14,13 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 }
 
 const presentation = new PuppeteerGen();
+
 registerReactComponent(presentation, "acme/metric", 1, MetricCard, {
     parseProps(props) {
-        if (typeof props.label !== "string" || typeof props.value !== "number") throw new Error("Invalid metric props");
+        if (typeof props.label !== "string" || typeof props.value !== "number") {
+            throw new Error("Invalid metric props");
+        }
+
         return { label: props.label, value: props.value };
     },
 });

@@ -7,6 +7,7 @@ import { createWasmRenderer, loadSystemFonts } from "@pdflapas/wasm";
 // The slide code does not depend on the backend: only the constructor's `renderer` changes.
 function buildDeck(pres: pptxgen): pptxgen {
     const slide = pres.addSlide();
+
     slide.addText("One deck, two backends", { x: 0.5, y: 0.4, w: 9, h: 0.8, fontSize: 30, bold: true, fontFace: "Calibri", color: "333333" });
     slide.addShape("roundRect", { x: 0.5, y: 1.5, w: 4, h: 1.5, fill: { color: "CCCCCC" }, rectRadius: 0.2 });
     slide.addTable(
@@ -17,6 +18,7 @@ function buildDeck(pres: pptxgen): pptxgen {
         ],
         { x: 5, y: 1.5, w: 4.5, border: { type: "solid", pt: 1, color: "999999" } },
     );
+
     return pres;
 }
 

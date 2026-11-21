@@ -6,6 +6,7 @@ import { createWasmRenderer, loadSystemFonts } from "@pdflapas/wasm";
 
 // 1. Edit a toHtml() result: it is plain HTML, so a string replace (or any HTML tool) changes the deck.
 const pres = new PuppeteerGen();
+
 pres.addSlide().addText("Quarterly draft", { x: 0.5, y: 0.5, w: 9, h: 1, fontSize: 32, bold: true });
 const stored = (await pres.toHtml()).html;
 const edited = stored.replace(">Quarterly draft</span>", ">Quarterly report</span>");
@@ -36,15 +37,18 @@ const handWritten = `<html>
 
 // pptxHtmlDocument() validates, completes and reads the page size: the input of any renderer.
 const puppeteer = new PuppeteerPdfRenderer();
+
 await writeFile("html-edited-puppeteer.pdf", await puppeteer.render(pptxHtmlDocument(edited)));
 await writeFile("html-hand-written-puppeteer.pdf", await puppeteer.render(pptxHtmlDocument(handWritten)));
 
 const wasm = await createWasmRenderer({ fonts: await loadSystemFonts() });
+
 await writeFile("html-edited-wasm.pdf", await wasm.render(pptxHtmlDocument(edited)));
 await writeFile("html-hand-written-wasm.pdf", await wasm.render(pptxHtmlDocument(handWritten)));
 
 // Puppeteer prints any HTML, profile or not: the escape hatch for fully custom HTML and CSS.
 const custom = `<!DOCTYPE html><html><head><style>@page { size: 10in 5.625in; margin: 0 } body { font: 48px Georgia, serif; display: grid; place-items: center; height: 5.625in; margin: 0 }</style></head><body>Any HTML</body></html>`;
+
 await writeFile("html-custom-puppeteer.pdf", await puppeteer.render({ html: custom, pageSize: { ...PAGE_SIZES.SCREEN_16X9.landscape, name: "Custom" } }));
 
 // Open this file in a browser to see the HTML as Puppeteer prints it.

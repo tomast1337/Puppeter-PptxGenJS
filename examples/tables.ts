@@ -22,12 +22,14 @@ pres.addSlide().addTable(
 
 // autoPage: rows that do not fit continue on new slides, with the header row repeated on each one.
 const rows = Array.from({ length: 40 }, (_, i) => [{ text: `${i + 1}` }, { text: `Item ${i + 1}` }, { text: i % 2 ? "Open" : "Closed" }, { text: `${(i + 1) * 5}.00` }]);
+
 pres.addSlide().addTable([header, ...rows], { x: 0.5, y: 0.5, colW: [1, 4, 2, 2], fontSize: 12, border, autoPage: true, autoPageRepeatHeader: true });
 
 // tableToSlides: PptxGenJS takes the id of a <table> in the page; PdfLapas also takes HTML markup
 // (parsed with jsdom in Node), so no global `document` is needed here.
 const bodyRows = Array.from({ length: 30 }, (_, i) => `<tr><td>Row ${i + 1}</td><td>${i * 3}</td></tr>`).join("");
 const th = `style="width: 2in; background: #555555; color: #ffffff"`;
+
 pres.tableToSlides(`<table><thead><tr><th ${th}>Name</th><th ${th}>Value</th></tr></thead><tbody>${bodyRows}</tbody></table>`, { autoPageRepeatHeader: true });
 
 console.log(`Wrote ${await pres.writeFile({ fileName: "tables.pdf" })}`);

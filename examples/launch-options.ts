@@ -17,6 +17,7 @@ const renderer = new PuppeteerPdfRenderer({
 });
 
 const pres = new pptxgen(undefined, { renderer });
+
 pres.addSlide().addText("Rendered with custom launch options", { x: 0.5, y: 0.5, w: 9, h: 1, fontSize: 28 });
 console.log(`Wrote ${await pres.writeFile({ fileName: "launch-options.pdf" })}`);
 

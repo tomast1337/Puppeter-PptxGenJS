@@ -30,12 +30,14 @@ slide.addText(
 
 // Alignment: horizontal `align`, vertical `valign`, and `margin` (the inset, in points).
 const box = { w: 2.9, h: 1, fontSize: 14, color: "333333", fill: { color: "EEEEEE" } } as const;
+
 slide.addText("Left, top", { ...box, x: 0.5, y: 2.3, align: "left", valign: "top" });
 slide.addText("Center, middle", { ...box, x: 3.55, y: 2.3, align: "center", valign: "middle" });
 slide.addText("Right, bottom, 12pt margin", { ...box, x: 6.6, y: 2.3, align: "right", valign: "bottom", margin: 12 });
 
 // Line spacing (points), and `fit: "shrink"`, which scales the text down until it fits the box.
 const long = "Placeholder text that is longer than its box. ".repeat(6);
+
 slide.addText(long, { x: 0.5, y: 3.6, w: 4.4, h: 1.6, fontSize: 16, lineSpacing: 22, color: "333333", fill: { color: "EEEEEE" } });
 slide.addText(long, { x: 5.1, y: 3.6, w: 4.4, h: 1.6, fontSize: 16, fit: "shrink", color: "333333", fill: { color: "EEEEEE" } });
 

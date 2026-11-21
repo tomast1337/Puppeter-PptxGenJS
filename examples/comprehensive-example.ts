@@ -8,6 +8,7 @@ async function examplePageSizes() {
     // Helper function
     const createPageSizeExample = (pres: pptxgen | PuppeteerGen, text: string, color: string) => {
         const slide = pres.addSlide();
+
         slide.addText(text, {
             x: 1,
             y: 2,
@@ -19,29 +20,35 @@ async function examplePageSizes() {
 
     // 16:9 Landscape
     const pres1Pdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+
     createPageSizeExample(pres1Pdf, "16:9 Landscape Presentation", "#0066CC");
     await pres1Pdf.writeFile({ fileName: "example-16x9-landscape.pdf" });
 
     const pres1Pptx = new pptxgen();
+
     createPageSizeExample(pres1Pptx, "16:9 Landscape Presentation", "#0066CC");
     await pres1Pptx.writeFile({ fileName: "example-16x9-landscape.pptx" });
 
     // A4 Portrait
     const pres2Pdf = new PuppeteerGen(PAGE_SIZES.A4.portrait);
+
     createPageSizeExample(pres2Pdf, "A4 Portrait Document", "#CC0000");
     await pres2Pdf.writeFile({ fileName: "example-a4-portrait.pdf" });
 
     const pres2Pptx = new pptxgen();
+
     pres2Pptx.defineLayout({ name: "A4", width: 8.27, height: 11.69 });
     createPageSizeExample(pres2Pptx, "A4 Portrait Document", "#CC0000");
     await pres2Pptx.writeFile({ fileName: "example-a4-portrait.pptx" });
 
     // Letter Landscape
     const pres3Pdf = new PuppeteerGen(PAGE_SIZES.LETTER.landscape);
+
     createPageSizeExample(pres3Pdf, "Letter Landscape Document", "#009900");
     await pres3Pdf.writeFile({ fileName: "example-letter-landscape.pdf" });
 
     const pres3Pptx = new pptxgen();
+
     pres3Pptx.defineLayout({ name: "LETTER", width: 11, height: 8.5 });
     createPageSizeExample(pres3Pptx, "Letter Landscape Document", "#009900");
     await pres3Pptx.writeFile({ fileName: "example-letter-landscape.pptx" });
@@ -81,10 +88,12 @@ async function examplePositioning() {
     };
 
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+
     createPositioningSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-positioning.pdf" });
 
     const presPptx = new pptxgen();
+
     createPositioningSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-positioning.pptx" });
 
@@ -156,10 +165,12 @@ async function exampleTextStyling() {
     };
 
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+
     createTextStylingSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-text-styling.pdf" });
 
     const presPptx = new pptxgen();
+
     createTextStylingSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-text-styling.pptx" });
 
@@ -209,10 +220,12 @@ async function exampleTables() {
     };
 
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+
     createTableSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-tables.pdf" });
 
     const presPptx = new pptxgen();
+
     createTableSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-tables.pptx" });
 
@@ -226,6 +239,7 @@ async function exampleMultipleSlides() {
     const createMultiSlidePresentation = (pres: pptxgen | PuppeteerGen) => {
         // Slide 1: Title
         const slide1 = pres.addSlide();
+
         slide1.addText("My Presentation", {
             x: 1,
             y: 2,
@@ -246,6 +260,7 @@ async function exampleMultipleSlides() {
 
         // Slide 2: Agenda
         const slide2 = pres.addSlide();
+
         slide2.addText("Agenda", {
             x: 1,
             y: 0.5,
@@ -263,6 +278,7 @@ async function exampleMultipleSlides() {
 
         // Slide 3: Key Features
         const slide3 = pres.addSlide();
+
         slide3.addText("Key Features", {
             x: 1,
             y: 0.5,
@@ -280,6 +296,7 @@ async function exampleMultipleSlides() {
 
         // Slide 4: Thank You
         const slide4 = pres.addSlide();
+
         slide4.addText("Thank You!", {
             x: 1,
             y: 2.5,
@@ -292,10 +309,12 @@ async function exampleMultipleSlides() {
     };
 
     const presPdf = new PuppeteerGen(PAGE_SIZES.SCREEN_16X9.landscape);
+
     createMultiSlidePresentation(presPdf);
     await presPdf.writeFile({ fileName: "example-multiple-slides.pdf" });
 
     const presPptx = new pptxgen();
+
     createMultiSlidePresentation(presPptx);
     await presPptx.writeFile({ fileName: "example-multiple-slides.pptx" });
 
@@ -310,6 +329,7 @@ async function exampleCustomLayout() {
         pres.defineLayout({ name: "Custom Wide", width: 12, height: 6 });
 
         const slide = pres.addSlide();
+
         slide.addText('Custom Wide Layout (12" × 6")', {
             x: 2,
             y: 2,
@@ -320,37 +340,38 @@ async function exampleCustomLayout() {
     };
 
     const presPdf = new PuppeteerGen();
+
     createCustomLayoutSlide(presPdf);
     await presPdf.writeFile({ fileName: "example-custom-layout.pdf" });
 
     const presPptx = new pptxgen();
+
     createCustomLayoutSlide(presPptx);
     await presPptx.writeFile({ fileName: "example-custom-layout.pptx" });
 
     console.log("✓ Generated example-custom-layout (PDF + PPTX)");
 }
 
-// Run all examples
-async function runAllExamples() {
-    console.log("=".repeat(60));
-    console.log("PuppeteerGen Comprehensive Examples");
-    console.log("=".repeat(60));
-
-    await examplePageSizes();
-    await examplePositioning();
-    await exampleTextStyling();
-    await exampleTables();
-    await exampleMultipleSlides();
-    await exampleCustomLayout();
-
-    console.log("\n" + "=".repeat(60));
-    console.log("All examples completed successfully!");
-    console.log("=".repeat(60));
-}
-
-// Run if this file is executed directly
+// Run all examples if this file is executed directly
 if (import.meta.main) {
-    runAllExamples().catch(console.error);
+    try {
+        console.log("=".repeat(60));
+        console.log("PuppeteerGen Comprehensive Examples");
+        console.log("=".repeat(60));
+
+        await examplePageSizes();
+        await examplePositioning();
+        await exampleTextStyling();
+        await exampleTables();
+        await exampleMultipleSlides();
+        await exampleCustomLayout();
+
+        console.log(`\n${"=".repeat(60)}`);
+        console.log("All examples completed successfully!");
+        console.log("=".repeat(60));
+    } catch (error) {
+        console.error(error);
+    }
 }
 
 export { exampleCustomLayout, exampleMultipleSlides, examplePageSizes, examplePositioning, exampleTables, exampleTextStyling };
