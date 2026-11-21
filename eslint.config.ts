@@ -71,7 +71,6 @@ const NOT_YET_CONVERTED: Readonly<Record<string, readonly string[]>> = {
     "packages/puppeteer/src/**": ALL_BUT_BRACES,
     "packages/react/src/**": LAYOUT,
     "packages/wasm/src/**": [...LAYOUT, "pdflapas/no-for-each"],
-    "tests/**": ALL_BUT_BRACES,
 };
 
 const config: Linter.Config[] = [
