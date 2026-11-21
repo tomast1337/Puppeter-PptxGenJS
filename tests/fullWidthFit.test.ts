@@ -75,12 +75,19 @@ async function drawnLines(pdf: Uint8Array, pages: number, pdftotext: string): Pr
         return text
             .split("\f")
             .slice(0, pages)
-            .map(page =>
-                page
-                    .split("\n")
-                    .map(line => [...line.replace(/[\s　​⁠]/gu, "")].length)
-                    .filter(Boolean),
-            );
+            .map(page => {
+                const counts: number[] = [];
+
+                for (const line of page.split("\n")) {
+                    const count = [...line.replace(/[\s　​⁠]/gu, "")].length;
+
+                    if (count) {
+                        counts.push(count);
+                    }
+                }
+
+                return counts;
+            });
     } finally {
         await rm(directory, { recursive: true, force: true });
     }

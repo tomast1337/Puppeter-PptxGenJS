@@ -7,11 +7,9 @@ import { PuppeteerGen, PuppeteerGenPowerPoint } from "../packages/pptxgenjs/src/
 import { PRINT_ZOOM, printHtml } from "../packages/puppeteer/src/printWorkarounds";
 import { inchesToPixels, inchesToPoints, pixelsToInches } from "@pdflapas/model";
 
-const printedHtml = async (presentation: PuppeteerGen) => printHtml((await presentation.toHtml()).html);
-
 /** The document Puppeteer prints, parsed for structural assertions. */
 async function printedPage(presentation: PuppeteerGen): Promise<Document> {
-    return new JSDOM(await printedHtml(presentation)).window.document;
+    return new JSDOM(printHtml((await presentation.toHtml()).html)).window.document;
 }
 
 afterAll(() => closeBrowser());
@@ -49,7 +47,16 @@ describe("Puppeteer print workarounds", () => {
         }
 
         const baselines = [...(await presentation.toHtml()).html.matchAll(/data-line-baseline="([^"]*)"/g)].map(match => Number(match[1]));
-        const printed = textBaselines(await presentation.toPdf());
+        // The text baselines of the one-page Chromium PDF, in drawing order and PRINT_ZOOM device px from the page top
+        // (each `Tm`'s y).
+        const printed: number[] = [];
+
+        for (const content of pdfContentStreams(await presentation.toPdf())) {
+            for (const match of content.matchAll(/(?:^|\n)1 0 0 -1 [\d.]+ ([\d.]+) Tm(?=\n)/g)) {
+                printed.push(Number(match[1]));
+            }
+        }
+
         // Printed less intended, in pt: Chromium paints a baseline at a whole device px, 0.09375pt, so half of it at most.
         const errors = boxes.map(({ y }, index) => inchesToPoints(pixelsToInches((printed[index] ?? NaN) / PRINT_ZOOM - inchesToPixels(y) - (baselines[index] ?? NaN))));
 
@@ -111,7 +118,13 @@ describe("Puppeteer print workarounds", () => {
         const parts = gapFirst?.getAttribute("stroke-dasharray")?.split(" ").map(Number) ?? [];
 
         expect(parts.slice(0, 2)).toEqual([12, expect.closeTo(9, 9)]);
-        expect(Number(gapFirst?.getAttribute("stroke-dashoffset"))).toBeCloseTo(parts.reduce((sum, part) => sum + part, 0) - 3.9, 9);
+        let period = 0;
+
+        for (const part of parts) {
+            period += part;
+        }
+
+        expect(Number(gapFirst?.getAttribute("stroke-dashoffset"))).toBeCloseTo(period - 3.9, 9);
         expect(plain?.getAttribute("stroke-dasharray")).toBe(presentation.getModel().slides[0]?.objects[1]?.style.line?.dashArray ?? "");
         expect(plain?.hasAttribute("stroke-dashoffset")).toBe(false);
     });
@@ -203,9 +216,35 @@ describe("Puppeteer print workarounds", () => {
 
         slide.addTable(rows(12), { x: 0.5, y: 0.5, w: 3, rowH: 0.2667, fontSize: 10, fontFace: "Arial" });
         slide.addTable(rows(heights.length), { x: 5, y: 0.5, w: 3, rowH: heights, fontSize: 10, fontFace: "Arial" });
-        const fills = fillRows(await presentation.toPdf());
+        // The red and blue cell fills of the Chromium PDF, in page order, at their top-left corner in PRINT_ZOOM device px
+        // (the unit Chromium writes rectangles in, after its page `cm`).
+        const fills: Array<{ x: number; y: number }> = [];
+
+        for (const content of pdfContentStreams(await presentation.toPdf())) {
+            // A rectangle filled (`re` then `f`) while the fill colour (`rg`) is red or blue.
+            let colored = false;
+
+            for (const [, color, x, y] of content.matchAll(/(?:^|\n)(?:(?:.* )?([\d.]+ [\d.]+ [\d.]+) rg|([\d.]+) ([\d.]+) [\d.]+ [\d.]+ re\nf)(?=\n)/g)) {
+                if (color !== undefined) {
+                    colored = color === "1 0 0" || color === "0 0 1";
+                } else if (colored) {
+                    fills.push({ x: Number(x), y: Number(y) });
+                }
+            }
+        }
+
         // Each fill's top, in PRINT_ZOOM device px from the page top, against the exact running sum of the row heights.
-        const expected = (x: number, inches: number[]) => inches.map((_, index) => ({ x, y: Math.round((0.5 + inches.slice(0, index).reduce((sum, h) => sum + h, 0)) * 96 * PRINT_ZOOM) }));
+        const expected = (x: number, inches: number[]) => {
+            const tops: { x: number; y: number }[] = [];
+            let above = 0;
+
+            for (const h of inches) {
+                tops.push({ x, y: Math.round((0.5 + above) * 96 * PRINT_ZOOM) });
+                above += h;
+            }
+
+            return tops;
+        };
 
         expect(fills).toEqual([...expected(0.5 * 96 * PRINT_ZOOM, Array(12).fill(0.2667)), ...expected(5 * 96 * PRINT_ZOOM, heights)].map(({ x, y }) => ({ x, y: expect.closeTo(y, -0.5) as unknown as number })));
     }, 60_000);
@@ -371,31 +410,3 @@ describe("Puppeteer print workarounds", () => {
         expect(printHtml(html)).toBe(html.replace("<html>", `<html style="zoom: ${PRINT_ZOOM};">`));
     });
 });
-
-/** The text baselines of a one-page Chromium PDF, in drawing order and PRINT_ZOOM device px from the page top (each `Tm`'s y). */
-function textBaselines(pdf: Uint8Array): number[] {
-    return pdfContentStreams(pdf).flatMap(content => [...content.matchAll(/(?:^|\n)1 0 0 -1 [\d.]+ ([\d.]+) Tm(?=\n)/g)].map(match => Number(match[1])));
-}
-
-/**
- * The red and blue cell fills of a Chromium PDF, in page order, at their top-left corner in PRINT_ZOOM device px (the
- * unit Chromium writes rectangles in, after its page `cm`).
- */
-function fillRows(pdf: Uint8Array): Array<{ x: number; y: number }> {
-    const fills: Array<{ x: number; y: number }> = [];
-
-    for (const content of pdfContentStreams(pdf)) {
-        // A rectangle filled (`re` then `f`) while the fill colour (`rg`) is red or blue.
-        let colored = false;
-
-        for (const [, color, x, y] of content.matchAll(/(?:^|\n)(?:(?:.* )?([\d.]+ [\d.]+ [\d.]+) rg|([\d.]+) ([\d.]+) [\d.]+ [\d.]+ re\nf)(?=\n)/g)) {
-            if (color !== undefined) {
-                colored = color === "1 0 0" || color === "0 0 1";
-            } else if (colored) {
-                fills.push({ x: Number(x), y: Number(y) });
-            }
-        }
-    }
-
-    return fills;
-}

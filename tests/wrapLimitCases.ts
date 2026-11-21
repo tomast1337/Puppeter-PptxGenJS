@@ -5,17 +5,15 @@ import { type GlyphAdvances, PPTX_DEFAULTS } from "../packages/pptxgenjs/src/def
 import { RENDERING_TARGETS } from "../packages/pptxgenjs/src/target";
 import type { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
-const GRID = powerPointGrid();
+const ADVANCE_GRID = RENDERING_TARGETS.powerpoint.advanceGridPt;
 
-function powerPointGrid(): number {
-    const grid = RENDERING_TARGETS.powerpoint.advanceGridPt;
-
-    if (grid === undefined) {
-        throw new Error("The PowerPoint target has no advance grid (advanceGridPt in target/powerpoint.ts).");
-    }
-
-    return grid;
+if (ADVANCE_GRID === undefined) {
+    throw new Error("The PowerPoint target has no advance grid (advanceGridPt in target/powerpoint.ts).");
 }
+
+// Narrowed above; a function declaration cannot see a module constant's narrowing.
+const GRID: number = ADVANCE_GRID;
+
 /** The text area's width, 7.5 in: a whole number of grid steps and of EMU, so "exactly as wide" is exact in the PPTX too. */
 export const WRAP_LIMIT_WIDTH_PT = 540;
 const VOCABULARY = "lorem ipsum dolor sit amet consectetur adipiscing elit sed eiusmod tempor incididunt labore dolore magna aliqua enim minim veniam quis nostrud exercitation ullamco laboris nisi aliquip commodo consequat".split(" ");
@@ -37,78 +35,78 @@ export interface WrapLimitCase {
     readonly expectedLines: number;
 }
 
-/** The width of `text` in grid steps, each advance rounded to the grid. */
-function steps(text: string, fontSize: number, font: GlyphAdvances): number {
-    return [...text].reduce((sum, character) => sum + Math.round(((font.advances.get(character.codePointAt(0) ?? 0) ?? 0) * fontSize) / font.unitsPerEm / GRID), 0);
-}
+/** One paragraph per font size, weight, line count and step: one long run, its last line at the box's width. */
+export function wrapLimitCases(advances: (bold: boolean) => GlyphAdvances): WrapLimitCase[] {
+    const full = WRAP_LIMIT_WIDTH_PT / GRID;
+    const cases: WrapLimitCase[] = [];
 
-/** The shortest word of LETTERS exactly `target` steps wide. */
-function filler(target: number, width: (text: string) => number): string {
-    const shortest: (string | undefined)[] = [""];
+    for (const fontSize of [7, 8, 8.5, 10]) {
+        for (const bold of [false, true]) {
+            // The width of `text` in grid steps, each advance rounded to the grid.
+            const width = (text: string) => {
+                const font = advances(bold);
+                let sum = 0;
 
-    for (let total = 1; total <= target; total++) {
-        for (const letter of LETTERS) {
-            const before = shortest[total - width(letter)];
-            const current = shortest[total];
+                for (const character of text) {
+                    sum += Math.round(((font.advances.get(character.codePointAt(0) ?? 0) ?? 0) * fontSize) / font.unitsPerEm / GRID);
+                }
 
-            if (before !== undefined && (current === undefined || before.length + 1 < current.length)) {
-                shortest[total] = `${before}${letter}`;
+                return sum;
+            };
+
+            for (const lines of [1, 2, 3]) {
+                for (const step of [-1, 0, 1] as const) {
+                    const words: string[] = [];
+
+                    for (let lineIndex = 0; lineIndex < lines; lineIndex++) {
+                        // Words from VOCABULARY[7 * lineIndex] on, then a filler word, whose rounded width with the
+                        // spaces between is `target` steps.
+                        const target = lineIndex === lines - 1 ? full + step : full - SLACK_STEPS;
+                        const space = width(" ");
+                        let used = -space;
+                        let left = target - used - space;
+
+                        for (let index = 7 * lineIndex; left > FILLER_STEPS.max; index++) {
+                            const word = VOCABULARY[index % VOCABULARY.length] ?? "";
+
+                            if (left - width(word) - space >= FILLER_STEPS.min) {
+                                words.push(word);
+                                used += space + width(word);
+                            }
+
+                            left = target - used - space;
+                        }
+
+                        // The filler: the shortest word of LETTERS exactly `left` steps wide.
+                        const shortest: (string | undefined)[] = [""];
+
+                        for (let total = 1; total <= left; total++) {
+                            for (const letter of LETTERS) {
+                                const before = shortest[total - width(letter)];
+                                const current = shortest[total];
+
+                                if (before !== undefined && (current === undefined || before.length + 1 < current.length)) {
+                                    shortest[total] = `${before}${letter}`;
+                                }
+                            }
+                        }
+
+                        const filler = shortest[left];
+
+                        if (!filler) {
+                            throw new Error(`no word of ${LETTERS} is ${left} grid steps wide`);
+                        }
+
+                        words.push(filler);
+                    }
+
+                    cases.push({ fontSize, bold, lines, steps: step, text: words.join(" "), expectedLines: lines + (step > 0 ? 1 : 0) });
+                }
             }
         }
     }
 
-    const word = shortest[target];
-
-    if (!word) {
-        throw new Error(`no word of ${LETTERS} is ${target} grid steps wide`);
-    }
-
-    return word;
-}
-
-/** Words from VOCABULARY[first] on, then a filler word, whose rounded width with the spaces between is `target` steps. */
-function line(target: number, first: number, width: (text: string) => number): string[] {
-    const space = width(" ");
-    const words: string[] = [];
-    let used = -space;
-
-    for (let index = first; ; index++) {
-        const left = target - used - space;
-
-        if (left <= FILLER_STEPS.max) {
-            return [...words, filler(left, width)];
-        }
-
-        const word = VOCABULARY[index % VOCABULARY.length] ?? "";
-
-        if (left - width(word) - space < FILLER_STEPS.min) {
-            continue;
-        }
-
-        words.push(word);
-        used += space + width(word);
-    }
-}
-
-/** One paragraph per font size, weight, line count and step: one long run, its last line at the box's width. */
-export function wrapLimitCases(advances: (bold: boolean) => GlyphAdvances): WrapLimitCase[] {
-    const full = WRAP_LIMIT_WIDTH_PT / GRID;
-
-    return [7, 8, 8.5, 10].flatMap(fontSize =>
-        [false, true].flatMap(bold => {
-            const width = (text: string) => steps(text, fontSize, advances(bold));
-
-            return [1, 2, 3].flatMap(lines =>
-                ([-1, 0, 1] as const).map(step => {
-                    const text = Array.from({ length: lines }, (_, index) => line(index === lines - 1 ? full + step : full - SLACK_STEPS, 7 * index, width))
-                        .flat()
-                        .join(" ");
-
-                    return { fontSize, bold, lines, steps: step, text, expectedLines: lines + (step > 0 ? 1 : 0) };
-                }),
-            );
-        }),
-    );
+    return cases;
 }
 
 /** Each case on a slide of its own, in Arial, margin 0, in a text area WRAP_LIMIT_WIDTH_PT wide. */
