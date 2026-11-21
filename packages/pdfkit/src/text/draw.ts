@@ -3,7 +3,7 @@ import { type Effect, sameEffect } from "#src/effect/index";
 import { assertLinkUrl, CSS_PX_PER_INCH } from "@pdflapas/model";
 import { type Face, fallbackFamily } from "#src/fonts";
 import { captureFill, captureGlyphs, fill, glyphs, type Paint, stroke, useFace } from "#src/paint";
-import { type BoxLayout, type Fragment, layoutText } from "./layout";
+import { type BoxLayout, layoutText } from "./layout";
 import type { Decoration, Run, TextBox } from "./read";
 import { features } from "./shaper";
 
@@ -114,35 +114,6 @@ function dashes(doc: PDFKit.PDFDocument, x: number, top: number, width: number, 
     }
 }
 
-/** A band WAVE_THICKNESS thicknesses tall along a wave centred on `middle`: whole quadratic half-waves nearest to WAVE_PERIOD. */
-function wave(doc: PDFKit.PDFDocument, x: number, middle: number, width: number, t: number): void {
-    const halves = Math.max(1, Math.round(width / ((WAVE_PERIOD * t) / 2)));
-    const half = width / halves;
-    // A quadratic's control point is twice as far from the chord as the curve's peak.
-    const reach = WAVE_HEIGHT * t;
-    const band = (WAVE_THICKNESS * t) / 2;
-    const control = (index: number) => (index % 2 === 0 ? -reach : reach);
-    // Each half-wave as the cubic with the quadratic's curve, its controls two thirds of the way to the quadratic's
-    // (PDFKit's quadraticCurveTo writes another curve, see `record` in path.ts).
-    const halfWave = (index: number, y: number, from: number, to: number) => {
-        const [cx, cy] = [x + half * index + half / 2, y + control(index)];
-
-        doc.bezierCurveTo(from + (2 / 3) * (cx - from), y + (2 / 3) * (cy - y), to + (2 / 3) * (cx - to), y + (2 / 3) * (cy - y), to, y);
-    };
-
-    doc.moveTo(x, middle - band);
-    for (let index = 0; index < halves; index++) {
-        halfWave(index, middle - band, x + half * index, x + half * (index + 1));
-    }
-
-    doc.lineTo(x + width, middle + band);
-    for (let index = halves - 1; index >= 0; index--) {
-        halfWave(index, middle + band, x + half * (index + 1), x + half * index);
-    }
-
-    doc.closePath();
-}
-
 /** The filled band of a decoration of `style` whose straight form is `thickness` px tall from `top`, as pdf-core's `underline_path`. */
 function decorate(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
     const t = Math.max(thickness, MIN_THICKNESS);
@@ -159,7 +130,34 @@ function decorate(paint: Paint, decoration: Decoration, x: number, width: number
         } else if (decoration.style === "dashed") {
             dashes(pen, x, top, width, t, DASH_ON * t, DASH_OFF * t);
         } else {
-            wave(pen, x, top + t / 2, width, t);
+            // A band WAVE_THICKNESS thicknesses tall along a wave centred on the band's middle: whole quadratic
+            // half-waves nearest to WAVE_PERIOD.
+            const middle = top + t / 2;
+            const halves = Math.max(1, Math.round(width / ((WAVE_PERIOD * t) / 2)));
+            const half = width / halves;
+            // A quadratic's control point is twice as far from the chord as the curve's peak.
+            const reach = WAVE_HEIGHT * t;
+            const band = (WAVE_THICKNESS * t) / 2;
+            const control = (index: number) => (index % 2 === 0 ? -reach : reach);
+            // Each half-wave as the cubic with the quadratic's curve, its controls two thirds of the way to the quadratic's
+            // (PDFKit's quadraticCurveTo writes another curve, see `record` in path.ts).
+            const halfWave = (index: number, y: number, from: number, to: number) => {
+                const [cx, cy] = [x + half * index + half / 2, y + control(index)];
+
+                pen.bezierCurveTo(from + (2 / 3) * (cx - from), y + (2 / 3) * (cy - y), to + (2 / 3) * (cx - to), y + (2 / 3) * (cy - y), to, y);
+            };
+
+            pen.moveTo(x, middle - band);
+            for (let index = 0; index < halves; index++) {
+                halfWave(index, middle - band, x + half * index, x + half * (index + 1));
+            }
+
+            pen.lineTo(x + width, middle + band);
+            for (let index = halves - 1; index >= 0; index--) {
+                halfWave(index, middle + band, x + half * (index + 1), x + half * index);
+            }
+
+            pen.closePath();
         }
     };
 
@@ -173,18 +171,6 @@ function fillBands(paint: Paint, decoration: Decoration, trace: (pen: PDFKit.PDF
     captureFill(paint, decoration.color.alpha, trace);
 }
 
-/** A strikethrough band of `thickness` from `top`, or two (double) one thickness above and below it, as pdf-core draws them. */
-function strike(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
-    const t = Math.max(thickness, MIN_THICKNESS);
-    const tops = decoration.style === "double" ? [top - t, top + t] : [top];
-
-    fillBands(paint, decoration, pen => {
-        for (const y of tops) {
-            pen.rect(x, y, width, t);
-        }
-    });
-}
-
 /** A from-font underline's own band in px at `size`: the HTML's (`underlineBand`), else the face's `post` band. */
 function runUnderlineBand(underline: Decoration, face: Face, size: number): UnderlineBand {
     if (underline.band) {
@@ -194,134 +180,6 @@ function runUnderlineBand(underline: Decoration, face: Face, size: number): Unde
     const m = metrics(face, size);
 
     return { position: m.underlinePosition, thickness: m.underlineThickness };
-}
-
-/**
- * The band PowerPoint underlines a line's from-font runs with: their `post` bands averaged by width, as pdf-core's
- * `line_underline_band`. Undefined when the line has none.
- */
-function lineUnderlineBand(fragments: readonly Fragment[]): UnderlineBand | undefined {
-    let [width, position, thickness] = [0, 0, 0];
-
-    for (const { run, face, size, width: advance } of fragments) {
-        if (!run.underline?.fromFont) {
-            continue;
-        }
-
-        const band = runUnderlineBand(run.underline, face, size);
-
-        width += advance;
-        position += advance * band.position;
-        thickness += advance * band.thickness;
-    }
-
-    return width > 0 ? { position: position / width, thickness: thickness / width } : undefined;
-}
-
-/** A zigzag PPT_WAVE_LINE tall filling `band` px from `top`, from `x` down first, over whole half-waves covering `width`. */
-function zigzag(doc: PDFKit.PDFDocument, x: number, top: number, width: number, band: number): void {
-    const reach = Math.max(band - PPT_WAVE_LINE, PPT_WAVE_LINE);
-    const halves = Math.max(1, Math.ceil(width / reach));
-    const edge = (index: number) => (index % 2 === 0 ? top : top + reach);
-
-    doc.moveTo(x, top);
-    for (let index = 0; index <= halves; index++) {
-        doc.lineTo(x + reach * index, edge(index) + PPT_WAVE_LINE);
-    }
-
-    for (let index = halves; index >= 0; index--) {
-        doc.lineTo(x + reach * index, edge(index));
-    }
-
-    doc.closePath();
-}
-
-/** PowerPoint's underline of `decoration` around the `post` band `thickness` px tall from `top`, as pdf-core's `powerpoint_underline_path`. */
-function decoratePowerPoint(paint: Paint, decoration: Decoration, x: number, width: number, top: number, thickness: number): void {
-    const t = Math.max(thickness, MIN_THICKNESS);
-
-    // shortcut: PowerPoint's dotted and dashed underlines were not measured, so they keep LibreOffice's patterns (#397).
-    if (decoration.style === "dotted" || decoration.style === "dashed") {
-        return decorate(paint, decoration, x, width, top, thickness);
-    }
-
-    const trace = (pen: PDFKit.PDFDocument) => {
-        if (decoration.style === "double") {
-            pen.rect(x, top - t, width, PPT_DOUBLE_LINE * t).rect(x, top + t - PPT_DOUBLE_LINE * t, width, PPT_DOUBLE_LINE * t);
-        } else if (decoration.style === "wavy") {
-            zigzag(pen, x, top - t / 2, width, PPT_WAVE_BAND * t);
-        } else if (decoration.heavy) {
-            pen.rect(x, top - t, width, PPT_HEAVY * t);
-        } else {
-            pen.rect(x, top, width, t);
-        }
-    };
-
-    fillBands(paint, decoration, trace);
-}
-
-function drawFragment(paint: Paint, fragment: Fragment, left: number, baseline: number, lineBand: UnderlineBand | undefined): void {
-    const { run, face, size } = fragment;
-    const doc = paint.doc;
-    const x = left + fragment.x;
-    const y = baseline + run.shift;
-    const m = metrics(face, size);
-
-    if (run.highlight) {
-        fill(paint, run.highlight);
-        const trace = (pen: PDFKit.PDFDocument) => pen.rect(x, y - m.ascent, fragment.width, m.ascent + m.descent);
-
-        trace(doc);
-        doc.fill();
-        captureFill(paint, run.highlight.alpha, trace);
-    }
-
-    useFace(paint, face, size);
-    // The face lacks the run's bold or italic style: synthesize it as the HTML says (pdf-core's text/draw.rs).
-    const embolden = run.face.bold && !face.bold;
-    const oblique = run.face.italic && !face.italic;
-    const options = { features: fragment.features, letterSpacing: run.letterSpacing };
-
-    doc.save();
-    if (oblique) {
-        doc.transform(1, 0, -run.synthesis.italicShear, 1, run.synthesis.italicShear * y, 0);
-    }
-
-    fill(paint, run.color);
-    if (embolden) {
-        stroke(paint, run.color, size * run.synthesis.boldStroke);
-    }
-
-    glyphs(paint, fragment.text, x, y, { ...options, fill: true, stroke: embolden });
-    // The silhouette is the filled glyphs, without the synthetic-bold or outline strokes, as pdf-core captures it.
-    captureGlyphs(paint, face, size, fragment.text, x, y, { ...options, alpha: run.color.alpha, ...(run.glow ? { glow: run.glow } : {}) });
-    if (run.outline) {
-        stroke(paint, run.outline.color, run.outline.width);
-        glyphs(paint, fragment.text, x, y, { ...options, fill: false, stroke: true });
-    }
-
-    doc.restore();
-    if (run.underline?.fromFont) {
-        const band = lineBand ?? runUnderlineBand(run.underline, face, size);
-
-        decoratePowerPoint(paint, run.underline, x, fragment.width, y + band.position, band.thickness);
-    } else if (run.underline) {
-        decorate(paint, run.underline, x, fragment.width, y + m.underlinePosition, m.underlineThickness);
-    }
-
-    if (run.strike) {
-        strike(paint, run.strike, x, fragment.width, y + m.strikePosition, m.strikeThickness);
-    }
-
-    const link = run.link;
-
-    // A slide link carries href="#slide-N" too: data-slide decides, as in pdf-core.
-    if (link?.slide !== undefined) {
-        doc.goTo(x, y - m.ascent, fragment.width, m.ascent + m.descent, `slide-${link.slide}`);
-    } else if (link?.href !== undefined) {
-        assertLinkUrl(link.href, "a text run");
-        doc.link(x, y - m.ascent, fragment.width, m.ascent + m.descent, link.href);
-    }
 }
 
 /** pdf-core's cap on distinct glows per text box: each one is a mask of the whole box. */
@@ -348,10 +206,134 @@ export function drawLayout(paint: Paint, layout: BoxLayout, left: number, top: n
 
     const draw = () => {
         for (const line of layout.lines) {
-            const band = lineUnderlineBand(line.fragments);
+            // The band PowerPoint underlines the line's from-font runs with: their `post` bands averaged by width, as
+            // pdf-core's `line_underline_band`. Undefined when the line has none.
+            let [bandWidth, bandPosition, bandThickness] = [0, 0, 0];
+
+            for (const { run, face, size, width: advance } of line.fragments) {
+                if (!run.underline?.fromFont) {
+                    continue;
+                }
+
+                const band = runUnderlineBand(run.underline, face, size);
+
+                bandWidth += advance;
+                bandPosition += advance * band.position;
+                bandThickness += advance * band.thickness;
+            }
+
+            const lineBand: UnderlineBand | undefined = bandWidth > 0 ? { position: bandPosition / bandWidth, thickness: bandThickness / bandWidth } : undefined;
+            const baseline = top + line.baseline;
 
             for (const fragment of line.fragments) {
-                drawFragment(paint, fragment, left, top + line.baseline, band);
+                const { run, face, size } = fragment;
+                const doc = paint.doc;
+                const x = left + fragment.x;
+                const y = baseline + run.shift;
+                const m = metrics(face, size);
+
+                if (run.highlight) {
+                    fill(paint, run.highlight);
+                    const trace = (pen: PDFKit.PDFDocument) => pen.rect(x, y - m.ascent, fragment.width, m.ascent + m.descent);
+
+                    trace(doc);
+                    doc.fill();
+                    captureFill(paint, run.highlight.alpha, trace);
+                }
+
+                useFace(paint, face, size);
+                // The face lacks the run's bold or italic style: synthesize it as the HTML says (pdf-core's text/draw.rs).
+                const embolden = run.face.bold && !face.bold;
+                const oblique = run.face.italic && !face.italic;
+                const options = { features: fragment.features, letterSpacing: run.letterSpacing };
+
+                doc.save();
+                if (oblique) {
+                    doc.transform(1, 0, -run.synthesis.italicShear, 1, run.synthesis.italicShear * y, 0);
+                }
+
+                fill(paint, run.color);
+                if (embolden) {
+                    stroke(paint, run.color, size * run.synthesis.boldStroke);
+                }
+
+                glyphs(paint, fragment.text, x, y, { ...options, fill: true, stroke: embolden });
+                // The silhouette is the filled glyphs, without the synthetic-bold or outline strokes, as pdf-core captures it.
+                captureGlyphs(paint, face, size, fragment.text, x, y, { ...options, alpha: run.color.alpha, ...(run.glow ? { glow: run.glow } : {}) });
+                if (run.outline) {
+                    stroke(paint, run.outline.color, run.outline.width);
+                    glyphs(paint, fragment.text, x, y, { ...options, fill: false, stroke: true });
+                }
+
+                doc.restore();
+                if (run.underline?.fromFont) {
+                    const underline = run.underline;
+                    const band = lineBand ?? runUnderlineBand(underline, face, size);
+                    // PowerPoint's underline around the `post` band, as pdf-core's `powerpoint_underline_path`.
+                    const underlineTop = y + band.position;
+                    const t = Math.max(band.thickness, MIN_THICKNESS);
+
+                    // shortcut: PowerPoint's dotted and dashed underlines were not measured, so they keep LibreOffice's patterns (#397).
+                    if (underline.style === "dotted" || underline.style === "dashed") {
+                        decorate(paint, underline, x, fragment.width, underlineTop, band.thickness);
+                    } else {
+                        const trace = (pen: PDFKit.PDFDocument) => {
+                            if (underline.style === "double") {
+                                pen.rect(x, underlineTop - t, fragment.width, PPT_DOUBLE_LINE * t).rect(x, underlineTop + t - PPT_DOUBLE_LINE * t, fragment.width, PPT_DOUBLE_LINE * t);
+                            } else if (underline.style === "wavy") {
+                                // A zigzag PPT_WAVE_LINE tall filling the wave band from its top, down first, over whole
+                                // half-waves covering the fragment.
+                                const zigzagTop = underlineTop - t / 2;
+                                const reach = Math.max(PPT_WAVE_BAND * t - PPT_WAVE_LINE, PPT_WAVE_LINE);
+                                const halves = Math.max(1, Math.ceil(fragment.width / reach));
+                                const edge = (index: number) => (index % 2 === 0 ? zigzagTop : zigzagTop + reach);
+
+                                pen.moveTo(x, zigzagTop);
+                                for (let index = 0; index <= halves; index++) {
+                                    pen.lineTo(x + reach * index, edge(index) + PPT_WAVE_LINE);
+                                }
+
+                                for (let index = halves; index >= 0; index--) {
+                                    pen.lineTo(x + reach * index, edge(index));
+                                }
+
+                                pen.closePath();
+                            } else if (underline.heavy) {
+                                pen.rect(x, underlineTop - t, fragment.width, PPT_HEAVY * t);
+                            } else {
+                                pen.rect(x, underlineTop, fragment.width, t);
+                            }
+                        };
+
+                        fillBands(paint, underline, trace);
+                    }
+                } else if (run.underline) {
+                    decorate(paint, run.underline, x, fragment.width, y + m.underlinePosition, m.underlineThickness);
+                }
+
+                if (run.strike) {
+                    // A strikethrough band of its thickness from its top, or two (double) one thickness above and below
+                    // it, as pdf-core draws them.
+                    const strikeTop = y + m.strikePosition;
+                    const t = Math.max(m.strikeThickness, MIN_THICKNESS);
+                    const tops = run.strike.style === "double" ? [strikeTop - t, strikeTop + t] : [strikeTop];
+
+                    fillBands(paint, run.strike, pen => {
+                        for (const bandTop of tops) {
+                            pen.rect(x, bandTop, fragment.width, t);
+                        }
+                    });
+                }
+
+                const link = run.link;
+
+                // A slide link carries href="#slide-N" too: data-slide decides, as in pdf-core.
+                if (link?.slide !== undefined) {
+                    doc.goTo(x, y - m.ascent, fragment.width, m.ascent + m.descent, `slide-${link.slide}`);
+                } else if (link?.href !== undefined) {
+                    assertLinkUrl(link.href, "a text run");
+                    doc.link(x, y - m.ascent, fragment.width, m.ascent + m.descent, link.href);
+                }
             }
         }
 
@@ -365,7 +347,13 @@ export function drawLayout(paint: Paint, layout: BoxLayout, left: number, top: n
         }
     };
     // Each glow captures only its own runs, so the glows nest around one drawing of the text.
-    const nested = glows.slice(0, MAX_GLOWS_PER_BOX).reduce((inner, glow) => () => paint.effects.under(paint.doc, glow, true, paint.opacity, paint.report, inner), draw);
+    let nested: () => void = draw;
+
+    for (const glow of glows.slice(0, MAX_GLOWS_PER_BOX)) {
+        const inner = nested;
+
+        nested = () => paint.effects.under(paint.doc, glow, true, paint.opacity, paint.report, inner);
+    }
 
     nested();
 }

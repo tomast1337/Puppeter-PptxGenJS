@@ -34,93 +34,25 @@ function numberAttribute(element: Element, name: string): number {
     return value;
 }
 
-function paintOf(element: Element, name: "fill" | "stroke", paint: Paint): Color | undefined {
+/** The element's fill or stroke: a visible colour, none, one fully transparent, or a value the renderer does not read (reported). */
+type PaintOf = { readonly kind: "color"; readonly color: Color } | { readonly kind: "none" } | { readonly kind: "transparent" } | { readonly kind: "invalid"; readonly value: string };
+
+function paintOf(element: Element, name: "fill" | "stroke", paint: Paint): PaintOf {
     const value = attribute(element, name);
 
     if (value === undefined || value === "none") {
-        return undefined;
+        return { kind: "none" };
     }
 
     const parsed = color(value);
 
     if (!parsed) {
         paint.report(`${name} '${value}' on <${element.tagName}> is not drawn`);
+
+        return { kind: "invalid", value };
     }
 
-    return parsed && parsed.alpha > 0 ? parsed : undefined;
-}
-
-/** The arrow-head markers of `<defs>`: each `<marker>` holds one `<path>`, its head outline in px about the line's end. */
-function readHeads(svg: Element, paint: Paint): Map<string, string> {
-    const heads = new Map<string, string>();
-
-    for (const defs of children(svg).filter(child => child.tagName === "defs")) {
-        for (const marker of children(defs)) {
-            const [head, ...rest] = children(marker);
-            const id = attribute(marker, "id");
-            const d = head && attribute(head, "d");
-
-            if (marker.tagName !== "marker" || head?.tagName !== "path" || rest.length || id === undefined || d === undefined) {
-                paint.report(`<${marker.tagName}> in a shape's <defs> is not drawn (expected <marker id><path d></marker>)`);
-                continue;
-            }
-
-            for (const { name } of marker.attrs) {
-                if (!MARKER_ATTRIBUTES.has(name)) {
-                    paint.report(`attribute '${name}' on <marker> is not drawn`);
-                }
-            }
-
-            heads.set(id, d);
-        }
-    }
-
-    return heads;
-}
-
-/**
- * Fills each line head `element`'s `marker-start`/`marker-end` names at the ends of `segments` (viewBox units), in
- * the stroke's color: the head path in box px, turned to the path's direction there (pdf-core's `stroke_with_arrows`).
- */
-function drawHeads(element: Element, segments: ReturnType<typeof record>, strokeColor: Color, paint: Paint, space: ShapeSpace): void {
-    const ends = pathEnds(segments);
-    const doc = paint.doc;
-
-    for (const [name, at] of [
-        ["marker-start", ends && { point: ends.start, toward: ends.startDirection }],
-        ["marker-end", ends && { point: ends.end, toward: ends.endDirection }],
-    ] as const) {
-        const reference = attribute(element, name);
-
-        if (reference === undefined || !at) {
-            continue;
-        }
-
-        const id = MARKER_URL.exec(reference)?.[1];
-        const head = id === undefined ? undefined : space.heads.get(id);
-
-        if (head === undefined) {
-            paint.report(`${name} '${reference}' names no marker; its line head is not drawn`);
-            continue;
-        }
-
-        const map = ([x, y]: Point): Point => [x * space.scaleX, y * space.scaleY];
-        const [x, y] = map(at.point);
-        const [dx, dy] = map(at.toward);
-        const angle = Math.atan2(dy, dx);
-        const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
-
-        doc.save();
-        // Out of the viewBox scale, back to box px: the head is not stretched with the shape.
-        doc.scale(1 / space.scaleX, 1 / space.scaleY).transform(cos, sin, -sin, cos, x, y);
-        fill(paint, strokeColor);
-        const segments = record(doc, pen => pen.path(head));
-
-        replay(doc, segments);
-        doc.fill();
-        captureFill(paint, strokeColor.alpha, pen => replay(pen, segments));
-        doc.restore();
-    }
+    return parsed.alpha > 0 ? { kind: "color", color: parsed } : { kind: "transparent" };
 }
 
 /** Fills and strokes the path `trace` builds, in viewBox units scaled by `scale` (stroke widths are screen px). */
@@ -134,14 +66,18 @@ function paintGeometry(element: Element, paint: Paint, space: ShapeSpace, trace:
         }
     }
 
-    const fillColor = paintOf(element, "fill", paint);
-    const strokeColor = paintOf(element, "stroke", paint);
+    const fillPaint = paintOf(element, "fill", paint);
+    const strokePaint = paintOf(element, "stroke", paint);
+    const fillColor = fillPaint.kind === "color" ? fillPaint.color : undefined;
+    const strokeColor = strokePaint.kind === "color" ? strokePaint.color : undefined;
     const width = Number(attribute(element, "stroke-width") ?? 1);
-    const dashes = (attribute(element, "stroke-dasharray") ?? "")
-        .split(/[\s,]+/)
-        .filter(Boolean)
-        .map(Number)
-        .map(length => length / scale);
+    const dashes: number[] = [];
+
+    for (const part of (attribute(element, "stroke-dasharray") ?? "").split(/[\s,]+/)) {
+        if (part) {
+            dashes.push(Number(part) / scale);
+        }
+    }
 
     doc.save();
     let stroked = strokeColor !== undefined && width > 0;
@@ -179,8 +115,46 @@ function paintGeometry(element: Element, paint: Paint, space: ShapeSpace, trace:
     // SVG draws markers on paths only; the head is the line's, so it is drawn with a visible stroke.
     const marked = attribute(element, "marker-start") !== undefined || attribute(element, "marker-end") !== undefined;
 
+    // Fills each line head the element's `marker-start`/`marker-end` names at the ends of its path (viewBox units), in
+    // the stroke's color: the head path in box px, turned to the path's direction there (pdf-core's `stroke_with_arrows`).
     if (marked && strokeColor && width > 0) {
-        drawHeads(element, record(doc, trace), strokeColor, paint, space);
+        const ends = pathEnds(record(doc, trace));
+
+        for (const [name, at] of [
+            ["marker-start", ends && { point: ends.start, toward: ends.startDirection }],
+            ["marker-end", ends && { point: ends.end, toward: ends.endDirection }],
+        ] as const) {
+            const reference = attribute(element, name);
+
+            if (reference === undefined || !at) {
+                continue;
+            }
+
+            const id = MARKER_URL.exec(reference)?.[1];
+            const head = id === undefined ? undefined : space.heads.get(id);
+
+            if (head === undefined) {
+                paint.report(`${name} '${reference}' names no marker; its line head is not drawn`);
+                continue;
+            }
+
+            const map = ([x, y]: Point): Point => [x * space.scaleX, y * space.scaleY];
+            const [x, y] = map(at.point);
+            const [dx, dy] = map(at.toward);
+            const angle = Math.atan2(dy, dx);
+            const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+
+            doc.save();
+            // Out of the viewBox scale, back to box px: the head is not stretched with the shape.
+            doc.scale(1 / space.scaleX, 1 / space.scaleY).transform(cos, sin, -sin, cos, x, y);
+            fill(paint, strokeColor);
+            const segments = record(doc, pen => pen.path(head));
+
+            replay(doc, segments);
+            doc.fill();
+            captureFill(paint, strokeColor.alpha, pen => replay(pen, segments));
+            doc.restore();
+        }
     }
 }
 
@@ -244,7 +218,31 @@ export function drawShapeSvg(svg: Element, paint: Paint, frame: Frame): void {
         paint.report("a shape stretched off its viewBox's aspect ratio is drawn with an averaged stroke width");
     }
 
-    const space: ShapeSpace = { scaleX, scaleY, heads: readHeads(svg, paint) };
+    // The arrow-head markers of `<defs>`: each `<marker>` holds one `<path>`, its head outline in px about the line's end.
+    const heads = new Map<string, string>();
+
+    for (const defs of children(svg).filter(child => child.tagName === "defs")) {
+        for (const marker of children(defs)) {
+            const [head, ...rest] = children(marker);
+            const id = attribute(marker, "id");
+            const d = head && attribute(head, "d");
+
+            if (marker.tagName !== "marker" || head?.tagName !== "path" || rest.length || id === undefined || d === undefined) {
+                paint.report(`<${marker.tagName}> in a shape's <defs> is not drawn (expected <marker id><path d></marker>)`);
+                continue;
+            }
+
+            for (const { name } of marker.attrs) {
+                if (!MARKER_ATTRIBUTES.has(name)) {
+                    paint.report(`attribute '${name}' on <marker> is not drawn`);
+                }
+            }
+
+            heads.set(id, d);
+        }
+    }
+
+    const space: ShapeSpace = { scaleX, scaleY, heads };
     const doc = paint.doc;
 
     doc.save();

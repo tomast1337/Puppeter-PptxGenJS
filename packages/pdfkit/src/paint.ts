@@ -36,50 +36,46 @@ export function captureStroke(paint: Paint, alpha: number, style: StrokeStyle, t
     }
 }
 
-/** The outlines of `text` shaped in `face` at `size` px with its pen at `x` and baseline at `y`, as `glyphs` draws it. */
-function glyphOutlines(face: Face, size: number, text: string, x: number, y: number, features: Features, letterSpacing: number): Segment[] {
-    const run = face.font.layout(text, { ...features });
-    const scale = size / face.font.unitsPerEm;
-    const segments: Segment[] = [];
-    let pen = x;
-
-    run.glyphs.forEach((glyph, index) => {
-        const position = run.positions[index];
-        const [gx, gy] = [pen + (position?.xOffset ?? 0) * scale, y - (position?.yOffset ?? 0) * scale];
-        const at = (px: number, py: number): [number, number] => [gx + px * scale, gy - py * scale];
-        let current: [number, number] = [gx, gy];
-
-        for (const { command, args } of glyph.path.commands) {
-            const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0] = args;
-
-            if (command === "moveTo") {
-                segments.push(["M", ...(current = at(a, b))]);
-            } else if (command === "lineTo") {
-                segments.push(["L", ...(current = at(a, b))]);
-            } else if (command === "quadraticCurveTo") {
-                // The cubic with the same curve: each control two thirds of the way to the quadratic's.
-                const [control, end] = [at(a, b), at(c, d)];
-                const third = (from: [number, number]): [number, number] => [from[0] + (2 / 3) * (control[0] - from[0]), from[1] + (2 / 3) * (control[1] - from[1])];
-
-                segments.push(["C", ...third(current), ...third(end), ...end]);
-                current = end;
-            } else if (command === "bezierCurveTo") {
-                segments.push(["C", ...at(a, b), ...at(c, d), ...(current = at(e, f))]);
-            } else if (command === "closePath") {
-                segments.push(["Z"]);
-            }
-        }
-
-        pen += (position?.xAdvance ?? 0) * scale + letterSpacing;
-    });
-
-    return segments;
-}
-
 /** Adds the glyph outlines `glyphs` draws for `text` (filled with `alpha`, glowing with `glow`) to the silhouettes being captured. */
 export function captureGlyphs(paint: Paint, face: Face, size: number, text: string, x: number, y: number, options: { features: Features; letterSpacing: number; alpha: number; glow?: Effect }): void {
     if (paint.effects.capturing()) {
-        paint.effects.fill(paint.doc, glyphOutlines(face, size, text, x, y, options.features, options.letterSpacing), options.alpha, options.glow);
+        // The outlines of `text` shaped in `face` at `size` px with its pen at `x` and baseline at `y`, as `glyphs` draws it.
+        const run = face.font.layout(text, { ...options.features });
+        const scale = size / face.font.unitsPerEm;
+        const segments: Segment[] = [];
+        let pen = x;
+
+        for (const [index, glyph] of run.glyphs.entries()) {
+            const position = run.positions[index];
+            const [gx, gy] = [pen + (position?.xOffset ?? 0) * scale, y - (position?.yOffset ?? 0) * scale];
+            const at = (px: number, py: number): [number, number] => [gx + px * scale, gy - py * scale];
+            let current: [number, number] = [gx, gy];
+
+            for (const { command, args } of glyph.path.commands) {
+                const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0] = args;
+
+                if (command === "moveTo") {
+                    segments.push(["M", ...(current = at(a, b))]);
+                } else if (command === "lineTo") {
+                    segments.push(["L", ...(current = at(a, b))]);
+                } else if (command === "quadraticCurveTo") {
+                    // The cubic with the same curve: each control two thirds of the way to the quadratic's.
+                    const [control, end] = [at(a, b), at(c, d)];
+                    const third = (from: [number, number]): [number, number] => [from[0] + (2 / 3) * (control[0] - from[0]), from[1] + (2 / 3) * (control[1] - from[1])];
+
+                    segments.push(["C", ...third(current), ...third(end), ...end]);
+                    current = end;
+                } else if (command === "bezierCurveTo") {
+                    segments.push(["C", ...at(a, b), ...at(c, d), ...(current = at(e, f))]);
+                } else if (command === "closePath") {
+                    segments.push(["Z"]);
+                }
+            }
+
+            pen += (position?.xAdvance ?? 0) * scale + options.letterSpacing;
+        }
+
+        paint.effects.fill(paint.doc, segments, options.alpha, options.glow);
     }
 }
 
@@ -137,12 +133,12 @@ export function dash(doc: PDFKit.PDFDocument, lengths: readonly number[]): boole
     const pattern = lengths.length % 2 ? [...lengths, ...lengths] : lengths;
     const segments: { on: boolean; length: number }[] = [];
 
-    pattern.forEach((length, index) => {
+    for (const [index, length] of pattern.entries()) {
         const on = index % 2 === 0;
         const last = segments.at(-1);
 
         if (length === 0) {
-            return;
+            continue;
         }
 
         if (last?.on === on) {
@@ -150,7 +146,8 @@ export function dash(doc: PDFKit.PDFDocument, lengths: readonly number[]): boole
         } else {
             segments.push({ on, length });
         }
-    });
+    }
+
     if (!segments.some(segment => segment.on)) {
         return false;
     }
@@ -179,7 +176,11 @@ export function dash(doc: PDFKit.PDFDocument, lengths: readonly number[]): boole
         }
     }
 
-    const total = segments.reduce((sum, segment) => sum + segment.length, 0);
+    let total = 0;
+
+    for (const segment of segments) {
+        total += segment.length;
+    }
 
     doc.dash(
         segments.map(segment => segment.length),

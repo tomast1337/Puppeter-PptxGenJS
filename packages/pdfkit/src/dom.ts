@@ -16,6 +16,7 @@ export function children(element: Element): Element[] {
     return element.childNodes.filter(isElement);
 }
 
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function attribute(element: Element, name: string): string | undefined {
     return element.attrs.find(attr => attr.name === name)?.value;
 }

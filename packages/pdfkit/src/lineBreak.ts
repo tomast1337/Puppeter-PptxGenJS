@@ -5,6 +5,7 @@ import LineBreaker from "linebreak";
 
 const ASCII_END = 0x80;
 const PRINTABLE_START = 0x21;
+const ASCII_ALPHANUMERIC = /^[\da-z]$/i;
 
 /** Allow (`true`) or forbid (`false`) a break between two printable ASCII characters, or defer to UAX #14 (absent). */
 function chromiumTable(): ReadonlyMap<number, boolean> {
@@ -50,35 +51,6 @@ function chromiumTable(): ReadonlyMap<number, boolean> {
 /** Built once: a module constant, never written after this. */
 const CHROMIUM_TABLE = chromiumTable();
 
-function isAsciiDigit(char: string): boolean {
-    return char >= "0" && char <= "9";
-}
-
-function isAsciiAlphanumeric(char: string): boolean {
-    return /^[\da-z]$/i.test(char);
-}
-
-/** Chromium's verdict on a break between `before` and `after`, or undefined to keep UAX #14's. */
-function chromiumOverride(beforeBefore: string | undefined, before: string, after: string): boolean | undefined {
-    // Chromium always breaks after a run of spaces, even where UAX #14 (LB13) does not.
-    if (before === " " && after !== " ") {
-        return true;
-    }
-
-    // A "-" before a digit is a minus sign unless it follows a letter or digit ("AAAA-2222").
-    if (before === "-" && isAsciiDigit(after)) {
-        return beforeBefore !== undefined && isAsciiAlphanumeric(beforeBefore);
-    }
-
-    const [b, a] = [before.codePointAt(0) ?? 0, after.codePointAt(0) ?? 0];
-
-    if (b < PRINTABLE_START || a < PRINTABLE_START || b >= ASCII_END || a >= ASCII_END) {
-        return undefined;
-    }
-
-    return CHROMIUM_TABLE.get(b * ASCII_END + a);
-}
-
 /** The UTF-16 indices inside `text` where a line may start, ascending, without 0 and `text.length`. */
 export function breakOpportunities(text: string): number[] {
     const uax14 = new Set<number>();
@@ -96,9 +68,24 @@ export function breakOpportunities(text: string): number[] {
         const before = chars[i] ?? "";
 
         index += before.length;
-        const override = chromiumOverride(chars[i - 1], before, chars[i + 1] ?? "");
+        const [beforeBefore, after] = [chars[i - 1], chars[i + 1] ?? ""];
+        // Chromium's verdict on a break between `before` and `after`, or UAX #14's where Chromium has none.
+        let breaks: boolean;
 
-        if (override ?? uax14.has(index)) {
+        if (before === " " && after !== " ") {
+            // Chromium always breaks after a run of spaces, even where UAX #14 (LB13) does not.
+            breaks = true;
+        } else if (before === "-" && after >= "0" && after <= "9") {
+            // A "-" before a digit is a minus sign unless it follows a letter or digit ("AAAA-2222").
+            breaks = beforeBefore !== undefined && ASCII_ALPHANUMERIC.test(beforeBefore);
+        } else {
+            const [b, a] = [before.codePointAt(0) ?? 0, after.codePointAt(0) ?? 0];
+            const ascii = !(b < PRINTABLE_START || a < PRINTABLE_START || b >= ASCII_END || a >= ASCII_END);
+
+            breaks = (ascii ? CHROMIUM_TABLE.get(b * ASCII_END + a) : undefined) ?? uax14.has(index);
+        }
+
+        if (breaks) {
             opportunities.push(index);
         }
     }

@@ -56,27 +56,11 @@ const BOLD_WEIGHT = 600;
 /** Name table ids: the family (1) and the typographic family (16), which groups weights beyond regular and bold. */
 const FAMILY_NAMES: readonly string[] = Object.freeze(["fontFamily", "preferredFamily"]);
 
-function hasOutlines(font: Font): boolean {
-    // `as`: fontkit keeps the table directory on the font; @types/fontkit does not declare it.
-    const tables = (font as unknown as { directory?: { tables?: Record<string, unknown> } }).directory?.tables ?? {};
-
-    return OUTLINE_TABLES.some(tag => tag in tables);
-}
-
-function faceOf(font: Font, key: string): Face {
-    const families = FAMILY_NAMES.map(name => font.getName(name, "en")?.toLowerCase()).filter((name): name is string => !!name);
-    const os2 = font["OS/2"] as { usWeightClass?: number; fsSelection?: { italic?: boolean; bold?: boolean } } | undefined; // `as`: the declared Os2Table omits these fields
-    const bold = (os2?.fsSelection?.bold ?? false) || (os2?.usWeightClass ?? 0) >= BOLD_WEIGHT;
-    const italic = (os2?.fsSelection?.italic ?? false) || font.italicAngle !== 0;
-
-    return { key, font, families: [...new Set(families.length ? families : [font.familyName.toLowerCase()])], bold, italic };
-}
-
 /** Parses the caller's font files (TTF, OTF or TTC). Throws naming the file that holds no usable face. */
 export function parseFonts(files: readonly Uint8Array[]): Face[] {
     const faces: Face[] = [];
 
-    files.forEach((bytes, index) => {
+    for (const [index, bytes] of files.entries()) {
         let parsed: ReturnType<typeof create>;
 
         try {
@@ -86,33 +70,62 @@ export function parseFonts(files: readonly Uint8Array[]): Face[] {
         }
 
         const fonts = "fonts" in parsed ? parsed.fonts : [parsed];
-        const drawable = fonts.filter(hasOutlines);
+        const drawable: Font[] = [];
+
+        for (const font of fonts) {
+            // `as`: fontkit keeps the table directory on the font; @types/fontkit does not declare it.
+            const tables = (font as unknown as { directory?: { tables?: Record<string, unknown> } }).directory?.tables ?? {};
+
+            if (OUTLINE_TABLES.some(tag => tag in tables)) {
+                drawable.push(font);
+            }
+        }
 
         if (!drawable.length) {
             throw new Error(`Font #${index} contains no usable font faces (PDFKit draws outline glyphs only, not bitmap color fonts)`);
         }
 
         for (const font of drawable) {
-            faces.push(faceOf(font, `F${faces.length}`));
+            const families: string[] = [];
+
+            for (const name of FAMILY_NAMES) {
+                const family = font.getName(name, "en")?.toLowerCase();
+
+                if (family) {
+                    families.push(family);
+                }
+            }
+
+            const os2 = font["OS/2"] as { usWeightClass?: number; fsSelection?: { italic?: boolean; bold?: boolean } } | undefined; // `as`: the declared Os2Table omits these fields
+            const bold = (os2?.fsSelection?.bold ?? false) || (os2?.usWeightClass ?? 0) >= BOLD_WEIGHT;
+            const italic = (os2?.fsSelection?.italic ?? false) || font.italicAngle !== 0;
+
+            faces.push({ key: `F${faces.length}`, font, families: [...new Set(families.length ? families : [font.familyName.toLowerCase()])], bold, italic });
         }
-    });
+    }
 
     return faces;
 }
 
 /** The face of `family` that best matches the requested style: exact, then the same weight, then any. */
-function bestFace(faces: readonly Face[], family: string, bold: boolean, italic: boolean): Face | undefined {
+function bestFace(faces: readonly Face[], family: string, bold: boolean, italic: boolean): { kind: "face"; face: Face } | { kind: "none" } {
     const candidates = faces.filter(face => face.families.includes(family));
+    const face = candidates.find(candidate => candidate.bold === bold && candidate.italic === italic) ?? candidates.find(candidate => candidate.bold === bold) ?? candidates[0];
 
-    return candidates.find(face => face.bold === bold && face.italic === italic) ?? candidates.find(face => face.bold === bold) ?? candidates[0];
+    return face === undefined ? { kind: "none" } : { kind: "face", face };
 }
 
 /** A family's face, or its metric alias's when the family has none: fontconfig aliases only a face it has no font for. */
-function familyFace(faces: readonly Face[], family: string, bold: boolean, italic: boolean): Face | undefined {
+function familyFace(faces: readonly Face[], family: string, bold: boolean, italic: boolean): { kind: "face"; face: Face } | { kind: "none" } {
     const name = family.toLowerCase();
     const alias = METRIC_ALIASES[name];
+    const own = bestFace(faces, name, bold, italic);
 
-    return bestFace(faces, name, bold, italic) ?? (alias ? bestFace(faces, alias, bold, italic) : undefined);
+    if (own.kind === "face" || !alias) {
+        return own;
+    }
+
+    return bestFace(faces, alias, bold, italic);
 }
 
 /**
@@ -122,18 +135,31 @@ function familyFace(faces: readonly Face[], family: string, bold: boolean, itali
 export function faceChain(faces: readonly Face[], { family, fallbacks, lang, bold, italic }: FaceRequest): FaceChain {
     const own = familyFace(faces, family, bold, italic);
     const byLang = lang === undefined ? undefined : CJK_FALLBACK_BY_LANG[lang.toLowerCase()];
-    const rest = [...fallbacks, ...(byLang ? [byLang] : []), ...FALLBACK_FAMILIES].map(name => familyFace(faces, name, bold, italic));
-    const chain = [...new Set([own, ...rest, faces[0]].filter((face): face is Face => face !== undefined))];
+    const chain: Face[] = own.kind === "face" ? [own.face] : [];
 
-    return { faces: chain, found: own !== undefined };
+    for (const name of [...fallbacks, ...(byLang ? [byLang] : []), ...FALLBACK_FAMILIES]) {
+        const fallback = familyFace(faces, name, bold, italic);
+
+        if (fallback.kind === "face") {
+            chain.push(fallback.face);
+        }
+    }
+
+    if (faces[0] !== undefined) {
+        chain.push(faces[0]);
+    }
+
+    return { faces: [...new Set(chain)], found: own.kind === "face" };
 }
 
 /** The first face of `chain` with a glyph for `codePoint`. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function faceFor(chain: FaceChain, codePoint: number): Face | undefined {
     return chain.faces.find(face => face.font.hasGlyphForCodePoint(codePoint));
 }
 
 /** The family a missing face's text was drawn in: the first fallback family the caller supplied. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function fallbackFamily(chain: FaceChain): string | undefined {
     return chain.faces[0]?.font.familyName;
 }

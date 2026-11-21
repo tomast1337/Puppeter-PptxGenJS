@@ -103,6 +103,7 @@ export function multiply(m: Matrix, n: Matrix): Matrix {
 }
 
 /** The inverse of `m`; undefined when it is degenerate. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function invert(m: Matrix): Matrix | undefined {
     const det = m[0] * m[3] - m[1] * m[2];
 
@@ -177,22 +178,18 @@ export function flatten(segments: readonly Segment[], m: Matrix, tolerance: numb
     return lines.filter(line => line.points.length > 1 || line.closed);
 }
 
-/** Twice the signed area of `polygon`. */
-function area(polygon: readonly Point[]): number {
-    let sum = 0;
-
-    polygon.forEach(([x0, y0], index) => {
-        const [x1, y1] = polygon[(index + 1) % polygon.length] ?? [x0, y0];
-
-        sum += x0 * y1 - x1 * y0;
-    });
-
-    return sum;
-}
-
 /** `polygon` turned to a positive signed area, so overlapping pieces of one outline add up under the nonzero rule. */
 function oriented(polygon: Point[]): Point[] {
-    return area(polygon) < 0 ? polygon.reverse() : polygon;
+    // Twice the signed area of `polygon`.
+    let area = 0;
+
+    for (const [index, [x0, y0]] of polygon.entries()) {
+        const [x1, y1] = polygon[(index + 1) % polygon.length] ?? [x0, y0];
+
+        area += x0 * y1 - x1 * y0;
+    }
+
+    return area < 0 ? polygon.reverse() : polygon;
 }
 
 function disc([cx, cy]: Point, radius: number): Point[] {
@@ -201,52 +198,6 @@ function disc([cx, cy]: Point, radius: number): Point[] {
 
         return [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)];
     });
-}
-
-/** `line` cut into its dashes (SVG `stroke-dasharray`, the pattern repeated to an even count). */
-function dashed(line: Polyline, dashes: readonly number[]): Polyline[] {
-    const pattern = dashes.length % 2 ? [...dashes, ...dashes] : dashes;
-    const total = pattern.reduce((sum, length) => sum + length, 0);
-
-    if (!pattern.length || !(total > 0) || pattern.some(length => !(length >= 0))) {
-        return [line];
-    }
-
-    const points = line.closed && line.points[0] ? [...line.points, line.points[0]] : line.points;
-    const pieces: Polyline[] = [];
-    let [index, left, on] = [0, pattern[0] ?? 0, true];
-    let piece: Point[] = on && points[0] ? [points[0]] : [];
-
-    for (let k = 1; k < points.length; k++) {
-        let [a, b]: [Point, Point] = [points[k - 1] ?? [0, 0], points[k] ?? [0, 0]];
-        let length = Math.hypot(b[0] - a[0], b[1] - a[1]);
-
-        while (length > left) {
-            const t = left / length;
-            const cut: Point = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-
-            if (on) {
-                pieces.push({ points: [...piece, cut], closed: false });
-            }
-
-            piece = [cut];
-            on = !on;
-            [a, length] = [cut, length - left];
-            index = (index + 1) % pattern.length;
-            left = pattern[index] ?? 0;
-        }
-
-        left -= length;
-        if (on) {
-            piece.push(b);
-        }
-    }
-
-    if (on && piece.length > 1) {
-        pieces.push({ points: piece, closed: false });
-    }
-
-    return pieces;
 }
 
 /**
@@ -262,7 +213,63 @@ export function strokeOutline(lines: readonly Polyline[], style: StrokeStyle): P
         return polygons;
     }
 
-    for (const piece of lines.flatMap(line => (style.dashes?.length ? dashed(line, style.dashes) : [line]))) {
+    // Every line, cut into its dashes when the style has some (SVG `stroke-dasharray`, the pattern repeated to an even count).
+    const pieces: Polyline[] = [];
+
+    for (const line of lines) {
+        if (!style.dashes?.length) {
+            pieces.push(line);
+            continue;
+        }
+
+        const dashes = style.dashes;
+        const pattern = dashes.length % 2 ? [...dashes, ...dashes] : dashes;
+        let total = 0;
+
+        for (const length of pattern) {
+            total = total + length;
+        }
+
+        if (!pattern.length || !(total > 0) || pattern.some(length => !(length >= 0))) {
+            pieces.push(line);
+            continue;
+        }
+
+        const points = line.closed && line.points[0] ? [...line.points, line.points[0]] : line.points;
+        let [index, left, on] = [0, pattern[0] ?? 0, true];
+        let dash: Point[] = on && points[0] ? [points[0]] : [];
+
+        for (let k = 1; k < points.length; k++) {
+            let [a, b]: [Point, Point] = [points[k - 1] ?? [0, 0], points[k] ?? [0, 0]];
+            let length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+            while (length > left) {
+                const t = left / length;
+                const cut: Point = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+                if (on) {
+                    pieces.push({ points: [...dash, cut], closed: false });
+                }
+
+                dash = [cut];
+                on = !on;
+                [a, length] = [cut, length - left];
+                index = (index + 1) % pattern.length;
+                left = pattern[index] ?? 0;
+            }
+
+            left -= length;
+            if (on) {
+                dash.push(b);
+            }
+        }
+
+        if (on && dash.length > 1) {
+            pieces.push({ points: dash, closed: false });
+        }
+    }
+
+    for (const piece of pieces) {
         const points = piece.points.filter((point, index) => {
             const previous = piece.points[index - 1];
 
@@ -373,6 +380,7 @@ export function strokeOutline(lines: readonly Polyline[], style: StrokeStyle): P
  * last point, along it. Each direction comes from the nearest control point that does not coincide with the end, as
  * SVG orients markers (pdf-core's `direction`). Undefined without a drawn segment.
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function pathEnds(segments: readonly Segment[]): { start: Point; startDirection: Point; end: Point; endDirection: Point } | undefined {
     const drawn: Point[][] = [];
     let current: Point = [0, 0];
