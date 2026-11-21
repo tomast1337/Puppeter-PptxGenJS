@@ -49,14 +49,27 @@ export function pdfText(pdf: Uint8Array): string {
 /** The newest cross-reference section of `text` (from `pdfText`); `fail` makes the error for a PDF in another shape. */
 export function readTrailer(text: string, fail: (problem: string) => Error): PdfTrailer {
     const xrefOffset = Number(STARTXREF.exec(text.slice(-TAIL_BYTES))?.[1] ?? Number.NaN);
-    if (!(xrefOffset < text.length) || !text.startsWith("xref", xrefOffset)) throw fail("its startxref does not point at a cross-reference table");
+
+    if (!(xrefOffset < text.length) || !text.startsWith("xref", xrefOffset)) {
+        throw fail("its startxref does not point at a cross-reference table");
+    }
+
     const { offsets, end } = crossReference(text, xrefOffset + "xref".length, fail);
     const trailer = TRAILER.exec(text.slice(end))?.[1];
-    if (trailer === undefined) throw fail("it has no trailer after its cross-reference table");
+
+    if (trailer === undefined) {
+        throw fail("it has no trailer after its cross-reference table");
+    }
+
     const size = Number(SIZE.exec(trailer)?.[1] ?? Number.NaN);
     const root = ROOT_REF.exec(trailer)?.[0];
-    if (!Number.isInteger(size) || root === undefined) throw fail("its trailer has no /Size or /Root");
+
+    if (!Number.isInteger(size) || root === undefined) {
+        throw fail("its trailer has no /Size or /Root");
+    }
+
     const info = INFO_REF.exec(trailer);
+
     return { xrefOffset, offsets, size, root, info: info ? { number: Number(info[1]), generation: Number(info[2]) } : undefined, id: ID.exec(trailer)?.[0] ?? "" };
 }
 
@@ -64,14 +77,26 @@ export function readTrailer(text: string, fail: (problem: string) => Error): Pdf
 export function objectOffsets(text: string, fail: (problem: string) => Error): Map<number, number> {
     const offsets = new Map<number, number>();
     const visited = new Set<number>();
+
     for (let xrefOffset: number | undefined = readTrailer(text, fail).xrefOffset; xrefOffset !== undefined;) {
-        if (visited.has(xrefOffset) || !text.startsWith("xref", xrefOffset)) throw fail(`its /Prev ${xrefOffset} does not point at a new cross-reference table`);
+        if (visited.has(xrefOffset) || !text.startsWith("xref", xrefOffset)) {
+            throw fail(`its /Prev ${xrefOffset} does not point at a new cross-reference table`);
+        }
+
         visited.add(xrefOffset);
         const section = crossReference(text, xrefOffset + "xref".length, fail);
-        for (const [number, offset] of section.offsets) if (!offsets.has(number)) offsets.set(number, offset);
+
+        for (const [number, offset] of section.offsets) {
+            if (!offsets.has(number)) {
+                offsets.set(number, offset);
+            }
+        }
+
         const prev = PREV.exec(TRAILER.exec(text.slice(section.end))?.[1] ?? "");
+
         xrefOffset = prev ? Number(prev[1]) : undefined;
     }
+
     return offsets;
 }
 
@@ -80,17 +105,22 @@ export function appendObjects(pdf: Uint8Array, trailer: PdfTrailer, objects: rea
     let body = "";
     let xref = "";
     let size = trailer.size;
+
     for (const { number, generation, body: content } of [...objects].sort((a, b) => a.number - b.number)) {
         const offset = pdf.byteLength + body.length + 1;
+
         body += `\n${number} ${generation} obj\n${content}\nendobj\n`;
         xref += `${number} 1\n${String(offset).padStart(10, "0")} ${String(generation).padStart(5, "0")} n \n`;
         size = Math.max(size, number + 1);
     }
+
     const infoRef = info ? ` /Info ${info.number} ${info.generation} R` : "";
     const update = `${body}xref\n${xref}trailer\n<</Size ${size} ${trailer.root}${infoRef} /Prev ${trailer.xrefOffset}${trailer.id ? ` ${trailer.id}` : ""}>>\nstartxref\n${pdf.byteLength + body.length}\n%%EOF\n`;
     const out = new Uint8Array(pdf.byteLength + update.length);
+
     out.set(pdf);
     out.set(Buffer.from(update, "latin1"), pdf.byteLength);
+
     return out;
 }
 
@@ -98,17 +128,33 @@ export function appendObjects(pdf: Uint8Array, trailer: PdfTrailer, objects: rea
 function crossReference(text: string, start: number, fail: (problem: string) => Error): { offsets: Map<number, number>; end: number } {
     const offsets = new Map<number, number>();
     let position = start;
+
     for (;;) {
-        while (WHITESPACE.test(text.charAt(position))) position++;
+        while (WHITESPACE.test(text.charAt(position))) {
+            position++;
+        }
+
         const subsection = XREF_SUBSECTION.exec(text.slice(position, position + 32));
-        if (!subsection) return { offsets, end: position };
+
+        if (!subsection) {
+            return { offsets, end: position };
+        }
+
         position += subsection[0].length;
         const first = Number(subsection[1]);
         const count = Number(subsection[2]);
-        if (position + count * XREF_ENTRY_BYTES > text.length) throw fail("its cross-reference table is cut short");
+
+        if (position + count * XREF_ENTRY_BYTES > text.length) {
+            throw fail("its cross-reference table is cut short");
+        }
+
         for (let index = 0; index < count; index++) {
             const entry = text.slice(position, position + XREF_ENTRY_BYTES);
-            if (entry.charAt(17) === "n") offsets.set(first + index, Number(entry.slice(0, 10)));
+
+            if (entry.charAt(17) === "n") {
+                offsets.set(first + index, Number(entry.slice(0, 10)));
+            }
+
             position += XREF_ENTRY_BYTES;
         }
     }

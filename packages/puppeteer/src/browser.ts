@@ -17,37 +17,46 @@ interface SharedBrowser {
 // and closeBrowser() close its browser.
 const shared = new Map<string, SharedBrowser>();
 
-function launch(entry: SharedBrowser, options: PuppeteerLaunchOptions): Promise<Browser> {
-    const launching = puppeteer.launch({ ...options, args: options.args && [...options.args] });
-    const forget = () => {
-        if (entry.browser === launching) entry.browser = undefined;
-    };
-    launching.then(instance => instance.once("disconnected", forget), forget);
-    return launching;
-}
-
 /** Run `task` with the shared browser for `options`, launching it when needed. */
 export async function withBrowser<T>(task: (browser: Browser) => Promise<T>, options: PuppeteerLaunchOptions = DEFAULT_LAUNCH_OPTIONS): Promise<T> {
     const key = JSON.stringify(options);
     let entry = shared.get(key);
+
     if (!entry) {
         entry = { browser: undefined, active: 0, idleTimer: undefined };
         shared.set(key, entry);
     }
+
     const current = entry;
+
     clearTimeout(current.idleTimer);
     current.active++;
     try {
-        current.browser ??= launch(current, options);
+        if (current.browser === undefined) {
+            const launching = puppeteer.launch({ ...options, args: options.args && [...options.args] });
+            // A browser that fails to launch or later disconnects is launched again by the next task.
+            const forget = () => {
+                if (current.browser === launching) {
+                    current.browser = undefined;
+                }
+            };
+
+            launching.then(instance => instance.once("disconnected", forget), forget);
+            current.browser = launching;
+        }
+
         return await task(await current.browser);
     } finally {
-        if (--current.active === 0) current.idleTimer = setTimeout(() => void closeShared(current).catch(() => undefined), IDLE_CLOSE_MS);
+        if (--current.active === 0) {
+            current.idleTimer = setTimeout(() => void closeShared(current).catch(() => undefined), IDLE_CLOSE_MS);
+        }
     }
 }
 
 async function closeShared(entry: SharedBrowser): Promise<void> {
     clearTimeout(entry.idleTimer);
     const closing = entry.browser;
+
     entry.browser = undefined;
     await (await closing?.catch(() => undefined))?.close();
 }
