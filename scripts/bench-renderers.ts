@@ -1,21 +1,24 @@
-// Cold start and per-deck time for the text deck: Puppeteer default vs the WASM backend, both
-// through PuppeteerGen.toPdf(), which hands each the toHtml() document. `bun run bench:wasm` spawns
+// Cold start and per-deck time for the text deck on every renderer: the Puppeteer default, WASM and PDFKit,
+// each through PuppeteerGen.toPdf(), which hands it the toHtml() document. `bun run bench:renderers` spawns
 // fresh processes for cold numbers, then runs warm loops. Medians over BENCH_RUNS (default 20 warm, 7 cold).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { PdfkitRenderer } from "../packages/pdfkit/src/node";
 import type { WasmRenderer } from "../packages/wasm/src/node";
 import { benchRuns } from "./benchConfig";
 
-type Engine = "puppeteer" | "wasm";
-/** The renderer each engine hands PuppeteerGen: the Node entry's Puppeteer default, or a WASM renderer. */
-type Backend = { readonly kind: "puppeteer" } | { readonly kind: "wasm"; readonly renderer: WasmRenderer };
+const ENGINES = ["puppeteer", "wasm", "pdfkit"] as const;
+
+type Engine = (typeof ENGINES)[number];
+/** The renderer each engine hands PuppeteerGen: the Node entry's Puppeteer default, or a WASM or PDFKit renderer. */
+type Backend = { readonly kind: "puppeteer" } | { readonly kind: "wasm"; readonly renderer: WasmRenderer } | { readonly kind: "pdfkit"; readonly renderer: PdfkitRenderer };
 const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 
 async function deckPdf(backend: Backend): Promise<Uint8Array> {
     const [{ PuppeteerGen }, { PAGE_SIZES }, { populateTextDeck }] = await Promise.all([import("../packages/pptxgenjs/src/node"), import("../packages/pptxgenjs/src/pageLayouts"), import("../tests/visual/wasm/deck")]);
     const page = PAGE_SIZES.SCREEN_16X9.landscape;
 
-    return populateTextDeck(new PuppeteerGen(page, { renderer: backend.kind === "wasm" ? backend.renderer : undefined })).toPdf();
+    return populateTextDeck(new PuppeteerGen(page, { renderer: backend.kind === "puppeteer" ? undefined : backend.renderer })).toPdf();
 }
 
 async function setup(engine: Engine): Promise<Backend> {
@@ -23,9 +26,16 @@ async function setup(engine: Engine): Promise<Backend> {
         return { kind: "puppeteer" };
     }
 
-    const { createRenderer } = await import("../tests/visual/wasm/backend");
+    if (engine === "wasm") {
+        const { createRenderer } = await import("../tests/visual/wasm/backend");
 
-    return { kind: "wasm", renderer: await createRenderer() };
+        return { kind: "wasm", renderer: await createRenderer() };
+    }
+
+    // Like the WASM backend: system fonts once per process, unsupported objects reported, not thrown.
+    const { createPdfkitRenderer, loadSystemFonts } = await import("../packages/pdfkit/src/node");
+
+    return { kind: "pdfkit", renderer: await createPdfkitRenderer({ fonts: await loadSystemFonts({ dirs: process.env.FONT_DIRS?.split(":") }), onUnsupported: "warn" }) };
 }
 
 if (process.argv[2] === "cold") {
@@ -42,11 +52,11 @@ if (process.argv[2] === "cold") {
     process.exit(0);
 }
 
-const warmRuns = benchRuns("wasmWarm");
+const warmRuns = benchRuns("rendererWarm");
 const coldRuns = Number(process.env.BENCH_COLD_RUNS ?? 7);
 const results: Record<string, unknown> = {};
 
-for (const engine of ["puppeteer", "wasm"] as const) {
+for (const engine of ENGINES) {
     const setups: number[] = [];
     const firsts: number[] = [];
     const walls: number[] = [];
