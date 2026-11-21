@@ -72,7 +72,8 @@ root=$PWD
 # +202 B: a fontMetrics underline band in place of the post band (#391: the em offset and thickness reader, its error and the band per run), 1,060,136 -> 1,060,338 B measured; budget = that size.
 # +1,894 B: malformed or hostile HTML no longer aborts the instance or burns seconds (GHSA-fmx3-qwqc-h37c: the negative size and stroke width checks, the SVG number range and path data scan, the placed-path check and its warning, the effect sample budget), 1,060,338 -> 1,062,232 B measured; budget = that size.
 # +195 B: glyph runs, clip paths, SVG opacity layers and images krilla cannot place are skipped and reported, not unwrapped (GHSA-fmx3-qwqc-h37c: the box checks and the skipped SVG group), 1,062,232 -> 1,062,427 B measured; budget = that size.
-GZIP_BUDGET=1062427
+# +210 B: a font whose head.unitsPerEm OpenType forbids is not registered (GHSA-fmx3-qwqc-h37c, found by fuzzing add_font: the head table read per face and the range check), 1,062,427 -> 1,062,637 B measured; budget = that size.
+GZIP_BUDGET=1062637
 
 locked=$(sed -n '/^name = "wasm-bindgen"$/{n;s/^version = "\(.*\)"$/\1/p;}' crates/Cargo.lock)
 if [ "$locked" != "$WASM_BINDGEN_VERSION" ]; then

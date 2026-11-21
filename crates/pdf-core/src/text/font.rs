@@ -2,6 +2,9 @@
 
 use std::collections::BTreeSet;
 
+use skrifa::raw::FileRef;
+use skrifa::raw::TableProvider;
+
 use crate::Renderer;
 use crate::model::{ObjectStyle, Presentation, SlideObject, TextBox};
 
@@ -10,6 +13,19 @@ use crate::model::{ObjectStyle, Presentation, SlideObject, TextBox};
 /// keeps a Latin face on systems without DejaVu Sans (or Carlito/Caladea) instead of falling to the
 /// CJK face, and only then Noto Sans CJK JP for Han/Kana/Hangul.
 const FALLBACK_FAMILIES: [&str; 3] = ["DejaVu Sans", "Liberation Sans", "Noto Sans CJK JP"];
+
+/// The units per em OpenType allows in `head` (16 to 16384).
+const UNITS_PER_EM: std::ops::RangeInclusive<u16> = 16..=16384;
+
+/// Whether every face in the font file `data` has a `head` table whose units per em OpenType allows.
+/// A damaged file with 0 units per em gives infinite glyph advances, and krilla unwraps the box of
+/// such a run, a panic that aborts the wasm instance (GHSA-fmx3-qwqc-h37c, found by fuzzing add_font).
+pub(crate) fn usable_font_file(data: &[u8]) -> bool {
+    FileRef::new(data).is_ok_and(|file| {
+        file.fonts()
+            .all(|font| font.is_ok_and(|font| font.head().is_ok_and(|head| UNITS_PER_EM.contains(&head.units_per_em()))))
+    })
+}
 
 /// The metric-compatible face the docker image's fontconfig (30-metric-aliases.conf) would pick for
 /// `face`, or `face` itself.
