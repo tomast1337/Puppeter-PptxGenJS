@@ -43,23 +43,13 @@ const HAND_DRAWN_GEOMETRY = {
 
 type HandDrawnName = keyof typeof HAND_DRAWN_GEOMETRY;
 
-function isHandDrawn(name: string): name is HandDrawnName {
-    return Object.hasOwn(HAND_DRAWN_GEOMETRY, name);
-}
-
 /** Every preset PdfLapas draws, by name. */
 export const CORE_SVG_SHAPES: readonly string[] = Object.freeze([...Object.keys(HAND_DRAWN_GEOMETRY), ...GENERATED_PRESET_NAMES]);
 
-function shapeTextInsets(shapeName: CustomShapeName, options: PptxGenJS.ShapeProps, width: number, height: number): NormalizedShape["textInsets"] {
-    // The roundRect corner is the only adjustment PdfLapas reads (rectRadius in inches, as the `adj` PptxGenJS writes).
-    const corner: Record<string, number> = shapeName === "roundRect" && options.rectRadius ? { adj: (inchesToPixels(options.rectRadius) * OOXML_PERCENT) / Math.min(width, height) } : {};
-
-    return presetTextInsets(shapeName, width, height, corner);
-}
-
 export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.ShapeProps, width: number, height: number, pageSize: PageSize): NormalizedShape {
     // The name comes from the caller: check it, so an Object.prototype name never reaches a lookup.
-    const geometry: ShapeGeometry | undefined = isGeneratedPreset(shapeName) ? (w, h) => generatedPresetGeometry(shapeName, w, h) : isHandDrawn(shapeName) ? HAND_DRAWN_GEOMETRY[shapeName] : undefined;
+    // `as`: Object.hasOwn has just found the name among HAND_DRAWN_GEOMETRY's own keys.
+    const geometry: ShapeGeometry | undefined = isGeneratedPreset(shapeName) ? (w, h) => generatedPresetGeometry(shapeName, w, h) : Object.hasOwn(HAND_DRAWN_GEOMETRY, shapeName) ? HAND_DRAWN_GEOMETRY[shapeName as HandDrawnName] : undefined;
 
     if (!geometry) {
         throw new Error(`Unsupported shape geometry: ${shapeName}`);
@@ -71,7 +61,11 @@ export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.Sh
 
     const link = normalizeHyperlink(options.hyperlink);
 
-    return { name: shapeName, width: px(width), height: px(height), geometry: geometry(width, height, options, pageSize), textInsets: shapeTextInsets(shapeName, options, width, height), link };
+    const drawn = geometry(width, height, options, pageSize);
+    // The roundRect corner is the only adjustment PdfLapas reads (rectRadius in inches, as the `adj` PptxGenJS writes).
+    const corner: Record<string, number> = shapeName === "roundRect" && options.rectRadius ? { adj: (inchesToPixels(options.rectRadius) * OOXML_PERCENT) / Math.min(width, height) } : {};
+
+    return { name: shapeName, width: px(width), height: px(height), geometry: drawn, textInsets: presetTextInsets(shapeName, width, height, corner), link };
 }
 
 export function normalizeShapeTextBox(text: NormalizedTextBox, shape: NormalizedShape): NormalizedTextBox {
