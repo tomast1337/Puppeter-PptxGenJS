@@ -10,7 +10,7 @@ const SIZE_PT = 10;
 /** The size of a split case's second run. */
 const SPLIT_SIZE_PT = 14;
 
-export interface EastAsianBreakCase {
+export type EastAsianBreakCase = {
     readonly label: string;
     /** The runs' `lang`; undefined leaves PptxGenJS's default (en-US). */
     readonly lang: string | undefined;
@@ -23,7 +23,7 @@ export interface EastAsianBreakCase {
     readonly widthEm: number;
     /** PowerPoint's lines, each as its number of characters other than spaces. */
     readonly lines: readonly number[];
-}
+};
 
 // The first deck: zh-CN text ("|" the boundary), zh-TW text, the three box widths (em), and PowerPoint's line
 // lengths in each box; both languages break alike.

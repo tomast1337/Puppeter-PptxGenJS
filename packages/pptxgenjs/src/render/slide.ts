@@ -23,12 +23,12 @@ export function objectIdScope(slideIndex: number, objectIndex: number): string {
 export type ComponentLookup = Pick<ComponentRegistry, "get">;
 
 /** What writing the model needs besides the model: its rendered components and its resolved images. */
-export interface RenderPass {
+export type RenderPass = {
     /** Each `component` object of the model, rendered (`renderComponents`). */
     components: ReadonlyMap<NormalizedSlideObject, RenderedComponent>;
     /** Data URIs of path and URL image sources; without one an image keeps `data-source-path` or `data-source-url`. */
     images?: ReadonlyMap<string, DataUri>;
-}
+};
 
 /** Default document factory for browser runtimes; the Node entry injects jsdom instead. */
 export function createBrowserDocument(): Document {

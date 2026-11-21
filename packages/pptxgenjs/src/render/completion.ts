@@ -24,10 +24,10 @@ type Element = DefaultTreeAdapterTypes.Element;
 type Pairs = readonly (readonly [name: string, value: string])[];
 
 /** What an element may leave out, with the value PptxGenJS would give it. */
-interface Defaults {
+type Defaults = {
     readonly css: Pairs;
     readonly attributes: Pairs;
-}
+};
 
 const px = (value: number) => `${value}px`;
 const padding = (margin: readonly number[]) => margin.map(inches => px(inchesToPixels(inches))).join(" ");

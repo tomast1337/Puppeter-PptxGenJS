@@ -1,5 +1,5 @@
 // ESLint enforces the AGENTS.md rules bun fmt cannot: "Structured flow", "Errors are values inside" and
-// "Layout the formatter does not do". bun fmt owns every other layout question, so no formatting rule is
+// "Layout the formatter does not do", plus type aliases over interfaces. bun fmt owns every other layout question, so no formatting rule is
 // enabled here. No rule needs type information, so the plain parser keeps `bun run lint` fast.
 import stylistic from "@stylistic/eslint-plugin";
 import type { ESLint, Linter, Rule } from "eslint";
@@ -57,6 +57,8 @@ const RULES: Linter.RulesRecord = {
     "pdflapas/no-reduce": "error",
     "pdflapas/no-array-chain": "error",
     "pdflapas/no-nullable-return": "error",
+    // Object shapes are type aliases; an interface only for a contract a class implements (AGENTS.md).
+    "@typescript-eslint/consistent-type-definitions": ["error", "type"],
 };
 
 export default [
@@ -75,7 +77,7 @@ export default [
         files: SOURCES,
         languageOptions: { parser: tseslint.parser },
         linterOptions: { reportUnusedDisableDirectives: "error" },
-        plugins: { "@stylistic": stylistic, pdflapas },
+        plugins: { "@stylistic": stylistic, "@typescript-eslint": tseslint.plugin, pdflapas },
         rules: RULES,
     },
 ] satisfies Linter.Config[];

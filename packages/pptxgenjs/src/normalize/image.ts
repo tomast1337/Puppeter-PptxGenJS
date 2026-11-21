@@ -75,7 +75,7 @@ export const IMAGE_SOURCE_LIMITS = Object.freeze({
  * what PptxGenJS accepts, any readable image path and any http(s) URL, within IMAGE_SOURCE_LIMITS. A server that
  * renders decks built from user input narrows them (docs/USAGE.md, "Running PdfLapas on a server").
  */
-export interface ImageSourceOptions {
+export type ImageSourceOptions = {
     /** Abort a fetch (headers and body) after this many milliseconds. Default IMAGE_SOURCE_LIMITS.timeoutMs. */
     timeoutMs?: number;
     /** Reject a remote body or file larger than this many bytes. Default IMAGE_SOURCE_LIMITS.maxBytes. */
@@ -90,7 +90,7 @@ export interface ImageSourceOptions {
     allowedHosts?: readonly string[];
     /** Follow at most this many redirects per image. Default IMAGE_SOURCE_LIMITS.maxRedirects; 0 follows none. */
     maxRedirects?: number;
-}
+};
 
 const IMAGE_SOURCE_KEYS: ReadonlySet<string> = new Set(["timeoutMs", "maxBytes", "baseDir", "allowRemote", "allowLocalPaths", "allowedHosts", "maxRedirects"]);
 

@@ -34,14 +34,14 @@ const CHANNEL_MAX = 255;
 const SHADOW = /^(\S+)\s+(\S+)\s+(\S+)\s+(.+)$/;
 
 /** A blurred silhouette: its colour, how far it grows and blurs, its offset (px), and whether it is an inner shadow. */
-export interface Effect {
+export type Effect = {
     readonly color: Color;
     readonly spread: number;
     readonly sigma: number;
     readonly dx: number;
     readonly dy: number;
     readonly inner: boolean;
-}
+};
 
 /** `<x>px <y>px <blur>px <color>`, the CSS shadow form the profile writes; invalid for anything else. */
 function readShadow(value: string): { kind: "shadow"; x: number; y: number; blur: number; color: Color } | { kind: "invalid" } {
@@ -97,7 +97,7 @@ export function sameEffect(a: Effect, b: Effect): boolean {
 }
 
 /** The silhouette of what is drawn while a capture is active, in the user space it began in (px). */
-interface Capture {
+type Capture = {
     /** Glow captures take only the glyph runs with this glow; shadow captures (undefined) take everything. */
     readonly glow: Effect | undefined;
     /** From device space back to the capture's user space. */
@@ -105,10 +105,10 @@ interface Capture {
     readonly lines: Line[];
     /** Each drawn outline: its lines and its opacity. */
     readonly shapes: { start: number; end: number; alpha: number }[];
-}
+};
 
 /** An effect ready to draw: its mask (one alpha byte per sample), size in samples, and box in user space (px). */
-interface EffectImage {
+type EffectImage = {
     readonly alpha: Uint8Array;
     readonly w: number;
     readonly h: number;
@@ -116,7 +116,7 @@ interface EffectImage {
     readonly y: number;
     readonly width: number;
     readonly height: number;
-}
+};
 
 /** The captures in progress (innermost last) for one document. */
 export class Effects {

@@ -2,10 +2,10 @@ import type { FontMetricsLookup } from "#src/defaults";
 import { RENDERING_TARGETS, type RenderingTarget } from "#src/target/index";
 
 /** A stretch of a run's text and the faces a character its face lacks is drawn in, first to last. */
-export interface FallbackSegment {
+export type FallbackSegment = {
     readonly text: string;
     readonly fallbackFaces: readonly string[];
-}
+};
 
 // Han, kana, bopomofo and Hangul, the CJK symbols, punctuation and compatibility blocks, and the full- and half-width
 // forms: what PowerPoint draws from the East Asian faces it links to the run's face (eastAsianFallback).

@@ -18,13 +18,13 @@ export function features(kerning: boolean, letterSpacing: number): Features {
     return kerning ? KERNED : UNKERNED;
 }
 
-export interface Shaper {
+export type Shaper = {
     chain(request: FaceRequest): FaceChain;
     /** The advance of `text` in `face` at `size` px, letter spacing after every character included. */
     width(face: Face, text: string, size: number, features: Features, letterSpacing: number): number;
     /** The kerning between `first` and `second` in `face` at `size` px: what shaping them together moves the second. */
     kern(face: Face, first: string, second: string, size: number, features: Features): number;
-}
+};
 
 export function createShaper(faces: readonly Face[]): Shaper {
     const chains = new Map<string, FaceChain>();

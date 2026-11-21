@@ -6,11 +6,11 @@ import type { GlyphAdvances } from "#src/defaults";
  * A run's letter-spacing in px: `space` on its spaces and tabs, `words[i]` on its i-th word (`runPieces`), and, when
  * one of them is kerned or ends off the grid, `spaces[i]` on its i-th stretch of spaces between words (tabs left out).
  */
-export interface WordSpacing {
+export type WordSpacing = {
     readonly space: number;
     readonly words: readonly number[];
     readonly spaces?: readonly number[];
-}
+};
 
 /**
  * Where a paragraph's runs have ended so far, px: `rounded` is PowerPoint's width of them, `laidOut` the profile's, on
@@ -18,11 +18,11 @@ export interface WordSpacing {
  * to its own end, so the rounding carries across run boundaries instead of starting again at each. `word` is the
  * letter-spacing of a word that goes on into the next run, which its first piece takes; the sums already end with it.
  */
-export interface GridCursor {
+export type GridCursor = {
     rounded: number;
     laidOut: number;
     word?: number | undefined;
-}
+};
 
 /** Whether `piece` (`runPieces`) is a stretch of spaces, which `WordSpacing.spaces` spaces: no word, no tab. */
 export function isSpaces(piece: string): boolean {

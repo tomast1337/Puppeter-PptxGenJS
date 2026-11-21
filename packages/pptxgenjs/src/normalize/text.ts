@@ -25,7 +25,7 @@ const BEFORE_OPENING_BRACKET = /(?<=[)\]}%])(?=[([{])/gu;
 /** U+2011 NON-BREAKING HYPHEN (RENDERING_TARGETS.nonBreakingHyphen). */
 const NON_BREAKING_HYPHEN = "‑";
 
-interface TextPiece {
+type TextPiece = {
     text: string;
     /** The run's options record, shared and mutated as in PptxGenJS (normalizeText). */
     options: PptxGenJS.TextPropsOptions;
@@ -33,10 +33,10 @@ interface TextPiece {
     noRun?: boolean;
     /** The empty text after a run's last line feed: a paragraph of its own only when nothing else falls into it (normalizeText). */
     tail?: boolean;
-}
+};
 
 /** One paragraph of the model: an `<a:p>`'s pieces up to a line feed kept inside `<a:t>`, or to the `<a:p>`'s end. */
-interface PieceGroup {
+type PieceGroup = {
     pieces: TextPiece[];
     /** The options of the `<a:p>`'s first run, whose `<a:pPr>` PowerPoint reads for each of its paragraphs. */
     paragraph: PptxGenJS.TextPropsOptions | undefined;
@@ -44,7 +44,7 @@ interface PieceGroup {
     endsParagraph: boolean;
     /** The size PptxGenJS writes on the `<a:p>`'s `<a:endParaRPr>`, in points (normalizeText); unset is no `sz`. */
     markFontSize: number | undefined;
-}
+};
 
 // --- UTILITIES ---
 
@@ -289,12 +289,12 @@ function generateAlpha(value: number, upper: boolean): string {
 }
 
 /** A numbered list open at one indent level, and the index the next numbered paragraph in it takes. */
-interface NumberSequence {
+type NumberSequence = {
     readonly level: number;
     readonly numberType: string | undefined;
     readonly start: number;
     readonly next: number;
-}
+};
 
 /**
  * The index of a numbered paragraph in the list open at its level; each level keeps its own (`lists`). PowerPoint
@@ -400,7 +400,7 @@ function spacingPoints(points: number, target: RenderingTarget): number {
 }
 
 /** How PptxGenJS 4.0.1 writes a box's runs, beyond the options PdfLapas draws the box with. */
-export interface RunWriting {
+export type RunWriting = {
     /**
      * The box's options as PptxGenJS holds them when it writes them onto the runs (STEP 6), without the face or color
      * PdfLapas fills in to draw them; the drawn options when unset.
@@ -410,13 +410,13 @@ export interface RunWriting {
     readonly shared?: SharedRunOptions;
     /** A table cell's text, which no addTextDefinition cleans. */
     readonly cell?: boolean;
-}
+};
 
 /** A run options record of one box: the options it started from and the copy this box's writes go to. */
-interface RunRecord {
+type RunRecord = {
     readonly start: PptxGenJS.TextPropsOptions;
     readonly state: PptxGenJS.TextPropsOptions;
-}
+};
 
 /** Box options PptxGenJS 4.0.1 copies onto runs (STEP 6 C) that no run draws. */
 const UNWRITTEN_RUN_OPTIONS: ReadonlySet<string> = new Set([

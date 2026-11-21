@@ -451,11 +451,11 @@ function nonBreakingHyphenEdits(run: Element, source: string): SourceEdit[] {
 type Sides = Record<"top" | "right" | "bottom" | "left", number>;
 
 /** A `<td>` at its place in the table grid, with the snapped width of each border it writes. */
-interface GridCell {
+type GridCell = {
     element: Element;
     row: number;
     column: number;
     rows: number;
     columns: number;
     borders: Sides;
-}
+};

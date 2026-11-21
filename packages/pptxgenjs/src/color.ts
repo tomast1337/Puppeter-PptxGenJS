@@ -3,10 +3,10 @@ import type { CssColor } from "@pdflapas/model";
 /**
  * Converts PptxGenJS color format to CSS color
  */
-export interface ColorProps {
+export type ColorProps = {
     color?: string;
     transparency?: number;
-}
+};
 
 // PptxGenJS 4.0.1 (createColorElement) strips one leading "#" and accepts only 6-digit hex RGB.
 export const HEX_COLOR = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i;

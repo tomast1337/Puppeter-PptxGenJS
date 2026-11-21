@@ -46,7 +46,7 @@ function pptxEnum<Enum>(table: object): Enum {
 }
 
 /** Runtime adapters. The Node entry supplies jsdom, filesystem image paths and Puppeteer by default. */
-export interface PuppeteerGenOptions {
+export type PuppeteerGenOptions = {
     /** Turns the toHtml() document into PDF bytes for toPdf() and writeFile(); every renderer reads the HTML (#69). */
     renderer?: PresentationRenderer;
     /**
@@ -100,7 +100,7 @@ export interface PuppeteerGenOptions {
      * the same bytes. Dates are written in UTC to the second; one date alone is used for both.
      */
     pdfMetadata?: PdfMetadataOptions;
-}
+};
 
 // PptxGenJS 4.0.1 declares `PlaceholderType` but its instance has no such member (it reads undefined), so neither has this one.
 export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {

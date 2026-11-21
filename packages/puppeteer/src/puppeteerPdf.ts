@@ -8,7 +8,7 @@ import { restrictedFonts } from "./fontEmbedding";
 import { type3FontNames, withType1CFonts } from "./type3Fonts";
 
 /** Options for `PuppeteerPdfRenderer`. */
-export interface PuppeteerPdfRendererOptions {
+export type PuppeteerPdfRendererOptions = {
     /** Merged over `DEFAULT_LAUNCH_OPTIONS` (shallowly: `args` given here replaces the default args). */
     readonly launchOptions?: PuppeteerLaunchOptions;
     /**
@@ -18,7 +18,7 @@ export interface PuppeteerPdfRendererOptions {
     readonly onMissingFont?: MissingFontPolicy;
     /** Decoded-pixel limits on the deck's raster images, checked from their headers before printing. Default IMAGE_PIXEL_LIMITS. */
     readonly imageLimits?: ImagePixelLimits;
-}
+};
 
 export class PuppeteerPdfRenderer implements PresentationRenderer {
     private readonly launchOptions: PuppeteerLaunchOptions;

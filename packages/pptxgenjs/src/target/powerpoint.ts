@@ -242,11 +242,11 @@ export const POWERPOINT: RenderingTargetProfile = Object.freeze({
 export type PowerPointFaceRole = "theme default" | "symbol fallback" | "East Asian fallback" | "emoji";
 
 /** A face the PowerPoint target draws with, and what goes wrong on a machine without it. */
-export interface PowerPointFace {
+export type PowerPointFace = {
     readonly name: string;
     readonly role: PowerPointFaceRole;
     readonly withoutIt: string;
-}
+};
 
 // What a missing face costs, by role: fontconfig substitutes another face without a warning.
 const WITHOUT_IT: Readonly<Record<PowerPointFaceRole, string>> = Object.freeze({

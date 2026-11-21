@@ -3,16 +3,16 @@ import type { NormalizedChart } from "@pdflapas/model";
 import { pointsToPixels } from "@pdflapas/model";
 import { type Attribute, element, escapeText, type Html } from "./markup";
 
-interface Point {
+type Point = {
     x: number;
     y: number;
-}
-interface Bar {
+};
+type Bar = {
     category: number;
     series: number;
     base: number;
     value: number;
-}
+};
 
 const n = (value: number): string => Number(value.toFixed(2)).toString();
 const p = (point: Point): string => `${n(point.x)},${n(point.y)}`;
@@ -25,10 +25,10 @@ function shade(hex: string, amount: number): string {
     return `#${adjusted.map(channel => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-interface CameraPoint extends Point {
+type CameraPoint = {
     /** Distance along the view direction from the box center; larger is farther. */
     distance: number;
-}
+} & Point;
 
 const DEGREE = Math.PI / 180;
 

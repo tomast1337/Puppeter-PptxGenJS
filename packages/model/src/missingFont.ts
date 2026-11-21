@@ -1,12 +1,12 @@
 /** A font face the deck asks for that the renderer could not use: its text was drawn in another face, so it can wrap differently. */
-export interface MissingFont {
+export type MissingFont = {
     /** The face as the deck names it (`fontFace`). */
     readonly face: string;
     /** The objects asking for it, as `slide <n> '<object name>'` (`#<index>` for an unnamed one), sorted. */
     readonly objects: readonly string[];
     /** The face the text was drawn in instead, when the renderer knows it. */
     readonly usedFace?: string;
-}
+};
 
 /**
  * What a renderer does when the deck asks for a font face it cannot use: `"warn"` writes the list with `console.warn`,

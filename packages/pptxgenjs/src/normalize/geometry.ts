@@ -3,19 +3,19 @@ import type { PageSize } from "#src/pageLayouts";
 import { inchesToPixels } from "@pdflapas/model";
 import { convertToPixels } from "#src/units";
 
-export interface PositionOptions {
+export type PositionOptions = {
     x?: Coord;
     y?: Coord;
     w?: Coord;
     h?: Coord;
-}
+};
 
-export interface TransformOptions {
+export type TransformOptions = {
     rotate?: number;
     flipH?: boolean;
     flipV?: boolean;
     transparency?: number;
-}
+};
 
 export function normalizeGeometry(options: PositionOptions, defaults: PositionOptions, pageSize: PageSize): NormalizedGeometry {
     const width = inchesToPixels(pageSize.width);

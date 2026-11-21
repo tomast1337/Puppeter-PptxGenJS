@@ -5,7 +5,7 @@ import { attribute, children, type Element, hasClass, isElement, textContent } f
 import { type Effect, glowEffect } from "#src/effect/index";
 import type { FaceRequest } from "#src/fonts";
 
-export interface Decoration {
+export type Decoration = {
     readonly style: "solid" | "double" | "dashed" | "dotted" | "wavy";
     readonly color: Color;
     /** `text-decoration-thickness: from-font` on an underline: PowerPoint's shapes, on the line's averaged band (draw.ts). */
@@ -17,9 +17,9 @@ export interface Decoration {
     readonly band?: { readonly position: number; readonly thickness: number };
     /** `data-underline-heavy` on a from-font underline: PowerPoint's heavy band. */
     readonly heavy?: boolean;
-}
+};
 
-export interface Run {
+export type Run = {
     /** The run's text; U+200B (an empty run) and U+2060 (no break) take part in breaking only. */
     readonly text: string;
     readonly face: FaceRequest;
@@ -38,31 +38,31 @@ export interface Run {
     readonly synthesis: Synthesis;
     /** The run's glow: its `text-shadow` entry that `data-text-shadow` names `glow`. */
     readonly glow?: Effect;
-}
+};
 
 /** How a run is drawn when its face has no bold or italic style (`data-synthetic-bold`, `data-synthetic-italic`). */
-export interface Synthesis {
+export type Synthesis = {
     /** The stroke drawn around the filled glyphs, as a fraction of the font size. */
     readonly boldStroke: number;
     /** The shear to the right per unit of height above the baseline. */
     readonly italicShear: number;
-}
+};
 
-export interface Bullet {
+export type Bullet = {
     readonly text: string;
     readonly face: FaceRequest;
     readonly size: number;
     readonly color: Color;
-}
+};
 
 export type Align = "left" | "center" | "right" | "justify";
 
-export interface TabStop {
+export type TabStop = {
     readonly position: number;
     readonly alignment: "left" | "right" | "center" | "decimal";
-}
+};
 
-export interface Paragraph {
+export type Paragraph = {
     readonly runs: readonly Run[];
     readonly align: Align;
     /** `direction: rtl`: each line's words run right to left. */
@@ -81,17 +81,17 @@ export interface Paragraph {
     /** `text-indent`: the first line, and its bullet, start this far from `indent`. */
     readonly textIndent: number;
     readonly bullet?: Bullet;
-}
+};
 
 export type Fit = { readonly kind: "none" | "resize" } | { readonly kind: "shrink"; readonly step: number; readonly maxSteps: number; readonly tolerance: number };
 
-export interface TextBox {
+export type TextBox = {
     readonly paragraphs: readonly Paragraph[];
     readonly padding: readonly [number, number, number, number];
     readonly anchor: "flex-start" | "center" | "flex-end";
     readonly wrap: boolean;
     readonly fit: Fit;
-}
+};
 
 export type Report = (what: string) => void;
 

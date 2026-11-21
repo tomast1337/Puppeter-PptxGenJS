@@ -3,12 +3,12 @@
 // data could otherwise block the event loop for seconds.
 
 /** Limits on the HTML markup form of `tableToSlides()` (`htmlLimits` in its options). */
-export interface TableHtmlLimits {
+export type TableHtmlLimits = {
     /** The longest markup accepted, in UTF-16 code units. Default TABLE_HTML_LIMITS.maxLength. */
     readonly maxLength?: number;
     /** The deepest element nesting accepted. Default TABLE_HTML_LIMITS.maxDepth. */
     readonly maxDepth?: number;
-}
+};
 
 export const TABLE_HTML_LIMITS = Object.freeze({
     /** 1 MiB of markup: tens of thousands of cells, which take tens of seconds to read. */

@@ -8,7 +8,7 @@ import type { Report } from "./text/read";
 import type { Features, Shaper } from "./text/shaper";
 
 /** What drawing one slide object needs; `report` and `missingFace` name that object. */
-export interface Paint {
+export type Paint = {
     readonly doc: PDFKit.PDFDocument;
     readonly shaper: Shaper;
     readonly report: Report;
@@ -20,7 +20,7 @@ export interface Paint {
     readonly registered: Set<string>;
     /** The document's shadow and glow captures: what is drawn adds to their silhouettes. */
     readonly effects: Effects;
-}
+};
 
 /** Adds the area the path `trace` builds (filled with `alpha`, drawn now) to the silhouettes being captured. */
 export function captureFill(paint: Paint, alpha: number, trace: (pen: PDFKit.PDFDocument) => void): void {
@@ -99,12 +99,12 @@ export function useFace(paint: Paint, face: Face, size: number): void {
     paint.doc.font(face.key).fontSize(size);
 }
 
-export interface GlyphOptions {
+export type GlyphOptions = {
     readonly features: Features;
     readonly letterSpacing: number;
     readonly fill: boolean;
     readonly stroke: boolean;
-}
+};
 
 /** Draws `text` with its baseline at `y`, unwrapped, in the current face, fill and stroke. */
 export function glyphs(paint: Paint, text: string, x: number, y: number, { features, letterSpacing, fill, stroke }: GlyphOptions): void {

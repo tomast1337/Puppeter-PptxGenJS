@@ -5,7 +5,7 @@
  */
 
 /** The newest cross-reference section and its trailer. */
-export interface PdfTrailer {
+export type PdfTrailer = {
     /** Byte offset of the section, the next update's /Prev. */
     readonly xrefOffset: number;
     /** In-use object offsets of the section. */
@@ -16,17 +16,17 @@ export interface PdfTrailer {
     readonly info: PdfReference | undefined;
     /** The `/ID [...]` entry as written, or "". */
     readonly id: string;
-}
+};
 
-export interface PdfReference {
+export type PdfReference = {
     readonly number: number;
     readonly generation: number;
-}
+};
 
 /** An object written by an update: `body` is what goes between `obj` and `endobj`, one character per byte. */
-export interface PdfObject extends PdfReference {
+export type PdfObject = {
     readonly body: string;
-}
+} & PdfReference;
 
 const STARTXREF = /startxref\s+(\d+)\s+%%EOF\s*$/;
 const XREF_SUBSECTION = /^(\d+) (\d+)\r?\n/;

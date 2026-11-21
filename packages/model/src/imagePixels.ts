@@ -11,10 +11,10 @@ export const IMAGE_PIXEL_LIMITS = Object.freeze({
 });
 
 /** Overrides of `IMAGE_PIXEL_LIMITS` (the Puppeteer and PDFKit renderers' `imageLimits` option). */
-export interface ImagePixelLimits {
+export type ImagePixelLimits = {
     readonly maxImagePixels?: number;
     readonly maxDeckImagePixels?: number;
-}
+};
 
 /** A header field: its value, or `short` when the bytes end before it does. */
 type HeaderField = { kind: "value"; value: number } | { kind: "short" };

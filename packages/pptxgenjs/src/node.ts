@@ -258,10 +258,10 @@ export function resolveInstalledGlyphAdvances(fontFace: string, bold: boolean, i
 }
 
 /** Which faces checkPowerPointFonts() found installed, as named in POWERPOINT_FACES or `faces`. */
-export interface PowerPointFontCheck {
+export type PowerPointFontCheck = {
     readonly present: readonly string[];
     readonly missing: readonly string[];
-}
+};
 
 /**
  * Which of the faces the PowerPoint target needs (POWERPOINT_FACES), then of the deck's own `faces`, fontconfig has

@@ -8,7 +8,7 @@ export { POWERPOINT_FACES, type PowerPointFace, type PowerPointFaceRole } from "
  * Each quirk is a flag here; normalization reads the flags and never a target's name. Each target's values, and the
  * measurements behind them, live in its own file beside this one.
  */
-export interface RenderingTargetProfile {
+export type RenderingTargetProfile = {
     /** Whether it honours `<a:rPr kern>` (PPTX_DEFAULTS.text.kernMinSizePt) or kerns every run. */
     readonly readsKern: boolean;
     /** What a row sized to its content (`<a:tr h="0">`) adds to its tallest cell's text and margins. */
@@ -144,7 +144,7 @@ export interface RenderingTargetProfile {
      * renderer's own underline.
      */
     readonly underlineFromFont: boolean;
-}
+};
 
 /** Every rendering target by the name the `target` option takes. A new target is one file here and one entry below. */
 export const RENDERING_TARGETS = Object.freeze({

@@ -42,7 +42,7 @@ const AREA_TOLERANCE = 1;
 const RGB_CHANNELS = 3;
 
 /** SVG's inherited properties, as an element's parent resolves them (SVG's initial values at the root). */
-interface Inherited {
+type Inherited = {
     readonly fill: Color | undefined;
     readonly fillOpacity: number;
     readonly evenOdd: boolean;
@@ -53,15 +53,15 @@ interface Inherited {
     readonly join: "miter" | "round" | "bevel";
     readonly miterLimit: number;
     readonly dashes: readonly number[];
-}
+};
 
 const INITIAL: Inherited = { fill: { rgb: [0, 0, 0], alpha: 1 }, fillOpacity: 1, evenOdd: false, stroke: undefined, strokeWidth: 1, strokeOpacity: 1, cap: "butt", join: "miter", miterLimit: SVG_MITER_LIMIT, dashes: [] };
 
 /** PDFKit's colour-name table (the CSS names), which its documents expose; pdfkit is pinned to an exact version. */
-interface NamedColors {
+type NamedColors = {
     // eslint-disable-next-line pdflapas/no-nullable-return -- PDFKit's own signature, not one of ours
     _normalizeColor(value: string): number[] | null;
-}
+};
 
 /** An SVG number (`fallback` when absent), or a value that is not one. */
 type SvgNumber = { readonly kind: "number"; readonly value: number } | { readonly kind: "invalid" };
@@ -117,10 +117,10 @@ function stretch(view: number[], box: Frame, report: (what: string) => void): Ma
 }
 
 /** The SVG reader for one picture: the document to draw on and where its problems are reported. */
-interface Reader {
+type Reader = {
     readonly paint: Paint;
     readonly report: (what: string) => void;
-}
+};
 
 /** A `fill` or `stroke` value: a colour, `none`, or one the renderer does not read (reported). */
 type PaintColor = { readonly kind: "color"; readonly color: Color } | { readonly kind: "none" } | { readonly kind: "invalid" };

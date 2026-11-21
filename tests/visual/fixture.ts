@@ -288,14 +288,14 @@ const VERTICAL_LINE_CASE = { page: 60, name: "line-zero-width", x: 9.5, y: 1.5, 
 // group. Each case is a text box with a short text and a crop (padded for strokes and arrowheads), on whole
 // pixels at 96 dpi so the crop scores the option rather than where each rasterizer snaps a fractional edge; its
 // label sits above the crop.
-interface TextOptionCase {
+type TextOptionCase = {
     name: string;
     label: string;
     text: string | PptxGenJS.TextProps[];
     options: PptxGenJS.TextPropsOptions & { x: number; y: number; w: number; h?: number };
     /** Crop padding around the box in inches (default 0.15); the label sits 0.3in above the crop. */
     pad?: number;
-}
+};
 const BULLET_RUNS: PptxGenJS.TextProps[] = [
     { text: " ", options: { bullet: { code: "2022" } } },
     { text: "Item", options: { bullet: true, breakLine: true } },

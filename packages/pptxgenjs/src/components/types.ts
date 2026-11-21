@@ -5,26 +5,26 @@ import type { z } from "zod";
 export type { ComponentInput, ComponentProps, ComponentValue } from "@pdflapas/model";
 
 /** Geometry is explicit, in inches. HTML inside this box owns its own layout. */
-export interface ComponentOptions {
+export type ComponentOptions = {
     x: number;
     y: number;
     w: number;
     h: number;
     objectName?: string;
-}
-export interface ComponentContext {
+};
+export type ComponentContext = {
     /** Created on first read, one per toHtml(); a component that returns HTML text does not need it. */
     document: Document;
     width: number;
     height: number;
     /** Unique within the deck and the same on every render of this object (its slide and position); prefix ids with it. */
     idPrefix: string;
-}
-export interface ComponentDefinition<Props extends object = ComponentProps> {
+};
+export type ComponentDefinition<Props extends object = ComponentProps> = {
     /** Zod supplies runtime validation/defaults and infers render props. Saved input remains unchanged. */
     schema?: z.ZodType<Props>;
     /** Throw for invalid application-specific props. Called before rendering. */
     validate?: (props: NoInfer<Props>) => void;
     /** Synchronous trusted application code; return HTML markup or a detached HTML element. */
     render: (props: NoInfer<Props>, context: ComponentContext) => string | HTMLElement;
-}
+};

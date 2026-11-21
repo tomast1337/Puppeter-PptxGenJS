@@ -5,10 +5,10 @@ import { z } from "zod";
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { registerReactComponent } from "../packages/react/src/index";
 
-interface MetricProps {
+type MetricProps = {
     label: string;
     value: number;
-}
+};
 function Metric({ label, value }: MetricProps) {
     return createElement("section", { style: { padding: 16, background: "#eef2ff" } }, createElement("strong", null, label), createElement("span", null, value));
 }

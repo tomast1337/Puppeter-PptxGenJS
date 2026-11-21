@@ -6,11 +6,11 @@ import { DEFAULT_LAUNCH_OPTIONS, type PuppeteerLaunchOptions } from "./launchOpt
 // without calling closeBrowser().
 const IDLE_CLOSE_MS = 1000;
 
-interface SharedBrowser {
+type SharedBrowser = {
     browser: Promise<Browser> | undefined;
     active: number;
     idleTimer: ReturnType<typeof setTimeout> | undefined;
-}
+};
 
 // One shared Chromium per distinct launch options, so renderers with different options never get each other's
 // browser. Global because every renderer in the process shares it; withBrowser creates an entry, the idle timer

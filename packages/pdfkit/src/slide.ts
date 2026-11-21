@@ -25,17 +25,17 @@ const UNSUPPORTED_KINDS: Readonly<Record<string, string>> = Object.freeze({
     "slide-component": "components",
 });
 
-export interface SlideContext {
+export type SlideContext = {
     readonly paint: (object: string) => Omit<Paint, "opacity">;
     readonly report: (what: string) => void;
-}
+};
 
-interface Box extends Frame {
+type Box = {
     readonly rotation: number;
     readonly flipH: boolean;
     readonly flipV: boolean;
     readonly opacity: number;
-}
+} & Frame;
 
 /** The box's own fill and line (objects without SVG geometry). A text box's line is centred on its edge, as in DrawingML. */
 function drawBoxPaint(element: Element, style: Style, paint: Paint, frame: Frame): void {

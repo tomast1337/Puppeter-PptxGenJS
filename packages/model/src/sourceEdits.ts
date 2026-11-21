@@ -1,9 +1,9 @@
 /** A change to an HTML source string: replace `[start, end)` with `text` (an insert when `start === end`). */
-export interface SourceEdit {
+export type SourceEdit = {
     readonly start: number;
     readonly end: number;
     readonly text: string;
-}
+};
 
 /**
  * `source` with every edit applied, offsets read against the original string. One forward pass: re-slicing the

@@ -11,10 +11,10 @@ import { applyObjectStyle } from "./style";
 const REMOTE_URL = /^https?:\/\//i;
 
 /** A rendered component: its host attributes and its parsed content, whose images resolve before it is written. */
-export interface RenderedComponent {
+export type RenderedComponent = {
     attributes: Attribute[];
     content: DefaultTreeAdapterTypes.DocumentFragment;
-}
+};
 
 function images(content: DefaultTreeAdapterTypes.DocumentFragment): FragmentElement[] {
     return Array.from(descendants(content)).filter(node => node.tagName === "img" && node.namespaceURI === HTML_NAMESPACE);

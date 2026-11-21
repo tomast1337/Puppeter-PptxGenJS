@@ -6,13 +6,13 @@
 /** One outline segment in glyph space, absolute coordinates. */
 export type CffSegment = { readonly op: "move" | "line"; readonly points: readonly [number, number] } | { readonly op: "curve"; readonly points: readonly [number, number, number, number, number, number] };
 
-export interface CffGlyph {
+export type CffGlyph = {
     /** The glyph name; the first glyph of a font is always `.notdef`, whatever its name. */
     readonly name: string;
     readonly width: number;
     /** Filled with the nonzero winding rule, the only one CFF has; a subpath closes at the next move. */
     readonly path: readonly CffSegment[];
-}
+};
 
 const HEADER = [1, 0, 4, 4]; // #5176 6: major, minor, hdrSize, offSize
 const STANDARD_STRINGS = 391; // #5176 10: custom strings start at SID 391
