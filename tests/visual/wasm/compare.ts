@@ -115,8 +115,15 @@ for (const deckName of deckNames) {
 
     for (let page = 1; page <= PAGES; page++) {
         const scores = Object.fromEntries(await Promise.all(engines.map(async e => [e, await rmse(png("reference", page), png(e, page))])));
+        const nonText: string[] = [];
 
-        pages.push({ page, nonText: model.slides[page - 1]!.objects.filter(o => o.kind !== "text" && o.kind !== "shape").map(o => o.kind), ...scores });
+        for (const o of model.slides[page - 1]!.objects) {
+            if (o.kind !== "text" && o.kind !== "shape") {
+                nonText.push(o.kind);
+            }
+        }
+
+        pages.push({ page, nonText, ...scores });
     }
 
     const crops: Record<string, unknown>[] = [];

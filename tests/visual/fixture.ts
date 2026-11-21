@@ -12,42 +12,6 @@ import { CROP_TARGET, TEXT_LINE_SNAP_CROP_THRESHOLDS, UNDERLINE_DOUBLE_CROP_THRE
 
 type Presentation = PptxGenJS | PuppeteerGen;
 
-/**
- * The tableToSlides() source: PptxGenJS takes the id of a table in the global document, so the table goes there;
- * PuppeteerGen takes the markup, which it parses into a createDocument() document (jsdom in Node).
- */
-function installTableToSlidesFixture(presentation: Presentation): string {
-    const cellStyle = "font-family:Arial;font-size:12px;color:#363636;padding:4px;border:1px solid #9EADBA";
-    const html = `
-        <table id="visual-html-table" style="width:600px;border-collapse:collapse">
-            <thead><tr>
-                <th style="width:100px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">ID</th>
-                <th style="width:300px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">HTML description</th>
-                <th style="width:200px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">State</th>
-            </tr></thead>
-            <tbody>${Array.from({ length: 22 }, (_, index) => {
-                const fill = index % 2 ? "background:#EAF2F8;" : "background:#FFFFFF;";
-
-                return `<tr>
-                    <td style="width:100px;${cellStyle};${fill};text-align:center">${String(index + 1).padStart(2, "0")}</td>
-                    <td style="width:300px;${cellStyle};${fill}">Imported HTML row ${index + 1}</td>
-                    <td style="width:200px;${cellStyle};${fill};text-align:center;color:${index % 3 === 2 ? "#C65911" : "#548235"};font-weight:bold">${index % 3 === 2 ? "Review" : "Ready"}</td>
-                </tr>`;
-            }).join("")}</tbody>
-        </table>`;
-
-    if (presentation instanceof PuppeteerGen) {
-        return html;
-    }
-
-    const host = globalThis.document.createElement("div");
-
-    host.innerHTML = html;
-    globalThis.document.body.appendChild(host);
-
-    return "visual-html-table";
-}
-
 const CURVED_SHAPES = ["curvedRightArrow", "curvedLeftArrow", "curvedUpArrow", "curvedDownArrow"] as const;
 const CURVED_CASES = CURVED_SHAPES.flatMap((shape, index) => [
     { page: 17, name: shape, shape, x: 0.6 + index * 1.85, y: 1, w: 1.4, h: 2.1 },
@@ -478,7 +442,7 @@ const TABLE_OPTION_CASES = [
     { name: "table-thin-border-grid", x: 5.5, y: 4.75, w: 4, h: 0.6 },
 ] as const;
 
-// populatePresetAspectFixture(): presets whose OOXML geometry depends on the aspect ratio, drawn wide and tall
+// The preset-aspect slides: presets whose OOXML geometry depends on the aspect ratio, drawn wide and tall
 // where no other slide does, one slide per entry, after the table-option slide (#153).
 // Up to four shapes per slide, each drawn wide and tall: the generated presets derive their guides from the short
 // side (ss), so a square crop cannot show a guide taken from the wrong side.
@@ -503,7 +467,7 @@ const PRESET_ASPECT_CASES = PRESET_ASPECT_SLIDES.flatMap(({ shapes }, slideIndex
     }),
 );
 
-// populateParagraphFixture(): paragraphs PptxGenJS groups from runs, the last parity slide. No WASM deck takes it,
+// The paragraph slide: paragraphs PptxGenJS groups from runs, the last parity slide. No WASM deck takes it,
 // so its cases need no WASM baseline; the WASM renderer reads the same paragraphs from the HTML.
 const PARAGRAPH_PAGE = 64 + TEXT_OPTION_PAGES + PRESET_ASPECT_SLIDES.length;
 const PARAGRAPH_CASES = [
@@ -520,40 +484,29 @@ const PARAGRAPH_CASES = [
     { name: "emu-lengths", x: 5.5, y: 0.3, w: 4, h: 0.35 },
 ] as const;
 const WRAPPING_TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore";
-// populateLineFeedTailFixture(): runs ending with line feeds, on the slide after the paragraph slide; no WASM deck takes it.
+// The line-feed slide: runs ending with line feeds, on the slide after the paragraph slide; no WASM deck takes it.
 const LINE_FEED_TAIL_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-line-feed-tail-run", x: 0.5, y: 1, w: 4, h: 2.5 } as const;
-// populateLineFeedTailFixture() too: paragraphs written without a run, at the size on their <a:endParaRPr>.
+// The line-feed slide too: paragraphs written without a run, at the size on their <a:endParaRPr>.
 const EMPTY_PARAGRAPH_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-empty-paragraph-mark", x: 5.5, y: 1, w: 4, h: 2.5 } as const;
-// populateLineFeedTailFixture() too: run options two text boxes, and two tables, share.
+// The line-feed slide too: run options two text boxes, and two tables, share.
 const SHARED_RUN_OPTIONS_CASE = { page: PARAGRAPH_PAGE + 1, name: "text-shared-run-options", x: 0.5, y: 3.9, w: 9, h: 1.2 } as const;
-// populateCustomBaselineFixture(): runs with a custom `baseline` at two sizes, on the slide after; no WASM deck takes it.
+// The custom-baseline slide: runs with a custom `baseline` at two sizes, on the slide after; no WASM deck takes it.
 const CUSTOM_BASELINE_CASES = [
     { page: PARAGRAPH_PAGE + 2, name: "text-custom-baseline-20pt", fontSize: 20, x: 0.5, y: 1.25, w: 9, h: 1 },
     { page: PARAGRAPH_PAGE + 2, name: "text-custom-baseline-40pt", fontSize: 40, x: 0.5, y: 3, w: 9, h: 1.6 },
 ] as const;
-// populateLineFeedTailFixture() too, beside the title: a `colW` shorter than the column count (#302).
+// The line-feed slide too, beside the title: a `colW` shorter than the column count (#302).
 const COLW_LENGTH_CASE = { page: PARAGRAPH_PAGE + 1, name: "table-colw-shorter-than-columns", x: 5.5, y: 0.3, w: 3, h: 0.3 } as const;
 
-// populateNumberSchemeFixture(): a numbered list whose scheme changes, on the slide after; no WASM deck takes it.
+// The numbering slide: a numbered list whose scheme changes, on the slide after; no WASM deck takes it.
 // A picture's inner shadow: PptxGenJS writes <a:innerShdw> well-formed, and LibreOffice 26.2 draws the bare picture, as
 // the LibreOffice target writes it (drawsPictureInnerShadow); the PowerPoint target draws the shadow over it.
 const IMAGE_INNER_SHADOW_CASE = { page: 11, name: "image-inner-shadow", x: 0.75, y: 4.3, w: 2, h: 1.3 } as const;
 const NUMBER_SCHEME_CASE = { page: PARAGRAPH_PAGE + 3, name: "text-number-scheme-restart", x: 0.5, y: 1, w: 4, h: 1.8 } as const;
-// populateNumberSchemeFixture(): a numbered list over three indent levels, beside the scheme change.
+// The numbering slide: a numbered list over three indent levels, beside the scheme change.
 const NUMBER_LEVELS_CASE = { page: PARAGRAPH_PAGE + 3, name: "text-number-nested-levels", x: 5.2, y: 1, w: 4, h: 1.8 } as const;
 
 // These tight crops include the stroke but exclude labels and unused slide area.
-// Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
-function cropThreshold(name: string): number {
-    const lineSnap = TEXT_LINE_SNAP_CROP_THRESHOLDS[name];
-
-    if (lineSnap !== undefined) {
-        return lineSnap;
-    }
-
-    return UNDERLINE_DOUBLE_CROP_THRESHOLDS[name] ?? CROP_TARGET;
-}
-
 export const PARITY_REGIONS = [
     ...CURVED_CASES,
     ...CIRCULAR_CASES,
@@ -589,7 +542,8 @@ export const PARITY_REGIONS = [
 ].map(({ page, name, x, y, w, h }) => ({
     page,
     name,
-    threshold: cropThreshold(name),
+    // Each exception above CROP_TARGET and its evidence is documented in thresholds.ts.
+    threshold: TEXT_LINE_SNAP_CROP_THRESHOLDS[name] ?? UNDERLINE_DOUBLE_CROP_THRESHOLDS[name] ?? CROP_TARGET,
     x: Math.floor(inchesToPixels(x)) - 3,
     y: Math.floor(inchesToPixels(y)) - 3,
     w: Math.ceil(inchesToPixels(w)) + 7,
@@ -1203,7 +1157,7 @@ export function populateParityFixture(presentation: Presentation): void {
         ["star5", 7.75, 3.25, "70AD47"],
     ];
 
-    polygonShapes.forEach(([shape, x, y, color]) => {
+    for (const [shape, x, y, color] of polygonShapes) {
         polygonShapesSlide.addShape(shape, {
             x,
             y,
@@ -1223,7 +1177,7 @@ export function populateParityFixture(presentation: Presentation): void {
             align: "center",
             margin: 0,
         });
-    });
+    }
 
     const arrowShapesSlide = presentation.addSlide();
 
@@ -1251,7 +1205,7 @@ export function populateParityFixture(presentation: Presentation): void {
         ["stripedRightArrow", 7.75, 3.25],
     ];
 
-    arrowShapes.forEach(([shape, x, y], index) => {
+    for (const [index, [shape, x, y]] of arrowShapes.entries()) {
         arrowShapesSlide.addShape(shape, {
             x,
             y,
@@ -1271,7 +1225,7 @@ export function populateParityFixture(presentation: Presentation): void {
             align: "center",
             margin: 0,
         });
-    });
+    }
 
     const arrowCalloutsSlide = presentation.addSlide();
 
@@ -1296,7 +1250,7 @@ export function populateParityFixture(presentation: Presentation): void {
         ["quadArrowCallout", 6.6, 3.35],
     ];
 
-    arrowCallouts.forEach(([shape, x, y], index) => {
+    for (const [index, [shape, x, y]] of arrowCallouts.entries()) {
         arrowCalloutsSlide.addShape(shape, {
             x,
             y,
@@ -1316,7 +1270,7 @@ export function populateParityFixture(presentation: Presentation): void {
             align: "center",
             margin: 0,
         });
-    });
+    }
 
     const bentArrowsSlide = presentation.addSlide();
 
@@ -1338,7 +1292,7 @@ export function populateParityFixture(presentation: Presentation): void {
         ["uturnArrow", 7.45],
     ];
 
-    bentArrows.forEach(([shape, x], index) => {
+    for (const [index, [shape, x]] of bentArrows.entries()) {
         bentArrowsSlide.addShape(shape, {
             x,
             y: 1.25,
@@ -1358,7 +1312,7 @@ export function populateParityFixture(presentation: Presentation): void {
             align: "center",
             margin: 0,
         });
-    });
+    }
 
     const curvedArrowsSlide = presentation.addSlide();
 
@@ -1375,7 +1329,7 @@ export function populateParityFixture(presentation: Presentation): void {
     });
     const curvedArrows = [...CURVED_CASES.filter(sample => sample.page === 17), { shape: "swooshArrow" as const, x: 8, y: 1, w: 1.4, h: 2.1 }];
 
-    curvedArrows.forEach(({ shape, x, y, w, h }, index) => {
+    for (const [index, { shape, x, y, w, h }] of curvedArrows.entries()) {
         curvedArrowsSlide.addShape(shape, {
             x,
             y,
@@ -1395,7 +1349,7 @@ export function populateParityFixture(presentation: Presentation): void {
             align: "center",
             margin: 0,
         });
-    });
+    }
 
     const curvedRatiosSlide = presentation.addSlide();
 
@@ -1410,7 +1364,7 @@ export function populateParityFixture(presentation: Presentation): void {
         color: "17365D",
         margin: 0,
     });
-    CURVED_CASES.filter(sample => sample.page === 18).forEach(({ shape, x, y, w, h }) => {
+    for (const { shape, x, y, w, h } of CURVED_CASES.filter(sample => sample.page === 18)) {
         curvedRatiosSlide.addShape(shape, {
             x,
             y,
@@ -1419,7 +1373,7 @@ export function populateParityFixture(presentation: Presentation): void {
             fill: { color: "5B9BD5", transparency: 5 },
             line: { color: "843C0C", width: 1.15 },
         });
-    });
+    }
 
     for (const pageNumber of [19, 20]) {
         const circularSlide = presentation.addSlide();
@@ -1435,7 +1389,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        CIRCULAR_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h, options }) => {
+        for (const { shape, x, y, w, h, options } of CIRCULAR_CASES.filter(sample => sample.page === pageNumber)) {
             circularSlide.addShape(shape, {
                 x,
                 y,
@@ -1445,7 +1399,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     for (const pageNumber of [21, 22, 23]) {
@@ -1462,7 +1416,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        FLOWCHART_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+        for (const { shape, x, y, w, h } of FLOWCHART_CASES.filter(sample => sample.page === pageNumber)) {
             flowchartSlide.addShape(shape, {
                 x,
                 y,
@@ -1471,7 +1425,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     for (const pageNumber of [24, 25]) {
@@ -1488,7 +1442,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        BRACE_BRACKET_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+        for (const { shape, x, y, w, h } of BRACE_BRACKET_CASES.filter(sample => sample.page === pageNumber)) {
             braceSlide.addShape(shape, {
                 x,
                 y,
@@ -1497,7 +1451,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     for (const pageNumber of [26, 27, 28]) {
@@ -1514,7 +1468,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        RIBBON_SCROLL_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+        for (const { shape, x, y, w, h } of RIBBON_SCROLL_CASES.filter(sample => sample.page === pageNumber)) {
             ribbonSlide.addShape(shape, {
                 x,
                 y,
@@ -1523,7 +1477,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     for (const pageNumber of [29, 30, 31]) {
@@ -1540,7 +1494,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        ACTION_BUTTON_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+        for (const { shape, x, y, w, h } of ACTION_BUTTON_CASES.filter(sample => sample.page === pageNumber)) {
             actionSlide.addShape(shape, {
                 x,
                 y,
@@ -1549,7 +1503,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     for (const pageNumber of [32, 33, 34, 35]) {
@@ -1566,7 +1520,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        SYMBOL_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+        for (const { shape, x, y, w, h } of SYMBOL_CASES.filter(sample => sample.page === pageNumber)) {
             symbolSlide.addShape(shape, {
                 x,
                 y,
@@ -1575,7 +1529,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     for (let pageNumber = 36; pageNumber <= 42; pageNumber++) {
@@ -1592,7 +1546,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        GENERATED_PRESET_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+        for (const { shape, x, y, w, h } of GENERATED_PRESET_CASES.filter(sample => sample.page === pageNumber)) {
             presetSlide.addShape(shape, {
                 x,
                 y,
@@ -1601,7 +1555,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     for (let pageNumber = 43; pageNumber <= 45; pageNumber++) {
@@ -1618,7 +1572,7 @@ export function populateParityFixture(presentation: Presentation): void {
             color: "17365D",
             margin: 0,
         });
-        GENERATED_ASPECT_CASES.filter(sample => sample.page === pageNumber).forEach(({ shape, x, y, w, h }) => {
+        for (const { shape, x, y, w, h } of GENERATED_ASPECT_CASES.filter(sample => sample.page === pageNumber)) {
             aspectSlide.addShape(shape, {
                 x,
                 y,
@@ -1627,7 +1581,7 @@ export function populateParityFixture(presentation: Presentation): void {
                 fill: { color: "5B9BD5", transparency: 5 },
                 line: { color: "843C0C", width: 1.15 },
             });
-        });
+        }
     }
 
     const sizingTableSlide = presentation.addSlide();
@@ -1833,7 +1787,35 @@ export function populateParityFixture(presentation: Presentation): void {
         border: { type: "solid", color: "9EADBA", pt: 0.75 },
     });
 
-    presentation.tableToSlides(installTableToSlidesFixture(presentation), {
+    // The tableToSlides() source: PptxGenJS takes the id of a table in the global document, so the table goes there;
+    // PuppeteerGen takes the markup, which it parses into a createDocument() document (jsdom in Node).
+    const cellStyle = "font-family:Arial;font-size:12px;color:#363636;padding:4px;border:1px solid #9EADBA";
+    const html = `
+        <table id="visual-html-table" style="width:600px;border-collapse:collapse">
+            <thead><tr>
+                <th style="width:100px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">ID</th>
+                <th style="width:300px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">HTML description</th>
+                <th style="width:200px;${cellStyle};padding:6px;background:#4472C4;color:#FFFFFF;text-align:center">State</th>
+            </tr></thead>
+            <tbody>${Array.from({ length: 22 }, (_, index) => {
+                const fill = index % 2 ? "background:#EAF2F8;" : "background:#FFFFFF;";
+
+                return `<tr>
+                    <td style="width:100px;${cellStyle};${fill};text-align:center">${String(index + 1).padStart(2, "0")}</td>
+                    <td style="width:300px;${cellStyle};${fill}">Imported HTML row ${index + 1}</td>
+                    <td style="width:200px;${cellStyle};${fill};text-align:center;color:${index % 3 === 2 ? "#C65911" : "#548235"};font-weight:bold">${index % 3 === 2 ? "Review" : "Ready"}</td>
+                </tr>`;
+            }).join("")}</tbody>
+        </table>`;
+
+    if (!(presentation instanceof PuppeteerGen)) {
+        const host = globalThis.document.createElement("div");
+
+        host.innerHTML = html;
+        globalThis.document.body.appendChild(host);
+    }
+
+    presentation.tableToSlides(presentation instanceof PuppeteerGen ? html : "visual-html-table", {
         w: 10,
         // The slide height: the same pages as without `h`, which PptxGenJS uses only to paginate (#224), so the
         // drawn rows still size to their content instead of sharing the 5.625in.
@@ -1865,7 +1847,7 @@ export function populateParityFixture(presentation: Presentation): void {
         color: "17365D",
         margin: 0,
     });
-    SHAPED_TEXT_CASES.forEach(({ shape, text, x, y, w, h }) => {
+    for (const { shape, text, x, y, w, h } of SHAPED_TEXT_CASES) {
         shapedTextSlide.addText(text, {
             shape,
             x,
@@ -1882,250 +1864,262 @@ export function populateParityFixture(presentation: Presentation): void {
             fill: { color: "5B9BD5", transparency: 5 },
             line: { color: "843C0C", width: 1.15 },
         });
-    });
+    }
 
     populateChartFixture(presentation);
     populateComponentFixture(presentation);
-    populateArrowHeadFixture(presentation);
+
+    // The line-head slide (ARROW_HEAD_CASES), with the vertical line beside it.
+    {
+        const slide = presentation.addSlide();
+
+        slide.addText("Line heads (begin and end)", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+        for (const { type, widthPt, x, y, w, h } of ARROW_HEAD_CASES) {
+            slide.addShape("line", { x, y, w, h, line: { color: "4472C4", width: widthPt, beginArrowType: type, endArrowType: type } });
+            slide.addText(`${type} ${widthPt}pt`, { x: x - 0.25, y: y + h + 0.3, w: w + 0.5, h: 0.3, fontFace: "Arial", fontSize: 12, align: "center", margin: 0 });
+        }
+
+        const { x, y, w, h } = VERTICAL_LINE_CASE;
+
+        slide.addShape("line", { x, y, w, h, line: { color: "2CA8E2", width: 1 } });
+    }
+
     populateSlidePropertiesFixture(presentation);
     populateTextOptionsFixture(presentation);
     populateTableOptionsFixture(presentation);
-    populatePresetAspectFixture(presentation);
-    populateParagraphFixture(presentation);
-    populateLineFeedTailFixture(presentation);
-    populateCustomBaselineFixture(presentation);
-    populateNumberSchemeFixture(presentation);
-}
 
-// A change of <a:buAutoNum> type or startAt starts a new list at its own startAt: "1. 2. A. B. C. D. 2.", not
-// "1. 2. B. C. D. E. 7." (normalize/text.ts sequenceIndex). The second item holds only a zero-width space. The
-// reference's LibreOffice 26.2 restarts at every startAt (tdf#168406, fixed by tdf#173712 after it) and draws
-// "1. 1. A. A. A. A. 2.": the crop differs in four markers only, 0.0365 against PowerPoint's markers here.
-function populateNumberSchemeFixture(presentation: Presentation): void {
-    const slide = presentation.addSlide();
+    // The preset-aspect slides (PRESET_ASPECT_SLIDES).
+    {
+        for (const [slideIndex, { title }] of PRESET_ASPECT_SLIDES.entries()) {
+            const slide = presentation.addSlide();
 
-    slide.addText("Numbering schemes", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const item = (text: string, style: "arabicPeriod" | "alphaUcPeriod", numberStartAt: number) => ({ text, options: { bullet: { type: "number" as const, style, numberStartAt }, breakLine: true } });
-    const { x, y, w, h } = NUMBER_SCHEME_CASE;
+            slide.addText(title, { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+            for (const { shape, x, y, w, h } of PRESET_ASPECT_CASES.filter(sample => sample.page === 64 + TEXT_OPTION_PAGES + slideIndex)) {
+                slide.addShape(shape, { x, y, w, h, fill: { color: "5B9BD5", transparency: 5 }, line: { color: "843C0C", width: 1.15 } });
+            }
+        }
+    }
 
-    slide.addText([item("Lorem ipsum dolor", "arabicPeriod", 1), item("\u200B", "arabicPeriod", 1), ...["a", "b", "c", "d"].map(letter => item(`Consectetur ${letter}`, "alphaUcPeriod", 1)), item("Sit amet elit", "arabicPeriod", 2)], {
-        x,
-        y,
-        w,
-        h,
-        fontFace: "Arial",
-        fontSize: 12,
-        color: "363636",
-        valign: "top",
-        margin: 0,
-    });
-    // Each indent level keeps its own list, and a paragraph ends the deeper ones: levels 0 1 2 1 2 0 draw
-    // "1. 1. 1. 2. 1. 2." in PowerPoint's PDF export, not one running "1. 2. 3. 4. 5. 6.". The reference's LibreOffice
-    // 26.2 restarts each paragraph (tdf#168406) and draws "1." six times: two markers differ.
-    const levels = NUMBER_LEVELS_CASE;
+    // The paragraph slide (PARAGRAPH_CASES).
+    {
+        const slide = presentation.addSlide();
 
-    slide.addText(
-        [0, 1, 2, 1, 2, 0].map((indentLevel, index) => ({ text: `Adipiscing ${index + 1}`, options: { bullet: { type: "number" as const }, indentLevel, breakLine: true } })),
-        { x: levels.x, y: levels.y, w: levels.w, h: levels.h, fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 },
-    );
-}
+        slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+        const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight, falsyBold, underlineForms, emuLengths] = PARAGRAPH_CASES;
 
-// PptxGenJS writes a custom baseline as baseline="Math.round(baseline * 50)", thousandths of a percent of the run's size
-// (#279): 600 moves "up" 30% of it, -600 "down" 30%, 200 "+10%" 10% and -1000 "-50%" 50%, each drawn at a
-// superscript's size. The same runs at 20pt and 40pt show that the shift scales with the size. Top-anchored, with no
-// raise above 42%: LibreOffice grows a line by what an escaped run sticks out of it (#298), which would move the text.
-function populateCustomBaselineFixture(presentation: Presentation): void {
-    const slide = presentation.addSlide();
+        // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
+        // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
+        // paragraph after every piece, the last one too, whatever its own breakLine.
+        slide.addTable([[{ text: [{ text: "Heading:", options: { bold: true } }, { text: " body without options" }] }]], { x: cell.x, y: cell.y, w: cell.w, align: "left", fontFace: "Arial", fontSize: 12, color: "363636" });
+        slide.addText([{ text: "Intro", options: { breakLine: true } }, { text: "\nTitle after a blank line", options: { bold: true, breakLine: false } }, { text: "Description on its own line" }], {
+            x: lineFeed.x,
+            y: lineFeed.y,
+            w: lineFeed.w,
+            h: lineFeed.h,
+            fontFace: "Arial",
+            fontSize: 12,
+            color: "363636",
+            valign: "top",
+            margin: 0,
+        });
+        // PptxGenJS writes a bullet paragraph with marL = 27pt per level and indent = -27pt: wrapped lines hang under the
+        // first line's text, not under the marker.
+        const wrapBox = { fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 } as const;
 
-    slide.addText("Custom baselines", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    for (const { fontSize, x, y, w, h } of CUSTOM_BASELINE_CASES) {
-        slide.addText([{ text: "Base " }, { text: "up", options: { baseline: 600 } }, { text: " mid " }, { text: "down", options: { baseline: -600 } }, { text: " H" }, { text: "+10%", options: { baseline: 200 } }, { text: " H" }, { text: "-50%", options: { baseline: -1000 } }], {
+        slide.addText([{ text: WRAPPING_TEXT, options: { bullet: true } }], { ...wrapBox, x: levelZero.x, y: levelZero.y, w: levelZero.w, h: levelZero.h });
+        slide.addText([{ text: WRAPPING_TEXT, options: { bullet: { type: "number" }, indentLevel: 1 } }], { ...wrapBox, x: levelOne.x, y: levelOne.y, w: levelOne.w, h: levelOne.h });
+        // A numbered run starting with "\n" makes PptxGenJS write an empty paragraph without a run before it: no marker in
+        // LibreOffice or PowerPoint; LibreOffice restarts the numbering after it (RENDERING_TARGETS).
+        const numbered = { bullet: { type: "number", style: "romanUcPeriod" } } as const;
+
+        slide.addText(
+            [
+                { text: "Intro", options: { breakLine: true } },
+                { text: "\nItem one", options: numbered },
+                { text: "\nItem two", options: numbered },
+            ],
+            {
+                ...wrapBox,
+                x: leadingLineFeed.x,
+                y: leadingLineFeed.y,
+                w: leadingLineFeed.w,
+                h: leadingLineFeed.h,
+            },
+        );
+        // PptxGenJS 4.0.1 writes rowH into `<a:tr h>` and `h` only into the frame's cy, which PowerPoint and LibreOffice
+        // ignore: three 0.3 in rows, not 1.2 in shared out (#246). A one-item rowH sizes every row, as Number([0.3]) is 0.3
+        // (#304).
+        const fills = ["D9EAF7", "FFF2CC", "E2F0D9"];
+
+        slide.addTable(
+            fills.map((color, index) => [
+                { text: `Label ${index + 1}`, options: { fill: { color } } },
+                { text: `Value ${index + 1}`, options: { fill: { color } } },
+            ]),
+            { x: frameHeight.x, y: frameHeight.y, w: frameHeight.w, h: frameHeight.h, rowH: [0.3], fontFace: "Arial", fontSize: 8, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } },
+        );
+        // PptxGenJS 4.0.1 fills a falsy cell option from the table (genXmlTable step 2) and a falsy run option from the
+        // cell (genXmlTextBody step 6 C), so `bold: false` in a bold table is bold in both cells (#222).
+        slide.addTable(
+            [
+                [
+                    { text: [{ text: "Run bold: false", options: { bold: false } }], options: { fill: { color: "D9EAF7" } } },
+                    { text: "Cell bold: false", options: { bold: false, fill: { color: "FFF2CC" } } },
+                ],
+            ],
+            { x: falsyBold.x, y: falsyBold.y, w: falsyBold.w, bold: true, fontFace: "Arial", fontSize: 12, color: "363636" },
+        );
+        // PptxGenJS 4.0.1 writes a string `underline` (deprecated since 3.5.0) as u="heavy" / u="dash", and a text box's
+        // `underline: true` as u="sng" (addTextDefinition). `as`: its types declare only the object form.
+        const underline = (value: string | boolean) => ({ underline: value }) as unknown as PptxGenJS.TextPropsOptions;
+
+        slide.addText(
+            [
+                { text: "String heavy, ", options: underline("heavy") },
+                { text: "string dash, ", options: underline("dash") },
+                { text: "boolean true", options: underline(true) },
+            ],
+            { x: underlineForms.x, y: underlineForms.y, w: underlineForms.w, h: underlineForms.h, fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 },
+        );
+        // PptxGenJS 4.0.1 reads a length number of 100 or more as EMU (getSmartParseNumber) and colW and rowH above 100 as
+        // EMU (inch2Emu), so this text box and table sit in the crop as if given in inches (#280).
+        const emu = (inches: number) => Math.round(inches * PPTX_DEFAULTS.units.emuPerInch);
+
+        slide.addText("Placed in EMU", { x: emu(emuLengths.x), y: emu(emuLengths.y), w: emu(1.9), h: emu(emuLengths.h), fill: { color: "D9EAF7" }, fontFace: "Arial", fontSize: 12, color: "363636", margin: 0 });
+        slide.addTable([[{ text: "colW" }, { text: "EMU" }]], { x: emu(emuLengths.x + 2), y: emu(emuLengths.y), colW: [emu(1), emu(1)], rowH: emu(emuLengths.h), fill: { color: "FFF2CC" }, fontFace: "Arial", fontSize: 12, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } });
+    }
+
+    // A run ending with "\n" keeps its line feeds inside its <a:t>. The empty text after the last one takes no room in the
+    // next run's paragraph, so each 8pt paragraph keeps an 8pt line pitch under the 16pt head.
+    {
+        const slide = presentation.addSlide();
+
+        slide.addText("Runs ending with line feeds", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+        const { x, y, w, h } = LINE_FEED_TAIL_CASE;
+
+        slide.addText(
+            [
+                { text: "Lorem ipsum heading.\n\n", options: { bold: true, fontSize: 16 } },
+                { text: `${WRAPPING_TEXT} magna aliqua. ${WRAPPING_TEXT} magna aliqua.\n\n`, options: { fontSize: 8 } },
+                { text: `${WRAPPING_TEXT} magna aliqua.\n`, options: { fontSize: 8 } },
+            ],
+            // shortcut: left, not justify: LibreOffice draws the paragraphs a line feed inside <a:t> starts unjustified, which is
+            // the paragraph-properties follow-up (the <a:p>'s first <a:pPr>), not this line pitch; justify them once that lands.
+            { x, y, w, h, fontFace: "Arial", color: "363636", align: "left", valign: "bottom", margin: 0 },
+        );
+        // PptxGenJS writes the empty line between two line feeds, and an empty run, as an <a:p> with only <a:endParaRPr
+        // sz="800">, the box's or table's 8pt: each is one 9.6pt line between the 12pt ones (PowerPoint and LibreOffice).
+        const empty = EMPTY_PARAGRAPH_CASE;
+        const style = { fontFace: "Arial", fontSize: 8, color: "363636" } as const;
+
+        slide.addText([{ text: "Heading in a box\n\nBody after an 8pt empty line", options: { fontSize: 12 } }], { x: empty.x, y: empty.y, w: empty.w, h: 1, valign: "top", margin: 0, ...style });
+        slide.addTable(
+            [
+                [
+                    {
+                        text: [
+                            { text: "Heading in a cell", options: { fontSize: 12, bold: true, breakLine: true } },
+                            { text: "", options: { breakLine: true } },
+                            { text: "Body after an empty run", options: { fontSize: 12, breakLine: true } },
+                            { text: "", options: { breakLine: true, fontSize: 20 } },
+                            { text: "Its own 20pt is not written", options: { fontSize: 12 } },
+                        ],
+                    },
+                ],
+            ],
+            { x: empty.x, y: empty.y + 1.1, w: empty.w, border: { type: "solid", pt: 1, color: "404040" }, ...style },
+        );
+        // PptxGenJS writes the first box's options onto the run options both boxes share (sharedRunOptions.ts): the
+        // second box's runs keep the first one's 12pt and spacing, and the second table's run its 14pt, red and right.
+        const shared = SHARED_RUN_OPTIONS_CASE;
+        const title = { color: "0077AA", italic: true, breakLine: true, paraSpaceAfter: 5 };
+        const item = { breakLine: true, paraSpaceAfter: 3 };
+        const column = { y: shared.y, w: 2.1, h: shared.h, fontFace: "Arial", color: "000000", align: "left", valign: "top", margin: 0 } as const;
+
+        slide.addText(
+            [
+                { text: "Column A", options: title },
+                { text: "Alpha", options: item },
+                { text: "Beta", options: item },
+            ],
+            { ...column, x: shared.x, fontSize: 12 },
+        );
+        slide.addText(
+            [
+                { text: "Column B", options: title },
+                { text: "Gamma", options: item },
+                { text: "Delta", options: item },
+            ],
+            { ...column, x: shared.x + 2.3, fontSize: 10 },
+        );
+        const cellRun = { breakLine: true };
+        const table = { y: shared.y, w: 2.1, fontFace: "Arial", border: { type: "solid", pt: 1, color: "404040" } } as const;
+
+        slide.addTable([[{ text: [{ text: "Cell A", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 4.6, fontSize: 14, color: "AA0000", align: "right" });
+        slide.addTable([[{ text: [{ text: "Cell B", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 6.9, fontSize: 8, color: "0000AA", align: "left" });
+        // PptxGenJS 4.0.1 addTableDefinition drops a `colW` whose length is not the column count; with no `w`, genXmlTable
+        // then writes 1in columns.
+        const colWLength = COLW_LENGTH_CASE;
+
+        slide.addTable([[{ text: "1in" }, { text: "1in" }, { text: "1in" }]], { x: colWLength.x, y: colWLength.y, colW: [1, 2], rowH: colWLength.h, fontFace: "Arial", fontSize: 10, color: "363636", fill: { color: "E2EFDA" }, border: { type: "solid", pt: 1, color: "404040" } });
+    }
+
+    // PptxGenJS writes a custom baseline as baseline="Math.round(baseline * 50)", thousandths of a percent of the run's size
+    // (#279): 600 moves "up" 30% of it, -600 "down" 30%, 200 "+10%" 10% and -1000 "-50%" 50%, each drawn at a
+    // superscript's size. The same runs at 20pt and 40pt show that the shift scales with the size. Top-anchored, with no
+    // raise above 42%: LibreOffice grows a line by what an escaped run sticks out of it (#298), which would move the text.
+    {
+        const slide = presentation.addSlide();
+
+        slide.addText("Custom baselines", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+        for (const { fontSize, x, y, w, h } of CUSTOM_BASELINE_CASES) {
+            slide.addText([{ text: "Base " }, { text: "up", options: { baseline: 600 } }, { text: " mid " }, { text: "down", options: { baseline: -600 } }, { text: " H" }, { text: "+10%", options: { baseline: 200 } }, { text: " H" }, { text: "-50%", options: { baseline: -1000 } }], {
+                x,
+                y,
+                w,
+                h,
+                fontFace: "Arial",
+                fontSize,
+                color: "363636",
+                valign: "top",
+                margin: 0,
+                fill: { color: "F2F2F2" },
+            });
+        }
+    }
+
+    // A change of <a:buAutoNum> type or startAt starts a new list at its own startAt: "1. 2. A. B. C. D. 2.", not
+    // "1. 2. B. C. D. E. 7." (normalize/text.ts sequenceIndex). The second item holds only a zero-width space. The
+    // reference's LibreOffice 26.2 restarts at every startAt (tdf#168406, fixed by tdf#173712 after it) and draws
+    // "1. 1. A. A. A. A. 2.": the crop differs in four markers only, 0.0365 against PowerPoint's markers here.
+    {
+        const slide = presentation.addSlide();
+
+        slide.addText("Numbering schemes", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
+        const item = (text: string, style: "arabicPeriod" | "alphaUcPeriod", numberStartAt: number) => ({ text, options: { bullet: { type: "number" as const, style, numberStartAt }, breakLine: true } });
+        const { x, y, w, h } = NUMBER_SCHEME_CASE;
+
+        slide.addText([item("Lorem ipsum dolor", "arabicPeriod", 1), item("\u200B", "arabicPeriod", 1), ...["a", "b", "c", "d"].map(letter => item(`Consectetur ${letter}`, "alphaUcPeriod", 1)), item("Sit amet elit", "arabicPeriod", 2)], {
             x,
             y,
             w,
             h,
             fontFace: "Arial",
-            fontSize,
+            fontSize: 12,
             color: "363636",
             valign: "top",
             margin: 0,
-            fill: { color: "F2F2F2" },
         });
+        // Each indent level keeps its own list, and a paragraph ends the deeper ones: levels 0 1 2 1 2 0 draw
+        // "1. 1. 1. 2. 1. 2." in PowerPoint's PDF export, not one running "1. 2. 3. 4. 5. 6.". The reference's LibreOffice
+        // 26.2 restarts each paragraph (tdf#168406) and draws "1." six times: two markers differ.
+        const levels = NUMBER_LEVELS_CASE;
+
+        slide.addText(
+            [0, 1, 2, 1, 2, 0].map((indentLevel, index) => ({ text: `Adipiscing ${index + 1}`, options: { bullet: { type: "number" as const }, indentLevel, breakLine: true } })),
+            { x: levels.x, y: levels.y, w: levels.w, h: levels.h, fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 },
+        );
     }
-}
-
-// A run ending with "\n" keeps its line feeds inside its <a:t>. The empty text after the last one takes no room in the
-// next run's paragraph, so each 8pt paragraph keeps an 8pt line pitch under the 16pt head.
-function populateLineFeedTailFixture(presentation: Presentation): void {
-    const slide = presentation.addSlide();
-
-    slide.addText("Runs ending with line feeds", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const { x, y, w, h } = LINE_FEED_TAIL_CASE;
-
-    slide.addText(
-        [
-            { text: "Lorem ipsum heading.\n\n", options: { bold: true, fontSize: 16 } },
-            { text: `${WRAPPING_TEXT} magna aliqua. ${WRAPPING_TEXT} magna aliqua.\n\n`, options: { fontSize: 8 } },
-            { text: `${WRAPPING_TEXT} magna aliqua.\n`, options: { fontSize: 8 } },
-        ],
-        // shortcut: left, not justify: LibreOffice draws the paragraphs a line feed inside <a:t> starts unjustified, which is
-        // the paragraph-properties follow-up (the <a:p>'s first <a:pPr>), not this line pitch; justify them once that lands.
-        { x, y, w, h, fontFace: "Arial", color: "363636", align: "left", valign: "bottom", margin: 0 },
-    );
-    // PptxGenJS writes the empty line between two line feeds, and an empty run, as an <a:p> with only <a:endParaRPr
-    // sz="800">, the box's or table's 8pt: each is one 9.6pt line between the 12pt ones (PowerPoint and LibreOffice).
-    const empty = EMPTY_PARAGRAPH_CASE;
-    const style = { fontFace: "Arial", fontSize: 8, color: "363636" } as const;
-
-    slide.addText([{ text: "Heading in a box\n\nBody after an 8pt empty line", options: { fontSize: 12 } }], { x: empty.x, y: empty.y, w: empty.w, h: 1, valign: "top", margin: 0, ...style });
-    slide.addTable(
-        [
-            [
-                {
-                    text: [
-                        { text: "Heading in a cell", options: { fontSize: 12, bold: true, breakLine: true } },
-                        { text: "", options: { breakLine: true } },
-                        { text: "Body after an empty run", options: { fontSize: 12, breakLine: true } },
-                        { text: "", options: { breakLine: true, fontSize: 20 } },
-                        { text: "Its own 20pt is not written", options: { fontSize: 12 } },
-                    ],
-                },
-            ],
-        ],
-        { x: empty.x, y: empty.y + 1.1, w: empty.w, border: { type: "solid", pt: 1, color: "404040" }, ...style },
-    );
-    // PptxGenJS writes the first box's options onto the run options both boxes share (sharedRunOptions.ts): the
-    // second box's runs keep the first one's 12pt and spacing, and the second table's run its 14pt, red and right.
-    const shared = SHARED_RUN_OPTIONS_CASE;
-    const title = { color: "0077AA", italic: true, breakLine: true, paraSpaceAfter: 5 };
-    const item = { breakLine: true, paraSpaceAfter: 3 };
-    const column = { y: shared.y, w: 2.1, h: shared.h, fontFace: "Arial", color: "000000", align: "left", valign: "top", margin: 0 } as const;
-
-    slide.addText(
-        [
-            { text: "Column A", options: title },
-            { text: "Alpha", options: item },
-            { text: "Beta", options: item },
-        ],
-        { ...column, x: shared.x, fontSize: 12 },
-    );
-    slide.addText(
-        [
-            { text: "Column B", options: title },
-            { text: "Gamma", options: item },
-            { text: "Delta", options: item },
-        ],
-        { ...column, x: shared.x + 2.3, fontSize: 10 },
-    );
-    const cellRun = { breakLine: true };
-    const table = { y: shared.y, w: 2.1, fontFace: "Arial", border: { type: "solid", pt: 1, color: "404040" } } as const;
-
-    slide.addTable([[{ text: [{ text: "Cell A", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 4.6, fontSize: 14, color: "AA0000", align: "right" });
-    slide.addTable([[{ text: [{ text: "Cell B", options: cellRun }, { text: "Own tail" }] }]], { ...table, x: shared.x + 6.9, fontSize: 8, color: "0000AA", align: "left" });
-    // PptxGenJS 4.0.1 addTableDefinition drops a `colW` whose length is not the column count; with no `w`, genXmlTable
-    // then writes 1in columns.
-    const colWLength = COLW_LENGTH_CASE;
-
-    slide.addTable([[{ text: "1in" }, { text: "1in" }, { text: "1in" }]], { x: colWLength.x, y: colWLength.y, colW: [1, 2], rowH: colWLength.h, fontFace: "Arial", fontSize: 10, color: "363636", fill: { color: "E2EFDA" }, border: { type: "solid", pt: 1, color: "404040" } });
-}
-
-function populateParagraphFixture(presentation: Presentation): void {
-    const slide = presentation.addSlide();
-
-    slide.addText("Paragraphs from runs", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    const [cell, lineFeed, levelZero, levelOne, leadingLineFeed, frameHeight, falsyBold, underlineForms, emuLengths] = PARAGRAPH_CASES;
-
-    // PptxGenJS 4.0.1 genXmlTextBody STEP 4/5: a cell's runs without options share the cell's options (align
-    // included), so one next to a run with its own options starts a paragraph; a run split on an inner "\n" ends a
-    // paragraph after every piece, the last one too, whatever its own breakLine.
-    slide.addTable([[{ text: [{ text: "Heading:", options: { bold: true } }, { text: " body without options" }] }]], { x: cell.x, y: cell.y, w: cell.w, align: "left", fontFace: "Arial", fontSize: 12, color: "363636" });
-    slide.addText([{ text: "Intro", options: { breakLine: true } }, { text: "\nTitle after a blank line", options: { bold: true, breakLine: false } }, { text: "Description on its own line" }], {
-        x: lineFeed.x,
-        y: lineFeed.y,
-        w: lineFeed.w,
-        h: lineFeed.h,
-        fontFace: "Arial",
-        fontSize: 12,
-        color: "363636",
-        valign: "top",
-        margin: 0,
-    });
-    // PptxGenJS writes a bullet paragraph with marL = 27pt per level and indent = -27pt: wrapped lines hang under the
-    // first line's text, not under the marker.
-    const wrapBox = { fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 } as const;
-
-    slide.addText([{ text: WRAPPING_TEXT, options: { bullet: true } }], { ...wrapBox, x: levelZero.x, y: levelZero.y, w: levelZero.w, h: levelZero.h });
-    slide.addText([{ text: WRAPPING_TEXT, options: { bullet: { type: "number" }, indentLevel: 1 } }], { ...wrapBox, x: levelOne.x, y: levelOne.y, w: levelOne.w, h: levelOne.h });
-    // A numbered run starting with "\n" makes PptxGenJS write an empty paragraph without a run before it: no marker in
-    // LibreOffice or PowerPoint; LibreOffice restarts the numbering after it (RENDERING_TARGETS).
-    const numbered = { bullet: { type: "number", style: "romanUcPeriod" } } as const;
-
-    slide.addText(
-        [
-            { text: "Intro", options: { breakLine: true } },
-            { text: "\nItem one", options: numbered },
-            { text: "\nItem two", options: numbered },
-        ],
-        {
-            ...wrapBox,
-            x: leadingLineFeed.x,
-            y: leadingLineFeed.y,
-            w: leadingLineFeed.w,
-            h: leadingLineFeed.h,
-        },
-    );
-    // PptxGenJS 4.0.1 writes rowH into `<a:tr h>` and `h` only into the frame's cy, which PowerPoint and LibreOffice
-    // ignore: three 0.3 in rows, not 1.2 in shared out (#246). A one-item rowH sizes every row, as Number([0.3]) is 0.3
-    // (#304).
-    const fills = ["D9EAF7", "FFF2CC", "E2F0D9"];
-
-    slide.addTable(
-        fills.map((color, index) => [
-            { text: `Label ${index + 1}`, options: { fill: { color } } },
-            { text: `Value ${index + 1}`, options: { fill: { color } } },
-        ]),
-        { x: frameHeight.x, y: frameHeight.y, w: frameHeight.w, h: frameHeight.h, rowH: [0.3], fontFace: "Arial", fontSize: 8, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } },
-    );
-    // PptxGenJS 4.0.1 fills a falsy cell option from the table (genXmlTable step 2) and a falsy run option from the
-    // cell (genXmlTextBody step 6 C), so `bold: false` in a bold table is bold in both cells (#222).
-    slide.addTable(
-        [
-            [
-                { text: [{ text: "Run bold: false", options: { bold: false } }], options: { fill: { color: "D9EAF7" } } },
-                { text: "Cell bold: false", options: { bold: false, fill: { color: "FFF2CC" } } },
-            ],
-        ],
-        { x: falsyBold.x, y: falsyBold.y, w: falsyBold.w, bold: true, fontFace: "Arial", fontSize: 12, color: "363636" },
-    );
-    // PptxGenJS 4.0.1 writes a string `underline` (deprecated since 3.5.0) as u="heavy" / u="dash", and a text box's
-    // `underline: true` as u="sng" (addTextDefinition). `as`: its types declare only the object form.
-    const underline = (value: string | boolean) => ({ underline: value }) as unknown as PptxGenJS.TextPropsOptions;
-
-    slide.addText(
-        [
-            { text: "String heavy, ", options: underline("heavy") },
-            { text: "string dash, ", options: underline("dash") },
-            { text: "boolean true", options: underline(true) },
-        ],
-        { x: underlineForms.x, y: underlineForms.y, w: underlineForms.w, h: underlineForms.h, fontFace: "Arial", fontSize: 12, color: "363636", valign: "top", margin: 0 },
-    );
-    // PptxGenJS 4.0.1 reads a length number of 100 or more as EMU (getSmartParseNumber) and colW and rowH above 100 as
-    // EMU (inch2Emu), so this text box and table sit in the crop as if given in inches (#280).
-    const emu = (inches: number) => Math.round(inches * PPTX_DEFAULTS.units.emuPerInch);
-
-    slide.addText("Placed in EMU", { x: emu(emuLengths.x), y: emu(emuLengths.y), w: emu(1.9), h: emu(emuLengths.h), fill: { color: "D9EAF7" }, fontFace: "Arial", fontSize: 12, color: "363636", margin: 0 });
-    slide.addTable([[{ text: "colW" }, { text: "EMU" }]], { x: emu(emuLengths.x + 2), y: emu(emuLengths.y), colW: [emu(1), emu(1)], rowH: emu(emuLengths.h), fill: { color: "FFF2CC" }, fontFace: "Arial", fontSize: 12, color: "363636", border: { type: "solid", color: "7F8C8D", pt: 1 } });
-}
-
-function populatePresetAspectFixture(presentation: Presentation): void {
-    PRESET_ASPECT_SLIDES.forEach(({ title }, slideIndex) => {
-        const slide = presentation.addSlide();
-
-        slide.addText(title, { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-        for (const { shape, x, y, w, h } of PRESET_ASPECT_CASES.filter(sample => sample.page === 64 + TEXT_OPTION_PAGES + slideIndex)) {
-            slide.addShape(shape, { x, y, w, h, fill: { color: "5B9BD5", transparency: 5 }, line: { color: "843C0C", width: 1.15 } });
-        }
-    });
 }
 
 /** The parity fixture's image slides (SVG pictures), also the WASM backend's SVG image deck (tests/visual/wasm/decks.ts). */
@@ -2143,12 +2137,12 @@ export function populateImageFixture(presentation: Presentation): void {
         color: "17365D",
         margin: 0,
     });
-    [
+    for (const [x, label] of [
         [0.5, "Stretch"],
         [2.9, "Contain"],
         [5.3, "Cover"],
         [7.7, "Crop"],
-    ].forEach(([x, label]) => {
+    ]) {
         imageSizingSlide.addShape("rect", {
             x: x as number,
             y: 1.05,
@@ -2168,7 +2162,8 @@ export function populateImageFixture(presentation: Presentation): void {
             align: "center",
             margin: 0,
         });
-    });
+    }
+
     imageSizingSlide.addImage({ data: SAMPLE_IMAGE_DATA, x: 0.5, y: 1.05, w: 1.9, h: 2.2, altText: "Stretched sample" });
     imageSizingSlide.addImage({
         data: SAMPLE_IMAGE_DATA,
@@ -2493,20 +2488,6 @@ export function populateChartFixture(presentation: Presentation): void {
     );
 }
 
-function populateArrowHeadFixture(presentation: Presentation): void {
-    const slide = presentation.addSlide();
-
-    slide.addText("Line heads (begin and end)", { x: 0.5, y: 0.2, w: 9, h: 0.5, fontFace: "Arial", fontSize: 24, bold: true, color: "17365D", margin: 0 });
-    for (const { type, widthPt, x, y, w, h } of ARROW_HEAD_CASES) {
-        slide.addShape("line", { x, y, w, h, line: { color: "4472C4", width: widthPt, beginArrowType: type, endArrowType: type } });
-        slide.addText(`${type} ${widthPt}pt`, { x: x - 0.25, y: y + h + 0.3, w: w + 0.5, h: 0.3, fontFace: "Arial", fontSize: 12, align: "center", margin: 0 });
-    }
-
-    const { x, y, w, h } = VERTICAL_LINE_CASE;
-
-    slide.addShape("line", { x, y, w, h, line: { color: "2CA8E2", width: 1 } });
-}
-
 export function populateComponentFixture(presentation: Presentation): void {
     // HTML extension reference: equivalent PptxGenJS rectangles verify geometry and clipping.
     const componentBoxes = [
@@ -2524,10 +2505,10 @@ export function populateComponentFixture(presentation: Presentation): void {
         registerReactComponent(presentation, "fixture/react-progress", 1, ({ percent }: z.output<typeof schema>) => createElement("div", { style: { width: "100%", height: "100%", background: "#E0E0E0" } }, createElement("div", { style: { width: `${percent}%`, height: "200%", background: "#4472C4" } })), { schema });
         const componentSlide = presentation.addSlide();
 
-        componentBoxes.forEach((box, index) => {
+        for (const [index, box] of componentBoxes.entries()) {
             // Both renderers use the same schema default; the reference stays at 75%.
             componentSlide.addComponent({ type: index === 0 ? "fixture/progress" : "fixture/react-progress", version: 1, props: {} }, box);
-        });
+        }
     } else {
         const componentSlide = presentation.addSlide();
 
