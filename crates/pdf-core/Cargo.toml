@@ -16,3 +16,6 @@ parley = { version = "0.13.0", default-features = false, features = ["std"] }
 # the silhouettes shadows and glow are blurred from.
 skrifa = "0.42.1"
 tiny-skia-path = "0.12.0"
+
+[lints]
+workspace = true

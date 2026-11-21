@@ -1513,4 +1513,52 @@ mod tests {
         assert!(r.render_html(&profile::tests::document(&chart(&nested))).unwrap().starts_with(b"%PDF"));
         assert_eq!(r.warnings(), vec!["path past the page's coordinate range not rendered".to_owned()]);
     }
+
+    // GHSA-fmx3-qwqc-h37c: krilla unwraps the box of each glyph run, clip path, opacity layer and image it
+    // writes, so one that overflows f32 once transformed aborted the wasm instance. Each is now reported and
+    // not drawn; the deck still renders.
+    #[test]
+    fn skips_text_clips_and_images_whose_box_overflows_once_drawn() {
+        use profile::svg::tests::chart;
+        use profile::tests::{TEXT, document};
+        // An opacity layer makes krilla compute the box of what it holds.
+        let faded = TEXT.replace("transform-origin: center;", "transform-origin: center; opacity: 0.5;");
+        let nested = |inner: &str| format!("{}{inner}{}", r#"<g transform="scale(1e9)">"#.repeat(5), "</g>".repeat(5));
+        let clip = r##"<defs><clipPath id="c"><path d="M0 0L10 0L10 10Z" fill="#000"></path></clipPath></defs>"##;
+        for (html, warning) in [
+            (faded.replace("font-size: 24px", "font-size: 3e38px"), "text"),
+            (faded.replace("left: 96px", "left: 3.4e38px").replace("width: 288px", "width: 3.4e38px"), "text"),
+            (
+                chart(&format!(
+                    r#"<g opacity="0.5">{}</g>"#,
+                    nested(r##"<text style="font-size:16px;font-family:Arial;" fill="#000000">Hi</text>"##)
+                )),
+                "text",
+            ),
+            (
+                chart(&format!(
+                    r##"{}{clip}"##,
+                    nested(r##"<g clip-path="url(#c)"><path d="M0 0L1 1Z" fill="#00FF00"></path></g>"##)
+                )),
+                "clip path",
+            ),
+            (chart(&nested(r##"<g opacity="0.5"></g>"##)), "SVG group"),
+        ] {
+            let mut r = regular_only();
+            assert!(r.render_html(&document(&html)).unwrap().starts_with(b"%PDF"), "{html}");
+            assert_eq!(r.warnings(), vec![format!("{warning} past the page's coordinate range not rendered")], "{html}");
+        }
+
+        // The picture's corners are finite, but turned 45 degrees its box is wider than f32::MAX; the opacity
+        // layer makes krilla compute it. Its frame is the clip path checked first.
+        let SlideObject::Image(mut wide) = picture(build::image(PNG_DATA)) else {
+            panic!("picture() builds an image object")
+        };
+        wide.style = build::style(-1.7e38, 0.0, 3.4e38, 3.4e38);
+        wide.style.transform.rotation = 45.0;
+        wide.style.transform.opacity = 0.5;
+        let mut r = Renderer::new();
+        assert!(render(&mut r, &build::deck(vec![SlideObject::Image(wide)])).unwrap().starts_with(b"%PDF"));
+        assert_eq!(r.warnings(), vec!["clip path past the page's coordinate range not rendered".to_owned()]);
+    }
 }

@@ -9,7 +9,7 @@ use krilla::geom::{Point, Transform};
 use krilla::paint::Stroke;
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
-use kurbo::BezPath;
+use kurbo::{BezPath, Rect};
 use parley::{FontMetrics, GlyphRun, Layout, Line, PositionedLayoutItem};
 
 use crate::Renderer;
@@ -51,6 +51,9 @@ const PPT_HEAVY: f32 = 1.5;
 const PPT_WAVE_BAND: f32 = 2.0;
 /// PowerPoint's device grid in its PDF export, steps per inch (the PowerPoint target's advance and baseline grid).
 const PPT_GRID_PER_IN: f32 = 600.0;
+/// Widest a font's box reaches from a glyph's pen position, in em: the full i16 range of `head`'s
+/// box over the smallest units per em (1), so the text placement check holds for any font.
+const FONT_BOX_EM: f64 = 65536.0;
 /// The wave's vertical thickness: one grid step.
 const PPT_WAVE_LINE: f32 = crate::PX_PER_IN / PPT_GRID_PER_IN;
 
@@ -323,6 +326,7 @@ impl Renderer {
             let band = line_underline_band(&line, paints);
             for item in line.items() {
                 let PositionedLayoutItem::GlyphRun(glyph_run) = item else { continue };
+                #[allow(clippy::expect_used)] // internal invariant, stated in the message
                 let paint = paints
                     .get(glyph_run.style().brush.0 as usize)
                     .expect("layout_text sets every brush to the index of the paint it pushes alongside");
@@ -418,6 +422,19 @@ impl Renderer {
             glyph
         }));
         let origin = Point::from_xy(ox + glyph_run.offset(), baseline);
+        // krilla unwraps the run's box: its pen positions grown by the font's box at this size.
+        let pens = positioned.iter().flat_map(|g| {
+            let y = f64::from(baseline + g.y - glyph_run.baseline());
+            [(f64::from(ox + g.x), y), (f64::from(ox + g.x + g.advance), y)]
+        });
+        let reach = f64::from(size) * FONT_BOX_EM;
+        let bbox = pens.fold(Rect::from_points((origin.x, origin.y), (origin.x, origin.y)), |b, p| b.union_pt(p));
+        if !self.placed_box(surface, bbox.inflate(reach, reach), "text") {
+            self.glyph_ranges = ranges;
+            self.positioned = positioned;
+            self.glyphs = glyphs;
+            return;
+        }
         // fontique asks for synthesis when the face it matched lacks the requested style.
         let synthesis = run.synthesis();
         let skewed = synthesis.skew().is_some();

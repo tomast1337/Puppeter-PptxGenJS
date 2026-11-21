@@ -106,6 +106,10 @@ pub(crate) fn dilate(mask: &mut [f32], w: usize, h: usize, radius: f32, scratch:
 }
 
 /// 1D squared distance transform: `d[q] = min over p of (q - p)^2 + f[p]` (lower envelope of parabolas).
+// Indexing holds by construction, and get() per sample would slow this inner loop: `v` has n and `z`
+// n + 1 entries; `k` ends each envelope step at most q < n (z[0] = -inf stops the pop at 0, and a NaN
+// `s` stops it too); `v` holds only indices q < n of `f`; the scan stops at the last z, which is +inf.
+#[allow(clippy::indexing_slicing)]
 fn distance_1d(f: &[f64], d: &mut Vec<f64>, v: &mut Vec<usize>, z: &mut Vec<f64>) {
     let n = f.len();
     d.clear();
