@@ -12,21 +12,38 @@ function chromiumTable(): ReadonlyMap<number, boolean> {
     const range = (from: string, to = from): number[] => Array.from({ length: to.charCodeAt(0) - from.charCodeAt(0) + 1 }, (_, i) => from.charCodeAt(0) + i);
     const all = range("!", "\u007f");
     const set = (before: number[], after: number[], allow: boolean) => {
-        for (const b of before) for (const a of after) table.set(b * ASCII_END + a, allow);
+        for (const b of before) {
+            for (const a of after) {
+                table.set(b * ASCII_END + a, allow);
+            }
+        }
     };
+
     // Blink's ASCII pair table, row for row as parley's `AsciiLineBreakTableBuilder::chromium()` writes it (later rules win).
     set(all, all, false);
-    for (const after of ["(", "<", "[", "{"]) set(all, range(after), true);
+    for (const after of ["(", "<", "[", "{"]) {
+        set(all, range(after), true);
+    }
+
     set(range("-"), all, true);
     set(range("?"), all, true);
     set(range("-"), range("$"), false);
     set(all, range("!"), false);
     set(range("?"), range('"'), false);
     set(range("?"), range("'"), false);
-    for (const after of [")", ",", ".", "/"]) set(all, range(after), false);
+    for (const after of [")", ",", ".", "/"]) {
+        set(all, range(after), false);
+    }
+
     set(range("-"), range("0", "9"), false);
-    for (const after of [":", ";", "?", "]", "}"]) set(all, range(after), false);
-    for (const before of [range("$"), range("'"), range("("), range("/"), range("0", "9"), range("<"), range("@"), range("A", "Z"), range("["), range("^", "`"), range("a", "z"), range("{"), range("\u007f")]) set(before, all, false);
+    for (const after of [":", ";", "?", "]", "}"]) {
+        set(all, range(after), false);
+    }
+
+    for (const before of [range("$"), range("'"), range("("), range("/"), range("0", "9"), range("<"), range("@"), range("A", "Z"), range("["), range("^", "`"), range("a", "z"), range("{"), range("\u007f")]) {
+        set(before, all, false);
+    }
+
     return table;
 }
 
@@ -44,11 +61,21 @@ function isAsciiAlphanumeric(char: string): boolean {
 /** Chromium's verdict on a break between `before` and `after`, or undefined to keep UAX #14's. */
 function chromiumOverride(beforeBefore: string | undefined, before: string, after: string): boolean | undefined {
     // Chromium always breaks after a run of spaces, even where UAX #14 (LB13) does not.
-    if (before === " " && after !== " ") return true;
+    if (before === " " && after !== " ") {
+        return true;
+    }
+
     // A "-" before a digit is a minus sign unless it follows a letter or digit ("AAAA-2222").
-    if (before === "-" && isAsciiDigit(after)) return beforeBefore !== undefined && isAsciiAlphanumeric(beforeBefore);
+    if (before === "-" && isAsciiDigit(after)) {
+        return beforeBefore !== undefined && isAsciiAlphanumeric(beforeBefore);
+    }
+
     const [b, a] = [before.codePointAt(0) ?? 0, after.codePointAt(0) ?? 0];
-    if (b < PRINTABLE_START || a < PRINTABLE_START || b >= ASCII_END || a >= ASCII_END) return undefined;
+
+    if (b < PRINTABLE_START || a < PRINTABLE_START || b >= ASCII_END || a >= ASCII_END) {
+        return undefined;
+    }
+
     return CHROMIUM_TABLE.get(b * ASCII_END + a);
 }
 
@@ -56,15 +83,25 @@ function chromiumOverride(beforeBefore: string | undefined, before: string, afte
 export function breakOpportunities(text: string): number[] {
     const uax14 = new Set<number>();
     const breaker = new LineBreaker(text);
-    for (let next = breaker.nextBreak(); next; next = breaker.nextBreak()) uax14.add(next.position);
+
+    for (let next = breaker.nextBreak(); next; next = breaker.nextBreak()) {
+        uax14.add(next.position);
+    }
+
     const chars = Array.from(text);
     const opportunities: number[] = [];
     let index = 0;
+
     for (let i = 0; i + 1 < chars.length; i++) {
         const before = chars[i] ?? "";
+
         index += before.length;
         const override = chromiumOverride(chars[i - 1], before, chars[i + 1] ?? "");
-        if (override ?? uax14.has(index)) opportunities.push(index);
+
+        if (override ?? uax14.has(index)) {
+            opportunities.push(index);
+        }
     }
+
     return opportunities;
 }

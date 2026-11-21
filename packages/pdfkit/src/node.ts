@@ -13,20 +13,31 @@ export { createPdfkitRenderer, type MissingFont, MissingFontError, type MissingF
 const DEFAULT_FONT_FILES = /^(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?|NotoSansCJK-(?:Regular|Bold)|calibri.*|cambria.*|arial.*|times.*|cour.*)\.(?:ttf|otf|ttc)$/i;
 
 function systemFontDirs(): string[] {
-    if (process.platform === "win32") return [join(process.env.WINDIR ?? "C:\\Windows", "Fonts"), join(process.env.LOCALAPPDATA ?? "", "Microsoft/Windows/Fonts")];
-    if (process.platform === "darwin") return ["/System/Library/Fonts", "/Library/Fonts", join(homedir(), "Library/Fonts")];
+    if (process.platform === "win32") {
+        return [join(process.env.WINDIR ?? "C:\\Windows", "Fonts"), join(process.env.LOCALAPPDATA ?? "", "Microsoft/Windows/Fonts")];
+    }
+
+    if (process.platform === "darwin") {
+        return ["/System/Library/Fonts", "/Library/Fonts", join(homedir(), "Library/Fonts")];
+    }
+
     return ["/usr/share/fonts", "/usr/local/share/fonts", join(homedir(), ".local/share/fonts"), join(homedir(), ".fonts")];
 }
 
 async function fontFiles(dir: string, match: RegExp): Promise<string[]> {
     const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
     const nested = await Promise.all(entries.map(entry => (entry.isDirectory() ? fontFiles(join(dir, entry.name), match) : match.test(entry.name) ? [join(dir, entry.name)] : [])));
+
     return nested.flat();
 }
 
 /** Reads font files from the system font directories, for `createPdfkitRenderer({ fonts })`. Throws when none match. */
 export async function loadSystemFonts({ dirs = systemFontDirs(), match = DEFAULT_FONT_FILES }: SystemFontOptions = {}): Promise<Uint8Array[]> {
     const files = (await Promise.all(dirs.map(dir => fontFiles(dir, match)))).flat().sort();
-    if (!files.length) throw new Error(`No font files matching ${match} in ${dirs.join(", ")}; install Carlito, Caladea, Liberation and DejaVu fonts or pass { dirs, match }`);
+
+    if (!files.length) {
+        throw new Error(`No font files matching ${match} in ${dirs.join(", ")}; install Carlito, Caladea, Liberation and DejaVu fonts or pass { dirs, match }`);
+    }
+
     return Promise.all(files.map(async file => new Uint8Array(await readFile(file))));
 }

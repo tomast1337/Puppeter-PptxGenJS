@@ -26,18 +26,24 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
 function profileDate(value: string): Date {
     const date = new Date(value);
+
     if (!ISO_DATE.test(value) || Number.isNaN(date.getTime())) {
         throw new Error(`Cannot write the PDF dates: ${JSON.stringify(value)} is not a UTC date such as 2026-11-19T12:34:56.000Z (Date.prototype.toISOString()).`);
     }
+
     // PDF dates are to the second (D:YYYYMMDDHHmmSSZ), as in the other renderers.
     return new Date(Math.floor(date.getTime() / 1000) * 1000);
 }
 
 /** The document properties of a version 2 document (docs/HTML_PROFILE.md "Document properties"). */
 function documentInfo(head: Element | undefined, prefix: string): PDFKit.DocumentInfo {
-    if (!head) return {};
+    if (!head) {
+        return {};
+    }
+
     const meta = (name: string) => {
         const element = children(head).find(child => child.tagName === "meta" && attribute(child, "name") === name);
+
         return element && attribute(element, "content");
     };
     const title = children(head).find(element => element.tagName === "title");
@@ -53,6 +59,7 @@ function documentInfo(head: Element | undefined, prefix: string): PDFKit.Documen
     const [created, modified] = [meta(`${prefix}creation-date`), meta(`${prefix}modification-date`)].map(date => (date ? profileDate(date) : undefined));
     // A date alone is both, as krilla (one date) writes it in the WASM renderer.
     const dates = created || modified ? { CreationDate: created ?? modified, ModDate: modified ?? created } : {};
+
     return {
         ...(title ? { Title: textContent(title).trim().replace(/\s+/g, " ") } : {}),
         // `as`: ISO 32000-1 14.3.3 allows other keys (Company, Revision) in the Info dictionary; PDFKit writes them, its types list the standard ones.
@@ -68,14 +75,17 @@ async function collect(doc: PDFKit.PDFDocument): Promise<Uint8Array> {
         doc.on("end", () => resolve());
         doc.on("error", reject);
     });
+
     doc.end();
     await done;
     const pdf = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0));
     let offset = 0;
+
     for (const chunk of chunks) {
         pdf.set(chunk, offset);
         offset += chunk.byteLength;
     }
+
     return pdf;
 }
 
@@ -96,9 +106,12 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
         font: null as unknown as string,
         info: { CreationDate: FIXED_DATE, ...info },
     });
+
     // Without a date of the deck's the Info dictionary has none: PDFKit writes the enumerable entries of `doc.info`,
     // and still reads CreationDate for its XMP packet (unwritten in PDF 1.3), so the date stays, hidden from the loop.
-    if (!info.CreationDate) Object.defineProperty(doc.info, "CreationDate", { value: FIXED_DATE, enumerable: false });
+    if (!info.CreationDate) {
+        Object.defineProperty(doc.info, "CreationDate", { value: FIXED_DATE, enumerable: false });
+    }
 
     const warnings = new Set<string>();
     const missing = new Map<string, { objects: Set<string>; used: string | undefined }>();
@@ -106,16 +119,23 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
     const registered = new Set<string>();
     const effects = new Effects();
     const numbers = slides.map((slide, index) => Number(SLIDE_ID.exec(attribute(slide, "id") ?? "")?.[1] ?? index + 1));
+
     for (const element of descendants(slides)) {
         const target = attribute(element, "data-slide");
-        if (target !== undefined && !numbers.includes(Number(target))) warnings.add(`a link to slide ${target}, which has no page, is not drawn`);
+
+        if (target !== undefined && !numbers.includes(Number(target))) {
+            warnings.add(`a link to slide ${target}, which has no page, is not drawn`);
+        }
     }
+
     slides.forEach((slide, index) => {
         const number = numbers[index] ?? index + 1;
+
         doc.addPage({ size, margin: 0 });
         doc.addNamedDestination(`slide-${number}`);
         doc.scale(POINTS_PER_INCH / CSS_PX_PER_INCH);
         const report = (what: string) => warnings.add(`slide ${number}: ${what}`);
+
         drawSlide(
             slide,
             {
@@ -128,6 +148,7 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
                     report,
                     missingFace: (face, used) => {
                         const entry = missing.get(face) ?? { objects: new Set<string>(), used };
+
                         entry.objects.add(`slide ${number} '${object}'`);
                         missing.set(face, entry);
                     },
@@ -136,6 +157,7 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
             { width: pageSize.width * CSS_PX_PER_INCH, height: pageSize.height * CSS_PX_PER_INCH },
         );
     });
+
     return {
         pdf: await collect(doc),
         warnings: [...warnings],

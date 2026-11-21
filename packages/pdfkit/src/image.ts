@@ -30,16 +30,31 @@ function startsWith(bytes: Uint8Array, signature: readonly number[], at = 0): bo
 /** The bytes of a `data:` URI; undefined for anything else. */
 function dataUriBytes(src: string): Uint8Array | undefined {
     const match = DATA_URI.exec(src);
-    if (!match) return undefined;
+
+    if (!match) {
+        return undefined;
+    }
+
     const payload = match[3] ?? "";
-    if (match[2]) return Uint8Array.from(atob(payload.replace(/\s+/g, "")), char => char.charCodeAt(0));
+
+    if (match[2]) {
+        return Uint8Array.from(atob(payload.replace(/\s+/g, "")), char => char.charCodeAt(0));
+    }
+
     return new TextEncoder().encode(decodeURIComponent(payload));
 }
 
 function littleEndian(bytes: Uint8Array, at: number, count: number): number | undefined {
-    if (at + count > bytes.length) return undefined;
+    if (at + count > bytes.length) {
+        return undefined;
+    }
+
     let value = 0;
-    for (let index = count - 1; index >= 0; index--) value = value * 256 + (bytes[at + index] ?? 0);
+
+    for (let index = count - 1; index >= 0; index--) {
+        value = value * 256 + (bytes[at + index] ?? 0);
+    }
+
     return value;
 }
 
@@ -54,17 +69,28 @@ function gifSize(bytes: Uint8Array): [number, number] {
     const packed = bytes[10] ?? 0;
     // The packed field: bit 7 flags a global colour table, bits 0-2 give its size.
     let at = 13 + (packed & 0x80 ? 3 << ((packed & 7) + 1) : 0);
+
     // Extensions (0x21, a label and data sub-blocks up to an empty one) come before the first image descriptor (0x2C).
     while (bytes[at] === 0x21) {
         at += 2;
         for (let size = bytes[at]; size !== undefined; size = bytes[at]) {
             at += 1 + size;
-            if (size === 0) break;
+            if (size === 0) {
+                break;
+            }
         }
     }
+
     const [x, y, w, h] = [word(at + 1), word(at + 3), word(at + 5), word(at + 7)];
-    if (bytes[at] !== 0x2c || [x, y, w, h, sw, sh].includes(undefined)) throw new Error("cannot decode image/gif data: no image descriptor");
-    if (x !== 0 || y !== 0 || w !== sw || h !== sh) throw new Error(`the GIF's first frame (${w}x${h} at ${x},${y}) does not fill its ${sw}x${sh} screen; save it with a full first frame`);
+
+    if (bytes[at] !== 0x2c || [x, y, w, h, sw, sh].includes(undefined)) {
+        throw new Error("cannot decode image/gif data: no image descriptor");
+    }
+
+    if (x !== 0 || y !== 0 || w !== sw || h !== sh) {
+        throw new Error(`the GIF's first frame (${w}x${h} at ${x},${y}) does not fill its ${sw}x${sh} screen; save it with a full first frame`);
+    }
+
     return [sw ?? 0, sh ?? 0];
 }
 
@@ -75,9 +101,17 @@ function gifSize(bytes: Uint8Array): [number, number] {
 function firstFramePng(bytes: Uint8Array, mime: string): Uint8Array {
     const gif = startsWith(bytes, GIF_SIGNATURE);
     const size = gif ? gifSize(bytes) : webpSize(bytes);
-    if (!size) throw new Error(`cannot decode ${mime} data: no image size in its header`);
+
+    if (!size) {
+        throw new Error(`cannot decode ${mime} data: no image size in its header`);
+    }
+
     const image = gif ? decodeGif({ data: bytes, frameIndex: 0 }) : decodeWebP({ data: bytes, frameIndex: 0 });
-    if (!image) throw new Error(`cannot decode ${mime} data`);
+
+    if (!image) {
+        throw new Error(`cannot decode ${mime} data`);
+    }
+
     return encodePng({ image, singleFrame: true });
 }
 
@@ -85,8 +119,13 @@ export function drawImage(element: Element, objectStyle: Map<string, string>, pa
     const rounded = take(objectStyle, "border-radius") === ROUNDED;
     const frame = children(element).find(child => hasClass(child, "slide-image-frame"));
     const img = frame && children(frame).find(child => hasClass(child, "slide-image-content"));
-    if (!frame || !img) throw new Error("invalid PdfLapas HTML: an image has no .slide-image-frame > img.slide-image-content");
+
+    if (!frame || !img) {
+        throw new Error("invalid PdfLapas HTML: an image has no .slide-image-frame > img.slide-image-content");
+    }
+
     const frameStyle = readStyle(frame);
+
     take(frameStyle, "border-radius");
     reportUnread(frame, frameStyle, [], paint.report, FRAME_LAYOUT);
     const style = readStyle(img);
@@ -97,21 +136,36 @@ export function drawImage(element: Element, objectStyle: Map<string, string>, pa
     const height = length(take(style, "height"), box.height);
     // `object-fit: fill` maps the image onto the img box the profile sizes for every sizing mode; there object-position does nothing.
     const fit = take(style, "object-fit");
-    if (fit !== "fill") paint.report(`object-fit '${fit ?? "none"}' is drawn as 'fill'`);
-    else take(style, "object-position");
+
+    if (fit !== "fill") {
+        paint.report(`object-fit '${fit ?? "none"}' is drawn as 'fill'`);
+    } else {
+        take(style, "object-position");
+    }
+
     reportUnread(img, style, ["data-image-sizing"], paint.report, IMG_LAYOUT);
     const src = attribute(img, "src") ?? "";
     const bytes = dataUriBytes(src);
-    if (!bytes) throw new Error("invalid PdfLapas HTML: an image's src is not a data: URI (toHtml() inlines every image)");
-    if (width === undefined || height === undefined) throw new Error("invalid PdfLapas HTML: an image's img has no width and height in px or %");
+
+    if (!bytes) {
+        throw new Error("invalid PdfLapas HTML: an image's src is not a data: URI (toHtml() inlines every image)");
+    }
+
+    if (width === undefined || height === undefined) {
+        throw new Error("invalid PdfLapas HTML: an image's img has no width and height in px or %");
+    }
+
     const mime = DATA_URI.exec(src)?.[1] || "unknown";
     // By magic bytes, as browsers sniff: a mislabelled PNG still draws.
     const raster = startsWith(bytes, PNG_SIGNATURE) || startsWith(bytes, JPEG_SIGNATURE) ? bytes : startsWith(bytes, GIF_SIGNATURE) || (startsWith(bytes, RIFF_SIGNATURE) && startsWith(bytes, WEBP_FORM, 8)) ? firstFramePng(bytes, mime) : undefined;
     const svg = !raster && mime.toLowerCase() === "image/svg+xml";
+
     if (!raster && !svg) {
         paint.report(`image format '${mime}' is not drawn (not a PNG, JPEG, GIF, WebP or SVG image)`);
+
         return;
     }
+
     const doc = paint.doc;
     const [left, top] = [box.x + x, box.y + y];
     // Contained and cropped pictures may not fill the box: the silhouette is what is drawn.
@@ -119,10 +173,15 @@ export function drawImage(element: Element, objectStyle: Map<string, string>, pa
     // alpha channel), as in pdf-core; decode the alpha for it when a deck shadows a cut-out picture.
     const [l, t] = [Math.max(box.x, left), Math.max(box.y, top)];
     const [r, b] = [Math.min(box.x + box.width, left + width), Math.min(box.y + box.height, top + height)];
+
     captureFill(paint, opacity, pen => (rounded ? pen.ellipse(box.x + box.width / 2, box.y + box.height / 2, box.width / 2, box.height / 2) : pen.rect(l, t, r - l, b - t)));
     doc.save();
-    if (rounded) doc.ellipse(box.x + box.width / 2, box.y + box.height / 2, box.width / 2, box.height / 2).clip();
-    else doc.rect(box.x, box.y, box.width, box.height).clip();
+    if (rounded) {
+        doc.ellipse(box.x + box.width / 2, box.y + box.height / 2, box.width / 2, box.height / 2).clip();
+    } else {
+        doc.rect(box.x, box.y, box.width, box.height).clip();
+    }
+
     if (raster) {
         // An image XObject is painted with the fill alpha (ISO 32000-1 11.6.4.4).
         doc.fillOpacity(opacity * paint.opacity);
@@ -135,5 +194,6 @@ export function drawImage(element: Element, objectStyle: Map<string, string>, pa
         opacityGroup(doc, opacity * paint.opacity, () => drawSvgImage(new TextDecoder().decode(bytes), { ...paint, opacity: 1 }, { x: left, y: top, width, height }));
         paint.effects.resume();
     }
+
     doc.restore();
 }

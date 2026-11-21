@@ -126,45 +126,82 @@ const LAYOUT_ONLY: Readonly<Record<string, ReadonlySet<string>>> = Object.freeze
 
 /** Reports the properties left in `style` and the data-* attributes not in `read`. */
 export function reportUnread(element: Element, style: Style, read: readonly string[], report: Report, ignored: ReadonlySet<string> = new Set()): void {
-    for (const [property, value] of style) if (!ignored.has(property)) report(`CSS property '${property}: ${value}' on <${element.tagName}> is not drawn`);
-    for (const { name } of element.attrs) if (name.startsWith("data-") && !read.includes(name)) report(`attribute '${name}' on <${element.tagName}> is not drawn`);
+    for (const [property, value] of style) {
+        if (!ignored.has(property)) {
+            report(`CSS property '${property}: ${value}' on <${element.tagName}> is not drawn`);
+        }
+    }
+
+    for (const { name } of element.attrs) {
+        if (name.startsWith("data-") && !read.includes(name)) {
+            report(`attribute '${name}' on <${element.tagName}> is not drawn`);
+        }
+    }
 }
 
 function required(value: number | undefined, what: string): number {
-    if (value === undefined || !Number.isFinite(value)) throw new Error(`invalid PdfLapas HTML: ${what} is missing or not a number`);
+    if (value === undefined || !Number.isFinite(value)) {
+        throw new Error(`invalid PdfLapas HTML: ${what} is missing or not a number`);
+    }
+
     return value;
 }
 
 function requiredColor(value: string | undefined, what: string): Color {
     const parsed = color(value);
-    if (!parsed) throw new Error(`invalid PdfLapas HTML: ${what} '${value ?? ""}' is missing or not a color the renderer reads (#rgb, #rrggbb, rgb(), rgba())`);
+
+    if (!parsed) {
+        throw new Error(`invalid PdfLapas HTML: ${what} '${value ?? ""}' is missing or not a color the renderer reads (#rgb, #rrggbb, rgb(), rgba())`);
+    }
+
     return parsed;
 }
 
 function readColor(value: string | undefined, what: string, report: Report): Color | undefined {
     const parsed = color(value);
-    if (value !== undefined && !parsed) report(`${what} '${value}' is not a color the renderer reads`);
+
+    if (value !== undefined && !parsed) {
+        report(`${what} '${value}' is not a color the renderer reads`);
+    }
+
     return parsed;
 }
 
 function readFace(element: Element, style: Style): FaceRequest {
     const value = take(style, "font-family") ?? "";
     const [family, ...fallbacks] = cssStrings(value) ?? [];
-    if (family === undefined) throw new Error(`invalid PdfLapas HTML: font-family '${value}' on <${element.tagName}> is not one or more quoted families separated by ', '`);
+
+    if (family === undefined) {
+        throw new Error(`invalid PdfLapas HTML: font-family '${value}' on <${element.tagName}> is not one or more quoted families separated by ', '`);
+    }
+
     const lang = attribute(element, "lang");
+
     return { family, fallbacks, ...(lang ? { lang } : {}), bold: take(style, "font-weight") === "bold", italic: take(style, "font-style") === "italic" };
 }
 
 function readSynthesis(element: Element): Synthesis {
     const number = (name: string, fallback: number) => {
         const value = attribute(element, name);
-        if (value === undefined) return fallback;
+
+        if (value === undefined) {
+            return fallback;
+        }
+
         const parsed = Number(value);
-        if (value.trim() === "" || !Number.isFinite(parsed)) throw new Error(`invalid PdfLapas HTML: attribute '${name}' '${value}' is not a number`);
+
+        if (value.trim() === "" || !Number.isFinite(parsed)) {
+            throw new Error(`invalid PdfLapas HTML: attribute '${name}' '${value}' is not a number`);
+        }
+
         return parsed;
     };
     const boldStroke = number("data-synthetic-bold", BROWSER_SYNTHESIS.boldStroke);
-    if (boldStroke < 0) throw new Error(`invalid PdfLapas HTML: attribute 'data-synthetic-bold' ${boldStroke} is negative`);
+
+    if (boldStroke < 0) {
+        throw new Error(`invalid PdfLapas HTML: attribute 'data-synthetic-bold' ${boldStroke} is negative`);
+    }
+
     return { boldStroke, italicShear: number("data-synthetic-italic", BROWSER_SYNTHESIS.italicShear) };
 }
 
@@ -174,25 +211,39 @@ function readSynthesis(element: Element): Synthesis {
  */
 function runPieces(element: Element, letterSpacing: number): { text: string; letterSpacing: number; word: boolean }[] {
     const hyphen = attribute(element, "data-non-breaking-hyphen");
-    if (hyphen !== undefined && hyphen !== "hyphen-minus") throw new Error(`invalid PdfLapas HTML: attribute 'data-non-breaking-hyphen' '${hyphen}' is not hyphen-minus`);
+
+    if (hyphen !== undefined && hyphen !== "hyphen-minus") {
+        throw new Error(`invalid PdfLapas HTML: attribute 'data-non-breaking-hyphen' '${hyphen}' is not hyphen-minus`);
+    }
+
     const text = (value: string) => (hyphen === undefined ? value : value.replace(NON_BREAKING_HYPHEN, HYPHEN_MINUS_NO_BREAK));
     const pieces: { text: string; letterSpacing: number; word: boolean }[] = [];
+
     for (const node of element.childNodes) {
         if (!isElement(node)) {
             const value = "value" in node ? node.value : "";
             const last = pieces.at(-1);
+
             // Bare text pieces next to each other share the run's spacing.
-            if (last && !last.word) last.text += text(value);
-            else pieces.push({ text: text(value), letterSpacing, word: false });
+            if (last && !last.word) {
+                last.text += text(value);
+            } else {
+                pieces.push({ text: text(value), letterSpacing, word: false });
+            }
+
             continue;
         }
+
         const style = readStyle(node);
         const spacing = px(take(style, "letter-spacing"));
+
         if (node.tagName !== "span" || node.attrs.length !== 1 || spacing === undefined || style.size || node.childNodes.some(isElement)) {
             throw new Error(`invalid PdfLapas HTML: <${node.tagName}> inside a run; a run holds text and word spans, <span style="letter-spacing: <n>px;"> with text only`);
         }
+
         pieces.push({ text: text(textContent(node)), letterSpacing: spacing, word: true });
     }
+
     return pieces.filter(piece => piece.text);
 }
 
@@ -202,14 +253,22 @@ function runPieces(element: Element, letterSpacing: number): { text: string; let
  */
 function readUnderlineBand(style: Style, report: Report): Decoration["band"] {
     const offset = take(style, "text-underline-offset");
-    if (offset === undefined) return undefined;
-    const thickness = style.get("text-decoration-thickness");
-    const [top, height] = [em(offset), em(thickness)];
-    if (top === undefined || height === undefined || height <= 0 || style.has("text-underline-position")) {
-        report(`CSS property 'text-underline-offset: ${offset}' is not drawn: an underline band is '<n>em' with 'text-decoration-thickness' a positive '<n>em' and no 'text-underline-position'`);
+
+    if (offset === undefined) {
         return undefined;
     }
+
+    const thickness = style.get("text-decoration-thickness");
+    const [top, height] = [em(offset), em(thickness)];
+
+    if (top === undefined || height === undefined || height <= 0 || style.has("text-underline-position")) {
+        report(`CSS property 'text-underline-offset: ${offset}' is not drawn: an underline band is '<n>em' with 'text-decoration-thickness' a positive '<n>em' and no 'text-underline-position'`);
+
+        return undefined;
+    }
+
     style.delete("text-decoration-thickness");
+
     return { position: -top, thickness: height };
 }
 
@@ -223,20 +282,33 @@ function readDecorations(element: Element, style: Style, textColor: Color, repor
     const fromFont =
         UNDERLINE_FROM_FONT.map(([property, drawn]) => {
             const value = take(style, property);
-            if (value !== undefined && value !== drawn) report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
+
+            if (value !== undefined && value !== drawn) {
+                report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
+            }
+
             return value !== undefined;
         })[0] || band !== undefined;
     const heavyAttribute = attribute(element, "data-underline-heavy") !== undefined;
-    if (heavyAttribute && !fromFont) report("attribute 'data-underline-heavy' without 'text-decoration-thickness: from-font' is not drawn (drawn at the normal thickness)");
+
+    if (heavyAttribute && !fromFont) {
+        report("attribute 'data-underline-heavy' without 'text-decoration-thickness: from-font' is not drawn (drawn at the normal thickness)");
+    }
+
     const heavy = heavyAttribute && fromFont;
     const doubleStrike = attribute(element, "data-double-strike") !== undefined;
     // A double strike takes text-decoration-style; the underline's own style is then in data-underline-style.
     const underlineStyle = (doubleStrike ? attribute(element, "data-underline-style") : cssStyle) ?? "solid";
     const decoration = (kind: string, styleName: string): Decoration => {
-        if (DECORATION_STYLES.has(styleName)) return { style: styleName as Decoration["style"], color: kind === "underline" ? decorationColor : textColor }; // `as`: checked against DECORATION_STYLES
+        if (DECORATION_STYLES.has(styleName)) {
+            return { style: styleName as Decoration["style"], color: kind === "underline" ? decorationColor : textColor };
+        } // `as`: checked against DECORATION_STYLES
+
         report(`${kind} style '${styleName}' is not drawn (drawn solid)`);
+
         return { style: "solid", color: decorationColor };
     };
+
     return {
         ...(lines.includes("underline") ? { underline: { ...decoration("underline", underlineStyle), ...(fromFont ? { fromFont } : {}), ...(band ? { band } : {}), ...(heavy ? { heavy } : {}) } } : {}),
         ...(lines.includes("line-through") || doubleStrike ? { strike: decoration("strike", doubleStrike ? "double" : "solid") } : {}),
@@ -244,14 +316,20 @@ function readDecorations(element: Element, style: Style, textColor: Color, repor
 }
 
 function readOutline(value: string | undefined, report: Report): Run["outline"] {
-    if (value === undefined) return undefined;
+    if (value === undefined) {
+        return undefined;
+    }
+
     const space = value.indexOf(" ");
     const width = px(value.slice(0, space));
     const outlineColor = color(value.slice(space + 1));
+
     if (width === undefined || !outlineColor) {
         report(`-webkit-text-stroke '${value}' is not drawn`);
+
         return undefined;
     }
+
     return { width, color: outlineColor };
 }
 
@@ -263,22 +341,41 @@ const SHADOW_ENTRY = /[^,(]+(?:\([^)]*\)[^,(]*)*/g;
  * object's shadow, which slide.ts draws from the box's `box-shadow` (pdf-core skips it the same way).
  */
 function readGlow(element: Element, value: string | undefined, report: Report): Effect | undefined {
-    if (attribute(element, "data-shadow-inset") !== undefined) report("inner shadow not rendered");
-    if (value === undefined) return undefined;
-    const names = (attribute(element, "data-text-shadow") ?? "").split(/\s+/).filter(Boolean);
-    const entries = (value.match(SHADOW_ENTRY) ?? []).map(entry => entry.trim()).filter(Boolean);
-    if (names.length !== entries.length) {
-        report(`text-shadow '${value}' has ${entries.length} entries but data-text-shadow names ${names.length}; not drawn`);
+    if (attribute(element, "data-shadow-inset") !== undefined) {
+        report("inner shadow not rendered");
+    }
+
+    if (value === undefined) {
         return undefined;
     }
+
+    const names = (attribute(element, "data-text-shadow") ?? "").split(/\s+/).filter(Boolean);
+    const entries = (value.match(SHADOW_ENTRY) ?? []).map(entry => entry.trim()).filter(Boolean);
+
+    if (names.length !== entries.length) {
+        report(`text-shadow '${value}' has ${entries.length} entries but data-text-shadow names ${names.length}; not drawn`);
+
+        return undefined;
+    }
+
     let glow: Effect | undefined;
+
     names.forEach((name, index) => {
         const entry = entries[index] ?? "";
-        if (name === "shadow") return;
+
+        if (name === "shadow") {
+            return;
+        }
+
         const effect = name === "glow" ? glowEffect(entry) : `text-shadow entry '${entry}' named '${name}' (not glow or shadow) is not drawn`;
-        if (typeof effect === "string") report(effect);
-        else glow = effect;
+
+        if (typeof effect === "string") {
+            report(effect);
+        } else {
+            glow = effect;
+        }
     });
+
     return glow;
 }
 
@@ -289,7 +386,11 @@ function readRuns(element: Element, report: Report): Run[] {
     const slide = attribute(element, "data-slide");
     const position = take(style, "position");
     const top = px(take(style, "top")) ?? 0;
-    if (position !== undefined && position !== "relative") report(`position '${position}' on a run is not drawn`);
+
+    if (position !== undefined && position !== "relative") {
+        report(`position '${position}' on a run is not drawn`);
+    }
+
     const highlight = readColor(take(style, "background-color"), "background-color", report);
     const letterSpacing = px(take(style, "letter-spacing")) ?? 0;
     const glow = readGlow(element, take(style, "text-shadow"), report);
@@ -310,10 +411,15 @@ function readRuns(element: Element, report: Report): Run[] {
         ...(glow ? { glow } : {}),
     };
     const read = ["data-double-strike", "data-underline-style", "data-underline-heavy", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"];
+
     reportUnread(element, style, [...read, "data-synthetic-bold", "data-synthetic-italic", "data-non-breaking-hyphen"], report);
     // One run per piece of one letter-spacing; only the first starts after a soft break.
     const pieces = runPieces(element, letterSpacing);
-    if (!pieces.length) return [run];
+
+    if (!pieces.length) {
+        return [run];
+    }
+
     return pieces.map((piece, index) => ({ ...run, text: piece.text, letterSpacing: piece.letterSpacing, softBreakBefore: run.softBreakBefore && index === 0 }));
 }
 
@@ -325,32 +431,56 @@ function readBullet(element: Element, report: Report): Bullet {
         size: required(px(take(style, "font-size")), "a bullet's font-size"),
         color: requiredColor(take(style, "color"), "a bullet's color"),
     };
+
     reportUnread(element, style, [], report, LAYOUT_ONLY.bullet);
+
     return bullet;
 }
 
 function readParagraph(element: Element, report: Report): Paragraph {
     const style = readStyle(element);
     const align = take(style, "text-align") ?? "left";
-    if (!ALIGNS.has(align)) report(`text-align '${align}' is not drawn`);
+
+    if (!ALIGNS.has(align)) {
+        report(`text-align '${align}' is not drawn`);
+    }
+
     const direction = take(style, "direction") ?? "ltr";
-    if (!DIRECTIONS.has(direction)) throw new Error(`invalid PdfLapas HTML: a paragraph's direction is '${direction}', expected ltr or rtl`);
+
+    if (!DIRECTIONS.has(direction)) {
+        throw new Error(`invalid PdfLapas HTML: a paragraph's direction is '${direction}', expected ltr or rtl`);
+    }
+
     const rtl = direction === "rtl";
     const lineHeight = required(px(take(style, "line-height")), "a paragraph's line-height");
     const baseline = required(Number(attribute(element, "data-line-baseline")), "a paragraph's data-line-baseline");
     const optionalBaseline = (name: string) => {
         const value = attribute(element, name);
+
         return value === undefined ? baseline : required(Number(value), `a paragraph's ${name}`);
     };
     const parts = children(element);
     const bulletElement = parts.find(child => hasClass(child, "text-bullet"));
     const runs = parts.filter(child => hasClass(child, "text-run")).flatMap(child => readRuns(child, report));
-    for (const child of parts) if (!hasClass(child, "text-run") && !hasClass(child, "text-bullet") && child.tagName !== "br") report(`<${child.tagName}> in a paragraph is not drawn`);
+
+    for (const child of parts) {
+        if (!hasClass(child, "text-run") && !hasClass(child, "text-bullet") && child.tagName !== "br") {
+            report(`<${child.tagName}> in a paragraph is not drawn`);
+        }
+    }
+
     const text = runs.map(run => run.text).join("");
+
     // shortcut: no Unicode bidi algorithm, so a paragraph's words run in its direction; port one (or take pdf-core's
     // parley order) when a deck mixes directions.
-    if (rtl ? LTR_LETTER.test(text) : RTL_LETTER.test(text)) report(`${rtl ? "left-to-right words in a right-to-left" : "right-to-left words in a left-to-right"} paragraph are ordered in the paragraph's direction`);
-    if (rtl && text.includes("\t")) report("tab stops in right-to-left paragraphs measured from the left");
+    if (rtl ? LTR_LETTER.test(text) : RTL_LETTER.test(text)) {
+        report(`${rtl ? "left-to-right words in a right-to-left" : "right-to-left words in a left-to-right"} paragraph are ordered in the paragraph's direction`);
+    }
+
+    if (rtl && text.includes("\t")) {
+        report("tab stops in right-to-left paragraphs measured from the left");
+    }
+
     const paragraph: Paragraph = {
         runs,
         align: ALIGNS.has(align) ? (align as Align) : "left", // `as`: checked against ALIGNS
@@ -368,27 +498,39 @@ function readParagraph(element: Element, report: Report): Paragraph {
         ...(bulletElement ? { bullet: readBullet(bulletElement, report) } : {}),
     };
     const bulletAttributes = ["data-bullet-level", "data-bullet-type", "data-bullet-indent", "data-bullet-start", "data-bullet-number-type"];
+
     reportUnread(element, style, ["data-line-baseline", "data-mark-baseline", "data-break-baseline", "data-tab-stops", ...bulletAttributes], report);
+
     return paragraph;
 }
 
 /** `data-tab-stops="<position>:<left|right|center|decimal>,…"`. */
 function readTabStops(value: string | undefined): TabStop[] {
-    if (value === undefined) return [];
+    if (value === undefined) {
+        return [];
+    }
+
     return value.split(",").map(stop => {
         const [position, alignment = ""] = stop.split(":");
         const parsed = Number(position);
+
         if (!position?.trim() || !Number.isFinite(parsed) || !TAB_ALIGNS.has(alignment)) {
             throw new Error(`invalid PdfLapas HTML: attribute 'data-tab-stops': '${stop}' is not '<position>:<left|right|center|decimal>'`);
         }
+
         return { position: parsed, alignment: alignment as TabStop["alignment"] }; // `as`: checked against TAB_ALIGNS
     });
 }
 
 function readFit(element: Element): Fit {
     const fit = attribute(element, "data-text-fit") ?? "none";
-    if (fit !== "shrink") return { kind: fit === "resize" ? "resize" : "none" };
+
+    if (fit !== "shrink") {
+        return { kind: fit === "resize" ? "resize" : "none" };
+    }
+
     const number = (name: string) => required(Number(attribute(element, name)), `a shrink box's ${name}`);
+
     return { kind: "shrink", step: number("data-text-fit-step"), maxSteps: number("data-text-fit-max-steps"), tolerance: number("data-text-fit-tolerance") };
 }
 
@@ -400,18 +542,31 @@ export function readTextBox(box: Element, style: Style, report: Report): TextBox
     const direction = attribute(box, "data-text-direction") ?? "horizontal";
     const anchor = take(style, "align-items") ?? "center";
     const whiteSpace = take(style, "white-space") ?? "pre-wrap";
+
     take(style, "overflow-wrap");
     take(style, "direction"); // each paragraph repeats it, and pdf-core reads it there only
     const padding = sides(take(style, "padding")) ?? [0, 0, 0, 0];
+
     if (direction !== "horizontal") {
         report(`${direction} text is not drawn`);
+
         return undefined;
     }
-    if (!ANCHORS.has(anchor)) report(`align-items '${anchor}' is not drawn`);
+
+    if (!ANCHORS.has(anchor)) {
+        report(`align-items '${anchor}' is not drawn`);
+    }
+
     const content = children(box).find(child => hasClass(child, "text-content"));
-    if (!content) throw new Error("invalid PdfLapas HTML: a text box has no .text-content");
+
+    if (!content) {
+        throw new Error("invalid PdfLapas HTML: a text box has no .text-content");
+    }
+
     const contentStyle = readStyle(content);
+
     reportUnread(content, contentStyle, [], report, LAYOUT_ONLY.content);
+
     return {
         paragraphs: children(content).map(paragraph => readParagraph(paragraph, report)),
         padding,

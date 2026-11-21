@@ -45,8 +45,14 @@ export class PdfkitRenderer implements PresentationRenderer {
     // Takes the options, not parsed faces: a face holds a fontkit font, and naming it here would put fontkit's types in
     // the published declarations, which a strict consumer cannot resolve (#354).
     constructor({ fonts, onUnsupported = "error", onMissingFont, imageLimits }: PdfkitRendererOptions) {
-        if (!fonts?.length) throw new Error("createPdfkitRenderer() requires at least one font: pass { fonts: [Uint8Array, ...] } (Node/Bun: await loadSystemFonts())");
-        if (onUnsupported !== "error" && onUnsupported !== "warn") throw new Error(`onUnsupported must be "error" or "warn", got ${JSON.stringify(onUnsupported)}`);
+        if (!fonts?.length) {
+            throw new Error("createPdfkitRenderer() requires at least one font: pass { fonts: [Uint8Array, ...] } (Node/Bun: await loadSystemFonts())");
+        }
+
+        if (onUnsupported !== "error" && onUnsupported !== "warn") {
+            throw new Error(`onUnsupported must be "error" or "warn", got ${JSON.stringify(onUnsupported)}`);
+        }
+
         this.#faces = parseFonts(fonts);
         this.#onUnsupported = onUnsupported;
         this.#onMissingFont = missingFontPolicy(onMissingFont);
@@ -58,12 +64,15 @@ export class PdfkitRenderer implements PresentationRenderer {
         // Before PDFKit decodes a PNG with transparency in JavaScript, or a GIF or WebP is decoded for it.
         checkImagePixels(document.html, this.#imageLimits);
         const result = await renderHtml(document.html, this.#faces);
+
         this.#warnings = result.warnings;
         this.#missingFonts = result.missingFonts;
         if (result.warnings.length && this.#onUnsupported !== "warn") {
             throw new Error(`The PDFKit renderer cannot draw everything in this presentation (pass { onUnsupported: "warn" } to render anyway):\n- ${result.warnings.join("\n- ")}`);
         }
+
         reportMissingFonts(result.missingFonts, this.#onMissingFont);
+
         return result.pdf;
     }
 
