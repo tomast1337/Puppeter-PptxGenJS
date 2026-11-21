@@ -1,0 +1,129 @@
+<!DOCTYPE html><html><head><meta name="pdflapas-profile" content="2"><meta name="pdflapas-page-size" content="Screen 16:9 Landscape"><style id="puppeteer-gen-styles">@page {
+    size: 10in 5.625in;
+    margin: 0;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Calibri, Arial, Helvetica, sans-serif;
+}
+
+.slide-container {
+    width: 960px;
+    height: 540px;
+    position: relative;
+    page-break-after: always;
+    background: #FFFFFF;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.slide-container:last-child {
+    page-break-after: auto;
+}
+
+.slide-element {
+    position: absolute;
+    box-sizing: border-box;
+    /* PowerPoint paints slide objects in insertion order. Give every object a
+       stacking context so an earlier object's internal text layer cannot paint
+       over a later object's fill. Equal z-index contexts retain DOM order. */
+    z-index: 0;
+}
+
+.slide-text {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    color: var(--slide-text-color, #000000);
+    font-family: Calibri, Arial, Helvetica, sans-serif;
+    font-size: 24px;
+    padding: 4.8px 9.6px 4.8px 9.6px;
+    /* PptxGenJS writes no clip: PowerPoint and LibreOffice draw text past its box, and a shape's outline and
+       line heads past the geometry. */
+    overflow: visible;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.slide-text > .shape-svg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.slide-text > .text-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* The line-box strut: a 0px font makes each line exactly the paragraph's line-height tall, its baseline
+   in the middle, whatever the fonts' ascent and descent; glyphs with line-height 0 do not size it. The
+   Puppeteer print step then moves the paragraph so the baseline lands on data-line-baseline. */
+.text-paragraph {
+    font-size: 0;
+}
+
+.text-run,
+.text-bullet {
+    line-height: 0;
+}
+
+/* The marker is an inline-block, which would indent its own text by the paragraph's hanging text-indent. */
+.text-bullet {
+    text-indent: 0;
+}
+
+.slide-shape {
+    border-style: none;
+}
+
+/* Standards mode puts an inline <svg> on the text baseline: a zero-height line box would drop it by the strut. */
+.slide-shape > .shape-svg {
+    display: block;
+}
+
+.slide-image {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.slide-image-content {
+    border: 0;
+}
+
+.slide-table {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 100%;
+    height: 100%;
+    color: #000000;
+    font-size: 16px;
+}
+
+.slide-table td,
+.slide-table th {
+    border: none;
+    padding: 4.8px 9.6px 4.8px 9.6px;
+    vertical-align: top;
+}
+
+@media print {
+    body {
+        margin: 0;
+        padding: 0;
+    }
+
+    .slide-container {
+        page-break-after: always;
+        break-after: page;
+    }
+
+    .slide-container:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+}</style></head><body><div class="slide-container" id="slide-7" style="background-color: #FFFFFF; --slide-text-color: #000000;"><div class="slide-element slide-text" data-object-name="Text 0" data-text-fit="none" data-text-direction="horizontal" style="left: 48px; top: 19.200000000000003px; width: 864px; height: 48px; transform-origin: center; background-color: transparent; border-style: none; padding: 0px 0px 0px 0px; align-items: center; white-space: pre-wrap; overflow-wrap: break-word; direction: ltr;"><div class="text-content" style="width: 100%;"><div class="text-paragraph" data-line-baseline="32" style="text-align: left; direction: ltr; margin-top: 0px; margin-bottom: 0px; line-height: 38.4px; tab-size: 96px;"><span class="text-run" data-synthetic-bold="0.03333333333333333" style="font-family: &quot;Arial&quot;; font-size: 32px; color: #17365D; font-weight: bold; font-style: normal; text-decoration-style: solid;" lang="en-US">Text and text-box effects</span></div></div></div><div class="slide-element slide-text" data-object-name="Text 1" data-shape="roundRect" data-text-fit="none" data-text-direction="horizontal" style="left: 72px; top: 110.39999999999999px; width: 384px; height: 144px; transform-origin: center; border-style: none; padding: 13.623488px 13.623488px 13.623488px 13.623488px; align-items: center; white-space: pre-wrap; overflow-wrap: break-word; direction: ltr;"><svg class="shape-svg" viewBox="0 0 384 144" width="100%" height="100%" preserveAspectRatio="none" data-line-begin-arrow="none" data-line-end-arrow="none" style="overflow: visible; filter: drop-shadow(2.8284271247461903px 2.82842712474619px 4px rgba(0, 0, 0, 0.25));"><defs></defs><rect x="0" y="0" width="384" height="144" rx="19.200000000000003" ry="19.200000000000003" class="shape-geometry" fill="#4472C4" stroke="#17365D" stroke-width="2.6666666666666665" vector-effect="non-scaling-stroke"></rect></svg><div class="text-content" style="width: 100%;"><div class="text-paragraph" data-line-baseline="22.666666666666664" style="text-align: center; direction: ltr; margin-top: 0px; margin-bottom: 0px; line-height: 27.199999999999996px; tab-size: 96px;"><span class="text-run" data-synthetic-bold="0.03333333333333333" data-text-shadow="shadow" style="font-family: &quot;Arial&quot;; font-size: 22.666666666666664px; color: #FFFFFF; font-weight: bold; font-style: normal; text-decoration-style: solid; text-shadow: 2.8284271247461903px 2.82842712474619px 4px rgba(0, 0, 0, 0.25);" lang="en-US">Rounded, filled, bordered, and shadowed</span></div></div></div><div class="slide-element slide-text" data-object-name="Text 2" data-text-fit="none" data-text-direction="horizontal" style="left: 504px; top: 110.39999999999999px; width: 384px; height: 144px; transform-origin: center; background-color: transparent; border-style: none; padding: 5.333333333333333px 5.333333333333333px 5.333333333333333px 5.333333333333333px; align-items: center; white-space: pre-wrap; overflow-wrap: break-word; direction: ltr;"><div class="text-content" style="width: 100%;"><div class="text-paragraph" data-line-baseline="26.666666666666664" style="text-align: center; direction: ltr; margin-top: 0px; margin-bottom: 0px; line-height: 31.999999999999996px; tab-size: 96px;"><span class="text-run" style="font-family: &quot;Arial&quot;; font-size: 26.666666666666664px; color: rgba(23, 54, 93, 0.65); font-weight: normal; font-style: normal; text-decoration-style: solid;" lang="en-US">Transparent &#128512;</span><span class="text-run" style="font-family: &quot;Arial&quot;; font-size: 26.666666666666664px; color: #17365D; font-weight: normal; font-style: normal; text-decoration-style: solid; -webkit-text-stroke: 1px #ED7D31;" lang="en-US"> and outlined</span></div></div></div></div></body></html>

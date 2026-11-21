@@ -1,0 +1,30 @@
+[package]
+name = "pdf-core-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4.13"
+pdf-core = { path = "../pdf-core" }
+
+# Its own workspace: cargo-fuzz builds it with nightly and sanitizer flags, apart from the wasm build.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "render_html"
+path = "fuzz_targets/render_html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "add_font"
+path = "fuzz_targets/add_font.rs"
+test = false
+doc = false
+bench = false
