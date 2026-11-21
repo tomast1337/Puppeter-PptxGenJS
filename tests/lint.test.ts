@@ -5,7 +5,7 @@ import { ESLint } from "eslint";
 const ROOT = resolve(import.meta.dir, "..");
 
 test("each lint rule reports its one violation in the fixture", async () => {
-    // ignore: false lints the fixture, which `bun run lint` skips; the rules' baselines still apply.
+    // ignore: false lints the fixture, which `bun run lint` skips.
     const eslint = new ESLint({ cwd: ROOT, ignore: false });
     const [result] = await eslint.lintFiles(["tests/lintFixture/violations.ts"]);
     const errors = result?.messages.map(message => `${message.line} ${message.ruleId}`);
