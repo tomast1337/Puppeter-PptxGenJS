@@ -23,6 +23,7 @@ export function normalizeTextLine(options: PptxGenJS.TextPropsOptions, straightL
 }
 
 /** Length (px) of the straight line presets, whose stroke normalizeLine trims behind its heads; undefined for other shapes. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function straightLineLength(shapeName: string, width: number, height: number): number | undefined {
     return shapeName === "line" || shapeName === "lineInv" ? Math.hypot(width, height) : undefined;
 }

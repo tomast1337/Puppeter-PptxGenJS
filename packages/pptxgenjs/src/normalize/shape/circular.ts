@@ -6,18 +6,14 @@ const DEFAULT_ANGLE_RANGES = { arc: [270, 0], pie: [0, 270], chord: [45, 270], b
 const MIN_INNER_RADIUS = 0.001;
 const DEFAULT_ARC_THICKNESS_RATIO = 0.5;
 
-function normalizedSweep(start: number, end: number): number {
-    const delta = (((end - start) % 360) + 360) % 360;
-
-    return delta === 0 ? 360 : delta;
-}
-
 /** The outer ellipse arc of an angle-range preset, from `angleRange` or the preset's default range. */
 function outerArc(shapeName: keyof typeof DEFAULT_ANGLE_RANGES, options: PptxGenJS.ShapeProps, width: number, height: number) {
     const range = options.angleRange ?? DEFAULT_ANGLE_RANGES[shapeName];
     const start = ((range[0] % 360) + 360) % 360;
     const end = ((range[1] % 360) + 360) % 360;
-    const sweep = normalizedSweep(start, end);
+    // The sweep from start to end, in (0, 360]: equal angles draw the whole ellipse.
+    const delta = (((end - start) % 360) + 360) % 360;
+    const sweep = delta === 0 ? 360 : delta;
 
     return { end, sweep, outer: ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, start, sweep) };
 }

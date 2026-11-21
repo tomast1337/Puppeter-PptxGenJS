@@ -19,12 +19,6 @@ function drawingAngleParameter(degrees: number, rx: number, ry: number): number 
     return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
 }
 
-function ellipseRayPoint(cx: number, cy: number, rx: number, ry: number, degrees: number): PixelPoint {
-    const parameter = drawingAngleParameter(degrees, rx, ry);
-
-    return [cx + rx * Math.cos(parameter), cy + ry * Math.sin(parameter)];
-}
-
 type PixelPoint = readonly [number, number];
 
 export function pixelPath(points: ReadonlyArray<PixelPoint>): string {
@@ -33,17 +27,6 @@ export function pixelPath(points: ReadonlyArray<PixelPoint>): string {
 
 function pointCommand(command: "M" | "L" | "Q", points: ReadonlyArray<PixelPoint>): string {
     return `${command} ${points.flatMap(([x, y]) => [cleanNumber(x), cleanNumber(y)]).join(" ")}`;
-}
-
-function arcEndpoint(current: PixelPoint, rx: number, ry: number, startDegrees: number, sweepDegrees: number): PixelPoint {
-    // DrawingML angles describe rays from the ellipse center, not the
-    // parametric angles used by (rx * cos(t), ry * sin(t)).
-    const start = drawingAngleParameter(startDegrees, rx, ry);
-    const end = drawingAngleParameter(startDegrees + sweepDegrees, rx, ry);
-    const centerX = current[0] - rx * Math.cos(start);
-    const centerY = current[1] - ry * Math.sin(start);
-
-    return [centerX + rx * Math.cos(end), centerY + ry * Math.sin(end)];
 }
 
 export function drawingPath() {
@@ -95,7 +78,13 @@ export function drawingPath() {
 }
 
 export function arcPathCommand(current: PixelPoint, rx: number, ry: number, startDegrees: number, sweepDegrees: number): { command: string; end: PixelPoint } {
-    const end = arcEndpoint(current, rx, ry, startDegrees, sweepDegrees);
+    // DrawingML angles describe rays from the ellipse center, not the
+    // parametric angles used by (rx * cos(t), ry * sin(t)).
+    const startParameter = drawingAngleParameter(startDegrees, rx, ry);
+    const endParameter = drawingAngleParameter(startDegrees + sweepDegrees, rx, ry);
+    const centerX = current[0] - rx * Math.cos(startParameter);
+    const centerY = current[1] - ry * Math.sin(startParameter);
+    const end: PixelPoint = [centerX + rx * Math.cos(endParameter), centerY + ry * Math.sin(endParameter)];
 
     return {
         command: `A ${cleanNumber(rx)} ${cleanNumber(ry)} 0 ${Math.abs(sweepDegrees) > 180 ? 1 : 0} ${sweepDegrees >= 0 ? 1 : 0} ${cleanNumber(end[0])} ${cleanNumber(end[1])}`,
@@ -116,7 +105,9 @@ export function ellipseArcCommands(
     start: PixelPoint;
     end: PixelPoint;
 } {
-    const first = ellipseRayPoint(cx, cy, rx, ry, start);
+    // The point where the ray at `start` degrees from the center meets the ellipse.
+    const parameter = drawingAngleParameter(start, rx, ry);
+    const first: PixelPoint = [cx + rx * Math.cos(parameter), cy + ry * Math.sin(parameter)];
     let current = first;
     const commands: string[] = [];
     const segmentCount = Math.max(1, Math.ceil(Math.abs(sweep) / 180));

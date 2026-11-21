@@ -4,21 +4,8 @@ import { inchesToPixels } from "@pdflapas/model";
 import { convertToPixels } from "#src/units";
 import { arcPathCommand, cleanNumber } from "./path";
 
-type ShapePoint = NonNullable<PptxGenJS.ShapeProps["points"]>[number];
-
 function coordinate(value: PptxGenJS.Coord, axis: "x" | "y", pageSize: PageSize): number {
     return convertToPixels(value, inchesToPixels(axis === "x" ? pageSize.width : pageSize.height));
-}
-
-function arcCommand(current: { x: number; y: number }, curve: Extract<ShapePoint, { curve: unknown }>["curve"] & { type: "arc" }, pageSize: PageSize): { command: string; end: { x: number; y: number } } {
-    const rx = coordinate(curve.wR, "x", pageSize);
-    const ry = coordinate(curve.hR, "y", pageSize);
-    const arc = arcPathCommand([current.x, current.y], rx, ry, curve.stAng, curve.swAng);
-
-    return {
-        command: arc.command,
-        end: { x: cleanNumber(arc.end[0]), y: cleanNumber(arc.end[1]) },
-    };
 }
 
 export function normalizeCustomPath(points: PptxGenJS.ShapeProps["points"], pageSize: PageSize): string {
@@ -29,11 +16,11 @@ export function normalizeCustomPath(points: PptxGenJS.ShapeProps["points"], page
     const commands: string[] = [];
     let current = { x: 0, y: 0 };
 
-    points.forEach((point, index) => {
+    for (const [index, point] of points.entries()) {
         if ("close" in point) {
             commands.push("Z");
 
-            return;
+            continue;
         }
 
         if ("curve" in point) {
@@ -47,18 +34,20 @@ export function normalizeCustomPath(points: PptxGenJS.ShapeProps["points"], page
                 commands.push(`Q ${coordinate(point.curve.x1, "x", pageSize)} ${coordinate(point.curve.y1, "y", pageSize)} ${x} ${y}`);
                 current = { x, y };
             } else {
-                const arc = arcCommand(current, point.curve, pageSize);
+                const rx = coordinate(point.curve.wR, "x", pageSize);
+                const ry = coordinate(point.curve.hR, "y", pageSize);
+                const arc = arcPathCommand([current.x, current.y], rx, ry, point.curve.stAng, point.curve.swAng);
 
                 commands.push(arc.command);
-                current = arc.end;
+                current = { x: cleanNumber(arc.end[0]), y: cleanNumber(arc.end[1]) };
             }
 
-            return;
+            continue;
         }
 
         current = { x: coordinate(point.x, "x", pageSize), y: coordinate(point.y, "y", pageSize) };
         commands.push(`${point.moveTo || index === 0 ? "M" : "L"} ${current.x} ${current.y}`);
-    });
+    }
 
     return commands.join(" ");
 }
