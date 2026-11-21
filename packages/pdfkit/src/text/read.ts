@@ -157,14 +157,17 @@ function requiredColor(value: string | undefined, what: string): Color {
     return parsed;
 }
 
-function readColor(value: string | undefined, what: string, report: Report): Color | undefined {
+/** `value` as a color, or reported as one the renderer does not read. */
+function readColor(value: string, what: string, report: Report): { kind: "color"; color: Color } | { kind: "invalid" } {
     const parsed = color(value);
 
-    if (value !== undefined && !parsed) {
+    if (!parsed) {
         report(`${what} '${value}' is not a color the renderer reads`);
+
+        return { kind: "invalid" };
     }
 
-    return parsed;
+    return { kind: "color", color: parsed };
 }
 
 function readFace(element: Element, style: Style): FaceRequest {
@@ -180,364 +183,14 @@ function readFace(element: Element, style: Style): FaceRequest {
     return { family, fallbacks, ...(lang ? { lang } : {}), bold: take(style, "font-weight") === "bold", italic: take(style, "font-style") === "italic" };
 }
 
-function readSynthesis(element: Element): Synthesis {
-    const number = (name: string, fallback: number) => {
-        const value = attribute(element, name);
-
-        if (value === undefined) {
-            return fallback;
-        }
-
-        const parsed = Number(value);
-
-        if (value.trim() === "" || !Number.isFinite(parsed)) {
-            throw new Error(`invalid PdfLapas HTML: attribute '${name}' '${value}' is not a number`);
-        }
-
-        return parsed;
-    };
-    const boldStroke = number("data-synthetic-bold", BROWSER_SYNTHESIS.boldStroke);
-
-    if (boldStroke < 0) {
-        throw new Error(`invalid PdfLapas HTML: attribute 'data-synthetic-bold' ${boldStroke} is negative`);
-    }
-
-    return { boldStroke, italicShear: number("data-synthetic-italic", BROWSER_SYNTHESIS.italicShear) };
-}
-
-/**
- * A run's text in pieces of one `letter-spacing` each: its bare text at the run's, each word span
- * (`<span style="letter-spacing: ...">`, text only) at its own. U+2011 becomes U+002D U+2060 under `data-non-breaking-hyphen`.
- */
-function runPieces(element: Element, letterSpacing: number): { text: string; letterSpacing: number; word: boolean }[] {
-    const hyphen = attribute(element, "data-non-breaking-hyphen");
-
-    if (hyphen !== undefined && hyphen !== "hyphen-minus") {
-        throw new Error(`invalid PdfLapas HTML: attribute 'data-non-breaking-hyphen' '${hyphen}' is not hyphen-minus`);
-    }
-
-    const text = (value: string) => (hyphen === undefined ? value : value.replace(NON_BREAKING_HYPHEN, HYPHEN_MINUS_NO_BREAK));
-    const pieces: { text: string; letterSpacing: number; word: boolean }[] = [];
-
-    for (const node of element.childNodes) {
-        if (!isElement(node)) {
-            const value = "value" in node ? node.value : "";
-            const last = pieces.at(-1);
-
-            // Bare text pieces next to each other share the run's spacing.
-            if (last && !last.word) {
-                last.text += text(value);
-            } else {
-                pieces.push({ text: text(value), letterSpacing, word: false });
-            }
-
-            continue;
-        }
-
-        const style = readStyle(node);
-        const spacing = px(take(style, "letter-spacing"));
-
-        if (node.tagName !== "span" || node.attrs.length !== 1 || spacing === undefined || style.size || node.childNodes.some(isElement)) {
-            throw new Error(`invalid PdfLapas HTML: <${node.tagName}> inside a run; a run holds text and word spans, <span style="letter-spacing: <n>px;"> with text only`);
-        }
-
-        pieces.push({ text: text(textContent(node)), letterSpacing: spacing, word: true });
-    }
-
-    return pieces.filter(piece => piece.text);
-}
-
-/**
- * A caller's underline band (`underlineBand`): `text-underline-offset` and `text-decoration-thickness` in em, without
- * `text-underline-position`; both taken from `style`. Undefined without an offset; any other form is reported.
- */
-function readUnderlineBand(style: Style, report: Report): Decoration["band"] {
-    const offset = take(style, "text-underline-offset");
-
-    if (offset === undefined) {
-        return undefined;
-    }
-
-    const thickness = style.get("text-decoration-thickness");
-    const [top, height] = [em(offset), em(thickness)];
-
-    if (top === undefined || height === undefined || height <= 0 || style.has("text-underline-position")) {
-        report(`CSS property 'text-underline-offset: ${offset}' is not drawn: an underline band is '<n>em' with 'text-decoration-thickness' a positive '<n>em' and no 'text-underline-position'`);
-
-        return undefined;
-    }
-
-    style.delete("text-decoration-thickness");
-
-    return { position: -top, thickness: height };
-}
-
-function readDecorations(element: Element, style: Style, textColor: Color, report: Report): Pick<Run, "underline" | "strike"> {
-    const lines = (take(style, "text-decoration-line") ?? "").split(/\s+/);
-    const cssStyle = take(style, "text-decoration-style") ?? "solid";
-    const decorationColor = readColor(take(style, "text-decoration-color"), "text-decoration-color", report) ?? textColor;
-    const band = readUnderlineBand(style, report);
-    // The underline is always drawn from the face's post table, or the band above, over the descenders (draw.ts); any
-    // other value is reported.
-    const fromFont =
-        UNDERLINE_FROM_FONT.map(([property, drawn]) => {
-            const value = take(style, property);
-
-            if (value !== undefined && value !== drawn) {
-                report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
-            }
-
-            return value !== undefined;
-        })[0] || band !== undefined;
-    const heavyAttribute = attribute(element, "data-underline-heavy") !== undefined;
-
-    if (heavyAttribute && !fromFont) {
-        report("attribute 'data-underline-heavy' without 'text-decoration-thickness: from-font' is not drawn (drawn at the normal thickness)");
-    }
-
-    const heavy = heavyAttribute && fromFont;
-    const doubleStrike = attribute(element, "data-double-strike") !== undefined;
-    // A double strike takes text-decoration-style; the underline's own style is then in data-underline-style.
-    const underlineStyle = (doubleStrike ? attribute(element, "data-underline-style") : cssStyle) ?? "solid";
-    const decoration = (kind: string, styleName: string): Decoration => {
-        if (DECORATION_STYLES.has(styleName)) {
-            return { style: styleName as Decoration["style"], color: kind === "underline" ? decorationColor : textColor };
-        } // `as`: checked against DECORATION_STYLES
-
-        report(`${kind} style '${styleName}' is not drawn (drawn solid)`);
-
-        return { style: "solid", color: decorationColor };
-    };
-
-    return {
-        ...(lines.includes("underline") ? { underline: { ...decoration("underline", underlineStyle), ...(fromFont ? { fromFont } : {}), ...(band ? { band } : {}), ...(heavy ? { heavy } : {}) } } : {}),
-        ...(lines.includes("line-through") || doubleStrike ? { strike: decoration("strike", doubleStrike ? "double" : "solid") } : {}),
-    };
-}
-
-function readOutline(value: string | undefined, report: Report): Run["outline"] {
-    if (value === undefined) {
-        return undefined;
-    }
-
-    const space = value.indexOf(" ");
-    const width = px(value.slice(0, space));
-    const outlineColor = color(value.slice(space + 1));
-
-    if (width === undefined || !outlineColor) {
-        report(`-webkit-text-stroke '${value}' is not drawn`);
-
-        return undefined;
-    }
-
-    return { width, color: outlineColor };
-}
-
 /** `text-shadow` entries: commas inside `rgba(...)` do not separate them. */
 const SHADOW_ENTRY = /[^,(]+(?:\([^)]*\)[^,(]*)*/g;
-
-/**
- * The run's glow from `text-shadow`, whose entries `data-text-shadow` names in order. The `shadow` entry is the
- * object's shadow, which slide.ts draws from the box's `box-shadow` (pdf-core skips it the same way).
- */
-function readGlow(element: Element, value: string | undefined, report: Report): Effect | undefined {
-    if (attribute(element, "data-shadow-inset") !== undefined) {
-        report("inner shadow not rendered");
-    }
-
-    if (value === undefined) {
-        return undefined;
-    }
-
-    const names = (attribute(element, "data-text-shadow") ?? "").split(/\s+/).filter(Boolean);
-    const entries = (value.match(SHADOW_ENTRY) ?? []).map(entry => entry.trim()).filter(Boolean);
-
-    if (names.length !== entries.length) {
-        report(`text-shadow '${value}' has ${entries.length} entries but data-text-shadow names ${names.length}; not drawn`);
-
-        return undefined;
-    }
-
-    let glow: Effect | undefined;
-
-    names.forEach((name, index) => {
-        const entry = entries[index] ?? "";
-
-        if (name === "shadow") {
-            return;
-        }
-
-        const effect = name === "glow" ? glowEffect(entry) : `text-shadow entry '${entry}' named '${name}' (not glow or shadow) is not drawn`;
-
-        if (typeof effect === "string") {
-            report(effect);
-        } else {
-            glow = effect;
-        }
-    });
-
-    return glow;
-}
-
-function readRuns(element: Element, report: Report): Run[] {
-    const style = readStyle(element);
-    const runColor = requiredColor(take(style, "color"), "a run's color");
-    const href = attribute(element, "href");
-    const slide = attribute(element, "data-slide");
-    const position = take(style, "position");
-    const top = px(take(style, "top")) ?? 0;
-
-    if (position !== undefined && position !== "relative") {
-        report(`position '${position}' on a run is not drawn`);
-    }
-
-    const highlight = readColor(take(style, "background-color"), "background-color", report);
-    const letterSpacing = px(take(style, "letter-spacing")) ?? 0;
-    const glow = readGlow(element, take(style, "text-shadow"), report);
-    const run: Run = {
-        text: textContent(element),
-        face: readFace(element, style),
-        size: required(px(take(style, "font-size")), "a run's font-size"),
-        color: runColor,
-        letterSpacing,
-        kerning: take(style, "font-kerning") !== "none",
-        ...readDecorations(element, style, runColor, report),
-        shift: top,
-        ...(highlight && highlight.alpha > 0 ? { highlight } : {}),
-        ...(style.has("-webkit-text-stroke") ? { outline: readOutline(take(style, "-webkit-text-stroke"), report) } : {}),
-        ...(href !== undefined || slide !== undefined ? { link: { ...(href !== undefined ? { href } : {}), ...(slide !== undefined ? { slide: Number(slide) } : {}) } } : {}),
-        softBreakBefore: attribute(element, "data-soft-break-before") !== undefined,
-        synthesis: readSynthesis(element),
-        ...(glow ? { glow } : {}),
-    };
-    const read = ["data-double-strike", "data-underline-style", "data-underline-heavy", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"];
-
-    reportUnread(element, style, [...read, "data-synthetic-bold", "data-synthetic-italic", "data-non-breaking-hyphen"], report);
-    // One run per piece of one letter-spacing; only the first starts after a soft break.
-    const pieces = runPieces(element, letterSpacing);
-
-    if (!pieces.length) {
-        return [run];
-    }
-
-    return pieces.map((piece, index) => ({ ...run, text: piece.text, letterSpacing: piece.letterSpacing, softBreakBefore: run.softBreakBefore && index === 0 }));
-}
-
-function readBullet(element: Element, report: Report): Bullet {
-    const style = readStyle(element);
-    const bullet: Bullet = {
-        text: textContent(element),
-        face: readFace(element, style),
-        size: required(px(take(style, "font-size")), "a bullet's font-size"),
-        color: requiredColor(take(style, "color"), "a bullet's color"),
-    };
-
-    reportUnread(element, style, [], report, LAYOUT_ONLY.bullet);
-
-    return bullet;
-}
-
-function readParagraph(element: Element, report: Report): Paragraph {
-    const style = readStyle(element);
-    const align = take(style, "text-align") ?? "left";
-
-    if (!ALIGNS.has(align)) {
-        report(`text-align '${align}' is not drawn`);
-    }
-
-    const direction = take(style, "direction") ?? "ltr";
-
-    if (!DIRECTIONS.has(direction)) {
-        throw new Error(`invalid PdfLapas HTML: a paragraph's direction is '${direction}', expected ltr or rtl`);
-    }
-
-    const rtl = direction === "rtl";
-    const lineHeight = required(px(take(style, "line-height")), "a paragraph's line-height");
-    const baseline = required(Number(attribute(element, "data-line-baseline")), "a paragraph's data-line-baseline");
-    const optionalBaseline = (name: string) => {
-        const value = attribute(element, name);
-
-        return value === undefined ? baseline : required(Number(value), `a paragraph's ${name}`);
-    };
-    const parts = children(element);
-    const bulletElement = parts.find(child => hasClass(child, "text-bullet"));
-    const runs = parts.filter(child => hasClass(child, "text-run")).flatMap(child => readRuns(child, report));
-
-    for (const child of parts) {
-        if (!hasClass(child, "text-run") && !hasClass(child, "text-bullet") && child.tagName !== "br") {
-            report(`<${child.tagName}> in a paragraph is not drawn`);
-        }
-    }
-
-    const text = runs.map(run => run.text).join("");
-
-    // shortcut: no Unicode bidi algorithm, so a paragraph's words run in its direction; port one (or take pdf-core's
-    // parley order) when a deck mixes directions.
-    if (rtl ? LTR_LETTER.test(text) : RTL_LETTER.test(text)) {
-        report(`${rtl ? "left-to-right words in a right-to-left" : "right-to-left words in a left-to-right"} paragraph are ordered in the paragraph's direction`);
-    }
-
-    if (rtl && text.includes("\t")) {
-        report("tab stops in right-to-left paragraphs measured from the left");
-    }
-
-    const paragraph: Paragraph = {
-        runs,
-        align: ALIGNS.has(align) ? (align as Align) : "left", // `as`: checked against ALIGNS
-        rtl,
-        lineHeight,
-        baseline,
-        markBaseline: optionalBaseline("data-mark-baseline"),
-        breakBaseline: optionalBaseline("data-break-baseline"),
-        spaceBefore: px(take(style, "margin-top")) ?? 0,
-        spaceAfter: px(take(style, "margin-bottom")) ?? 0,
-        tabSize: px(take(style, "tab-size")) ?? 0,
-        tabStops: readTabStops(attribute(element, "data-tab-stops")),
-        indent: px(take(style, "padding-left")) ?? 0,
-        textIndent: px(take(style, "text-indent")) ?? 0,
-        ...(bulletElement ? { bullet: readBullet(bulletElement, report) } : {}),
-    };
-    const bulletAttributes = ["data-bullet-level", "data-bullet-type", "data-bullet-indent", "data-bullet-start", "data-bullet-number-type"];
-
-    reportUnread(element, style, ["data-line-baseline", "data-mark-baseline", "data-break-baseline", "data-tab-stops", ...bulletAttributes], report);
-
-    return paragraph;
-}
-
-/** `data-tab-stops="<position>:<left|right|center|decimal>,…"`. */
-function readTabStops(value: string | undefined): TabStop[] {
-    if (value === undefined) {
-        return [];
-    }
-
-    return value.split(",").map(stop => {
-        const [position, alignment = ""] = stop.split(":");
-        const parsed = Number(position);
-
-        if (!position?.trim() || !Number.isFinite(parsed) || !TAB_ALIGNS.has(alignment)) {
-            throw new Error(`invalid PdfLapas HTML: attribute 'data-tab-stops': '${stop}' is not '<position>:<left|right|center|decimal>'`);
-        }
-
-        return { position: parsed, alignment: alignment as TabStop["alignment"] }; // `as`: checked against TAB_ALIGNS
-    });
-}
-
-function readFit(element: Element): Fit {
-    const fit = attribute(element, "data-text-fit") ?? "none";
-
-    if (fit !== "shrink") {
-        return { kind: fit === "resize" ? "resize" : "none" };
-    }
-
-    const number = (name: string) => required(Number(attribute(element, name)), `a shrink box's ${name}`);
-
-    return { kind: "shrink", step: number("data-text-fit-step"), maxSteps: number("data-text-fit-max-steps"), tolerance: number("data-text-fit-tolerance") };
-}
 
 /**
  * The text box of `box` (`.slide-text` or `.table-cell-text`), whose style map the caller already read; the text
  * properties are taken out of it. Undefined, after a report, for vertical text.
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function readTextBox(box: Element, style: Style, report: Report): TextBox | undefined {
     const direction = attribute(box, "data-text-direction") ?? "horizontal";
     const anchor = take(style, "align-items") ?? "center";
@@ -566,12 +219,354 @@ export function readTextBox(box: Element, style: Style, report: Report): TextBox
     const contentStyle = readStyle(content);
 
     reportUnread(content, contentStyle, [], report, LAYOUT_ONLY.content);
+    const paragraphs: Paragraph[] = [];
+
+    for (const paragraphElement of children(content)) {
+        const paragraphStyle = readStyle(paragraphElement);
+        const align = take(paragraphStyle, "text-align") ?? "left";
+
+        if (!ALIGNS.has(align)) {
+            report(`text-align '${align}' is not drawn`);
+        }
+
+        const paragraphDirection = take(paragraphStyle, "direction") ?? "ltr";
+
+        if (!DIRECTIONS.has(paragraphDirection)) {
+            throw new Error(`invalid PdfLapas HTML: a paragraph's direction is '${paragraphDirection}', expected ltr or rtl`);
+        }
+
+        const rtl = paragraphDirection === "rtl";
+        const lineHeight = required(px(take(paragraphStyle, "line-height")), "a paragraph's line-height");
+        const baseline = required(Number(attribute(paragraphElement, "data-line-baseline")), "a paragraph's data-line-baseline");
+        const optionalBaseline = (name: string) => {
+            const value = attribute(paragraphElement, name);
+
+            return value === undefined ? baseline : required(Number(value), `a paragraph's ${name}`);
+        };
+        const parts = children(paragraphElement);
+        const bulletElement = parts.find(child => hasClass(child, "text-bullet"));
+        const runs: Run[] = [];
+
+        for (const child of parts) {
+            if (!hasClass(child, "text-run")) {
+                continue;
+            }
+
+            const runStyle = readStyle(child);
+            const runColor = requiredColor(take(runStyle, "color"), "a run's color");
+            const href = attribute(child, "href");
+            const slide = attribute(child, "data-slide");
+            const position = take(runStyle, "position");
+            const shift = px(take(runStyle, "top")) ?? 0;
+
+            if (position !== undefined && position !== "relative") {
+                report(`position '${position}' on a run is not drawn`);
+            }
+
+            const highlightValue = take(runStyle, "background-color");
+            const highlight = highlightValue === undefined ? { kind: "none" as const } : readColor(highlightValue, "background-color", report);
+            const letterSpacing = px(take(runStyle, "letter-spacing")) ?? 0;
+            // The run's glow from `text-shadow`, whose entries `data-text-shadow` names in order. The `shadow` entry is the
+            // object's shadow, which slide.ts draws from the box's `box-shadow` (pdf-core skips it the same way).
+            const shadow = take(runStyle, "text-shadow");
+            let glow: Effect | undefined;
+
+            if (attribute(child, "data-shadow-inset") !== undefined) {
+                report("inner shadow not rendered");
+            }
+
+            if (shadow !== undefined) {
+                const names = (attribute(child, "data-text-shadow") ?? "").split(/\s+/).filter(Boolean);
+                const entries: string[] = [];
+
+                for (const entry of shadow.match(SHADOW_ENTRY) ?? []) {
+                    const trimmed = entry.trim();
+
+                    if (trimmed) {
+                        entries.push(trimmed);
+                    }
+                }
+
+                if (names.length !== entries.length) {
+                    report(`text-shadow '${shadow}' has ${entries.length} entries but data-text-shadow names ${names.length}; not drawn`);
+                } else {
+                    for (const [index, name] of names.entries()) {
+                        const entry = entries[index] ?? "";
+
+                        if (name === "shadow") {
+                            continue;
+                        }
+
+                        const effect = name === "glow" ? glowEffect(entry) : `text-shadow entry '${entry}' named '${name}' (not glow or shadow) is not drawn`;
+
+                        if (typeof effect === "string") {
+                            report(effect);
+                        } else {
+                            glow = effect;
+                        }
+                    }
+                }
+            }
+
+            const face = readFace(child, runStyle);
+            const size = required(px(take(runStyle, "font-size")), "a run's font-size");
+            const kerning = take(runStyle, "font-kerning") !== "none";
+            // The run's underline and strikethrough.
+            const decorationLines = (take(runStyle, "text-decoration-line") ?? "").split(/\s+/);
+            const cssStyle = take(runStyle, "text-decoration-style") ?? "solid";
+            const decorationColorValue = take(runStyle, "text-decoration-color");
+            const decorationColorRead = decorationColorValue === undefined ? { kind: "none" as const } : readColor(decorationColorValue, "text-decoration-color", report);
+            const decorationColor = decorationColorRead.kind === "color" ? decorationColorRead.color : runColor;
+            // A caller's underline band (`underlineBand`): `text-underline-offset` and `text-decoration-thickness` in em,
+            // without `text-underline-position`; both taken from the style. None without an offset; any other form is reported.
+            const offset = take(runStyle, "text-underline-offset");
+            let band: Decoration["band"];
+
+            if (offset !== undefined) {
+                const thickness = runStyle.get("text-decoration-thickness");
+                const [offsetEm, thicknessEm] = [em(offset), em(thickness)];
+
+                if (offsetEm === undefined || thicknessEm === undefined || thicknessEm <= 0 || runStyle.has("text-underline-position")) {
+                    report(`CSS property 'text-underline-offset: ${offset}' is not drawn: an underline band is '<n>em' with 'text-decoration-thickness' a positive '<n>em' and no 'text-underline-position'`);
+                } else {
+                    runStyle.delete("text-decoration-thickness");
+                    band = { position: -offsetEm, thickness: thicknessEm };
+                }
+            }
+
+            // The underline is always drawn from the face's post table, or the band above, over the descenders (draw.ts); any
+            // other value is reported.
+            const fromFontSet: boolean[] = [];
+
+            for (const [property, drawn] of UNDERLINE_FROM_FONT) {
+                const value = take(runStyle, property);
+
+                if (value !== undefined && value !== drawn) {
+                    report(`CSS property '${property}: ${value}' is not drawn (drawn as ${drawn})`);
+                }
+
+                fromFontSet.push(value !== undefined);
+            }
+
+            const fromFont = fromFontSet[0] || band !== undefined;
+            const heavyAttribute = attribute(child, "data-underline-heavy") !== undefined;
+
+            if (heavyAttribute && !fromFont) {
+                report("attribute 'data-underline-heavy' without 'text-decoration-thickness: from-font' is not drawn (drawn at the normal thickness)");
+            }
+
+            const heavy = heavyAttribute && fromFont;
+            const doubleStrike = attribute(child, "data-double-strike") !== undefined;
+            // A double strike takes text-decoration-style; the underline's own style is then in data-underline-style.
+            const underlineStyle = (doubleStrike ? attribute(child, "data-underline-style") : cssStyle) ?? "solid";
+            const decoration = (kind: string, styleName: string): Decoration => {
+                if (DECORATION_STYLES.has(styleName)) {
+                    return { style: styleName as Decoration["style"], color: kind === "underline" ? decorationColor : runColor };
+                } // `as`: checked against DECORATION_STYLES
+
+                report(`${kind} style '${styleName}' is not drawn (drawn solid)`);
+
+                return { style: "solid", color: decorationColor };
+            };
+            const decorations: Pick<Run, "underline" | "strike"> = {
+                ...(decorationLines.includes("underline") ? { underline: { ...decoration("underline", underlineStyle), ...(fromFont ? { fromFont } : {}), ...(band ? { band } : {}), ...(heavy ? { heavy } : {}) } } : {}),
+                ...(decorationLines.includes("line-through") || doubleStrike ? { strike: decoration("strike", doubleStrike ? "double" : "solid") } : {}),
+            };
+            // `-webkit-text-stroke: <width>px <color>`; any other value is reported.
+            const hasOutline = runStyle.has("-webkit-text-stroke");
+            const stroke = take(runStyle, "-webkit-text-stroke");
+            let outline: Run["outline"];
+
+            if (stroke !== undefined) {
+                const space = stroke.indexOf(" ");
+                const width = px(stroke.slice(0, space));
+                const outlineColor = color(stroke.slice(space + 1));
+
+                if (width === undefined || !outlineColor) {
+                    report(`-webkit-text-stroke '${stroke}' is not drawn`);
+                } else {
+                    outline = { width, color: outlineColor };
+                }
+            }
+
+            // How the run is drawn when its face has no bold or italic style (`data-synthetic-bold`, `data-synthetic-italic`).
+            const syntheticNumber = (name: string, fallback: number) => {
+                const value = attribute(child, name);
+
+                if (value === undefined) {
+                    return fallback;
+                }
+
+                const parsed = Number(value);
+
+                if (value.trim() === "" || !Number.isFinite(parsed)) {
+                    throw new Error(`invalid PdfLapas HTML: attribute '${name}' '${value}' is not a number`);
+                }
+
+                return parsed;
+            };
+            const boldStroke = syntheticNumber("data-synthetic-bold", BROWSER_SYNTHESIS.boldStroke);
+
+            if (boldStroke < 0) {
+                throw new Error(`invalid PdfLapas HTML: attribute 'data-synthetic-bold' ${boldStroke} is negative`);
+            }
+
+            const run: Run = {
+                text: textContent(child),
+                face,
+                size,
+                color: runColor,
+                letterSpacing,
+                kerning,
+                ...decorations,
+                shift,
+                ...(highlight.kind === "color" && highlight.color.alpha > 0 ? { highlight: highlight.color } : {}),
+                ...(hasOutline ? { outline } : {}),
+                ...(href !== undefined || slide !== undefined ? { link: { ...(href !== undefined ? { href } : {}), ...(slide !== undefined ? { slide: Number(slide) } : {}) } } : {}),
+                softBreakBefore: attribute(child, "data-soft-break-before") !== undefined,
+                synthesis: { boldStroke, italicShear: syntheticNumber("data-synthetic-italic", BROWSER_SYNTHESIS.italicShear) },
+                ...(glow ? { glow } : {}),
+            };
+            const read = ["data-double-strike", "data-underline-style", "data-underline-heavy", "data-vertical-align", "data-empty", "data-soft-break-before", "data-slide", "data-text-shadow", "data-shadow-inset"];
+
+            reportUnread(child, runStyle, [...read, "data-synthetic-bold", "data-synthetic-italic", "data-non-breaking-hyphen"], report);
+            // The run's text in pieces of one `letter-spacing` each: its bare text at the run's, each word span
+            // (`<span style="letter-spacing: ...">`, text only) at its own. U+2011 becomes U+002D U+2060 under `data-non-breaking-hyphen`.
+            const hyphen = attribute(child, "data-non-breaking-hyphen");
+
+            if (hyphen !== undefined && hyphen !== "hyphen-minus") {
+                throw new Error(`invalid PdfLapas HTML: attribute 'data-non-breaking-hyphen' '${hyphen}' is not hyphen-minus`);
+            }
+
+            const hyphenated = (value: string) => (hyphen === undefined ? value : value.replace(NON_BREAKING_HYPHEN, HYPHEN_MINUS_NO_BREAK));
+            const pieces: { text: string; letterSpacing: number; word: boolean }[] = [];
+
+            for (const node of child.childNodes) {
+                if (!isElement(node)) {
+                    const value = "value" in node ? node.value : "";
+                    const last = pieces.at(-1);
+
+                    // Bare text pieces next to each other share the run's spacing.
+                    if (last && !last.word) {
+                        last.text += hyphenated(value);
+                    } else {
+                        pieces.push({ text: hyphenated(value), letterSpacing, word: false });
+                    }
+
+                    continue;
+                }
+
+                const spanStyle = readStyle(node);
+                const spacing = px(take(spanStyle, "letter-spacing"));
+
+                if (node.tagName !== "span" || node.attrs.length !== 1 || spacing === undefined || spanStyle.size || node.childNodes.some(isElement)) {
+                    throw new Error(`invalid PdfLapas HTML: <${node.tagName}> inside a run; a run holds text and word spans, <span style="letter-spacing: <n>px;"> with text only`);
+                }
+
+                pieces.push({ text: hyphenated(textContent(node)), letterSpacing: spacing, word: true });
+            }
+
+            // One run per piece of one letter-spacing; only the first starts after a soft break.
+            const drawnPieces = pieces.filter(piece => piece.text);
+
+            if (!drawnPieces.length) {
+                runs.push(run);
+            } else {
+                for (const [index, piece] of drawnPieces.entries()) {
+                    runs.push({ ...run, text: piece.text, letterSpacing: piece.letterSpacing, softBreakBefore: run.softBreakBefore && index === 0 });
+                }
+            }
+        }
+
+        for (const child of parts) {
+            if (!hasClass(child, "text-run") && !hasClass(child, "text-bullet") && child.tagName !== "br") {
+                report(`<${child.tagName}> in a paragraph is not drawn`);
+            }
+        }
+
+        const text = runs.map(run => run.text).join("");
+
+        // shortcut: no Unicode bidi algorithm, so a paragraph's words run in its direction; port one (or take pdf-core's
+        // parley order) when a deck mixes directions.
+        if (rtl ? LTR_LETTER.test(text) : RTL_LETTER.test(text)) {
+            report(`${rtl ? "left-to-right words in a right-to-left" : "right-to-left words in a left-to-right"} paragraph are ordered in the paragraph's direction`);
+        }
+
+        if (rtl && text.includes("\t")) {
+            report("tab stops in right-to-left paragraphs measured from the left");
+        }
+
+        const markBaseline = optionalBaseline("data-mark-baseline");
+        const breakBaseline = optionalBaseline("data-break-baseline");
+        // `data-tab-stops="<position>:<left|right|center|decimal>,…"`.
+        const tabStopsValue = attribute(paragraphElement, "data-tab-stops");
+        const tabStops: TabStop[] = [];
+
+        if (tabStopsValue !== undefined) {
+            for (const stop of tabStopsValue.split(",")) {
+                const [stopPosition, alignment = ""] = stop.split(":");
+                const parsed = Number(stopPosition);
+
+                if (!stopPosition?.trim() || !Number.isFinite(parsed) || !TAB_ALIGNS.has(alignment)) {
+                    throw new Error(`invalid PdfLapas HTML: attribute 'data-tab-stops': '${stop}' is not '<position>:<left|right|center|decimal>'`);
+                }
+
+                tabStops.push({ position: parsed, alignment: alignment as TabStop["alignment"] }); // `as`: checked against TAB_ALIGNS
+            }
+        }
+
+        let bullet: Bullet | undefined;
+
+        if (bulletElement) {
+            const bulletStyle = readStyle(bulletElement);
+
+            bullet = {
+                text: textContent(bulletElement),
+                face: readFace(bulletElement, bulletStyle),
+                size: required(px(take(bulletStyle, "font-size")), "a bullet's font-size"),
+                color: requiredColor(take(bulletStyle, "color"), "a bullet's color"),
+            };
+            reportUnread(bulletElement, bulletStyle, [], report, LAYOUT_ONLY.bullet);
+        }
+
+        const paragraph: Paragraph = {
+            runs,
+            align: ALIGNS.has(align) ? (align as Align) : "left", // `as`: checked against ALIGNS
+            rtl,
+            lineHeight,
+            baseline,
+            markBaseline,
+            breakBaseline,
+            spaceBefore: px(take(paragraphStyle, "margin-top")) ?? 0,
+            spaceAfter: px(take(paragraphStyle, "margin-bottom")) ?? 0,
+            tabSize: px(take(paragraphStyle, "tab-size")) ?? 0,
+            tabStops,
+            indent: px(take(paragraphStyle, "padding-left")) ?? 0,
+            textIndent: px(take(paragraphStyle, "text-indent")) ?? 0,
+            ...(bullet ? { bullet } : {}),
+        };
+        const bulletAttributes = ["data-bullet-level", "data-bullet-type", "data-bullet-indent", "data-bullet-start", "data-bullet-number-type"];
+
+        reportUnread(paragraphElement, paragraphStyle, ["data-line-baseline", "data-mark-baseline", "data-break-baseline", "data-tab-stops", ...bulletAttributes], report);
+        paragraphs.push(paragraph);
+    }
+
+    const fitValue = attribute(box, "data-text-fit") ?? "none";
+    let fit: Fit;
+
+    if (fitValue !== "shrink") {
+        fit = { kind: fitValue === "resize" ? "resize" : "none" };
+    } else {
+        const number = (name: string) => required(Number(attribute(box, name)), `a shrink box's ${name}`);
+
+        fit = { kind: "shrink", step: number("data-text-fit-step"), maxSteps: number("data-text-fit-max-steps"), tolerance: number("data-text-fit-tolerance") };
+    }
 
     return {
-        paragraphs: children(content).map(paragraph => readParagraph(paragraph, report)),
+        paragraphs,
         padding,
         anchor: ANCHORS.has(anchor) ? (anchor as TextBox["anchor"]) : "center", // `as`: checked against ANCHORS
         wrap: whiteSpace !== "pre",
-        fit: readFit(box),
+        fit,
     };
 }

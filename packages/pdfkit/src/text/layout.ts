@@ -4,7 +4,7 @@
 // draws them, so only the breaks and the x positions are measured here.
 import { type Face, faceFor } from "#src/fonts";
 import { breakOpportunities } from "#src/lineBreak";
-import type { Bullet, Paragraph, Run, TabStop, TextBox } from "./read";
+import type { Bullet, Run, TextBox } from "./read";
 import { type Features, features, type Shaper } from "./shaper";
 
 /** A piece of one run in one face, on one line. `x` is from the content box's left edge. */
@@ -66,293 +66,22 @@ interface Piece {
 /** A word: the pieces between two break opportunities. */
 type Word = Piece[];
 
-/** Splits `text` into maximal pieces each drawn in one face of the run's chain. */
-function faceRuns(text: string, run: Run, shaper: Shaper, missing: (run: Run) => void): { face: Face; text: string }[] {
-    const chain = shaper.chain(run.face);
-
-    if (!chain.found) {
-        missing(run);
-    }
-
-    const out: { face: Face; text: string }[] = [];
-
-    for (const char of text) {
-        const face = faceFor(chain, char.codePointAt(0) ?? 0) ?? chain.faces[0];
-
-        if (!face) {
-            continue;
-        }
-
-        const last = out.at(-1);
-
-        if (last?.face === face) {
-            out[out.length - 1] = { face, text: last.text + char };
-        } else {
-            out.push({ face, text: char });
-        }
-    }
-
-    return out;
-}
-
-function trailingSpaces(text: string): number {
-    return text.length - text.trimEnd().length;
-}
-
-/** The words of one soft-break chunk of runs, measured at `scale`. */
-function words(runs: readonly Run[], scale: number, shaper: Shaper, missing: (run: Run) => void): Word[] {
-    const text = runs.map(run => run.text).join("");
-    const cuts = new Set(breakOpportunities(text));
-    const result: Word[] = [[]];
-    let offset = 0;
-
-    for (const run of runs) {
-        const size = run.size * scale;
-        const runFeatures = features(run.kerning, run.letterSpacing);
-        // Cut the run at the chunk's opportunities and at its tabs, which are measured where they land.
-        const segments: { text: string; startsWord: boolean }[] = [];
-        let start = 0;
-
-        for (let index = 1; index <= run.text.length; index++) {
-            if (index === run.text.length || cuts.has(offset + index) || run.text.charAt(index) === TAB || run.text.charAt(index - 1) === TAB) {
-                segments.push({ text: run.text.slice(start, index), startsWord: start === 0 ? cuts.has(offset) : true });
-                start = index;
-            }
-        }
-
-        // The run's previous piece: the run is shaped as one, as Chromium and pdf-core shape it, so a kern pair across
-        // a break opportunity (Arial's "A " or " T") moves the next piece; it is added to the previous piece's width.
-        let previous: { word: Word; index: number } | undefined;
-
-        for (const segment of segments) {
-            if (segment.startsWord && result.at(-1)?.length) {
-                result.push([]);
-            }
-
-            const word = result.at(-1);
-
-            if (!word) {
-                continue;
-            }
-
-            const tabFace = segment.text === TAB ? shaper.chain(run.face).faces[0] : undefined;
-
-            if (tabFace) {
-                word.push({ run, face: tabFace, text: "", size, features: runFeatures, width: 0, inkWidth: 0, tab: true, spaces: 0 });
-                previous = undefined;
-                continue;
-            }
-
-            for (const piece of faceRuns(segment.text.replace(INVISIBLE, ""), run, shaper, missing)) {
-                const width = shaper.width(piece.face, piece.text, size, runFeatures, run.letterSpacing);
-                const trimmed = piece.text.trimEnd();
-                const inkWidth = trimmed.length === piece.text.length ? width : shaper.width(piece.face, trimmed, size, runFeatures, run.letterSpacing);
-                const before = previous && previous.word[previous.index];
-
-                if (previous && before?.face === piece.face) {
-                    const pair = shaper.kern(piece.face, Array.from(before.text).at(-1) ?? "", Array.from(piece.text)[0] ?? "", size, runFeatures);
-
-                    if (pair) {
-                        previous.word[previous.index] = { ...before, width: before.width + pair };
-                    }
-                }
-
-                word.push({ run, face: piece.face, text: piece.text, size, features: runFeatures, width, inkWidth, tab: false, spaces: trailingSpaces(piece.text) });
-                previous = { word, index: word.length - 1 };
-            }
-        }
-
-        offset += run.text.length;
-    }
-
-    return result;
-}
-
-/** Splits a word wider than a line at characters (`overflow-wrap: break-word`), filling `available` per part. */
-function breakWord(word: Word, available: number, shaper: Shaper): Word[] {
-    const parts: Word[] = [[]];
-    let x = 0;
-
-    for (const piece of word) {
-        for (const char of Array.from(piece.text)) {
-            const width = shaper.width(piece.face, char, piece.size, piece.features, piece.run.letterSpacing);
-
-            if (x + width > available + FIT_EPSILON && parts.at(-1)?.length) {
-                parts.push([]);
-                x = 0;
-            }
-
-            const part = parts.at(-1);
-            const last = part?.at(-1);
-
-            if (last && last.run === piece.run && last.face === piece.face) {
-                part?.splice(-1, 1, { ...last, text: last.text + char, width: last.width + width, inkWidth: char === " " ? last.inkWidth : last.width + width, spaces: char === " " ? last.spaces + 1 : 0 });
-            } else {
-                part?.push({ ...piece, text: char, width, inkWidth: char === " " ? 0 : width, spaces: char === " " ? 1 : 0 });
-            }
-
-            x += width;
-        }
-    }
-
-    return parts;
-}
-
-function wordWidth(word: Word): number {
-    return word.reduce((sum, piece) => sum + piece.width, 0);
-}
-
 /** The width of `word` up to its last ink: its trailing spaces hang. */
 function wordInkWidth(word: Word): number {
     const last = word.findLastIndex(piece => piece.inkWidth > 0 || piece.tab);
+    let sum = 0;
 
-    return word.slice(0, last + 1).reduce((sum, piece, index) => sum + (index === last ? piece.inkWidth : piece.width), 0);
-}
-
-/** Where the stops are: explicit ones from the text area's left edge, then multiples of `defaultStop`; `start(line)` is a line's left edge in it. */
-interface TabRuler {
-    readonly stops: readonly TabStop[];
-    readonly defaultStop: number;
-    readonly start: (line: number) => number;
-}
-
-/** Where a tab at `pos` jumps to: the first explicit stop past it, else the next default stop, as pdf-core's `next_stop`. */
-function nextStop(ruler: TabRuler, pos: number): TabStop | undefined {
-    const past = pos + ON_STOP;
-    const stop = ruler.stops.find(candidate => candidate.position > past);
-
-    if (stop) {
-        return stop;
+    for (const [index, piece] of word.slice(0, last + 1).entries()) {
+        sum += index === last ? piece.inkWidth : piece.width;
     }
 
-    return ruler.defaultStop > 0 ? { position: (Math.floor(past / ruler.defaultStop) + 1) * ruler.defaultStop, alignment: "left" } : undefined;
-}
-
-/**
- * For each tab of `chunk`, the width of the text it aligns (to the next tab, or the chunk's end less its trailing
- * spaces) and how far into it the first '.' is, for right, center and decimal stops.
- * shortcut: pdf-core aligns the text up to the line's end and re-breaks a line the widened tab overflows; here the text
- * runs to the next tab even when it wraps. Measure per line if a deck aligns wrapping text on a stop.
- */
-function tabSegments(chunk: Word[], shaper: Shaper): Map<Piece, { width: number; dot?: number }> {
-    const segments = new Map<Piece, { width: number; dot?: number }>();
-    const pieces = chunk.flat();
-
-    pieces.forEach((tab, index) => {
-        if (!tab.tab) {
-            return;
-        }
-
-        let width = 0;
-        let dot: number | undefined;
-
-        for (let next = index + 1; next < pieces.length; next++) {
-            const piece = pieces[next];
-
-            if (!piece || piece.tab) {
-                break;
-            }
-
-            const at = piece.text.indexOf(".");
-
-            if (dot === undefined && at >= 0) {
-                dot = width + shaper.width(piece.face, piece.text.slice(0, at), piece.size, piece.features, piece.run.letterSpacing);
-            }
-
-            width += next === pieces.length - 1 ? piece.inkWidth : piece.width;
-        }
-
-        segments.set(tab, { width, ...(dot === undefined ? {} : { dot }) });
-    });
-
-    return segments;
-}
-
-/** The width of a tab at `pos` that brings its text to its stop: left starts it there, right ends it, center centres it, decimal puts its '.' there. */
-function tabWidth(ruler: TabRuler, pos: number, segment: { width: number; dot?: number } | undefined): number {
-    const stop = nextStop(ruler, pos);
-
-    if (!stop) {
-        return 0;
-    }
-
-    const text = segment?.width ?? 0;
-    const lead = stop.alignment === "right" ? text : stop.alignment === "center" ? text / 2 : stop.alignment === "decimal" ? (segment?.dot ?? text) : 0;
-
-    return Math.max(0, stop.position - pos - lead);
+    return sum;
 }
 
 interface LineDraft {
     pieces: { piece: Piece; x: number }[];
     width: number;
     inkWidth: number;
-}
-
-/** Greedy line filling, as browsers and PowerPoint wrap. `available(i)` is line i's width (the first line can differ). */
-function fillLines(chunk: Word[], available: (line: number) => number, wrap: boolean, ruler: TabRuler, shaper: Shaper): LineDraft[] {
-    const lines: LineDraft[] = [{ pieces: [], width: 0, inkWidth: 0 }];
-    const segments = tabSegments(chunk, shaper);
-    const place = (word: Word) => {
-        const line = lines.at(-1);
-
-        if (!line) {
-            return;
-        }
-
-        for (const piece of word) {
-            const width = piece.tab ? tabWidth(ruler, ruler.start(lines.length - 1) + line.width, segments.get(piece)) : piece.width;
-
-            line.pieces.push({ piece: { ...piece, width, inkWidth: piece.tab ? width : piece.inkWidth }, x: line.width });
-            line.inkWidth = line.width + (piece.tab ? width : piece.inkWidth);
-            line.width += width;
-        }
-    };
-
-    for (const word of chunk) {
-        const line = lines.at(-1);
-
-        if (!line) {
-            break;
-        }
-
-        const limit = available(lines.length - 1);
-
-        if (!wrap || line.width + wordInkWidth(word) <= limit + FIT_EPSILON || word.some(piece => piece.tab)) {
-            place(word);
-            continue;
-        }
-
-        if (line.pieces.length) {
-            lines.push({ pieces: [], width: 0, inkWidth: 0 });
-        }
-
-        if (wordInkWidth(word) <= available(lines.length - 1) + FIT_EPSILON) {
-            place(word);
-            continue;
-        }
-
-        breakWord(word, available(lines.length - 1), shaper).forEach((part, index) => {
-            if (index > 0) {
-                lines.push({ pieces: [], width: 0, inkWidth: 0 });
-            }
-
-            place(part);
-        });
-    }
-
-    return lines;
-}
-
-function alignOffset(paragraph: Paragraph, available: number, inkWidth: number): number {
-    if (paragraph.align === "center") {
-        return (available - inkWidth) / 2;
-    }
-
-    if (paragraph.align === "right") {
-        return available - inkWidth;
-    }
-
-    return 0;
 }
 
 /** Lays out the box's paragraphs in a content box `innerWidth` wide, every font size and line box scaled by `scale`. */
@@ -368,51 +97,280 @@ export function layoutText(box: TextBox, innerWidth: number, scale: number, shap
         const firstStart = paragraph.indent + (paragraph.bullet ? 0 : paragraph.textIndent);
         const chunks: Run[][] = [];
 
-        paragraph.runs.forEach((run, index) => {
+        for (const [index, run] of paragraph.runs.entries()) {
             if (index === 0 || run.softBreakBefore) {
                 chunks.push([]);
             }
 
             chunks.at(-1)?.push(run);
-        });
+        }
+
         if (!chunks.length) {
             chunks.push([]);
         }
 
         const firstLine = lines.length;
 
-        chunks.forEach((chunk, chunkIndex) => {
+        for (const [chunkIndex, chunk] of chunks.entries()) {
             const chunkLine = lines.length - firstLine;
+            // A line's left edge from the text area's left edge (tab stops count from there), and its width.
             const start = (line: number) => (chunkLine + line === 0 ? firstStart : paragraph.indent);
             const available = (line: number) => innerWidth - start(line);
-            const ruler = { stops: paragraph.tabStops, defaultStop: paragraph.tabSize, start };
-            const drafts = fillLines(words(chunk, scale, shaper, missing), available, box.wrap, ruler, shaper);
+            // The words of the chunk (the pieces between two break opportunities), measured at `scale`.
+            const text = chunk.map(run => run.text).join("");
+            const cuts = new Set(breakOpportunities(text));
+            const words: Word[] = [[]];
+            let offset = 0;
 
-            drafts.forEach((draft, index) => {
+            for (const run of chunk) {
+                const size = run.size * scale;
+                const runFeatures = features(run.kerning, run.letterSpacing);
+                // Cut the run at the chunk's opportunities and at its tabs, which are measured where they land.
+                const segments: { text: string; startsWord: boolean }[] = [];
+                let segmentStart = 0;
+
+                for (let index = 1; index <= run.text.length; index++) {
+                    if (index === run.text.length || cuts.has(offset + index) || run.text.charAt(index) === TAB || run.text.charAt(index - 1) === TAB) {
+                        segments.push({ text: run.text.slice(segmentStart, index), startsWord: segmentStart === 0 ? cuts.has(offset) : true });
+                        segmentStart = index;
+                    }
+                }
+
+                // The run's previous piece: the run is shaped as one, as Chromium and pdf-core shape it, so a kern pair across
+                // a break opportunity (Arial's "A " or " T") moves the next piece; it is added to the previous piece's width.
+                let previous: { word: Word; index: number } | undefined;
+
+                for (const segment of segments) {
+                    if (segment.startsWord && words.at(-1)?.length) {
+                        words.push([]);
+                    }
+
+                    const word = words.at(-1);
+
+                    if (!word) {
+                        continue;
+                    }
+
+                    const tabFace = segment.text === TAB ? shaper.chain(run.face).faces[0] : undefined;
+
+                    if (tabFace) {
+                        word.push({ run, face: tabFace, text: "", size, features: runFeatures, width: 0, inkWidth: 0, tab: true, spaces: 0 });
+                        previous = undefined;
+                        continue;
+                    }
+
+                    // Split the segment into maximal pieces each drawn in one face of the run's chain.
+                    const chain = shaper.chain(run.face);
+
+                    if (!chain.found) {
+                        missing(run);
+                    }
+
+                    const faceRuns: { face: Face; text: string }[] = [];
+
+                    for (const char of segment.text.replace(INVISIBLE, "")) {
+                        const face = faceFor(chain, char.codePointAt(0) ?? 0) ?? chain.faces[0];
+
+                        if (!face) {
+                            continue;
+                        }
+
+                        const last = faceRuns.at(-1);
+
+                        if (last?.face === face) {
+                            faceRuns[faceRuns.length - 1] = { face, text: last.text + char };
+                        } else {
+                            faceRuns.push({ face, text: char });
+                        }
+                    }
+
+                    for (const piece of faceRuns) {
+                        const pieceWidth = shaper.width(piece.face, piece.text, size, runFeatures, run.letterSpacing);
+                        const trimmed = piece.text.trimEnd();
+                        const inkWidth = trimmed.length === piece.text.length ? pieceWidth : shaper.width(piece.face, trimmed, size, runFeatures, run.letterSpacing);
+                        const before = previous && previous.word[previous.index];
+
+                        if (previous && before?.face === piece.face) {
+                            const pair = shaper.kern(piece.face, Array.from(before.text).at(-1) ?? "", Array.from(piece.text)[0] ?? "", size, runFeatures);
+
+                            if (pair) {
+                                previous.word[previous.index] = { ...before, width: before.width + pair };
+                            }
+                        }
+
+                        word.push({ run, face: piece.face, text: piece.text, size, features: runFeatures, width: pieceWidth, inkWidth, tab: false, spaces: piece.text.length - trimmed.length });
+                        previous = { word, index: word.length - 1 };
+                    }
+                }
+
+                offset += run.text.length;
+            }
+
+            // Greedy line filling, as browsers and PowerPoint wrap: `available(i)` is line i's width (the first line can differ).
+            const drafts: LineDraft[] = [{ pieces: [], width: 0, inkWidth: 0 }];
+            // For each tab of the chunk, the width of the text it aligns (to the next tab, or the chunk's end less its
+            // trailing spaces) and how far into it the first '.' is, for right, center and decimal stops.
+            // shortcut: pdf-core aligns the text up to the line's end and re-breaks a line the widened tab overflows; here the
+            // text runs to the next tab even when it wraps. Measure per line if a deck aligns wrapping text on a stop.
+            const tabSegments = new Map<Piece, { width: number; dot?: number }>();
+            const pieces = words.flat();
+
+            for (const [index, tab] of pieces.entries()) {
+                if (!tab.tab) {
+                    continue;
+                }
+
+                let segmentWidth = 0;
+                let dot: number | undefined;
+
+                for (let next = index + 1; next < pieces.length; next++) {
+                    const piece = pieces[next];
+
+                    if (!piece || piece.tab) {
+                        break;
+                    }
+
+                    const at = piece.text.indexOf(".");
+
+                    if (dot === undefined && at >= 0) {
+                        dot = segmentWidth + shaper.width(piece.face, piece.text.slice(0, at), piece.size, piece.features, piece.run.letterSpacing);
+                    }
+
+                    segmentWidth += next === pieces.length - 1 ? piece.inkWidth : piece.width;
+                }
+
+                tabSegments.set(tab, { width: segmentWidth, ...(dot === undefined ? {} : { dot }) });
+            }
+
+            const place = (word: Word) => {
+                const line = drafts.at(-1);
+
+                if (!line) {
+                    return;
+                }
+
+                for (const piece of word) {
+                    let advance = piece.width;
+
+                    if (piece.tab) {
+                        // The width of a tab at `pos` that brings its text to its stop: left starts it there, right ends it,
+                        // center centres it, decimal puts its '.' there. The stop is the first explicit one past `pos`, else
+                        // the next multiple of the tab size, as pdf-core's `next_stop`.
+                        const pos = start(drafts.length - 1) + line.width;
+                        const segment = tabSegments.get(piece);
+                        const past = pos + ON_STOP;
+                        const stop = paragraph.tabStops.find(candidate => candidate.position > past) ?? (paragraph.tabSize > 0 ? { position: (Math.floor(past / paragraph.tabSize) + 1) * paragraph.tabSize, alignment: "left" as const } : undefined);
+
+                        advance = 0;
+                        if (stop) {
+                            const aligned = segment?.width ?? 0;
+                            const lead = stop.alignment === "right" ? aligned : stop.alignment === "center" ? aligned / 2 : stop.alignment === "decimal" ? (segment?.dot ?? aligned) : 0;
+
+                            advance = Math.max(0, stop.position - pos - lead);
+                        }
+                    }
+
+                    line.pieces.push({ piece: { ...piece, width: advance, inkWidth: piece.tab ? advance : piece.inkWidth }, x: line.width });
+                    line.inkWidth = line.width + (piece.tab ? advance : piece.inkWidth);
+                    line.width += advance;
+                }
+            };
+
+            for (const word of words) {
+                const line = drafts.at(-1);
+
+                if (!line) {
+                    break;
+                }
+
+                const limit = available(drafts.length - 1);
+
+                if (!box.wrap || line.width + wordInkWidth(word) <= limit + FIT_EPSILON || word.some(piece => piece.tab)) {
+                    place(word);
+                    continue;
+                }
+
+                if (line.pieces.length) {
+                    drafts.push({ pieces: [], width: 0, inkWidth: 0 });
+                }
+
+                if (wordInkWidth(word) <= available(drafts.length - 1) + FIT_EPSILON) {
+                    place(word);
+                    continue;
+                }
+
+                // A word wider than a line splits at characters (`overflow-wrap: break-word`), each part filling a line.
+                const partWidth = available(drafts.length - 1);
+                const parts: Word[] = [[]];
+                let x = 0;
+
+                for (const piece of word) {
+                    for (const char of Array.from(piece.text)) {
+                        const charWidth = shaper.width(piece.face, char, piece.size, piece.features, piece.run.letterSpacing);
+
+                        if (x + charWidth > partWidth + FIT_EPSILON && parts.at(-1)?.length) {
+                            parts.push([]);
+                            x = 0;
+                        }
+
+                        const part = parts.at(-1);
+                        const last = part?.at(-1);
+
+                        if (last && last.run === piece.run && last.face === piece.face) {
+                            part?.splice(-1, 1, { ...last, text: last.text + char, width: last.width + charWidth, inkWidth: char === " " ? last.inkWidth : last.width + charWidth, spaces: char === " " ? last.spaces + 1 : 0 });
+                        } else {
+                            part?.push({ ...piece, text: char, width: charWidth, inkWidth: char === " " ? 0 : charWidth, spaces: char === " " ? 1 : 0 });
+                        }
+
+                        x += charWidth;
+                    }
+                }
+
+                for (const [index, part] of parts.entries()) {
+                    if (index > 0) {
+                        drafts.push({ pieces: [], width: 0, inkWidth: 0 });
+                    }
+
+                    place(part);
+                }
+            }
+
+            for (const [index, draft] of drafts.entries()) {
                 const lastOfChunk = index === drafts.length - 1;
                 const lastOfParagraph = lastOfChunk && chunkIndex === chunks.length - 1;
                 const baseline = (lastOfParagraph ? paragraph.markBaseline : lastOfChunk ? paragraph.breakBaseline : paragraph.baseline) * scale;
-                const left = start(index) + alignOffset(paragraph, available(index), draft.inkWidth);
+                const lineAvailable = available(index);
+                const alignOffset = paragraph.align === "center" ? (lineAvailable - draft.inkWidth) / 2 : paragraph.align === "right" ? lineAvailable - draft.inkWidth : 0;
+                const left = start(index) + alignOffset;
                 const justify = paragraph.align === "justify" && !lastOfChunk;
-                const spaces = draft.pieces.slice(0, -1).reduce((sum, { piece }) => sum + piece.spaces, 0);
-                const extra = justify && spaces > 0 ? (available(index) - draft.inkWidth) / spaces : 0;
+                let spaces = 0;
+
+                for (const { piece } of draft.pieces.slice(0, -1)) {
+                    spaces += piece.spaces;
+                }
+
+                const extra = justify && spaces > 0 ? (lineAvailable - draft.inkWidth) / spaces : 0;
                 let spacesBefore = 0;
                 // A right-to-left line mirrors its words in the span they fill, so the first ends at its right edge.
                 const right = left + draft.inkWidth + extra * spaces;
-                const fragments = draft.pieces.flatMap(({ piece, x }) => {
+                const fragments: Fragment[] = [];
+
+                for (const { piece, x } of draft.pieces) {
                     const ltrX = left + x + extra * spacesBefore;
-                    const fragment: Fragment = { run: piece.run, face: piece.face, text: piece.text, size: piece.size, features: piece.features, x: paragraph.rtl ? left + right - ltrX - piece.width : ltrX, width: piece.width };
+
+                    if (piece.text) {
+                        fragments.push({ run: piece.run, face: piece.face, text: piece.text, size: piece.size, features: piece.features, x: paragraph.rtl ? left + right - ltrX - piece.width : ltrX, width: piece.width });
+                    }
 
                     spacesBefore += piece.spaces;
-
-                    return piece.text ? [fragment] : [];
-                });
+                }
 
                 lines.push({ fragments, top: y, height: lineHeight, baseline: y + baseline });
                 width = Math.max(width, left + draft.inkWidth);
                 y += lineHeight;
-            });
-        });
+            }
+        }
+
         // The marker sits on the first line's baseline (a raised mark or break baseline moves it too).
         const face = paragraph.bullet ? shaper.chain(paragraph.bullet.face).faces[0] : undefined;
         const first = lines[firstLine];

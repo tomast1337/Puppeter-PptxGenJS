@@ -20,8 +20,10 @@ const FULL_ALPHA = 255;
 const SHORT_HEX_LENGTH = 3;
 const TRANSPARENT: Color = { rgb: [0, 0, 0], alpha: 0 };
 
-/** Splits a declaration list at the `;` outside quotes and parentheses (`font-family: "a;b"`, `rgba(...)`). */
-function declarations(text: string): string[] {
+export function readStyle(element: Element): Style {
+    const style: Style = new Map();
+    const text = attribute(element, "style") ?? "";
+    // The declarations: the list split at the `;` outside quotes and parentheses (`font-family: "a;b"`, `rgba(...)`).
     const parts: string[] = [];
     let [start, depth, quote] = [0, 0, ""];
 
@@ -48,13 +50,7 @@ function declarations(text: string): string[] {
 
     parts.push(text.slice(start));
 
-    return parts;
-}
-
-export function readStyle(element: Element): Style {
-    const style: Style = new Map();
-
-    for (const declaration of declarations(attribute(element, "style") ?? "")) {
+    for (const declaration of parts) {
         const colon = declaration.indexOf(":");
 
         if (colon < 0) {
@@ -68,6 +64,7 @@ export function readStyle(element: Element): Style {
 }
 
 /** The property's value, removed from `style` so it does not count as unread. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function take(style: Style, property: string): string | undefined {
     const value = style.get(property);
 
@@ -77,6 +74,7 @@ export function take(style: Style, property: string): string | undefined {
 }
 
 /** A `<n>px` length (or a bare `0`); undefined for anything else. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function px(value: string | undefined): number | undefined {
     if (value === "0") {
         return 0;
@@ -88,6 +86,7 @@ export function px(value: string | undefined): number | undefined {
 }
 
 /** An `<n>em` length; undefined for anything else. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function em(value: string | undefined): number | undefined {
     const match = value === undefined ? null : EM_LENGTH.exec(value);
 
@@ -95,6 +94,7 @@ export function em(value: string | undefined): number | undefined {
 }
 
 /** A px length, or a percentage of `base`. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function length(value: string | undefined, base: number): number | undefined {
     const percent = value === undefined ? null : PERCENT_LENGTH.exec(value);
 
@@ -102,6 +102,7 @@ export function length(value: string | undefined, base: number): number | undefi
 }
 
 /** The four px lengths of a `padding: <top> <right> <bottom> <left>` value. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function sides(value: string | undefined): [number, number, number, number] | undefined {
     const parts = value?.split(/\s+/).map(px) ?? [];
     const [top, right, bottom, left] = parts;
@@ -110,6 +111,7 @@ export function sides(value: string | undefined): [number, number, number, numbe
 }
 
 /** `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` or `transparent`: the forms the profile writes. Undefined for others. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function color(value: string | undefined): Color | undefined {
     if (value === undefined) {
         return undefined;
@@ -144,6 +146,7 @@ const FAMILY_SEPARATOR = ", ";
  * The families of a profile `font-family`: one or more CSS strings separated by `, ` (`"Calibri", "Arial"`), without
  * their quotes and escapes. Undefined for anything else, a bare name included: those are the print step's.
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function cssStrings(value: string): string[] | undefined {
     const families: string[] = [];
     let index = 0;

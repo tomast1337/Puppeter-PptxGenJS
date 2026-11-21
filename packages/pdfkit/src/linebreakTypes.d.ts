@@ -9,6 +9,7 @@ declare module "linebreak" {
 
     export default class LineBreaker {
         constructor(text: string);
+        // eslint-disable-next-line pdflapas/no-nullable-return -- linebreak's own signature, not one of ours
         nextBreak(): Break | null;
     }
 }

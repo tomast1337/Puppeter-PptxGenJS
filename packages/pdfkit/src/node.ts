@@ -12,18 +12,6 @@ export { createPdfkitRenderer, type MissingFont, MissingFontError, type MissingF
 // bitmap emoji font, which has no outlines for PDFKit to embed.
 const DEFAULT_FONT_FILES = /^(?:(?:Carlito|Caladea|LiberationSans|LiberationSerif|LiberationMono)-.*|DejaVuSans(?:-Bold|-Oblique|-BoldOblique)?|NotoSansCJK-(?:Regular|Bold)|calibri.*|cambria.*|arial.*|times.*|cour.*)\.(?:ttf|otf|ttc)$/i;
 
-function systemFontDirs(): string[] {
-    if (process.platform === "win32") {
-        return [join(process.env.WINDIR ?? "C:\\Windows", "Fonts"), join(process.env.LOCALAPPDATA ?? "", "Microsoft/Windows/Fonts")];
-    }
-
-    if (process.platform === "darwin") {
-        return ["/System/Library/Fonts", "/Library/Fonts", join(homedir(), "Library/Fonts")];
-    }
-
-    return ["/usr/share/fonts", "/usr/local/share/fonts", join(homedir(), ".local/share/fonts"), join(homedir(), ".fonts")];
-}
-
 async function fontFiles(dir: string, match: RegExp): Promise<string[]> {
     const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
     const nested = await Promise.all(entries.map(entry => (entry.isDirectory() ? fontFiles(join(dir, entry.name), match) : match.test(entry.name) ? [join(dir, entry.name)] : [])));
@@ -32,7 +20,20 @@ async function fontFiles(dir: string, match: RegExp): Promise<string[]> {
 }
 
 /** Reads font files from the system font directories, for `createPdfkitRenderer({ fonts })`. Throws when none match. */
-export async function loadSystemFonts({ dirs = systemFontDirs(), match = DEFAULT_FONT_FILES }: SystemFontOptions = {}): Promise<Uint8Array[]> {
+export async function loadSystemFonts({ dirs: given, match = DEFAULT_FONT_FILES }: SystemFontOptions = {}): Promise<Uint8Array[]> {
+    // The platform's system and user font directories, unless the caller names some.
+    let dirs: readonly string[];
+
+    if (given !== undefined) {
+        dirs = given;
+    } else if (process.platform === "win32") {
+        dirs = [join(process.env.WINDIR ?? "C:\\Windows", "Fonts"), join(process.env.LOCALAPPDATA ?? "", "Microsoft/Windows/Fonts")];
+    } else if (process.platform === "darwin") {
+        dirs = ["/System/Library/Fonts", "/Library/Fonts", join(homedir(), "Library/Fonts")];
+    } else {
+        dirs = ["/usr/share/fonts", "/usr/local/share/fonts", join(homedir(), ".local/share/fonts"), join(homedir(), ".fonts")];
+    }
+
     const files = (await Promise.all(dirs.map(dir => fontFiles(dir, match)))).flat().sort();
 
     if (!files.length) {

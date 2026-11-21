@@ -37,78 +37,6 @@ interface Box extends Frame {
     readonly opacity: number;
 }
 
-function readBox(style: Style, report: (what: string) => void): Box {
-    const x = px(take(style, "left"));
-    const y = px(take(style, "top"));
-
-    if (x === undefined || y === undefined) {
-        throw new Error("invalid PdfLapas HTML: a slide object has no left and top in px");
-    }
-
-    const minHeight = px(take(style, "min-height"));
-    const height = px(take(style, "height")) ?? minHeight ?? 0;
-    let [rotation, flipH, flipV] = [0, false, false];
-
-    for (const [, name, value] of (take(style, "transform") ?? "").matchAll(TRANSFORM_PART)) {
-        if (name === "rotate") {
-            rotation = Number.parseFloat(value ?? "0");
-        } else if (name === "scaleX") {
-            flipH = value === "-1";
-        } else if (name === "scaleY") {
-            flipV = value === "-1";
-        }
-    }
-
-    const opacity = Number(take(style, "opacity") ?? 1);
-
-    return { x, y, width: px(take(style, "width")) ?? 0, height, rotation, flipH, flipV, opacity };
-}
-
-/**
- * The object's shadow: `box-shadow` on the box (`inset`, a picture's inner shadow), or `filter: drop-shadow()` on a
- * shape's svg. pdf-core draws an inner shadow on pictures only and reports it on anything else.
- */
-function readShadow(element: Element, style: Style, report: (what: string) => void): Effect | undefined {
-    const box = take(style, "box-shadow");
-    const svg = children(element).find(child => hasClass(child, "shape-svg"));
-    const svgStyle = svg ? readStyle(svg) : new Map<string, string>();
-    const filter = take(svgStyle, "filter");
-
-    take(svgStyle, "overflow"); // `visible`, so Chromium does not clip the strokes and heads past the viewBox
-    for (const [property, value] of svgStyle) {
-        report(`CSS property '${property}: ${value}' on <svg> is not drawn`);
-    }
-
-    if (svg && attribute(svg, "data-shadow-inset") !== undefined) {
-        report(INNER_SHADOW_NOT_DRAWN);
-
-        return undefined;
-    }
-
-    const inner = box?.startsWith("inset ") ?? false;
-
-    if (inner && !hasClass(element, "slide-image")) {
-        report(INNER_SHADOW_NOT_DRAWN);
-
-        return undefined;
-    }
-
-    const drop = filter === undefined ? undefined : DROP_SHADOW.exec(filter)?.[1];
-
-    if (filter !== undefined && drop === undefined) {
-        report(`filter '${filter}' on a shape is not drawn`);
-    }
-
-    const value = box === undefined ? drop : inner ? box.slice("inset ".length) : box;
-    const effect = value === undefined ? undefined : shadowEffect(value, inner);
-
-    if (typeof effect === "string") {
-        report(effect);
-    }
-
-    return typeof effect === "string" ? undefined : effect;
-}
-
 /** The box's own fill and line (objects without SVG geometry). A text box's line is centred on its edge, as in DrawingML. */
 function drawBoxPaint(element: Element, style: Style, paint: Paint, frame: Frame): void {
     const background = color(take(style, "background-color"));
@@ -145,49 +73,6 @@ function drawBoxPaint(element: Element, style: Style, paint: Paint, frame: Frame
     doc.restore();
 }
 
-function drawText(element: Element, style: Style, paint: Paint, box: Box): void {
-    const text = readTextBox(element, style, paint.report);
-    const svg = children(element).find(child => hasClass(child, "shape-svg"));
-    const laid = text && layoutBox(paint, text, box);
-    // `fit: resize` grows the box (its fill, line and shape) to the text.
-    const frame = { ...box, height: laid ? Math.max(box.height, laid.height) : box.height };
-
-    drawBoxPaint(element, style, paint, frame);
-    if (svg) {
-        drawShapeSvg(svg, paint, frame);
-    }
-
-    if (laid) {
-        drawLayout(paint, laid.layout, box.x + (text?.padding[3] ?? 0), laid.top);
-    }
-}
-
-/** Draws one `.slide-element`. */
-function drawObject(element: Element, context: SlideContext, name: string): void {
-    const style = readStyle(element);
-    const report = (what: string) => context.report(`object '${name}': ${what}`);
-    const kind = Object.keys(UNSUPPORTED_KINDS).find(className => hasClass(element, className));
-
-    if (kind) {
-        report(`${UNSUPPORTED_KINDS[kind]} are not drawn by the PDFKit renderer`);
-
-        return;
-    }
-
-    const box = readBox(style, report);
-    const shadow = readShadow(element, style, report);
-    const paint: Paint = { ...context.paint(name), report, opacity: box.opacity };
-
-    // The shadow is cast in slide space, outside the object's rotation and flips (DrawingML `rotWithShape="0"`).
-    if (shadow) {
-        paint.effects.under(paint.doc, shadow, false, box.opacity, report, () => drawBox(element, style, paint, box));
-    } else {
-        drawBox(element, style, paint, box);
-    }
-
-    reportUnread(element, style, ["data-object-name", "data-shape", "data-text-fit", "data-text-fit-step", "data-text-fit-max-steps", "data-text-fit-tolerance", "data-text-direction", "data-slide", "data-image-sizing", "data-line-dash-array", "data-line-begin-arrow", "data-line-end-arrow"], report, BOX_LAYOUT);
-}
-
 /** Draws the object `element` in its box, transformed, with its link. */
 function drawBox(element: Element, style: Style, paint: Paint, box: Box): void {
     const doc = paint.doc;
@@ -196,7 +81,20 @@ function drawBox(element: Element, style: Style, paint: Paint, box: Box): void {
     doc.save();
     transformBox(doc, box, box.rotation, box.flipH, box.flipV);
     if (hasClass(element, "slide-text")) {
-        drawText(element, style, paint, box);
+        const text = readTextBox(element, style, paint.report);
+        const svg = children(element).find(child => hasClass(child, "shape-svg"));
+        const laid = text && layoutBox(paint, text, box);
+        // `fit: resize` grows the box (its fill, line and shape) to the text.
+        const frame = { ...box, height: laid ? Math.max(box.height, laid.height) : box.height };
+
+        drawBoxPaint(element, style, paint, frame);
+        if (svg) {
+            drawShapeSvg(svg, paint, frame);
+        }
+
+        if (laid) {
+            drawLayout(paint, laid.layout, box.x + (text?.padding[3] ?? 0), laid.top);
+        }
     } else if (hasClass(element, "slide-shape")) {
         const svg = children(element).find(child => hasClass(child, "shape-svg"));
 
@@ -232,19 +130,99 @@ function drawBox(element: Element, style: Style, paint: Paint, box: Box): void {
 
 /** Draws the slide container `slide` on the current page. */
 export function drawSlide(slide: Element, context: SlideContext, size: { width: number; height: number }): void {
-    const style = readStyle(slide);
-    const background = color(take(style, "background-color"));
+    const slideStyle = readStyle(slide);
+    const background = color(take(slideStyle, "background-color"));
 
-    take(style, "--slide-text-color"); // every run states its own color; this custom property only feeds the stylesheet
-    const paint: Paint = { ...context.paint("slide"), report: context.report, opacity: 1 };
+    take(slideStyle, "--slide-text-color"); // every run states its own color; this custom property only feeds the stylesheet
+    const slidePaint: Paint = { ...context.paint("slide"), report: context.report, opacity: 1 };
 
     if (background && background.alpha > 0) {
-        fill(paint, background);
-        paint.doc.rect(0, 0, size.width, size.height).fill();
+        fill(slidePaint, background);
+        slidePaint.doc.rect(0, 0, size.width, size.height).fill();
     }
 
-    reportUnread(slide, style, ["data-hidden"], context.report);
-    children(slide).forEach((element, index) => {
-        drawObject(element, context, attribute(element, "data-object-name") ?? `#${index}`);
-    });
+    reportUnread(slide, slideStyle, ["data-hidden"], context.report);
+    // Each `.slide-element`, in paint order.
+    for (const [index, element] of children(slide).entries()) {
+        const name = attribute(element, "data-object-name") ?? `#${index}`;
+        const style = readStyle(element);
+        const report = (what: string) => context.report(`object '${name}': ${what}`);
+        const kind = Object.keys(UNSUPPORTED_KINDS).find(className => hasClass(element, className));
+
+        if (kind) {
+            report(`${UNSUPPORTED_KINDS[kind]} are not drawn by the PDFKit renderer`);
+            continue;
+        }
+
+        // The object's box.
+        const x = px(take(style, "left"));
+        const y = px(take(style, "top"));
+
+        if (x === undefined || y === undefined) {
+            throw new Error("invalid PdfLapas HTML: a slide object has no left and top in px");
+        }
+
+        const minHeight = px(take(style, "min-height"));
+        const height = px(take(style, "height")) ?? minHeight ?? 0;
+        let [rotation, flipH, flipV] = [0, false, false];
+
+        for (const [, part, value] of (take(style, "transform") ?? "").matchAll(TRANSFORM_PART)) {
+            if (part === "rotate") {
+                rotation = Number.parseFloat(value ?? "0");
+            } else if (part === "scaleX") {
+                flipH = value === "-1";
+            } else if (part === "scaleY") {
+                flipV = value === "-1";
+            }
+        }
+
+        const opacity = Number(take(style, "opacity") ?? 1);
+        const box: Box = { x, y, width: px(take(style, "width")) ?? 0, height, rotation, flipH, flipV, opacity };
+        // The object's shadow: `box-shadow` on the box (`inset`, a picture's inner shadow), or `filter: drop-shadow()`
+        // on a shape's svg. pdf-core draws an inner shadow on pictures only and reports it on anything else.
+        const boxShadow = take(style, "box-shadow");
+        const svg = children(element).find(child => hasClass(child, "shape-svg"));
+        const svgStyle = svg ? readStyle(svg) : new Map<string, string>();
+        const filter = take(svgStyle, "filter");
+
+        take(svgStyle, "overflow"); // `visible`, so Chromium does not clip the strokes and heads past the viewBox
+        for (const [property, value] of svgStyle) {
+            report(`CSS property '${property}: ${value}' on <svg> is not drawn`);
+        }
+
+        const inner = boxShadow?.startsWith("inset ") ?? false;
+        let shadow: Effect | undefined;
+
+        if (svg && attribute(svg, "data-shadow-inset") !== undefined) {
+            report(INNER_SHADOW_NOT_DRAWN);
+        } else if (inner && !hasClass(element, "slide-image")) {
+            report(INNER_SHADOW_NOT_DRAWN);
+        } else {
+            const drop = filter === undefined ? undefined : DROP_SHADOW.exec(filter)?.[1];
+
+            if (filter !== undefined && drop === undefined) {
+                report(`filter '${filter}' on a shape is not drawn`);
+            }
+
+            const value = boxShadow === undefined ? drop : inner ? boxShadow.slice("inset ".length) : boxShadow;
+            const effect = value === undefined ? undefined : shadowEffect(value, inner);
+
+            if (typeof effect === "string") {
+                report(effect);
+            } else {
+                shadow = effect;
+            }
+        }
+
+        const paint: Paint = { ...context.paint(name), report, opacity: box.opacity };
+
+        // The shadow is cast in slide space, outside the object's rotation and flips (DrawingML `rotWithShape="0"`).
+        if (shadow) {
+            paint.effects.under(paint.doc, shadow, false, box.opacity, report, () => drawBox(element, style, paint, box));
+        } else {
+            drawBox(element, style, paint, box);
+        }
+
+        reportUnread(element, style, ["data-object-name", "data-shape", "data-text-fit", "data-text-fit-step", "data-text-fit-max-steps", "data-text-fit-tolerance", "data-text-direction", "data-slide", "data-image-sizing", "data-line-dash-array", "data-line-begin-arrow", "data-line-end-arrow"], report, BOX_LAYOUT);
+    }
 }

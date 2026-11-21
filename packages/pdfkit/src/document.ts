@@ -2,7 +2,7 @@
 // renderer could not draw and the faces it had no font for.
 import { CSS_PX_PER_INCH, htmlDocument, inchesToPoints, type MissingFont, PDF_PRODUCER, POINTS_PER_INCH, profileMetaPrefix } from "@pdflapas/model";
 import PDFDocument from "pdfkit";
-import { attribute, children, descendants, type Element, hasClass, parseDocument, textContent } from "./dom";
+import { attribute, children, descendants, hasClass, parseDocument, textContent } from "./dom";
 import type { Face } from "./fonts";
 import { drawSlide } from "./slide";
 import { Effects } from "./effect/index";
@@ -24,71 +24,6 @@ const FIXED_DATE = new Date(0);
 /** The profile's date: UTC to the second or millisecond, as `Date.prototype.toISOString()` writes it. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
-function profileDate(value: string): Date {
-    const date = new Date(value);
-
-    if (!ISO_DATE.test(value) || Number.isNaN(date.getTime())) {
-        throw new Error(`Cannot write the PDF dates: ${JSON.stringify(value)} is not a UTC date such as 2026-11-19T12:34:56.000Z (Date.prototype.toISOString()).`);
-    }
-
-    // PDF dates are to the second (D:YYYYMMDDHHmmSSZ), as in the other renderers.
-    return new Date(Math.floor(date.getTime() / 1000) * 1000);
-}
-
-/** The document properties of a version 2 document (docs/HTML_PROFILE.md "Document properties"). */
-function documentInfo(head: Element | undefined, prefix: string): PDFKit.DocumentInfo {
-    if (!head) {
-        return {};
-    }
-
-    const meta = (name: string) => {
-        const element = children(head).find(child => child.tagName === "meta" && attribute(child, "name") === name);
-
-        return element && attribute(element, "content");
-    };
-    const title = children(head).find(element => element.tagName === "title");
-    const text = {
-        Author: meta("author"),
-        Subject: meta("description"),
-        Keywords: meta("keywords"),
-        Creator: meta(`${prefix}creator`),
-        Producer: meta(`${prefix}producer`),
-        Company: meta(`${prefix}company`),
-        Revision: meta(`${prefix}revision`),
-    };
-    const [created, modified] = [meta(`${prefix}creation-date`), meta(`${prefix}modification-date`)].map(date => (date ? profileDate(date) : undefined));
-    // A date alone is both, as krilla (one date) writes it in the WASM renderer.
-    const dates = created || modified ? { CreationDate: created ?? modified, ModDate: modified ?? created } : {};
-
-    return {
-        ...(title ? { Title: textContent(title).trim().replace(/\s+/g, " ") } : {}),
-        // `as`: ISO 32000-1 14.3.3 allows other keys (Company, Revision) in the Info dictionary; PDFKit writes them, its types list the standard ones.
-        ...(Object.fromEntries(Object.entries(text).filter(([, value]) => value)) as PDFKit.DocumentInfo),
-        ...dates,
-    };
-}
-
-async function collect(doc: PDFKit.PDFDocument): Promise<Uint8Array> {
-    const chunks: Uint8Array[] = [];
-    const done = new Promise<void>((resolve, reject) => {
-        doc.on("data", (chunk: Uint8Array) => chunks.push(chunk));
-        doc.on("end", () => resolve());
-        doc.on("error", reject);
-    });
-
-    doc.end();
-    await done;
-    const pdf = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0));
-    let offset = 0;
-
-    for (const chunk of chunks) {
-        pdf.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-
-    return pdf;
-}
-
 export async function renderHtml(html: string, faces: readonly Face[]): Promise<RenderResult> {
     const { pageSize } = htmlDocument(html);
     const root = parseDocument(html).find(element => element.tagName === "html");
@@ -96,7 +31,56 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
     const prefix = profileMetaPrefix(name => (head ? children(head).find(element => element.tagName === "meta" && attribute(element, "name") === name) : undefined)?.attrs.find(attr => attr.name === "content")?.value);
     const slides = body ? children(body).filter(element => hasClass(element, "slide-container")) : [];
     const size = [inchesToPoints(pageSize.width), inchesToPoints(pageSize.height)];
-    const info = { Creator: PDF_PRODUCER, Producer: PDF_PRODUCER, ...(prefix === "pdflapas-" ? documentInfo(head, prefix) : {}) };
+    // The document properties of a version 2 document (docs/HTML_PROFILE.md "Document properties").
+    let properties: PDFKit.DocumentInfo = {};
+
+    if (prefix === "pdflapas-" && head) {
+        const meta = (name: string) => {
+            const element = children(head).find(child => child.tagName === "meta" && attribute(child, "name") === name);
+
+            return element && attribute(element, "content");
+        };
+        const title = children(head).find(element => element.tagName === "title");
+        const text = {
+            Author: meta("author"),
+            Subject: meta("description"),
+            Keywords: meta("keywords"),
+            Creator: meta(`${prefix}creator`),
+            Producer: meta(`${prefix}producer`),
+            Company: meta(`${prefix}company`),
+            Revision: meta(`${prefix}revision`),
+        };
+        const profileDates: (Date | undefined)[] = [];
+
+        for (const value of [meta(`${prefix}creation-date`), meta(`${prefix}modification-date`)]) {
+            if (!value) {
+                profileDates.push(undefined);
+                continue;
+            }
+
+            const date = new Date(value);
+
+            if (!ISO_DATE.test(value) || Number.isNaN(date.getTime())) {
+                throw new Error(`Cannot write the PDF dates: ${JSON.stringify(value)} is not a UTC date such as 2026-11-19T12:34:56.000Z (Date.prototype.toISOString()).`);
+            }
+
+            // PDF dates are to the second (D:YYYYMMDDHHmmSSZ), as in the other renderers.
+            profileDates.push(new Date(Math.floor(date.getTime() / 1000) * 1000));
+        }
+
+        const [created, modified] = profileDates;
+        // A date alone is both, as krilla (one date) writes it in the WASM renderer.
+        const dates = created || modified ? { CreationDate: created ?? modified, ModDate: modified ?? created } : {};
+
+        properties = {
+            ...(title ? { Title: textContent(title).trim().replace(/\s+/g, " ") } : {}),
+            // `as`: ISO 32000-1 14.3.3 allows other keys (Company, Revision) in the Info dictionary; PDFKit writes them, its types list the standard ones.
+            ...(Object.fromEntries(Object.entries(text).filter(([, value]) => value)) as PDFKit.DocumentInfo),
+            ...dates,
+        };
+    }
+
+    const info = { Creator: PDF_PRODUCER, Producer: PDF_PRODUCER, ...properties };
     const doc = new PDFDocument({
         autoFirstPage: false,
         size,
@@ -128,7 +112,7 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
         }
     }
 
-    slides.forEach((slide, index) => {
+    for (const [index, slide] of slides.entries()) {
         const number = numbers[index] ?? index + 1;
 
         doc.addPage({ size, margin: 0 });
@@ -156,10 +140,34 @@ export async function renderHtml(html: string, faces: readonly Face[]): Promise<
             },
             { width: pageSize.width * CSS_PX_PER_INCH, height: pageSize.height * CSS_PX_PER_INCH },
         );
+    }
+
+    // The PDF bytes PDFKit streams out once the document ends.
+    const chunks: Uint8Array[] = [];
+    const done = new Promise<void>((resolve, reject) => {
+        doc.on("data", (chunk: Uint8Array) => chunks.push(chunk));
+        doc.on("end", () => resolve());
+        doc.on("error", reject);
     });
 
+    doc.end();
+    await done;
+    let byteLength = 0;
+
+    for (const chunk of chunks) {
+        byteLength += chunk.byteLength;
+    }
+
+    const pdf = new Uint8Array(byteLength);
+    let offset = 0;
+
+    for (const chunk of chunks) {
+        pdf.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+
     return {
-        pdf: await collect(doc),
+        pdf,
         warnings: [...warnings],
         missingFonts: [...missing].map(([face, { objects, used }]) => ({ face, objects: [...objects].sort(), ...(used ? { usedFace: used } : {}) })),
     };
