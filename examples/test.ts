@@ -5,6 +5,7 @@ import { PAGE_SIZES, PuppeteerGen } from "@pdflapas/pptxgenjs";
 function main(pres: pptxgen | PuppeteerGen, fileName: string) {
     // First slide with simple text
     const slide1 = pres.addSlide();
+
     slide1.addText("Hello World from PptxGenJS/PuppeteerGen!", {
         x: 1,
         y: 1,
@@ -17,6 +18,7 @@ function main(pres: pptxgen | PuppeteerGen, fileName: string) {
 
     // Second slide with multiple elements
     const slide2 = pres.addSlide();
+
     slide2.addText("Positioned Text", {
         x: 0.5,
         y: 0.5,
@@ -39,6 +41,7 @@ function main(pres: pptxgen | PuppeteerGen, fileName: string) {
 
     // Third slide with table
     const slide3 = pres.addSlide();
+
     slide3.addText("Table Example", {
         x: 0.5,
         y: 0.5,

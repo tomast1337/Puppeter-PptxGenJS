@@ -6,10 +6,12 @@
 import pptxgen from "@pdflapas/pptxgenjs";
 
 const pres = new pptxgen();
+
 pres.layout = "LAYOUT_WIDE";
 pres.title = "Migration sample";
 
 const slide = pres.addSlide();
+
 slide.background = { color: "F5F5F5" };
 slide.addText("Same calls, PDF output", { x: 0.5, y: 0.4, w: 12.3, h: 0.8, fontSize: 32, bold: true, color: "333333" });
 slide.addShape(pres.ShapeType.rect, { x: 0.5, y: 1.4, w: 12.3, h: 0.05, fill: { color: "666666" } });
@@ -35,4 +37,5 @@ slide.addTable(
 
 // A ".pptx" file name is turned into ".pdf", so this call needs no change either: it writes migration.pdf.
 const fileName = await pres.writeFile({ fileName: "migration.pptx" });
+
 console.log(`Wrote ${fileName}`);

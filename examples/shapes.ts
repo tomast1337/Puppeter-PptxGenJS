@@ -14,6 +14,7 @@ slide.addShape(pres.ShapeType.triangle, { x: 7.7, y: 0.5, w: 1.8, h: 1.2, fill: 
 
 // An outer shadow. An inner shadow on a shape throws UnsupportedFeatureError (see docs/MIGRATION.md).
 const shadow = { type: "outer", color: "000000", opacity: 0.4, blur: 6, offset: 4, angle: 45 } as const;
+
 slide.addShape("rect", { x: 0.5, y: 2.2, w: 2.5, h: 1.2, fill: { color: "FFFFFF" }, line: outline, shadow });
 
 // Text inside a shape: addText with `shape`.
