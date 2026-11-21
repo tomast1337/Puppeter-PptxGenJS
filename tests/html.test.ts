@@ -22,13 +22,6 @@ class FakeRenderer implements PresentationRenderer {
     }
 }
 
-function deck(pres: HtmlPuppeteerGen): HtmlPuppeteerGen {
-    pres.addSlide().addText("First slide", { x: 1, y: 1, w: 4, h: 1 }).addImage({ data: PNG_DATA, x: 1, y: 2, w: 1, h: 1 });
-    pres.addSlide().addImage({ path: "https://example.com/remote.png", x: 1, y: 1, w: 1, h: 1 });
-
-    return pres;
-}
-
 describe("browser-safe html entry", () => {
     test("bundles for the browser without puppeteer, jsdom or node:* modules", async () => {
         // The installed bun-types predate Bun.build's metafile option, which the runtime supports.
@@ -40,7 +33,17 @@ describe("browser-safe html entry", () => {
         const forbidden = /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/;
 
         expect(Object.keys(inputs).filter(path => forbidden.test(path))).toEqual([]);
-        expect(Object.values(inputs).flatMap(input => input.imports.map(entry => entry.path).filter(path => forbidden.test(path)))).toEqual([]);
+        const forbiddenImports: string[] = [];
+
+        for (const input of Object.values(inputs)) {
+            for (const entry of input.imports) {
+                if (forbidden.test(entry.path)) {
+                    forbiddenImports.push(entry.path);
+                }
+            }
+        }
+
+        expect(forbiddenImports).toEqual([]);
         expect(Object.keys(inputs)).not.toContain("packages/pptxgenjs/src/node.ts");
     });
 
@@ -48,7 +51,10 @@ describe("browser-safe html entry", () => {
         const fetchMock = spyOn(globalThis, "fetch").mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } }));
 
         try {
-            const pres = deck(new HtmlPuppeteerGen(PAGE, { createDocument }));
+            const pres = new HtmlPuppeteerGen(PAGE, { createDocument });
+
+            pres.addSlide().addText("First slide", { x: 1, y: 1, w: 4, h: 1 }).addImage({ data: PNG_DATA, x: 1, y: 2, w: 1, h: 1 });
+            pres.addSlide().addImage({ path: "https://example.com/remote.png", x: 1, y: 1, w: 1, h: 1 });
             const document = await pres.toHtml();
 
             expect(document.pageSize).toEqual(PAGE);

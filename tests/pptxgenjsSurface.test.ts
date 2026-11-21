@@ -4,32 +4,16 @@ import { API_COMPATIBILITY, type ApiEntry } from "../packages/pptxgenjs/src/comp
 import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 import { UnsupportedFeatureError } from "../packages/pptxgenjs/src/UnsupportedFeatureError";
 
-/** Every property and method name an object exposes through its prototype chain, without `constructor` and PptxGenJS's `_` private state. */
-function memberNames(object: object): string[] {
-    const names = new Set<string>();
+function namesWith(table: Readonly<Record<string, ApiEntry>>, statuses: readonly ApiEntry["status"][]): string[] {
+    const names: string[] = [];
 
-    for (let current: object | null = object; current && current !== Object.prototype; current = Object.getPrototypeOf(current)) {
-        for (const name of Object.getOwnPropertyNames(current)) {
-            if (!name.startsWith("_") && name !== "constructor") {
-                names.add(name);
-            }
+    for (const [name, entry] of Object.entries(table)) {
+        if (statuses.includes(entry.status)) {
+            names.push(name);
         }
     }
 
-    return [...names].sort();
-}
-
-function namesWith(table: Readonly<Record<string, ApiEntry>>, statuses: readonly ApiEntry["status"][]): string[] {
-    return Object.entries(table)
-        .filter(([, entry]) => statuses.includes(entry.status))
-        .map(([name]) => name)
-        .sort();
-}
-
-function referenceSurface() {
-    const presentation = new pptxgen();
-
-    return { presentation, slide: presentation.addSlide() };
+    return names.sort();
 }
 
 // One call per unsupported or partial member: each must throw UnsupportedFeatureError.
@@ -47,7 +31,21 @@ describe("the pptxgenjs 4.0.1 runtime surface", () => {
         const table = API_COMPATIBILITY[surface];
 
         test(`classifies every public ${surface} member, and only members the runtime has`, () => {
-            const runtime = memberNames(referenceSurface()[surface]);
+            const presentation = new pptxgen();
+            const reference = { presentation, slide: presentation.addSlide() }[surface];
+            // Every property and method name the reference exposes through its prototype chain, without `constructor`
+            // and PptxGenJS's `_` private state.
+            const names = new Set<string>();
+
+            for (let current: object | null = reference; current && current !== Object.prototype; current = Object.getPrototypeOf(current)) {
+                for (const name of Object.getOwnPropertyNames(current)) {
+                    if (!name.startsWith("_") && name !== "constructor") {
+                        names.add(name);
+                    }
+                }
+            }
+
+            const runtime = [...names].sort();
 
             expect(runtime.filter(name => !Object.hasOwn(table, name))).toEqual([]);
             expect(Object.keys(table).filter(name => !runtime.includes(name))).toEqual([]);

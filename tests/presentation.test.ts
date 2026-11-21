@@ -7,16 +7,15 @@ import { PuppeteerGen } from "../packages/pptxgenjs/src/node";
 
 const LAYOUT_NAMES = ["LAYOUT_4x3", "LAYOUT_16x9", "LAYOUT_16x10", "LAYOUT_WIDE"];
 
-function firstRunFont(object: NormalizedSlideObject | undefined): string | undefined {
-    if (object?.kind === "text") {
-        return object.text.paragraphs[0]?.runs[0]?.fontFace;
+/** The face of the first run of a text box or of a table's first cell; throws for an object without one. */
+function firstRunFont(object: NormalizedSlideObject | undefined): string {
+    const fontFace = object?.kind === "text" ? object.text.paragraphs[0]?.runs[0]?.fontFace : object?.kind === "table" ? object.table.rows[0]?.cells[0]?.text.paragraphs[0]?.runs[0]?.fontFace : undefined;
+
+    if (fontFace === undefined) {
+        throw new Error(`no first run font in ${JSON.stringify(object)}`);
     }
 
-    if (object?.kind === "table") {
-        return object.table.rows[0]?.cells[0]?.text.paragraphs[0]?.runs[0]?.fontFace;
-    }
-
-    return undefined;
+    return fontFace;
 }
 
 describe("presentation properties read like PptxGenJS 4.0.1", () => {

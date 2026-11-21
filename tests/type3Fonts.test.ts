@@ -23,7 +23,17 @@ afterAll(closeBrowser);
 function fontDictionaries(pdf: Uint8Array): string[] {
     const text = pdfText(pdf);
 
-    return [...objectOffsets(text, problem => new Error(problem)).values()].map(offset => text.slice(offset, text.indexOf("endobj", offset))).filter(body => /\/Type \/Font\b/.test(body));
+    const fonts: string[] = [];
+
+    for (const offset of objectOffsets(text, problem => new Error(problem)).values()) {
+        const body = text.slice(offset, text.indexOf("endobj", offset));
+
+        if (/\/Type \/Font\b/.test(body)) {
+            fonts.push(body);
+        }
+    }
+
+    return fonts;
 }
 
 async function cffDeck(): Promise<Uint8Array> {

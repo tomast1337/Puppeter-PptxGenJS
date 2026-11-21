@@ -136,13 +136,15 @@ describe("workspace packages", () => {
 
             expect({ exitCode: child.exitCode, stderr: child.stderr.toString() }).toEqual({ exitCode: 0, stderr: "" });
             // The Node entry reports the empty font directory list; the browser entry would say it needs Node/Bun.
-            expect(
-                child.stdout
-                    .toString()
-                    .split("\n")
-                    .filter(Boolean)
-                    .map(line => line.startsWith("No font files matching")),
-            ).toEqual([true, true]);
+            const reports: boolean[] = [];
+
+            for (const line of child.stdout.toString().split("\n")) {
+                if (line) {
+                    reports.push(line.startsWith("No font files matching"));
+                }
+            }
+
+            expect(reports).toEqual([true, true]);
         } finally {
             await Bun.file(file).delete();
         }

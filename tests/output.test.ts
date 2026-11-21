@@ -29,18 +29,6 @@ function deck(renderer = new FakeRenderer()) {
     return { pres, renderer };
 }
 
-function withoutBuffer<T>(run: () => T): T {
-    const original = globalThis.Buffer;
-
-    // @ts-expect-error simulate a browser runtime
-    delete globalThis.Buffer;
-    try {
-        return run();
-    } finally {
-        globalThis.Buffer = original;
-    }
-}
-
 describe("convertPdfOutput", () => {
     test("converts to every PptxGenJS output type", async () => {
         expect(convertPdfOutput(BYTES, "uint8array")).toBe(BYTES);
@@ -74,11 +62,17 @@ describe("convertPdfOutput", () => {
     });
 
     test("nodebuffer and STREAM throw an explicit error without Buffer", () => {
-        withoutBuffer(() => {
+        const original = globalThis.Buffer;
+
+        // @ts-expect-error simulate a browser runtime
+        delete globalThis.Buffer;
+        try {
             expect(() => convertPdfOutput(BYTES, "nodebuffer")).toThrow("use 'uint8array', 'arraybuffer', 'base64', 'binarystring' or 'blob'");
             expect(() => convertPdfOutput(BYTES, "STREAM")).toThrow("needs Node's Buffer");
             expect(convertPdfOutput(BYTES, "base64")).toBe(btoa(String.fromCharCode(...BYTES)));
-        });
+        } finally {
+            globalThis.Buffer = original;
+        }
     });
 });
 

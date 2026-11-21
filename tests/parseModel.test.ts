@@ -8,9 +8,6 @@ import { populateParityFixture } from "./visual/fixture";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
-// `as`: the registry and resolver are private; toHtml() hands the same objects to modelToHtml().
-const internals = (pres: PuppeteerGen) => pres as unknown as { components: ComponentLookup; resolveImage: (source: string) => Promise<string> };
-
 function smallModel(): unknown {
     const pres = new PuppeteerGen();
 
@@ -26,7 +23,11 @@ type Json = Record<string | number, unknown>;
 function rejection(path: readonly (string | number)[], value: unknown): InvalidModelError {
     const model = smallModel();
     // `as`: smallModel() is getModel() JSON and every test path names objects and arrays it has.
-    const parent = path.slice(0, -1).reduce<Json>((object, key) => object[key] as Json, model as Json);
+    let parent = model as Json;
+
+    for (const key of path.slice(0, -1)) {
+        parent = parent[key] as Json;
+    }
 
     parent[path[path.length - 1] ?? ""] = value;
     try {
@@ -61,7 +62,8 @@ describe("parseModel()", () => {
                 const json = JSON.parse(JSON.stringify(pres.getModel()));
 
                 expect({ name, model: parseModel(json) }).toEqual({ name, model: json });
-                const { components, resolveImage } = internals(pres);
+                // `as`: the registry and resolver are private; toHtml() hands the same objects to modelToHtml().
+                const { components, resolveImage } = pres as unknown as { components: ComponentLookup; resolveImage: (source: string) => Promise<string> };
                 const html = (await modelToHtml(json, { components, resolveImage, createDocument: createNodeDocument })).html;
 
                 expect({ name, same: html === (await pres.toHtml()).html }).toEqual({ name, same: true });
