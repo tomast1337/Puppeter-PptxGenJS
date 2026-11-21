@@ -30,20 +30,34 @@ export class MissingFontError extends Error {
 
 function missingFontsMessage(missing: readonly MissingFont[]): string {
     const lines = missing.map(({ face, objects, usedFace }) => `- ${JSON.stringify(face)}${usedFace ? `, drawn in ${JSON.stringify(usedFace)}` : ""}: ${objects.join(", ")}`);
+
     return `PdfLapas: font faces not available to the renderer, their text uses a fallback face and can wrap differently:\n${lines.join("\n")}`;
 }
 
 /** The renderer option `onMissingFont`, checked where the renderer is created: the default when absent. */
 export function missingFontPolicy(option: unknown): MissingFontPolicy {
-    if (option === undefined) return DEFAULT_MISSING_FONT_POLICY;
-    if (option === "warn" || option === "throw" || option === "ignore" || typeof option === "function") return option as MissingFontPolicy; // `as`: a caller's function is assumed to take the list
+    if (option === undefined) {
+        return DEFAULT_MISSING_FONT_POLICY;
+    }
+
+    if (option === "warn" || option === "throw" || option === "ignore" || typeof option === "function") {
+        return option as MissingFontPolicy;
+    } // `as`: a caller's function is assumed to take the list
+
     throw new Error(`onMissingFont must be "warn", "throw", "ignore" or a function receiving the missing fonts, got ${JSON.stringify(option)}`);
 }
 
 /** Applies `policy` to the faces a render could not use; does nothing when there are none. */
 export function reportMissingFonts(missing: readonly MissingFont[], policy: MissingFontPolicy): void {
-    if (!missing.length || policy === "ignore") return;
-    if (typeof policy === "function") policy(missing);
-    else if (policy === "throw") throw new MissingFontError(missing);
-    else console.warn(missingFontsMessage(missing));
+    if (!missing.length || policy === "ignore") {
+        return;
+    }
+
+    if (typeof policy === "function") {
+        policy(missing);
+    } else if (policy === "throw") {
+        throw new MissingFontError(missing);
+    } else {
+        console.warn(missingFontsMessage(missing));
+    }
 }

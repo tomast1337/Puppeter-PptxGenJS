@@ -7,5 +7,7 @@ export const LINK_URL_SCHEME = /^(?:https?|mailto):/i;
 
 /** Throws unless `href` is an http, https or mailto URL; `where` names the object holding the link. */
 export function assertLinkUrl(href: string, where: string): void {
-    if (!LINK_URL_SCHEME.test(href)) throw new Error(`Cannot link ${where} to '${href}': a link must be an http:, https: or mailto: URL, or a slide link (PdfLapas HTML profile)`);
+    if (!LINK_URL_SCHEME.test(href)) {
+        throw new Error(`Cannot link ${where} to '${href}': a link must be an http:, https: or mailto: URL, or a slide link (PdfLapas HTML profile)`);
+    }
 }
