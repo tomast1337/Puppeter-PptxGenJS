@@ -196,8 +196,8 @@ instantiation). Data loaded once stays loaded; do not micro-optimize code that r
    all candidates.
 
 Measure before and after on the same deck and machine: `bun run bench` (Puppeteer, `BENCH_RUNS`
-sequential and concurrent), and `bun run bench:wasm` for the WASM backend. Put both numbers
-in the PR. An optimization keeps behavior identical: visual score lines must not change, and the wasm
+sequential and concurrent), and `bun run bench:renderers` for cold and warm numbers of every renderer
+(Puppeteer, WASM, PDFKit; `bench:wasm` is an alias). Put both numbers in the PR. An optimization keeps behavior identical: visual score lines must not change, and the wasm
 hash changes only when Rust code or its pins change.
 
 ## Code style: TypeScript
