@@ -442,6 +442,7 @@ export interface GlyphAdvances {
     readonly kerning?: ReadonlyMap<number, ReadonlyMap<number, number>>;
 }
 /** A face's advances in a weight and style, or undefined when they are not known. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export type GlyphAdvanceLookup = (fontFace: string, bold: boolean, italic: boolean) => GlyphAdvances | undefined;
 
 /**

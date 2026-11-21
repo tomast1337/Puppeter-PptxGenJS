@@ -4,7 +4,10 @@
  * implemented instead of being silently passed to Intl.NumberFormat.
  */
 export function isSupportedChartNumberFormat(formatCode: string): boolean {
-    if (formatCode === "General") return true;
+    if (formatCode === "General") {
+        return true;
+    }
+
     return /^(?:[^0#;,]*)(?:#,##)?0(?:\.0+)?%?(?:[^0#;,]*)$/.test(formatCode);
 }
 
@@ -12,7 +15,9 @@ export function formatChartNumber(value: number, formatCode: string): string {
     if (formatCode === "General") {
         return String(value);
     }
+
     const match = /^(?<prefix>[^0#;,]*)(?<group>#,##)?0(?:\.(?<fraction>0+))?(?<percent>%?)(?<suffix>[^0#;,]*)$/.exec(formatCode);
+
     if (!match?.groups) {
         return String(value);
     }

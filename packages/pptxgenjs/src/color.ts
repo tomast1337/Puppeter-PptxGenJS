@@ -22,19 +22,32 @@ export const TRANSPARENT = cssColor("transparent");
  * declarations (`red; background: url(...)`). PptxGenJS warns and writes black instead; we fail loudly.
  */
 export function colorToCSS(value?: string | ColorProps): CssColor {
-    if (!value) return TRANSPARENT;
+    if (!value) {
+        return TRANSPARENT;
+    }
 
     const color = typeof value === "string" ? value : value.color;
-    if (!color) return TRANSPARENT;
+
+    if (!color) {
+        return TRANSPARENT;
+    }
 
     const hex = HEX_COLOR.exec(color);
-    if (!hex) throw new Error(`color ${JSON.stringify(color)} is not a valid color: use a 6-digit hex RGB value such as "FF0000" or a scheme color (tx1, tx2, bg1, bg2, accent1 to accent6)`);
+
+    if (!hex) {
+        throw new Error(`color ${JSON.stringify(color)} is not a valid color: use a 6-digit hex RGB value such as "FF0000" or a scheme color (tx1, tx2, bg1, bg2, accent1 to accent6)`);
+    }
+
     const [, red = "", green = "", blue = ""] = hex;
 
     const transparency = typeof value === "object" ? value.transparency : undefined;
-    if (transparency === undefined || transparency <= 0) return cssColor(`#${red}${green}${blue}`);
+
+    if (transparency === undefined || transparency <= 0) {
+        return cssColor(`#${red}${green}${blue}`);
+    }
 
     const alpha = Math.max(0, Math.min(1, 1 - transparency / 100));
+
     return cssColor(`rgba(${parseInt(red, 16)}, ${parseInt(green, 16)}, ${parseInt(blue, 16)}, ${alpha})`);
 }
 
@@ -49,10 +62,21 @@ export type CssColorParts = { readonly form: "hex"; readonly channels: readonly 
  * built without colorToCSS, so it throws rather than draw the color unchanged (#285).
  */
 export function cssColorParts(color: CssColor): CssColorParts {
-    if (color === TRANSPARENT) return { form: "transparent" };
+    if (color === TRANSPARENT) {
+        return { form: "transparent" };
+    }
+
     const hex = HEX_COLOR.exec(color);
-    if (hex) return { form: "hex", channels: hex.slice(1, 4).map(channel => parseInt(channel, 16)) };
+
+    if (hex) {
+        return { form: "hex", channels: hex.slice(1, 4).map(channel => parseInt(channel, 16)) };
+    }
+
     const rgba = RGBA_COLOR.exec(color);
-    if (rgba) return { form: "rgba", channels: rgba.slice(1, 4).map(Number), alpha: rgba[4] ?? "" };
+
+    if (rgba) {
+        return { form: "rgba", channels: rgba.slice(1, 4).map(Number), alpha: rgba[4] ?? "" };
+    }
+
     throw new Error(`color ${JSON.stringify(color)} is not a CssColor: colorToCSS makes only #RRGGBB, rgba(r, g, b, a) and transparent, so build model colors with it`);
 }

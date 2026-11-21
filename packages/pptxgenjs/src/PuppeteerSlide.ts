@@ -70,11 +70,19 @@ export class PuppeteerSlide implements PptxSlide {
         const old = typeof bkgd === "object" && bkgd !== null ? (bkgd as { data?: string; path?: string; src?: string }) : {};
         const data = old.data || value?.data;
         const path = old.src || old.path || value?.path;
-        if (data || path) this.backgroundImage = normalizeImage({ ...(data ? { data } : {}), ...(path ? { path } : {}) }, this.pageSize);
+
+        if (data || path) {
+            this.backgroundImage = normalizeImage({ ...(data ? { data } : {}), ...(path ? { path } : {}) }, this.pageSize);
+        }
+
         this._background = value;
         // PptxGenJS copies the deprecated `fill` to `color`.
         const color = value?.color ?? value?.fill;
-        if (!color) return;
+
+        if (!color) {
+            return;
+        }
+
         this.model.background = normalizeColor({ ...value, color });
     }
 
@@ -85,7 +93,10 @@ export class PuppeteerSlide implements PptxSlide {
     set bkgd(value: string) {
         this._bkgd = value;
         // An object (`{ path | data | src }`, deprecated) draws nothing until `background` is set, as in PptxGenJS.
-        if (typeof value !== "string") return;
+        if (typeof value !== "string") {
+            return;
+        }
+
         this.model.background = normalizeColor(value);
     }
 
@@ -129,17 +140,21 @@ export class PuppeteerSlide implements PptxSlide {
         const slideNumber = this._slideNumber ? [normalizeSlideNumber(this._slideNumber, masterSlideNumber ?? {}, this.context.slideIndex + 1, this.pageSize, this.context.bodyFontFace(), this.context.target, this.context.fontMetrics)] : [];
         // PptxGenJS writes the picture alone, so its transparent parts show white (LibreOffice), not the color.
         const color = this.backgroundImage ? normalizeColor(PPTX_DEFAULTS.slide.backgroundColor) : this.model.background;
+
         return { ...this.model, background: color, objects: [...background, ...this.model.objects, ...slideNumber] };
     }
 
     private nextObjectName(kind: string, explicit?: string): string {
         const index = this.objectCounts[kind] ?? 0;
+
         this.objectCounts[kind] = index + 1;
+
         return explicit ?? `${kind} ${index}`;
     }
 
     private addObject(object: NormalizedSlideObject): this {
         this.model.objects.push(object);
+
         return this;
     }
 
@@ -150,11 +165,13 @@ export class PuppeteerSlide implements PptxSlide {
     addComponent(input: ComponentInput, options: ComponentOptions): this {
         const normalized = normalizeComponent(input, options, this.pageSize, options?.objectName ?? "Component");
         const definition = this.context.components.get(normalized.input.type, normalized.input.version);
+
         // Application code: render it once here so its validation and render errors throw from addComponent
         // and leave the slide unchanged. The markup is dropped; toHtml() renders the model again.
         renderComponent(normalized, definition, this.nextIdScope(), this.context.getDocument);
         // The default name is only consumed after a successful render.
         const objectName = this.nextObjectName("Component", options.objectName);
+
         return this.addObject({ kind: "component", style: { ...normalized.style, objectName }, component: normalized.input });
     }
 
@@ -177,7 +194,9 @@ export class PuppeteerSlide implements PptxSlide {
             this.nextObjectName("Chart", chartOptions.objectName),
         );
         const chart = normalizeChart(type, Array.isArray(data) ? (data as PptxGenJS.OptsChartData[]) : [], { ...chartOptions, legendFontFace: chartOptions.legendFontFace ?? this.context.bodyFontFace() });
+
         chartSize(style);
+
         return this.addObject({ kind: "chart", style, chart });
     }
 
@@ -185,13 +204,18 @@ export class PuppeteerSlide implements PptxSlide {
         const style = normalizeObjectStyle(options, PPTX_DEFAULTS.chart, this.pageSize, this.nextObjectName("Chart", options.objectName));
         const svg = renderChartExtensionSvg(input, style);
         const altText = options.altText ?? "";
+
         // Parses the caller's SVG so a non-SVG root or an external reference throws here; the markup is dropped.
         renderChartExtension(svg, style, altText, this.nextIdScope());
+
         return this.addObject({ kind: "chartExtension", style, svg, altText });
     }
 
     addImage(options: PptxGenJS.ImageProps): PptxGenJS.Slide {
-        if (options.placeholder !== undefined) throw placeholderError("addImage");
+        if (options.placeholder !== undefined) {
+            throw placeholderError("addImage");
+        }
+
         const image = normalizeImage(options, this.pageSize);
         const { transparency: _imageTransparency, ...opaqueOptions } = options;
         const geometryOptions = options.sizing ? { ...opaqueOptions, w: options.sizing.w, h: options.sizing.h } : opaqueOptions;
@@ -200,6 +224,7 @@ export class PuppeteerSlide implements PptxSlide {
         const style = normalizeObjectStyle({ ...geometryOptions, shadow }, PPTX_DEFAULTS.image, this.pageSize, this.nextObjectName("Image", options.objectName), {
             shadow: true,
         });
+
         return this.addObject({ kind: "image", style, image });
     }
 
@@ -215,21 +240,29 @@ export class PuppeteerSlide implements PptxSlide {
     addShape(shapeName: PptxGenJS.SHAPE_NAME | "custGeom", options?: PptxGenJS.ShapeProps | undefined): PptxGenJS.Slide {
         const shapeOptions = options ?? {};
         const style = normalizeObjectStyle(shapeOptions, PPTX_DEFAULTS.shape, this.pageSize, this.nextObjectName("Shape", shapeOptions.objectName ?? shapeOptions.shapeName), { fill: true, shadow: true });
+
         style.line = normalizeShapeLine(shapeOptions, line => normalizeLine(line, straightLineLength(shapeName, style.geometry.width ?? 0, style.geometry.height ?? 0)));
         const shape = normalizeShape(shapeName, shapeOptions, style.geometry.width ?? 0, style.geometry.height ?? 0, this.pageSize);
+
         return this.addObject({ kind: "shape", style, shape });
     }
 
     addTable(tableRows: PptxGenJS.TableRow[], options?: PptxGenJS.TableProps | undefined): PptxGenJS.Slide {
         const tableOptions = options ?? {};
+
         this.newAutoPagedSlides = [];
         if (tableOptions.autoPage) {
             const pageOptions = autoPageTableOptions(tableRows, tableOptions, this.pageSize);
             const pages = paginateTableRows(tableRows, pageOptions, this.pageSize);
             const continuationSlides: PuppeteerSlide[] = [];
-            pages.forEach((page, index) => {
+
+            for (const [index, page] of pages.entries()) {
                 const target = index === 0 ? this : this.context.continuationSlide(index);
-                if (index > 0) continuationSlides.push(target);
+
+                if (index > 0) {
+                    continuationSlides.push(target);
+                }
+
                 target.addTable(page.rows, {
                     ...pageOptions,
                     // PptxGenJS 4.0.1 addTableDefinition (step 6 C) adds each page with the caller's options, so its
@@ -237,10 +270,13 @@ export class PuppeteerSlide implements PptxSlide {
                     y: page.y,
                     autoPage: false,
                 });
-            });
+            }
+
             this.newAutoPagedSlides = continuationSlides;
+
             return this;
         }
+
         const table = normalizeTable(tableRows, { ...tableOptions, fontFace: tableOptions.fontFace ?? this.context.bodyFontFace() }, this.pageSize, this.context.target, this.context.fontMetrics, {
             table: tableOptions,
             shared: this.context.sharedRunOptions,
@@ -251,19 +287,28 @@ export class PuppeteerSlide implements PptxSlide {
         // shortcut: addTableDefinition (step 4) reads an `x` or `y` below 20 EMU (under 0.00003in) as inches again, which
         // this does not; reproduce it with the table's `w` (addTableSize) if a deck relies on it.
         const tableStyle = { ...style, geometry: { ...style.geometry, width: table.width, height: table.height } };
+
         return this.addObject({ kind: "table", style: tableStyle, table });
     }
 
     addText(text: TextInput, options?: PptxGenJS.TextPropsOptions | undefined): PptxGenJS.Slide {
         const textOptions = options ?? {};
-        if (textOptions.placeholder !== undefined) throw placeholderError("addText");
-        if (textOptions.shadow?.type === "inner") throw innerShadowError(textOptions.shape ? `shape "${textOptions.shape}"` : "a text box");
+
+        if (textOptions.placeholder !== undefined) {
+            throw placeholderError("addText");
+        }
+
+        if (textOptions.shadow?.type === "inner") {
+            throw innerShadowError(textOptions.shape ? `shape "${textOptions.shape}"` : "a text box");
+        }
+
         // Text transparency is a run color property, not object opacity.
         const { transparency: _textTransparency, ...boxOptions } = textOptions;
         const textStyle = normalizeObjectStyle(boxOptions, PPTX_DEFAULTS.text, this.pageSize, this.nextObjectName("Text", textOptions.objectName), {
             fill: true,
             shadow: true,
         });
+
         textStyle.line = normalizeTextLine(textOptions, straightLineLength(textOptions.shape ?? "", textStyle.geometry.width ?? 0, textStyle.geometry.height ?? 0));
         // PptxGenJS 4.0.1 addTextDefinition (cleanOpts) gives the box, and each of its runs without one, the box's color,
         // else the slide's, else black, and writes the box's options onto the runs as it writes the slide (RunWriting).
@@ -277,10 +322,15 @@ export class PuppeteerSlide implements PptxSlide {
         });
         const height = textStyle.geometry.height ?? 0;
         const width = textStyle.geometry.width ?? 0;
-        if (!textOptions.shape) return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(floorTextWrapWidth(normalizedText, width, this.context.target), height) });
+
+        if (!textOptions.shape) {
+            return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(floorTextWrapWidth(normalizedText, width, this.context.target), height) });
+        }
+
         // `as`: PptxGenJS writes a text box's shape from its own options object, so normalizeShape reads them as ShapeProps.
         const shapeOptions = textOptions as unknown as PptxGenJS.ShapeProps;
         const shape = normalizeShape(textOptions.shape, shapeOptions, width, height, this.pageSize);
+
         return this.addObject({ kind: "text", style: textStyle, text: collapseTextMargins(floorTextWrapWidth(normalizeShapeTextBox(normalizedText, shape), width, this.context.target), height), shape });
     }
 }

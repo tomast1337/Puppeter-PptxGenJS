@@ -12,14 +12,22 @@ export function emuToPixels(emu: number): Px {
  */
 function smartParse(value: unknown): { unit: "in" | "emu" | "%"; amount: number } {
     const parsed = typeof value === "string" && !Number.isNaN(Number(value)) ? Number(value) : value;
-    if (typeof parsed === "number" && !Number.isNaN(parsed)) return { unit: parsed < PPTX_DEFAULTS.units.inchesBelow ? "in" : "emu", amount: parsed };
-    if (typeof parsed === "string" && parsed.includes("%")) return { unit: "%", amount: parseFloat(parsed) };
+
+    if (typeof parsed === "number" && !Number.isNaN(parsed)) {
+        return { unit: parsed < PPTX_DEFAULTS.units.inchesBelow ? "in" : "emu", amount: parsed };
+    }
+
+    if (typeof parsed === "string" && parsed.includes("%")) {
+        return { unit: "%", amount: parseFloat(parsed) };
+    }
+
     return { unit: "in", amount: 0 };
 }
 
 /** getSmartParseNumber, in EMU, rounded as it rounds inches and percentages; `containerEmu` is the slide's width or height. */
 export function smartParseEmu(value: unknown, containerEmu: number): number {
     const { unit, amount } = smartParse(value);
+
     return unit === "emu" ? amount : Math.round(unit === "in" ? amount * PPTX_DEFAULTS.units.emuPerInch : (amount / 100) * containerEmu);
 }
 
@@ -29,12 +37,14 @@ export function smartParseEmu(value: unknown, containerEmu: number): number {
  */
 export function convertToPixels(value: number | `${number}%` | undefined, containerSize: number): Px {
     const { unit, amount } = smartParse(value);
+
     return unit === "in" ? inchesToPixels(amount) : unit === "emu" ? emuToPixels(amount) : percentageToPixels(amount, containerSize);
 }
 
 /** convertToPixels, in inches; `containerSize` is in inches. */
 export function convertToInches(value: number | `${number}%` | undefined, containerSize: number): number {
     const { unit, amount } = smartParse(value);
+
     return unit === "in" ? amount : unit === "emu" ? amount / PPTX_DEFAULTS.units.emuPerInch : (amount / 100) * containerSize;
 }
 
@@ -43,6 +53,9 @@ export function convertToInches(value: number | `${number}%` | undefined, contai
  * inches; a string is inches once every "i" and "n" is taken out ("2in" is 2), so it never reads as EMU.
  */
 export function inch2EmuToPixels(value: number | string): Px {
-    if (typeof value === "number" && value > PPTX_DEFAULTS.units.inchesBelow) return emuToPixels(value);
+    if (typeof value === "number" && value > PPTX_DEFAULTS.units.inchesBelow) {
+        return emuToPixels(value);
+    }
+
     return inchesToPixels(typeof value === "string" ? Number(value.replace(/in*/gi, "")) : value);
 }

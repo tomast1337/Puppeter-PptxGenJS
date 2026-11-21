@@ -17,6 +17,7 @@ export class UnsupportedChartError extends Error {
         const unsupportedOptions = [...(details.unsupportedOptions ?? [])];
 
         const subject = details.reason === "chart-option" ? `chart option(s): ${unsupportedOptions.join(", ")}` : `chart type(s): ${chartTypes.join(", ")}`;
+
         super(`Unsupported ${subject}`);
 
         this.name = "UnsupportedChartError";

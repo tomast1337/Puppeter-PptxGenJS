@@ -11,10 +11,18 @@ const OUTPUT_TYPES: readonly string[] = ["arraybuffer", "base64", "binarystring"
  * `compression` is accepted and ignored: it only picks zip DEFLATE vs STORE, which has no PDF equivalent.
  * Unknown types throw here so `write()` fails before rendering.
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function resolveOutputType(props?: PptxGenJS.WriteProps | PptxGenJS.WRITE_OUTPUT_TYPE): PptxGenJS.WRITE_OUTPUT_TYPE | null {
     const outputType = props && typeof props === "object" ? props.outputType : props;
-    if (!outputType) return null;
-    if (!OUTPUT_TYPES.includes(outputType)) throw new Error(`Unsupported outputType '${outputType}': expected one of ${OUTPUT_TYPES.join(", ")}`);
+
+    if (!outputType) {
+        return null;
+    }
+
+    if (!OUTPUT_TYPES.includes(outputType)) {
+        throw new Error(`Unsupported outputType '${outputType}': expected one of ${OUTPUT_TYPES.join(", ")}`);
+    }
+
     return outputType;
 }
 
@@ -25,23 +33,31 @@ export function resolveOutputType(props?: PptxGenJS.WriteProps | PptxGenJS.WRITE
  * requires a name instead (owner decision, #102). `compression` is ignored (zip-only).
  */
 export function resolveFileName(props?: PptxGenJS.WriteFileProps | string): string {
-    if (typeof props === "string") console.warn("[WARNING] writeFile(string) is deprecated - pass { fileName } instead.");
+    if (typeof props === "string") {
+        console.warn("[WARNING] writeFile(string) is deprecated - pass { fileName } instead.");
+    }
+
     const name: unknown = typeof props === "string" ? props : props?.fileName;
+
     if (typeof name !== "string" || name === "") {
         throw new TypeError(`writeFile() needs a file name, got ${name === "" ? "an empty string" : typeof name}; pass one, for example writeFile({ fileName: "deck.pdf" })`);
     }
+
     const { pdfExtension, pptxExtension } = PPTX_DEFAULTS.write;
     const base = name.toLowerCase().endsWith(pptxExtension) ? name.slice(0, -pptxExtension.length) : name;
+
     return base.toLowerCase().endsWith(pdfExtension) ? base : `${base}${pdfExtension}`;
 }
 
 /** PptxGenJS 4.0.1 `writeFileToBrowser()`: a hidden download link clicked once, released 100 ms later (Firefox needs the delay). */
 export function downloadPdf(document: Document, fileName: string, bytes: Uint8Array): void {
     const link = document.createElement("a");
+
     link.setAttribute("style", "display:none;");
     link.dataset.interception = "off"; // SharePoint would intercept the click otherwise
     document.body.appendChild(link);
     const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" }));
+
     link.href = url;
     link.download = fileName;
     link.click();
@@ -68,7 +84,11 @@ export function convertPdfOutput(bytes: Uint8Array, outputType: PptxGenJS.WRITE_
         case "STREAM":
         case "nodebuffer": {
             const NodeBuffer = (globalThis as { Buffer?: { from(bytes: Uint8Array): Uint8Array } }).Buffer;
-            if (!NodeBuffer) throw new Error(`outputType '${outputType}' needs Node's Buffer, which this runtime lacks; use 'uint8array', 'arraybuffer', 'base64', 'binarystring' or 'blob'`);
+
+            if (!NodeBuffer) {
+                throw new Error(`outputType '${outputType}' needs Node's Buffer, which this runtime lacks; use 'uint8array', 'arraybuffer', 'base64', 'binarystring' or 'blob'`);
+            }
+
             return NodeBuffer.from(bytes);
         }
         default:

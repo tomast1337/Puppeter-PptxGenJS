@@ -26,8 +26,14 @@ import { UnsupportedFeatureError } from "./UnsupportedFeatureError";
  * PptxGenJS treats a falsy name as none; any other name needs a master, so it throws instead of drawing a plain slide.
  */
 function isBuiltInMaster(name: unknown, feature: string, workaround: string): boolean {
-    if (!name) return false;
-    if (name === PPTX_DEFAULTS.presentation.layoutName) return true;
+    if (!name) {
+        return false;
+    }
+
+    if (name === PPTX_DEFAULTS.presentation.layoutName) {
+        return true;
+    }
+
     throw new UnsupportedFeatureError(feature, `Slide masters need defineSlideMaster(), and PdfLapas has no slide masters. ${workaround}`, "property");
 }
 
@@ -77,6 +83,7 @@ export interface PuppeteerGenOptions {
      * never for the LibreOffice target; its result is checked. The Node entry reads the installed font by default
      * (fontconfig); `null` turns the lookup off, so the HTML does not depend on the machine's fonts.
      */
+    // eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
     resolveFontMetrics?: ((fontFace: string) => FontWinMetrics | undefined) | null;
     /**
      * Looks up the advance widths of a face in a weight and style for the PowerPoint target, which lays text out with
@@ -85,6 +92,7 @@ export interface PuppeteerGenOptions {
      * never for the LibreOffice target; its result is checked. The Node entry reads the installed font by default
      * (fontconfig); `null`, or no resolver in the browser build, keeps every face's natural advances.
      */
+    // eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
     resolveGlyphAdvances?: ((fontFace: string, bold: boolean, italic: boolean) => GlyphAdvances | undefined) | null;
     /**
      * PDF document properties PptxGenJS has no field for: `creator`, `producer`, `keywords`, `creationDate` and
@@ -92,21 +100,6 @@ export interface PuppeteerGenOptions {
      * the same bytes. Dates are written in UTC to the second; one date alone is used for both.
      */
     pdfMetadata?: PdfMetadataOptions;
-}
-
-/** The constructor's `target`, checked: a misspelled one would otherwise render silently for the default. */
-function renderingTarget(target: unknown): RenderingTarget {
-    if (target === undefined) return DEFAULT_RENDERING_TARGET;
-    if (typeof target === "string" && Object.hasOwn(RENDERING_TARGETS, target)) return target as RenderingTarget; // `as`: hasOwn checked it is a key
-    throw new TypeError(
-        `PuppeteerGen option \`target\` must be one of ${Object.keys(RENDERING_TARGETS)
-            .map(name => `"${name}"`)
-            .join(", ")}, got ${JSON.stringify(target)}`,
-    );
-}
-
-function isBuiltInLayout(name: string): name is keyof typeof PPTX_LAYOUT_PAGE_SIZES {
-    return Object.hasOwn(PPTX_LAYOUT_PAGE_SIZES, name);
 }
 
 // PptxGenJS 4.0.1 declares `PlaceholderType` but its instance has no such member (it reads undefined), so neither has this one.
@@ -145,7 +138,20 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         this.renderer = options.renderer;
         this.resolveImage = imageResolver(options, resolveRemoteImageSource);
         this.createDocument = options.createDocument ?? createBrowserDocument;
-        this.target = renderingTarget(options.target);
+
+        // The constructor's `target`, checked: a misspelled one would otherwise render silently for the default.
+        if (options.target === undefined) {
+            this.target = DEFAULT_RENDERING_TARGET;
+        } else if (typeof options.target === "string" && Object.hasOwn(RENDERING_TARGETS, options.target)) {
+            this.target = options.target;
+        } else {
+            throw new TypeError(
+                `PuppeteerGen option \`target\` must be one of ${Object.keys(RENDERING_TARGETS)
+                    .map(name => `"${name}"`)
+                    .join(", ")}, got ${JSON.stringify(options.target)}`,
+            );
+        }
+
         this.pdfMetadata = normalizePdfMetadata(options.pdfMetadata);
         this.fontMetrics = fontMetricsLookup(options.fontMetrics, options.resolveFontMetrics, options.resolveGlyphAdvances);
         this.componentDocument = lazyDocument(this.createDocument);
@@ -167,22 +173,28 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     set layout(name: string) {
         const defined = this.definedLayouts.get(name);
+
         if (defined) {
             this.pageSize = defined;
             this.presLayoutName = name;
-        } else if (isBuiltInLayout(name)) {
-            this.pageSize = PPTX_LAYOUT_PAGE_SIZES[name];
-            this.presLayoutName = PPTX_DEFAULTS.presentation.layouts[name].presLayoutName;
+        } else if (Object.hasOwn(PPTX_LAYOUT_PAGE_SIZES, name)) {
+            // `as`: hasOwn checked it is a built-in layout's key.
+            const builtIn = name as keyof typeof PPTX_LAYOUT_PAGE_SIZES;
+
+            this.pageSize = PPTX_LAYOUT_PAGE_SIZES[builtIn];
+            this.presLayoutName = PPTX_DEFAULTS.presentation.layouts[builtIn].presLayoutName;
         } else {
             // PptxGenJS throws Error('UNKNOWN-LAYOUT') here; keep that code and say how to fix it.
             throw new Error(`UNKNOWN-LAYOUT: '${name}' is not a layout. Use ${Object.keys(PPTX_LAYOUT_PAGE_SIZES).join(", ")}, or call pres.defineLayout({ name: '${name}', width, height }) first.`);
         }
+
         this.layoutName = name;
     }
 
     /** PptxGenJS `presLayout`: the current page size in EMU and its PptxGenJS name (`screen16x9`, a `defineLayout()` name). */
     get presLayout(): PptxGenJS.PresLayout {
         const emuPerInch = PPTX_DEFAULTS.units.emuPerInch;
+
         return { name: this.presLayoutName, width: Math.round(this.pageSize.width * emuPerInch), height: Math.round(this.pageSize.height * emuPerInch) };
     }
 
@@ -198,13 +210,19 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     set theme(value: PptxGenJS.ThemeProps) {
         for (const key of ["headFontFace", "bodyFontFace"] as const) {
             const font: unknown = value?.[key];
-            if (font !== undefined && typeof font !== "string") throw new TypeError(`pres.theme.${key} must be a font name such as "Arial", got ${JSON.stringify(font)}`);
+
+            if (font !== undefined && typeof font !== "string") {
+                throw new TypeError(`pres.theme.${key} must be a font name such as "Arial", got ${JSON.stringify(font)}`);
+            }
         }
+
         // PptxGenJS treats an empty font name as unset (`theme.bodyFontFace ? ... : Calibri`).
         const bodyFontFace = value?.bodyFontFace || PPTX_DEFAULTS.theme.bodyFontFace;
+
         if (bodyFontFace !== this.bodyFontFace() && this.slides.some(slide => slide.model.objects.length > 0)) {
             throw new Error(`pres.theme.bodyFontFace "${bodyFontFace}" was set after slide objects were added: PdfLapas resolves an object's default font when it is added, PptxGenJS when it writes the file. Set pres.theme before adding text, tables or charts.`);
         }
+
         this.themeProps = value;
     }
 
@@ -261,7 +279,10 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     }
 
     private setMetadata(key: keyof PresentationMetadata, value: unknown): void {
-        if (typeof value !== "string") throw new TypeError(`pres.${key} must be a string, got ${value === null ? "null" : typeof value}; an empty string leaves it out of the PDF`);
+        if (typeof value !== "string") {
+            throw new TypeError(`pres.${key} must be a string, got ${value === null ? "null" : typeof value}; an empty string leaves it out of the PDF`);
+        }
+
         this.metadata = { ...this.metadata, [key]: value };
     }
 
@@ -310,6 +331,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     registerComponent<Props extends object = ComponentProps>(type: string, version: number, definition: ComponentDefinition<Props>): this {
         this.components.register(type, version, definition);
+
         return this;
     }
 
@@ -337,6 +359,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     /** PptxGenJS `write()`: the PDF as the requested outputType, default `blob`. `compression` is ignored (zip-only). */
     async write(props?: PptxWriteProps | undefined): Promise<string | ArrayBuffer | Blob | Uint8Array> {
         const outputType = resolveOutputType(props);
+
         return convertPdfOutput(await this.toPdf(), outputType);
     }
 
@@ -347,26 +370,38 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
 
     /** PDF bytes from the configured renderer; nothing is written to disk. */
     async toPdf(): Promise<Uint8Array> {
-        if (!this.renderer) throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("@pdflapas/pptxgenjs") for the Puppeteer default');
+        if (!this.renderer) {
+            throw new Error('toPdf() requires a renderer: pass { renderer } to the PuppeteerGen constructor, or use the Node entry ("@pdflapas/pptxgenjs") for the Puppeteer default');
+        }
+
         // A renderer with only renderModel() (the model input, removed in #69) would otherwise fail as "render is not a function".
-        if (typeof this.renderer.render !== "function") throw new Error("toPdf() renderer must implement render(document: HtmlPresentationDocument): every renderer reads the toHtml() document, renderModel(model) was removed (#69)");
+        if (typeof this.renderer.render !== "function") {
+            throw new Error("toPdf() renderer must implement render(document: HtmlPresentationDocument): every renderer reads the toHtml() document, renderModel(model) was removed (#69)");
+        }
+
         return this.renderer.render(await this.toHtml());
     }
 
     /** PptxGenJS `writeFile()`: in a browser, downloads the PDF as PptxGenJS downloads its .pptx; returns the file name. */
     async writeFile(props?: PptxWriteFileProps | string): Promise<string> {
         const fileName = resolveFileName(props);
+
         if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
             throw new Error('writeFile() downloads the PDF in a browser, or writes it to disk from the Node entry ("@pdflapas/pptxgenjs"); this runtime has neither a document nor a filesystem, so use toPdf() or toHtml() instead');
         }
+
         downloadPdf(document, fileName, await this.toPdf());
+
         return fileName;
     }
 
     addSection(props: PptxSectionProps): void {
         // Sections only group slides in PowerPoint's slide list and draw nothing; keep PptxGenJS's input warnings.
-        if (!props) console.warn("addSection requires an argument");
-        else if (!props.title) console.warn("addSection requires a title");
+        if (!props) {
+            console.warn("addSection requires an argument");
+        } else if (!props.title) {
+            console.warn("addSection requires a title");
+        }
     }
 
     addSlide(props?: PptxAddSlideProps | undefined): PuppeteerSlide;
@@ -374,6 +409,7 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
     addSlide(props?: unknown): PuppeteerSlide {
         // A string is PptxGenJS's deprecated master name argument. `as`: PptxGenJS reads `masterName` off any object.
         const masterName = typeof props === "object" && props !== null ? (props as PptxAddSlideProps).masterName : props;
+
         isBuiltInMaster(masterName, "addSlide({ masterName })", "Remove `masterName` and add what the master held to each slide from a helper function, setting `slide.background` there.");
         const slideIndex = this.slides.length;
         const slide = new PuppeteerSlide({
@@ -390,17 +426,21 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
                 this.masterSlideNumber = props;
             },
         });
+
         this.slides.push(slide);
+
         return slide;
     }
 
     /** The slide at `index`, adding plain slides up to it when the deck is shorter. */
     private slideAt(index: number): PuppeteerSlide {
         let slide = this.slides[index];
+
         while (!slide) {
             this.addSlide();
             slide = this.slides[index];
         }
+
         return slide;
     }
 
@@ -412,7 +452,9 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
         // PptxGenJS warns and writes a NaN slide size; a PDF needs a real one.
         this.pageSize = checkedPageSize("defineLayout()", layout);
         this.presLayoutName = this.pageSize.name;
-        if (layout.name) this.definedLayouts.set(layout.name, this.pageSize);
+        if (layout.name) {
+            this.definedLayouts.set(layout.name, this.pageSize);
+        }
     }
 
     defineSlideMaster(_props: PptxSlideMasterProps): void {
@@ -445,26 +487,38 @@ export class PuppeteerGen implements Omit<PptxGenJSLike, "PlaceholderType"> {
             },
             this.pageSize,
         );
-        pages.forEach((page, index) => {
+
+        for (const [index, page] of pages.entries()) {
             // genTableToSlides (step 5 C) adds each page with only x, y, w and colW: `h`, `rowH` and the other table
             // options size the pages but never reach the drawn rows, which size to their content. `w` is left out
             // because a full `colW` sets the width.
             // A cell without a computed font size (jsdom) is written without `sz`; the table-level size only fills those
             // cells, after pagination counted them at PptxGenJS's 12pt.
             (index === 0 ? firstSlide : this.addSlide()).addTable(page.rows, { x: table.x, y: page.y, colW: table.columnWidths, fontSize: PPTX_DEFAULTS.table.unsizedRunFontSizePt });
-        });
+        }
+
         // The first slide and the continuation slides added after it.
         const generatedSlides = this.slides.slice(firstIndex);
-        generatedSlides.forEach(slide => {
+
+        for (const slide of generatedSlides) {
             if (options.addImage?.image && (options.addImage.image.path || options.addImage.image.data)) {
                 slide.addImage({
                     ...options.addImage.image,
                     ...(options.addImage.options ?? {}),
                 });
             }
-            if (options.addShape) slide.addShape(options.addShape.shapeName, options.addShape.options ?? {});
-            if (options.addTable) slide.addTable(options.addTable.rows, options.addTable.options ?? {});
-            if (options.addText) slide.addText(options.addText.text, options.addText.options ?? {});
-        });
+
+            if (options.addShape) {
+                slide.addShape(options.addShape.shapeName, options.addShape.options ?? {});
+            }
+
+            if (options.addTable) {
+                slide.addTable(options.addTable.rows, options.addTable.options ?? {});
+            }
+
+            if (options.addText) {
+                slide.addText(options.addText.text, options.addText.options ?? {});
+            }
+        }
     }
 }

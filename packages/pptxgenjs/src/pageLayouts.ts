@@ -20,9 +20,11 @@ export function checkedPageSize(caller: string, input: Partial<PageSizeInput> | 
     // Number(): PptxGenJS callers in plain JavaScript may pass numeric strings, which PptxGenJS multiplies as numbers.
     const width = Number(input?.width);
     const height = Number(input?.height);
+
     if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
         throw new Error(`${caller} needs { name, width, height } with width and height in inches greater than zero, got ${JSON.stringify(input)}`);
     }
+
     return pageSize(width, height, typeof input?.name === "string" && input.name ? input.name : CUSTOM_PAGE_SIZE_NAME);
 }
 
@@ -80,6 +82,7 @@ export type Orientation = "landscape" | "portrait";
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES.SCREEN_16X9.landscape;
 
 const { LAYOUT_WIDE } = PPTX_DEFAULTS.presentation.layouts;
+
 /** The page size of each built-in `pres.layout` name (sizes in PPTX_DEFAULTS.presentation.layouts); three are PAGE_SIZES screens. */
 export const PPTX_LAYOUT_PAGE_SIZES: Readonly<Record<keyof typeof PPTX_DEFAULTS.presentation.layouts, PageSize>> = Object.freeze({
     LAYOUT_4x3: PAGE_SIZES.SCREEN_4X3.landscape,
