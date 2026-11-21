@@ -46,10 +46,10 @@ bun run fmt:check    # what CI's "Format" job runs; non-zero when a file needs f
 bun run lint         # what CI's "Lint" job runs: the AGENTS.md rules bun fmt does not apply
 ```
 
-`eslint.config.ts` enforces the AGENTS.md flow, error and layout rules. Its
-`NOT_YET_CONVERTED` table lists, per folder, the rules that folder still skips;
-delete a folder's rules (or narrow its glob) when you convert it, and never add
-one without a reason in the pull request.
+`eslint.config.ts` enforces the AGENTS.md flow, error and layout rules on every
+TypeScript file. Fix layout errors with `bun --bun eslint --fix <files>`, then
+`bun run fmt` (`bunx eslint` runs under Node, which cannot load the TypeScript
+config).
 
 `fmt:ts`, `fmt:ts:check`, `fmt:rust` and `fmt:rust:check` run one side. `bun
 fmt` needs Bun >= 1.4.4. The Rust scripts use the toolchain pinned in

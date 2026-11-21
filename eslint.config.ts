@@ -59,15 +59,7 @@ const RULES: Linter.RulesRecord = {
     "pdflapas/no-nullable-return": "error",
 };
 
-const LAYOUT = ["curly", "@stylistic/padding-line-between-statements"];
-const ALL_BUT_BRACES = [...LAYOUT, "pdflapas/no-for-each", "pdflapas/no-reduce", "pdflapas/no-array-chain", "pdflapas/no-nullable-return"];
-
-// Not yet converted: the rules each folder still skips, from the violations on main when linting began.
-// A refactor PR converts a folder and deletes its rules here, or narrows the glob to the subfolders left.
-// This is a ratchet: removing an entry is always fine, adding one needs a reason in the PR.
-const NOT_YET_CONVERTED: Readonly<Record<string, readonly string[]>> = {};
-
-const config: Linter.Config[] = [
+export default [
     {
         ignores: [
             "**/dist/**",
@@ -86,17 +78,4 @@ const config: Linter.Config[] = [
         plugins: { "@stylistic": stylistic, pdflapas },
         rules: RULES,
     },
-];
-
-for (const [glob, rules] of Object.entries(NOT_YET_CONVERTED)) {
-    const off: Linter.RulesRecord = {};
-
-    for (const rule of rules) {
-        off[rule] = "off";
-    }
-
-    // The fixture sits under tests/ but must report every rule.
-    config.push({ files: [glob], ignores: ["tests/lintFixture/**"], rules: off });
-}
-
-export default config;
+] satisfies Linter.Config[];
