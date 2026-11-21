@@ -8,30 +8,71 @@ const projectRoot = resolve(import.meta.dir, "..");
 const temporaryRoot = await mkdtemp(join(tmpdir(), "pdflapas-consumer-"));
 const rootMetadata = (await Bun.file(resolve(projectRoot, "package.json")).json()) as { devDependencies: Record<string, string> };
 
-/** Import specifiers of the four public entries, so the same consumer checks run against @pdflapas/* and the legacy shim. */
-interface EntryNames {
-    main: string;
-    html: string;
-    wasm: string;
-    react: string;
-}
-
 async function run(command: string[], cwd: string): Promise<void> {
     const child = Bun.spawn(command, { cwd, stdout: "inherit", stderr: "inherit" });
     const exitCode = await child.exited;
-    if (exitCode !== 0) throw new Error(`${command.join(" ")} failed with exit code ${exitCode}`);
+
+    if (exitCode !== 0) {
+        throw new Error(`${command.join(" ")} failed with exit code ${exitCode}`);
+    }
 }
 
 async function output(command: string[], cwd: string): Promise<string> {
     const child = Bun.spawn(command, { cwd, stdout: "pipe", stderr: "inherit" });
     const text = await new Response(child.stdout).text();
-    if ((await child.exited) !== 0) throw new Error(`${command.join(" ")} failed`);
+
+    if ((await child.exited) !== 0) {
+        throw new Error(`${command.join(" ")} failed`);
+    }
+
     return text;
 }
 
 const tarballs: Record<string, string> = {};
 
-async function checkConsumer(consumerDirectory: string, dependencies: string[], names: EntryNames): Promise<void> {
+try {
+    await run([process.execPath, "run", "build"], projectRoot);
+    for (const directory of PACKAGES) {
+        const packageDirectory = resolve(projectRoot, "packages", directory);
+        const manifest = (await Bun.file(join(packageDirectory, "package.json")).json()) as { name: string; version: string };
+
+        // Built once above, so skip each package's prepack build.
+        await run([process.execPath, "pm", "pack", "--ignore-scripts", "--quiet", "--destination", temporaryRoot], packageDirectory);
+        const tarball = join(temporaryRoot, `${manifest.name.replace(/^@/, "").replace("/", "-")}-${manifest.version}.tgz`);
+
+        tarballs[manifest.name] = tarball;
+        // workspace:* must become the real version in the published manifest.
+        const packed = JSON.parse(await output(["tar", "-xzOf", tarball, "package/package.json"], temporaryRoot)) as Record<string, unknown>;
+        const workspaceDependencies = Object.entries({ ...(packed.dependencies as object), ...(packed.peerDependencies as object) }).filter(([dependency]) => dependency.startsWith("@pdflapas/"));
+
+        if (JSON.stringify(packed).includes("workspace:") || workspaceDependencies.some(([, version]) => version !== manifest.version)) {
+            throw new Error(`${manifest.name} was packed with unresolved workspace dependencies: ${JSON.stringify(workspaceDependencies)}`);
+        }
+
+        const files = (await output(["tar", "-tzf", tarball], temporaryRoot)).split("\n");
+
+        if (!files.some(file => file.startsWith("package/dist/") && file.endsWith(".d.ts"))) {
+            throw new Error(`${manifest.name} was packed without its dist`);
+        }
+
+        // Consumers never build Rust: the tarball must carry the prebuilt binary (bun run build:wasm, or CI's "WASM build" job).
+        if (manifest.name === "@pdflapas/wasm" && !files.includes("package/dist/pdf_wasm_bg.wasm")) {
+            throw new Error("@pdflapas/wasm was packed without dist/pdf_wasm_bg.wasm (run bun run build:wasm first)");
+        }
+
+        if (manifest.name === "@pdflapas/pptxgenjs" && !files.includes("package/dist/pptxgenjs.d.ts")) {
+            throw new Error("@pdflapas/pptxgenjs was packed without the vendored pptxgenjs types");
+        }
+
+        console.log(`packed ${manifest.name}@${manifest.version} (${workspaceDependencies.map(entry => entry.join("@")).join(", ") || "no workspace dependencies"})`);
+    }
+
+    // A clean consumer installs the packed tarballs and typechecks and runs each public entry under Bun and Node.js.
+    const consumerDirectory = join(temporaryRoot, "pdflapas-consumer");
+    const dependencies = ["@pdflapas/pptxgenjs", "@pdflapas/wasm", "@pdflapas/pdfkit", "@pdflapas/react"];
+    // Import specifiers of the four public entries, so the same consumer checks run against @pdflapas/* and the legacy shim.
+    const names = { main: "@pdflapas/pptxgenjs", html: "@pdflapas/pptxgenjs/html", wasm: "@pdflapas/wasm", react: "@pdflapas/react" };
+
     await mkdir(consumerDirectory);
     await Bun.write(
         join(consumerDirectory, "package.json"),
@@ -57,7 +98,9 @@ async function checkConsumer(consumerDirectory: string, dependencies: string[], 
         await access(join(consumerDirectory, "node_modules/pptxgenjs"));
         throw new Error("The packed replacement unexpectedly installed pptxgenjs");
     } catch (error) {
-        if (error instanceof Error && error.message.includes("unexpectedly installed")) throw error;
+        if (error instanceof Error && error.message.includes("unexpectedly installed")) {
+            throw error;
+        }
     }
 
     for (const optional of ["react", "react-dom"]) {
@@ -114,10 +157,12 @@ for (const [Target, unkerned] of [[ConsumerDeck, true], [PuppeteerGenLibreOffice
 console.log("standalone package consumer passed");
 `;
     const consumerSourcePath = join(consumerDirectory, "consumer.ts");
+
     await Bun.write(consumerSourcePath, consumerSource);
     // The public API with plain PptxGenJS literals against the built declarations: no internal brand leaks (#277).
     const apiTypes = await Bun.file(resolve(projectRoot, "tests/publicApiTypes.ts")).text();
     const apiTypesEntries: Record<string, string> = { "@pdflapas/pptxgenjs": names.main, "@pdflapas/pptxgenjs/html": names.html, "@pdflapas/wasm": names.wasm };
+
     await Bun.write(
         join(consumerDirectory, "api-types-consumer.ts"),
         apiTypes.replace(/from "([^"]+)"/g, (statement, specifier: string) => `from "${apiTypesEntries[specifier] ?? specifier}"`),
@@ -136,6 +181,7 @@ if (!pdf.startsWith("%PDF-") || pdf.match(/\\/Type\\s*\\/Page\\b(?!s)/g)?.length
 console.log(\`PDFKit package consumer generated a PDF under \${"Bun" in globalThis ? "Bun" : "Node.js"}\`);
 `;
     const pdfkitConsumerPath = join(consumerDirectory, "pdfkit-consumer.ts");
+
     await Bun.write(pdfkitConsumerPath, pdfkitConsumerSource);
     await Bun.write(
         join(consumerDirectory, "tsconfig.json"),
@@ -216,6 +262,7 @@ if (Math.abs(baseline - onGrid(liberationSans ? (28.8 * 1854) / 2288 : 24)) > 1e
 console.log("Node.js package consumer generated a PDF");
 `;
     const nodeConsumerSourcePath = join(consumerDirectory, "consumer.mjs");
+
     await Bun.write(nodeConsumerSourcePath, nodeConsumerSource);
     await run(["node", nodeConsumerSourcePath], consumerDirectory);
 
@@ -240,12 +287,21 @@ export async function check(createDocument: () => Document): Promise<void> {
     if (!failures[0]?.includes("requires a renderer") || !failures[1]?.includes("Node entry")) throw new Error(\`html entry errors were not explicit: \${failures.join(" | ")}\`);
 }
 `;
+
     await Bun.write(join(consumerDirectory, "html-consumer.ts"), htmlConsumerSource);
     const browserBundle = await Bun.build({ entrypoints: [join(consumerDirectory, "html-consumer.ts")], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0]);
-    if (!browserBundle.success) throw new AggregateError(browserBundle.logs, "The packed html entry failed to bundle for the browser");
+
+    if (!browserBundle.success) {
+        throw new AggregateError(browserBundle.logs, "The packed html entry failed to bundle for the browser");
+    }
+
     const browserInputs = Object.keys((browserBundle as unknown as { metafile: { inputs: Record<string, unknown> } }).metafile.inputs);
     const nodeOnlyInputs = browserInputs.filter(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path));
-    if (nodeOnlyInputs.length) throw new Error(`The packed html entry pulled Node-only modules into a browser bundle: ${nodeOnlyInputs.join(", ")}`);
+
+    if (nodeOnlyInputs.length) {
+        throw new Error(`The packed html entry pulled Node-only modules into a browser bundle: ${nodeOnlyInputs.join(", ")}`);
+    }
+
     const htmlRunnerSource = `
 import { JSDOM } from "jsdom";
 import { check } from "./html-consumer.ts";
@@ -253,8 +309,10 @@ await check(() => new JSDOM("<!DOCTYPE html><html><head></head><body></body></ht
 console.log("html entry package consumer passed");
 `;
     const htmlRunnerPath = join(consumerDirectory, "html-runner.mts");
+
     await Bun.write(htmlRunnerPath, htmlRunnerSource);
     const htmlConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
+
     htmlConfig.files.push("html-consumer.ts");
     await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(htmlConfig, null, 2));
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
@@ -275,16 +333,25 @@ if (!pdf.startsWith("%PDF-") || pdf.match(/\\/Type\\s*\\/Page\\b(?!s)/g)?.length
 console.log(\`WASM package consumer generated a PDF under \${"Bun" in globalThis ? "Bun" : "Node.js"}\`);
 `;
     const wasmConsumerPath = join(consumerDirectory, "wasm-consumer.ts");
+
     await Bun.write(wasmConsumerPath, wasmConsumerSource);
     const wasmBrowserPath = join(consumerDirectory, "wasm-browser.ts");
+
     await Bun.write(wasmBrowserPath, `export { createWasmRenderer } from "${names.wasm}";\n`);
     const wasmBrowserBundle = await Bun.build({ entrypoints: [wasmBrowserPath], target: "browser", format: "esm", metafile: true } as Parameters<typeof Bun.build>[0]);
-    if (!wasmBrowserBundle.success) throw new AggregateError(wasmBrowserBundle.logs, "The packed wasm entry failed to bundle for the browser");
+
+    if (!wasmBrowserBundle.success) {
+        throw new AggregateError(wasmBrowserBundle.logs, "The packed wasm entry failed to bundle for the browser");
+    }
+
     const wasmInputs = Object.keys((wasmBrowserBundle as unknown as { metafile: { inputs: Record<string, unknown> } }).metafile.inputs);
+
     if (!wasmInputs.some(path => path.endsWith("@pdflapas/wasm/dist/browser.js")) || wasmInputs.some(path => /(^|\/)node_modules\/(puppeteer(-core)?|@puppeteer\/[^/]+|jsdom)\/|^node:/.test(path))) {
         throw new Error(`The packed wasm entry's browser condition is not browser-safe: ${wasmInputs.join(", ")}`);
     }
+
     const wasmConfig = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
+
     wasmConfig.files.push("wasm-consumer.ts");
     await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(wasmConfig, null, 2));
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
@@ -318,8 +385,10 @@ if (cards[0]?.[2] !== "React consumer" || cards[0][1] === cards[1]?.[1]) throw n
 console.log("React adapter package consumer passed");
 `;
     const reactConsumerPath = join(consumerDirectory, "react-consumer.ts");
+
     await Bun.write(reactConsumerPath, reactConsumerSource);
     const config = await Bun.file(join(consumerDirectory, "tsconfig.json")).json();
+
     config.files.push("react-consumer.ts");
     await Bun.write(join(consumerDirectory, "tsconfig.json"), JSON.stringify(config, null, 2));
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"], consumerDirectory);
@@ -336,40 +405,10 @@ import Wasm = require("${names.wasm}");
 import React = require("${names.react}");
 export const entries: unknown[] = [Main.default, Html.default, Wasm.createWasmRenderer, React.registerReactComponent];
 `;
+
     await Bun.write(join(consumerDirectory, "require-consumer.cts"), requireConsumerSource);
     await Bun.write(join(consumerDirectory, "tsconfig.nodenext.json"), JSON.stringify({ extends: "./tsconfig.json", compilerOptions: { module: "NodeNext", moduleResolution: "NodeNext" }, files: [...config.files, "require-consumer.cts"] }, null, 2));
     await run([resolve(projectRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.nodenext.json"], consumerDirectory);
-}
-
-try {
-    await run([process.execPath, "run", "build"], projectRoot);
-    for (const directory of PACKAGES) {
-        const packageDirectory = resolve(projectRoot, "packages", directory);
-        const manifest = (await Bun.file(join(packageDirectory, "package.json")).json()) as { name: string; version: string };
-        // Built once above, so skip each package's prepack build.
-        await run([process.execPath, "pm", "pack", "--ignore-scripts", "--quiet", "--destination", temporaryRoot], packageDirectory);
-        const tarball = join(temporaryRoot, `${manifest.name.replace(/^@/, "").replace("/", "-")}-${manifest.version}.tgz`);
-        tarballs[manifest.name] = tarball;
-        // workspace:* must become the real version in the published manifest.
-        const packed = JSON.parse(await output(["tar", "-xzOf", tarball, "package/package.json"], temporaryRoot)) as Record<string, unknown>;
-        const workspaceDependencies = Object.entries({ ...(packed.dependencies as object), ...(packed.peerDependencies as object) }).filter(([dependency]) => dependency.startsWith("@pdflapas/"));
-        if (JSON.stringify(packed).includes("workspace:") || workspaceDependencies.some(([, version]) => version !== manifest.version)) {
-            throw new Error(`${manifest.name} was packed with unresolved workspace dependencies: ${JSON.stringify(workspaceDependencies)}`);
-        }
-        const files = (await output(["tar", "-tzf", tarball], temporaryRoot)).split("\n");
-        if (!files.some(file => file.startsWith("package/dist/") && file.endsWith(".d.ts"))) throw new Error(`${manifest.name} was packed without its dist`);
-        // Consumers never build Rust: the tarball must carry the prebuilt binary (bun run build:wasm, or CI's "WASM build" job).
-        if (manifest.name === "@pdflapas/wasm" && !files.includes("package/dist/pdf_wasm_bg.wasm")) throw new Error("@pdflapas/wasm was packed without dist/pdf_wasm_bg.wasm (run bun run build:wasm first)");
-        if (manifest.name === "@pdflapas/pptxgenjs" && !files.includes("package/dist/pptxgenjs.d.ts")) throw new Error("@pdflapas/pptxgenjs was packed without the vendored pptxgenjs types");
-        console.log(`packed ${manifest.name}@${manifest.version} (${workspaceDependencies.map(entry => entry.join("@")).join(", ") || "no workspace dependencies"})`);
-    }
-
-    await checkConsumer(join(temporaryRoot, "pdflapas-consumer"), ["@pdflapas/pptxgenjs", "@pdflapas/wasm", "@pdflapas/pdfkit", "@pdflapas/react"], {
-        main: "@pdflapas/pptxgenjs",
-        html: "@pdflapas/pptxgenjs/html",
-        wasm: "@pdflapas/wasm",
-        react: "@pdflapas/react",
-    });
 } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
 }
