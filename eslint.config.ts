@@ -70,7 +70,6 @@ const NOT_YET_CONVERTED: Readonly<Record<string, readonly string[]>> = {
     "packages/pdfkit/src/**": ALL_BUT_BRACES,
     "packages/pptxgenjs/src/**": ALL_BUT_BRACES,
     "packages/puppeteer/src/**": ALL_BUT_BRACES,
-    "packages/react/src/**": LAYOUT,
     "packages/wasm/src/**": [...LAYOUT, "pdflapas/no-for-each"],
     "scripts/**": ALL_BUT_BRACES,
     "tests/**": ALL_BUT_BRACES,
