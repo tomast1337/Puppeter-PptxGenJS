@@ -25,34 +25,69 @@ const MAX_PDF_YEAR = 9999;
 
 /** The `pdfMetadata` option, checked, as model metadata: dates as UTC ISO strings, empty strings left out. */
 export function normalizePdfMetadata(input: unknown): PresentationMetadata {
-    if (input === undefined) return {};
-    if (typeof input !== "object" || input === null || Array.isArray(input)) throw new TypeError(`PuppeteerGen option \`pdfMetadata\` must be an object, got ${describe(input)}`);
+    if (input === undefined) {
+        return {};
+    }
+
+    if (typeof input !== "object" || input === null || Array.isArray(input)) {
+        throw new TypeError(`PuppeteerGen option \`pdfMetadata\` must be an object, got ${describe(input)}`);
+    }
+
     const options: Record<string, unknown> = { ...input };
     const unknown = Object.keys(options).find(key => !KNOWN_KEYS.has(key));
-    if (unknown !== undefined) throw new TypeError(`PuppeteerGen option \`pdfMetadata.${unknown}\` is not a PDF property PdfLapas writes; use one of ${[...KNOWN_KEYS].join(", ")}`);
+
+    if (unknown !== undefined) {
+        throw new TypeError(`PuppeteerGen option \`pdfMetadata.${unknown}\` is not a PDF property PdfLapas writes; use one of ${[...KNOWN_KEYS].join(", ")}`);
+    }
+
     const strings = STRING_KEYS.flatMap(key => {
         const value = options[key];
-        if (value === undefined || value === "") return [];
-        if (typeof value !== "string") throw new TypeError(`PuppeteerGen option \`pdfMetadata.${key}\` must be a string, got ${describe(value)}`);
+
+        if (value === undefined || value === "") {
+            return [];
+        }
+
+        if (typeof value !== "string") {
+            throw new TypeError(`PuppeteerGen option \`pdfMetadata.${key}\` must be a string, got ${describe(value)}`);
+        }
+
         return [[key, value]];
     });
     const dates = DATE_KEYS.flatMap(key => {
         const value = options[key];
+
         return value === undefined ? [] : [[key, isoDate(key, value)]];
     });
+
     return Object.fromEntries([...strings, ...dates]);
 }
 
 function isoDate(key: string, value: unknown): string {
-    if (!(value instanceof Date)) throw new TypeError(`PuppeteerGen option \`pdfMetadata.${key}\` must be a Date, got ${describe(value)}`);
+    if (!(value instanceof Date)) {
+        throw new TypeError(`PuppeteerGen option \`pdfMetadata.${key}\` must be a Date, got ${describe(value)}`);
+    }
+
     const year = value.getUTCFullYear();
-    if (Number.isNaN(year)) throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is an Invalid Date; pass a Date built from a valid time, such as new Date("2026-11-19T12:00:00Z")`);
-    if (year < 0 || year > MAX_PDF_YEAR) throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is in the year ${year}; a PDF date needs a year from 0 to ${MAX_PDF_YEAR}`);
+
+    if (Number.isNaN(year)) {
+        throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is an Invalid Date; pass a Date built from a valid time, such as new Date("2026-11-19T12:00:00Z")`);
+    }
+
+    if (year < 0 || year > MAX_PDF_YEAR) {
+        throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is in the year ${year}; a PDF date needs a year from 0 to ${MAX_PDF_YEAR}`);
+    }
+
     return value.toISOString();
 }
 
 function describe(value: unknown): string {
-    if (value === null) return "null";
-    if (Array.isArray(value)) return "an array";
+    if (value === null) {
+        return "null";
+    }
+
+    if (Array.isArray(value)) {
+        return "an array";
+    }
+
     return typeof value;
 }

@@ -28,11 +28,16 @@ function resolveSchemeColor(color: string): string {
 
 /** Throws on a color that is neither 6-digit hex nor a scheme color (see colorToCSS). */
 export function normalizeColor(value?: ColorValue): CssColor {
-    if (!value) return TRANSPARENT;
+    if (!value) {
+        return TRANSPARENT;
+    }
+
     if (typeof value === "string") {
         return colorToCSS(resolveSchemeColor(value));
     }
+
     const resolved = value.color ? resolveSchemeColor(value.color) : undefined;
+
     return colorToCSS({ color: resolved, transparency: value.transparency ?? value.alpha });
 }
 
@@ -40,12 +45,14 @@ export function normalizeFill(value?: ColorValue): NormalizedFill {
     if (!value || (typeof value === "object" && value.type === "none")) {
         return { visible: false, color: TRANSPARENT };
     }
+
     return { visible: true, color: normalizeColor(value) };
 }
 
 /** Width and length (px) of a "med" line head, the only size PptxGenJS writes (see PPTX_DEFAULTS.shape.arrowHead). */
 function arrowHeadSize(arrow: string, width: number): number {
     const { widthFactor, openArrowWidthFactor, minLineWidthMm } = PPTX_DEFAULTS.shape.arrowHead;
+
     return (arrow === "arrow" ? openArrowWidthFactor : widthFactor) * Math.max(width, millimetersToPixels(minLineWidthMm));
 }
 
@@ -56,8 +63,12 @@ function arrowHeadSize(arrow: string, width: number): number {
  * shortcut: also shifts closed outlines that LibreOffice draws without heads; pass the geometry in if that matters.
  */
 export function arrowShaftStart(arrow: string, width: number): number {
-    if (arrow === "none") return 0;
+    if (arrow === "none") {
+        return 0;
+    }
+
     const head = arrowHeadSize(arrow, width);
+
     return head * (arrow === "oval" || arrow === "diamond" ? 0.5 : 1) - head / 15;
 }
 
@@ -69,10 +80,17 @@ export function arrowShaftStart(arrow: string, width: number): number {
  * oval is a true ellipse as in PowerPoint (LibreOffice approximates it with 12 points).
  */
 export function arrowHeadPath(arrow: string, width: number): string | undefined {
-    if (arrow === "none") return undefined;
+    if (arrow === "none") {
+        return undefined;
+    }
+
     const size = arrowHeadSize(arrow, width);
     const r = size / 2;
-    if (arrow === "oval") return `M ${r} 0 A ${r} ${r} 0 1 0 ${-r} 0 A ${r} ${r} 0 1 0 ${r} 0 Z`;
+
+    if (arrow === "oval") {
+        return `M ${r} 0 A ${r} ${r} 0 1 0 ${-r} 0 A ${r} ${r} 0 1 0 ${r} 0 Z`;
+    }
+
     // The open arrow is a filled chevron whose arms and stem are one line width thick.
     const half = Math.max((50 * width) / size, 1);
     const percent: Record<string, readonly (readonly [number, number])[]> = {
@@ -106,8 +124,13 @@ export function arrowHeadPath(arrow: string, width: number): string | undefined 
         ],
     };
     const points = percent[arrow];
-    if (!points) throw new Error(`Unknown line arrow type '${arrow}': use one of none, arrow, diamond, oval, stealth or triangle`);
+
+    if (!points) {
+        throw new Error(`Unknown line arrow type '${arrow}': use one of none, arrow, diamond, oval, stealth or triangle`);
+    }
+
     const shift = arrow === "diamond" ? r : 0;
+
     return `${points.map(([x, y], index) => `${index ? "L" : "M"} ${shift - (y * size) / 100} ${((x - 50) * size) / 100}`).join(" ")} Z`;
 }
 
@@ -118,9 +141,14 @@ export function arrowHeadPath(arrow: string, width: number): string | undefined 
 export function startDashAt(pattern: readonly number[], start: number): number[] {
     const period = pattern.reduce((sum, part) => sum + part, 0);
     let offset = (((period - start) % period) + period) % period;
-    if (offset === 0) return [...pattern];
+
+    if (offset === 0) {
+        return [...pattern];
+    }
+
     const index = pattern.findIndex(part => (offset -= part) < 0);
     const rest = [-offset, ...pattern.slice(index + 1), ...pattern.slice(0, index), pattern[index]! + offset];
+
     return index % 2 === 0 ? [...rest, 0] : [0, ...rest];
 }
 
@@ -130,14 +158,21 @@ export function startDashAt(pattern: readonly number[], start: number): number[]
  */
 export function shaftDashes(pattern: readonly number[], start: number, end: number, length: number): number[] {
     const parts = [0, start];
+
     for (let at = start, index = 0; at < end; index = (index + 1) % pattern.length) {
         const part = pattern[index] ?? 0;
+
         parts.push(Math.min(part, end - at));
         at += part;
     }
+
     // Close on a gap that runs past the end, so the pattern never repeats onto the line.
-    if (parts.length % 2) parts.push(length);
-    else parts[parts.length - 1]! += length;
+    if (parts.length % 2) {
+        parts.push(length);
+    } else {
+        parts[parts.length - 1]! += length;
+    }
+
     return parts;
 }
 
@@ -154,6 +189,7 @@ export function normalizeLine(value?: PptxGenJS.ShapeLineProps, straightLength?:
     if (!value || value.type === "none") {
         return { visible: false, color: TRANSPARENT, width: 0, style: "solid" };
     }
+
     const dash = value.dashType ?? "solid";
     const width = pointsToPixels(checkedSize(value.width ?? PPTX_DEFAULTS.shape.line.widthPt, "line.width", PPTX_DEFAULTS.limits.lineWidthPt));
     const beginArrow = value.beginArrowType ?? "none";
@@ -161,6 +197,7 @@ export function normalizeLine(value?: PptxGenJS.ShapeLineProps, straightLength?:
     const pattern = width > 0 ? PPTX_DEFAULTS.shape.dashPatterns[dash]?.map(part => part * width) : undefined;
     const trimmed = straightLength !== undefined && (beginArrow !== "none" || endArrow !== "none");
     const dashArray = trimmed ? shaftDashes(pattern ?? [straightLength, straightLength], arrowShaftStart(beginArrow, width), straightLength - arrowShaftStart(endArrow, width), straightLength) : pattern && startDashAt(pattern, arrowShaftStart(beginArrow, width));
+
     return {
         visible: true,
         color: normalizeColor({ ...value, color: value.color ?? PPTX_DEFAULTS.shape.line.color }),
@@ -191,6 +228,7 @@ export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow
     if (!value || value.type === "none") {
         return { visible: false, color: TRANSPARENT, blur: 0, offsetX: 0, offsetY: 0, inset: false };
     }
+
     // `||`, not `??`: PptxGenJS replaces 0 with the default too (see the defaults).
     const defaults = PPTX_DEFAULTS.shadow.objectWhenEnabled;
     const angle = degreesToRadians(value.angle || defaults.angle);
@@ -202,6 +240,7 @@ export function normalizeShadow(value?: PptxGenJS.ShadowProps): NormalizedShadow
     const blur = pointsToPixels(checkedSize(value.blur || defaults.blurPt, "shadow.blur", PPTX_DEFAULTS.limits.shadowBlurPt)) * (inner ? 2 * PPTX_DEFAULTS.shadow.innerSigmaPerBlur : 1);
     const opacity = value.opacity || defaults.opacity;
     const color = normalizeColor({ color: value.color || defaults.color, transparency: (1 - opacity) * 100 });
+
     return {
         visible: true,
         color,

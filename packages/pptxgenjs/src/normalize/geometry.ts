@@ -35,6 +35,7 @@ export function normalizeGeometry(options: PositionOptions, defaults: PositionOp
 
 export function normalizeTransform(options: TransformOptions = {}): NormalizedTransform {
     const transparency = Math.max(0, Math.min(100, options.transparency ?? 0));
+
     return {
         rotation: Number.isFinite(options.rotate) ? options.rotate! : 0,
         flipH: options.flipH ?? false,

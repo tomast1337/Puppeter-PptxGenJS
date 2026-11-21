@@ -10,8 +10,14 @@ import { normalizeLine } from "#src/normalize/style";
  */
 export function normalizeTextLine(options: PptxGenJS.TextPropsOptions, straightLength: number | undefined): NormalizedLine {
     // TextPropsOptions declares the same line fields as ShapeProps; normalizeShapeLine reads only those.
-    if (options.shape === "line") return normalizeShapeLine(options as unknown as PptxGenJS.ShapeProps, line => normalizeLine(line, straightLength));
-    if (typeof options.line !== "object") return normalizeLine(undefined);
+    if (options.shape === "line") {
+        return normalizeShapeLine(options as unknown as PptxGenJS.ShapeProps, line => normalizeLine(line, straightLength));
+    }
+
+    if (typeof options.line !== "object") {
+        return normalizeLine(undefined);
+    }
+
     // `||`: the writer drops a zero width as well.
     return normalizeLine({ ...options.line, width: options.line.width || PPTX_DEFAULTS.text.hairlineWidthPt });
 }
@@ -23,8 +29,13 @@ export function straightLineLength(shapeName: string, width: number, height: num
 
 export function normalizeShapeLine(options: PptxGenJS.ShapeProps, normalize: (line?: PptxGenJS.ShapeLineProps) => NormalizedLine): NormalizedLine {
     const hasDeprecatedLine = options.lineSize !== undefined || options.lineDash !== undefined || options.lineHead !== undefined || options.lineTail !== undefined;
-    if (!options.line && !hasDeprecatedLine) return normalize(undefined);
+
+    if (!options.line && !hasDeprecatedLine) {
+        return normalize(undefined);
+    }
+
     const source = typeof options.line === "string" ? { color: options.line } : (options.line ?? {});
+
     return normalize({
         ...source,
         width: options.lineSize ?? source.width,

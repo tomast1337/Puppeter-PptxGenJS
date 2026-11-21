@@ -19,9 +19,13 @@ export type SharedRunOptions = WeakMap<object, Readonly<Record<string, unknown>>
  */
 export function sharedRunOptions(shared: SharedRunOptions | undefined, key: object, own: PptxGenJS.TextPropsOptions): PptxGenJS.TextPropsOptions {
     const options: Record<string, unknown> = { ...own };
+
     for (const [name, value] of Object.entries(shared?.get(key) ?? {})) {
-        if (!options[name]) options[name] = value;
+        if (!options[name]) {
+            options[name] = value;
+        }
     }
+
     // `as`: every name comes from a run's options, the caller's or those PptxGenJS wrote.
     return options as PptxGenJS.TextPropsOptions;
 }
@@ -34,5 +38,8 @@ export function sharedRunOptions(shared: SharedRunOptions | undefined, key: obje
 export function recordSharedRun(shared: SharedRunOptions, key: object, start: PptxGenJS.TextPropsOptions, state: PptxGenJS.TextPropsOptions): void {
     const before: Record<string, unknown> = { ...start };
     const writes = Object.entries(state).filter(([name, value]) => value !== before[name]);
-    if (writes.length > 0) shared.set(key, { ...shared.get(key), ...Object.fromEntries(writes) });
+
+    if (writes.length > 0) {
+        shared.set(key, { ...shared.get(key), ...Object.fromEntries(writes) });
+    }
 }

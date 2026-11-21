@@ -70,6 +70,7 @@ function fallsBackFullWidth(character: string, font: GlyphAdvances): boolean {
 /** Whether the last character of `left` that is not a break marker and the first of `right` both fall back full-width, or neither does. */
 function sameWidthEdge(left: readonly string[], right: readonly string[], font: GlyphAdvances): boolean {
     const visible = (characters: readonly string[]) => characters.filter(character => !BREAK_MARKER.test(character));
+
     return fallsBackFullWidth(visible(left).at(-1) ?? "", font) === fallsBackFullWidth(visible(right)[0] ?? "", font);
 }
 
@@ -82,12 +83,19 @@ function sameWidthEdge(left: readonly string[], right: readonly string[], font: 
 export function fullWidthStretches(text: string, font: GlyphAdvances): string[] {
     const stretches: string[] = [];
     let wide: boolean | undefined;
+
     for (const character of text) {
         const kind = BREAK_MARKER.test(character) ? wide : fallsBackFullWidth(character, font);
-        if (stretches.length === 0 || (wide !== undefined && kind !== wide)) stretches.push(character);
-        else stretches[stretches.length - 1] += character;
+
+        if (stretches.length === 0 || (wide !== undefined && kind !== wide)) {
+            stretches.push(character);
+        } else {
+            stretches[stretches.length - 1] += character;
+        }
+
         wide = kind ?? wide;
     }
+
     // An empty run stays one run: it is an empty paragraph's line, whose height the paragraph keeps.
     return stretches.length ? stretches : [text];
 }
@@ -104,6 +112,7 @@ export function isWord(piece: string): boolean {
 /** `text` up to its first space or tab included: all `advanceGridWordSpacing` reads of the text after a run. */
 export function wordAfter(text: string): string {
     const end = text.search(WORD_END);
+
     return end < 0 ? text : text.slice(0, end + 1);
 }
 
@@ -167,18 +176,22 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
 export function advanceGridWordSpacing(text: string, sizePt: number, font: GlyphAdvances | undefined, gridPt: number | undefined, charSpacingPt: number, kerned: boolean, cursor: GridCursor = { rounded: 0, laidOut: 0 }, after = ""): WordSpacing | undefined {
     const spaceAdvance = font?.advances.get(" ".codePointAt(0) ?? 0);
     const continued = cursor.word;
+
     cursor.word = undefined;
     if (gridPt === undefined || font === undefined || spaceAdvance === undefined) {
         cursor.rounded = 0;
         cursor.laidOut = 0;
+
         return undefined;
     }
+
     const sizePx = pointsToPixels(sizePt);
     const gridPx = pointsToPixels(gridPt);
     const charSpacing = pointsToPixels(charSpacingPt);
     // The grid step at or below `width`, floored to a LayoutUnit, when `width` is off the grid; undefined on it.
     const offStep = (width: number) => {
         const step = Math.floor(width / gridPx + FLOAT_NOISE) * gridPx;
+
         return width - step > OFF_GRID ? floorLayoutUnit(step) : undefined;
     };
     // Natural and rounded advance of a character, px; one the font does not map is 1em when FULL_WIDTH (its fallback
@@ -186,12 +199,17 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     const advance = (character: string) => {
         const units = font.advances.get(character.codePointAt(0) ?? 0);
         const natural = units === undefined ? (FULL_WIDTH.test(character) ? sizePt : 0) : (units * sizePt) / font.unitsPerEm;
+
         return { natural: pointsToPixels(natural), rounded: Math.round(natural / gridPt) * gridPx };
     };
     // Pair kerning of `left` then `right` in px, unrounded; none unkerned, or without a character on either side.
     const kern = (left: string | undefined, right: string | undefined) => {
-        if (!kerned || left === undefined || right === undefined) return 0;
+        if (!kerned || left === undefined || right === undefined) {
+            return 0;
+        }
+
         const units = font.kerning?.get(left.codePointAt(0) ?? 0)?.get(right.codePointAt(0) ?? 0) ?? 0;
+
         return pointsToPixels((units * sizePt) / font.unitsPerEm);
     };
     const space = advance(" ");
@@ -207,53 +225,72 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     const following = runPieces(after).map(piece => [...piece]);
     // A word does not go on from characters a fallback face draws 1em wide to others or back: see fullWidthStretches.
     const goesOn = following[0] !== undefined && isWord(following[0].join("")) && sameWidthEdge(pieces.at(-1) ?? [], following[0], font);
+
     for (const [index, piece] of pieces.entries()) {
         const last = index === pieces.length - 1;
+
         if (piece.includes("\t")) {
             rounded = 0;
             laidOut = 0;
             continue;
         }
+
         if (index === 0 && continued !== undefined && isWord(piece.join(""))) {
             // The rest of a word an earlier run started: the sums already end with it.
             words.push(continued);
-            if (last && goesOn) cursor.word = continued;
+            if (last && goesOn) {
+                cursor.word = continued;
+            }
+
             continue;
         }
+
         const joins = last && goesOn && isWord(piece.join(""));
         const characters = joins ? [...piece, ...(following[0] ?? [])] : piece;
         // The pairs whose left character is in the piece: PowerPoint kerns a pair on its left glyph's advance.
         const inner = characters.reduce((sum, character, at) => sum + kern(characters[at - 1], character), 0);
         const next = last ? following[joins ? 1 : 0] : pieces[index + 1];
         const edge = next === undefined || next.includes("\t") ? 0 : kern(characters.at(-1), next[0]);
+
         if (characters[0] === " ") {
             const width = characters.length * (space.rounded + charSpacing);
+
             rounded += width + inner + edge;
             const pair = inner + edge !== 0;
             // Kerned, its own span: one LayoutUnit wider than its kerned width, rounded up, as an unkerned space is.
             const own = pair ? ceilLayoutUnit(width + inner + edge) + LAYOUT_UNIT : ceilLayoutUnit(characters.length * (spaceWidth - UNDER_LAYOUT_UNIT));
             const step = offStep(rounded);
             const stretch = step === undefined ? own : Math.max(own, step + START_PAST_STEP - laidOut);
-            if (!pair && stretch === own) spaces.push(spacing(spaceSpacing));
-            else {
+
+            if (!pair && stretch === own) {
+                spaces.push(spacing(spaceSpacing));
+            } else {
                 spaces.push(spacing((stretch - UNDER_LAYOUT_UNIT - characters.length * space.natural) / characters.length));
                 ownSpaces = true;
             }
+
             laidOut += stretch;
         } else {
             // The renderers kern the word's inner pairs themselves, and no pair across its span's edge.
             const advances = characters.map(advance);
             const natural = inner + advances.reduce((sum, { natural }) => sum + natural, 0);
+
             rounded += inner + edge + advances.reduce((sum, { rounded }) => sum + rounded + charSpacing, 0);
             const step = offStep(rounded);
             const end = step === undefined ? floorLayoutUnit(rounded) : Math.max(floorLayoutUnit(rounded), step + PAST_STEP);
             const wordSpacing = spacing((end - laidOut - UNDER_LAYOUT_UNIT - natural) / characters.length);
+
             words.push(wordSpacing);
-            if (joins) cursor.word = wordSpacing;
+            if (joins) {
+                cursor.word = wordSpacing;
+            }
+
             laidOut = end;
         }
     }
+
     cursor.rounded = rounded;
     cursor.laidOut = laidOut;
+
     return { space: spacing(spaceSpacing), words, ...(ownSpaces ? { spaces } : {}) };
 }

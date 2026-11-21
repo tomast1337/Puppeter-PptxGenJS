@@ -45,9 +45,14 @@ function cloneRows(rows: PptxGenJS.TableRow[]): PptxGenJS.TableRow[] {
 function linePieces(cell: PptxGenJS.TableCell): TextPiece[] {
     const text: unknown = cell.text;
     const runs: ReadonlyArray<{ text?: unknown; options?: PptxGenJS.TableCellProps }> = text && String(text).trim().length === 0 ? [{ text: " " }] : typeof text === "string" || typeof text === "number" ? [{ text: String(text).trim() }] : Array.isArray(text) ? text : [];
+
     return runs.flatMap(run => {
-        if (typeof run.text !== "string") return [];
+        if (typeof run.text !== "string") {
+            return [];
+        }
+
         const lines = run.text.split("\n");
+
         return lines.length > 1 ? lines.map(line => ({ text: line, options: { ...run.options, breakLine: true } })) : [{ text: run.text.trim(), options: run.options }];
     });
 }
@@ -62,18 +67,24 @@ function wrapPiece(piece: TextPiece, charactersPerLine: number): TextPiece[][] {
     const lines: TextPiece[][] = [];
     let line: TextPiece[] = [];
     let length = 0;
+
     words.forEach((word, index) => {
         const last = index + 1 === words.length;
         const text = last ? word : `${word} `;
+
         if (length + text.length > charactersPerLine) {
             lines.push(line);
             line = [];
             length = 0;
         }
+
         line.push({ text, options: piece.options?.breakLine ? { ...piece.options, breakLine: last } : piece.options });
         length += text.length;
     });
-    if (line.length) lines.push(line);
+    if (line.length) {
+        lines.push(line);
+    }
+
     return lines;
 }
 
@@ -85,6 +96,7 @@ function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number | undefined
     const characterWeight = table.autoPageCharWeight ?? PPTX_DEFAULTS.table.autoPageCharWeight;
     const widthPoints = columnWidth === undefined ? Number.NaN : Math.floor((columnWidth / PPTX_DEFAULTS.units.emuPerPoint) * PPTX_DEFAULTS.units.emuPerInch);
     const charactersPerLine = widthPoints / (fontSize / (PPTX_DEFAULTS.table.autoPageCharConstant + characterWeight));
+
     return linePieces(cell).flatMap(piece => wrapPiece(piece, charactersPerLine));
 }
 
@@ -95,6 +107,7 @@ function wrappedLines(cell: PptxGenJS.TableCell, columnWidth: number | undefined
  */
 function cellFromLines(cell: PptxGenJS.TableCell, lines: TextPiece[][]): PptxGenJS.TableCell {
     const pieces = lines.flat();
+
     return { text: pieces.length ? pieces : [{ text: "" }], options: cell.options };
 }
 
@@ -120,25 +133,34 @@ function paginationMargin(row: PptxGenJS.TableRow, table: PptxGenJS.TableProps):
     const tableSides = table.margin === undefined ? PPTX_DEFAULTS.table.marginIn : typeof table.margin === "number" ? [table.margin, table.margin, table.margin, table.margin] : table.margin;
     let top = 0;
     let bottom = 0;
+
     for (const cell of row) {
         const own = Array.isArray(cell.options?.margin) ? cell.options.margin : undefined;
         const toInches = own && own[0] >= 1 ? pointsToInches : (value: number) => value;
         const side = (index: 0 | 2, largest: number): number => {
             const cellSide = toInches(own?.[index] ?? 0);
+
             return cellSide > largest ? cellSide : Math.max(largest, toInches(tableSides[index] ?? 0));
         };
+
         top = side(0, top);
         bottom = side(2, bottom);
     }
+
     return top + bottom;
 }
 
 function calculateLineHeight(row: PptxGenJS.TableRow, table: PptxGenJS.TableProps): number {
     const weight = clamp(table.autoPageLineWeight ?? PPTX_DEFAULTS.table.autoPageLineWeight, -1, 1);
+
     return row.reduce((height, cell) => {
-        if (cell.options?.rowspan) return height;
+        if (cell.options?.rowspan) {
+            return height;
+        }
+
         // getSlidesForTableRows (D) skips a falsy cell or table fontSize.
         const fontSize = cell.options?.fontSize || table.fontSize || PPTX_DEFAULTS.table.fontSizePt;
+
         return Math.max(height, (fontSize * (LINE_HEIGHT_MODIFIER + weight)) / 100);
     }, 0);
 }
@@ -148,6 +170,7 @@ function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTabl
     // width from that index to the end (its `idx < idx + colspan` is always true).
     const widths = row.map((cell, index) => {
         const columns = normalized.columns.slice(index, cell.options?.colspan ? undefined : index + 1);
+
         return columns.length ? pixelsToInches(columns.reduce((sum, width) => sum + width, 0)) : undefined;
     });
 
@@ -170,6 +193,7 @@ function calculateRowMetrics(row: PptxGenJS.TableRow, normalized: NormalizedTabl
  */
 function firstRowTooTallError(margins: number, lineHeight: number, available: number): Error {
     const inches = (value: number) => `${Number(value.toFixed(3))}in`;
+
     return new Error(
         `addTable autoPage: the first row needs ${inches(margins + lineHeight)} (top and bottom cell margins ${inches(margins)} plus one line) but the first slide leaves ${inches(available)} below the table y, so PptxGenJS 4.0.1 throws "addTable: Array expected!" here. Move the table up, or lower the cell margins: autoPage reads a table-level \`margin\` as inches whatever its size, so give points per cell (options.margin: [6, 4, 6, 4]) or a table-level margin below 1 in inches.`,
     );
@@ -182,14 +206,22 @@ function firstRowTooTallError(margins: number, lineHeight: number, available: nu
  */
 export function autoPageTableOptions(rows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PptxGenJS.TableProps {
     const count = columnCount(rows);
-    if (!addTableLeavesNoWidth(count, options)) return options;
+
+    if (!addTableLeavesNoWidth(count, options)) {
+        return options;
+    }
+
     const [, rightMargin, , leftMargin] = slideMarginInches((options as PptxGenJS.TableProps & { slideMargin?: PptxGenJS.Margin }).slideMargin);
     const x = options.x === undefined ? 0 : convertToInches(options.x, pageSize.width);
+
     return { ...options, colW: Array<number>(count).fill(((x || rightMargin) + leftMargin) / count) };
 }
 
 export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: PptxGenJS.TableProps, pageSize: PageSize): PaginatedTablePage[] {
-    if (!inputRows.length) return [];
+    if (!inputRows.length) {
+        return [];
+    }
+
     const rows = inputRows.map((row, rowIndex) => tableRow(row, rowIndex).map((cell, column) => tableCell(cell, rowIndex, column)));
 
     const normalized = normalizeTable(rows, options, pageSize);
@@ -241,9 +273,13 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
         // margins, so the margins count only on the page the row starts on, not on the page it moves or continues to.
         let countedMargins = margins;
         let firstLine = 0;
+
         while (firstLine < cycles) {
             if (used + countedMargins + perLine > available()) {
-                if (pages.length === 1 && !pages[0]!.rows.length) throw firstRowTooTallError(margins, perLine, firstAvailable);
+                if (pages.length === 1 && !pages[0]!.rows.length) {
+                    throw firstRowTooTallError(margins, perLine, firstAvailable);
+                }
+
                 if (pages.at(-1)!.rows.length > (pages.length === 1 ? 0 : headers.length)) {
                     startContinuation();
                     countedMargins = 0;
@@ -264,7 +300,9 @@ export function paginateTableRows(inputRows: PptxGenJS.TableRow[], options: Pptx
                 countedMargins = 0;
             }
         }
+
         used -= uncounted;
     }
+
     return pages;
 }

@@ -49,17 +49,27 @@ export function hangingSegments(text: string, next: string | undefined, marks: s
     const characters = [...text];
     const segments: HangingSegment[] = [];
     let plain = "";
+
     characters.forEach((character, index) => {
         const after = characters[index + 1] ?? next;
+
         if (!marks.includes(character) || (after !== undefined && (marks.includes(after) || after === DASH))) {
             plain += character;
+
             return;
         }
-        if (plain) segments.push({ text: plain, hangs: false });
+
+        if (plain) {
+            segments.push({ text: plain, hangs: false });
+        }
+
         segments.push({ text: character, hangs: true });
         plain = "";
     });
-    if (plain || !segments.length) segments.push({ text: plain, hangs: false });
+    if (plain || !segments.length) {
+        segments.push({ text: plain, hangs: false });
+    }
+
     return segments;
 }
 
@@ -75,14 +85,23 @@ export function hangingMarkRuns(mark: NormalizedTextRun, font: GlyphAdvances | u
     const advance = (character: string) => {
         const codePoint = character.codePointAt(0) ?? 0;
         const units = font?.advances.get(codePoint);
-        if (units !== undefined && font) return (units * mark.fontSize) / font.unitsPerEm;
+
+        if (units !== undefined && font) {
+            return (units * mark.fontSize) / font.unitsPerEm;
+        }
+
         return codePoint >= FULL_WIDTH_FROM ? mark.fontSize : undefined;
     };
     const markAdvance = advance(mark.text);
     const spaceAdvance = advance(IDEOGRAPHIC_SPACE);
-    if (markAdvance === undefined || spaceAdvance === undefined) return [mark];
+
+    if (markAdvance === undefined || spaceAdvance === undefined) {
+        return [mark];
+    }
+
     // A one-character run keeps its advance grid spacing in characterSpacing (normalize/text.ts runSpacing).
     const laidOut = markAdvance + mark.characterSpacing;
+
     return [
         { ...mark, characterSpacing: -markAdvance },
         { ...mark, text: IDEOGRAPHIC_SPACE, characterSpacing: laidOut - spaceAdvance, softBreakBefore: false },
@@ -97,5 +116,6 @@ export function hangingMarkRuns(mark: NormalizedTextRun, font: GlyphAdvances | u
 export function breakAroundHanPunctuation(text: string, previous: string, next: string, hangs: boolean): string {
     const joined = `${previous}${text}${next}`;
     const broken = hangs ? joined.replace(DASH_JOIN, WORD_JOINER).replace(HANGING_LANGUAGE_BREAK, ZERO_WIDTH_SPACE) : joined.replace(OTHER_LANGUAGE_BREAK, ZERO_WIDTH_SPACE);
+
     return broken.slice(previous.length, broken.length - next.length);
 }

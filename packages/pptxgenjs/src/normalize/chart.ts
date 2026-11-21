@@ -114,9 +114,13 @@ const SUPPORTED_GRID_LINE_OPTIONS = new Set(["cap", "color", "size", "style"]);
 const BAR_3D_SHAPES = new Set(["box", "cylinder", "cone", "coneToMax", "pyramid", "pyramidToMax"]);
 
 function normalizeSeries(type: NormalizedChartType, data: readonly PptxGenJS.OptsChartData[]): NormalizedChartSeries[] {
-    if (data.length === 0) throw new TypeError("Chart data must contain at least one series");
+    if (data.length === 0) {
+        throw new TypeError("Chart data must contain at least one series");
+    }
+
     return data.map((series, index) => {
         const rawLabels = series.labels ?? [];
+
         if (rawLabels.some(Array.isArray)) {
             throw new UnsupportedChartError({
                 reason: "chart-option",
@@ -124,19 +128,23 @@ function normalizeSeries(type: NormalizedChartType, data: readonly PptxGenJS.Opt
                 unsupportedOptions: ["data.labels[multi-level]"],
             });
         }
+
         const labels = (rawLabels as string[]).map(label => String(label));
         const values = (series.values ?? []).map((value, valueIndex) => {
             if (typeof value !== "number" || !Number.isFinite(value)) {
                 throw new TypeError(`Chart series ${index} value ${valueIndex} must be a finite number`);
             }
+
             return value;
         });
         const sizes = series.sizes?.map((value, valueIndex) => {
             if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
                 throw new TypeError(`Chart series ${index} bubble size ${valueIndex} must be a non-negative finite number`);
             }
+
             return value;
         });
+
         return {
             type,
             name: series.name ?? `Series ${index + 1}`,
@@ -155,6 +163,7 @@ function rejectUnsupportedOptions(type: string, options: PptxGenJS.IChartOpts): 
         .filter(key => options[key as keyof PptxGenJS.IChartOpts] !== undefined)
         .filter(key => !SUPPORTED_CHART_OPTION_SET.has(key))
         .sort();
+
     if (unsupported.length) {
         throw new UnsupportedChartError({
             reason: "chart-option",
@@ -166,20 +175,32 @@ function rejectUnsupportedOptions(type: string, options: PptxGenJS.IChartOpts): 
 
 function automaticValueBounds(type: NormalizedChartType, series: readonly NormalizedChartSeries[], grouping: NormalizedChart["grouping"]): [number, number] {
     let values = type === "scatter" || type === "bubble" ? series.slice(1).flatMap(item => item.values) : series.flatMap(item => item.values);
+
     if (grouping === "stacked" || grouping === "percentStacked") {
         const categoryCount = Math.max(0, ...series.map(item => item.values.length));
+
         values = Array.from({ length: categoryCount }, (_, index) => {
             const categoryValues = series.map(item => item.values[index] ?? 0);
             const positive = categoryValues.filter(value => value >= 0).reduce((sum, value) => sum + value, 0);
             const negative = categoryValues.filter(value => value < 0).reduce((sum, value) => sum + value, 0);
-            if (grouping !== "percentStacked") return [positive, negative];
+
+            if (grouping !== "percentStacked") {
+                return [positive, negative];
+            }
+
             const total = categoryValues.reduce((sum, value) => sum + Math.abs(value), 0);
+
             return total === 0 ? [0, 0] : [(positive / total) * 100, (negative / total) * 100];
         }).flat();
     }
+
     const minimum = Math.min(0, ...values);
     const maximum = Math.max(0, ...values);
-    if (minimum === maximum) return minimum === 0 ? [0, 1] : [minimum, maximum];
+
+    if (minimum === maximum) {
+        return minimum === 0 ? [0, 1] : [minimum, maximum];
+    }
+
     const largest = Math.max(Math.abs(minimum), Math.abs(maximum));
     const magnitude = 10 ** Math.floor(Math.log10(largest));
     const normalized = largest / magnitude;
@@ -188,18 +209,27 @@ function automaticValueBounds(type: NormalizedChartType, series: readonly Normal
     const lowerMultiple = Math.floor(minimum / step);
     const upper = (upperMultiple * step === maximum ? upperMultiple + 1 : upperMultiple) * step;
     const lower = minimum < 0 ? (lowerMultiple * step === minimum ? lowerMultiple - 1 : lowerMultiple) * step : 0;
+
     return [lower, upper];
 }
 
 function positiveNumber(value: number | undefined, name: string, fallback: number): number {
     const normalized = value ?? fallback;
-    if (!Number.isFinite(normalized) || normalized <= 0) throw new TypeError(`${name} must be a positive finite number`);
+
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+        throw new TypeError(`${name} must be a positive finite number`);
+    }
+
     return normalized;
 }
 
 function finiteNumber(value: number | undefined, name: string, fallback: number): number {
     const normalized = value ?? fallback;
-    if (!Number.isFinite(normalized)) throw new TypeError(`${name} must be a finite number`);
+
+    if (!Number.isFinite(normalized)) {
+        throw new TypeError(`${name} must be a finite number`);
+    }
+
     return normalized;
 }
 
@@ -214,27 +244,39 @@ interface ValidatedAxisValues {
 function validateValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefined, automatic: [number, number], path: string, chartTypes: PptxGenJS.CHART_NAME[]): ValidatedAxisValues {
     const minimum = axisOptions?.valAxisMinVal ?? automatic[0];
     const maximum = axisOptions?.valAxisMaxVal ?? automatic[1];
+
     if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum >= maximum) {
         throw new TypeError("Chart value-axis minimum must be less than its maximum");
     }
+
     const logScaleBase = axisOptions?.valAxisLogScaleBase;
+
     if (logScaleBase !== undefined && (!Number.isFinite(logScaleBase) || logScaleBase < 2 || logScaleBase > 99)) {
         throw new RangeError("valAxisLogScaleBase must be between 2 and 99");
     }
-    if (logScaleBase !== undefined && minimum <= 0) throw new TypeError("A logarithmic value axis requires a positive minimum");
+
+    if (logScaleBase !== undefined && minimum <= 0) {
+        throw new TypeError("A logarithmic value axis requires a positive minimum");
+    }
 
     const majorUnit = axisOptions?.valAxisMajorUnit;
+
     if (majorUnit !== undefined && (!Number.isFinite(majorUnit) || majorUnit <= 0)) {
         throw new TypeError("valAxisMajorUnit must be a positive finite number");
     }
+
     if (axisOptions?.valAxisMajorTickMark === "cross" || axisOptions?.valAxisMinorTickMark === "cross") {
         const option = axisOptions.valAxisMajorTickMark === "cross" ? "valAxisMajorTickMark" : "valAxisMinorTickMark";
+
         throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: [`${path}${option}[cross]`] });
     }
+
     const labelFormatCode = axisOptions?.valAxisLabelFormatCode ?? PPTX_DEFAULTS.chart.valueAxis.labelFormatCode;
+
     if (!isSupportedChartNumberFormat(labelFormatCode)) {
         throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: ["valAxisLabelFormatCode[format]"] });
     }
+
     return { minimum, maximum, majorUnit, logScaleBase, labelFormatCode };
 }
 
@@ -242,6 +284,7 @@ function normalizeValueAxis(axisOptions: PptxGenJS.IChartPropsAxisVal | undefine
     const defaults = PPTX_DEFAULTS.chart.valueAxis;
     const values = validateValueAxis(axisOptions, automatic, path, chartTypes);
     const gridLine = axisOptions?.valGridLine;
+
     return {
         ...values,
         hidden: axisOptions?.valAxisHidden ?? defaults.hidden,
@@ -275,12 +318,15 @@ type ChartInputType = PptxGenJS.CHART_NAME | PptxGenJS.IChartMulti[];
 
 function validateChartRequest(type: ChartInputType, options: PptxGenJS.IChartOpts, chartTypes: PptxGenJS.CHART_NAME[]): void {
     const mixed = Array.isArray(type);
+
     if (mixed && (type.length === 0 || type.some(chart => !MIXED_CHART_TYPES.has(chart.type)))) {
         throw new UnsupportedChartError({ reason: "chart-combination", chartTypes });
     }
+
     if (!mixed && !SUPPORTED_TYPES.has(type as NormalizedChartType)) {
         throw new UnsupportedChartError({ reason: "chart-type", chartTypes: [String(type)] });
     }
+
     if (mixed) {
         const unsupported = type.flatMap((chart, index) =>
             Object.keys(chart.options ?? {})
@@ -288,6 +334,7 @@ function validateChartRequest(type: ChartInputType, options: PptxGenJS.IChartOpt
                 .filter(key => !SUPPORTED_MIXED_SERIES_OPTIONS.has(key))
                 .map(key => `series[${index}].options.${key}`),
         );
+
         if (unsupported.length) {
             throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: unsupported.sort() });
         }
@@ -310,12 +357,19 @@ function validateChartRequest(type: ChartInputType, options: PptxGenJS.IChartOpt
             .filter(key => !SUPPORTED_GRID_LINE_OPTIONS.has(key))
             .map(key => `valGridLine.${key}`),
     ];
-    if (unsupported.length) throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: unsupported.sort() });
+
+    if (unsupported.length) {
+        throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: unsupported.sort() });
+    }
+
     rejectUnsupportedOptions(mixed ? "mixed" : type, options);
 }
 
 function normalizeInputSeries(type: ChartInputType, data: readonly PptxGenJS.OptsChartData[], normalizedType: NormalizedChartType): NormalizedChartSeries[] {
-    if (!Array.isArray(type)) return normalizeSeries(normalizedType, data);
+    if (!Array.isArray(type)) {
+        return normalizeSeries(normalizedType, data);
+    }
+
     return type.flatMap(chart =>
         normalizeSeries(chart.type as NormalizedChartType, chart.data).map(series => ({
             ...series,
@@ -330,31 +384,45 @@ function validateChartSeries(type: NormalizedChartType, series: NormalizedChartS
     if ((type === "pie" || type === "doughnut") && series.length !== 1) {
         throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: ["data[multiple-series]"] });
     }
+
     if ((type === "scatter" || type === "bubble") && series.length < 2) {
         throw new TypeError(`${type} charts require an X-value series followed by at least one Y-value series`);
     }
-    if (type === "bubble" && series.slice(1).some(item => !item.sizes)) throw new TypeError("Bubble Y-value series must include sizes");
-    if (["scatter", "bubble", "pie", "doughnut"].includes(type)) return;
+
+    if (type === "bubble" && series.slice(1).some(item => !item.sizes)) {
+        throw new TypeError("Bubble Y-value series must include sizes");
+    }
+
+    if (["scatter", "bubble", "pie", "doughnut"].includes(type)) {
+        return;
+    }
 
     const labels = JSON.stringify(series[0]?.labels ?? []);
+
     if (series.some(item => JSON.stringify(item.labels) !== labels)) {
         throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: ["data.labels[per-series]"] });
     }
 }
 
 function normalizeGrouping(type: NormalizedChartType, grouping: PptxGenJS.IChartOpts["barGrouping"]): NormalizedChart["grouping"] {
-    if (grouping === "stacked" || grouping === "percentStacked" || grouping === "standard" || grouping === "clustered") return grouping;
+    if (grouping === "stacked" || grouping === "percentStacked" || grouping === "standard" || grouping === "clustered") {
+        return grouping;
+    }
+
     return type === "bar3D" ? PPTX_DEFAULTS.chart.grouping.bar3D : PPTX_DEFAULTS.chart.grouping.bar;
 }
 
 function validateValueAxisCount(series: NormalizedChartSeries[], valueAxes: PptxGenJS.IChartPropsAxisVal[], chartTypes: PptxGenJS.CHART_NAME[]): boolean {
     const hasSecondary = series.some(item => item.valueAxisIndex === 1);
+
     if (hasSecondary && valueAxes.length !== 2) {
         throw new UnsupportedChartError({ reason: "chart-option", chartTypes, unsupportedOptions: ["valAxes[primary,secondary]"] });
     }
+
     if (!hasSecondary && valueAxes.length > 1) {
         throw new UnsupportedChartError({ reason: "chart-combination", chartTypes, unsupportedOptions: ["valAxes[secondary-without-series]"] });
     }
+
     return hasSecondary;
 }
 
@@ -408,11 +476,13 @@ function chartSpecialOptions(options: PptxGenJS.IChartOpts) {
 export function normalizeChart(type: ChartInputType, data: readonly PptxGenJS.OptsChartData[], options: PptxGenJS.IChartOpts = {}): NormalizedChart {
     const mixed = Array.isArray(type);
     const chartTypes = mixed ? type.map(chart => chart.type) : [type];
+
     validateChartRequest(type, options, chartTypes);
     const valueAxisOptions = options.valAxes ?? [];
     const normalizedType: NormalizedChartType = mixed ? "mixed" : (type as NormalizedChartType);
     const palette = options.chartColors?.length ? options.chartColors : normalizedType === "pie" || normalizedType === "doughnut" ? PPTX_DEFAULTS.chart.colors.pie : PPTX_DEFAULTS.chart.colors.bar;
     const series = normalizeInputSeries(type, data, normalizedType);
+
     validateChartSeries(normalizedType, series, chartTypes);
     const normalizedGrouping = normalizeGrouping(normalizedType, options.barGrouping);
     const hasSecondaryValueAxis = validateValueAxisCount(series, valueAxisOptions, chartTypes);
@@ -421,7 +491,10 @@ export function normalizeChart(type: ChartInputType, data: readonly PptxGenJS.Op
     const automaticSecondary = hasSecondaryValueAxis ? automaticValueBounds(normalizedType, axisSeries(1), normalizedGrouping) : undefined;
     const primaryAxis = normalizeValueAxis(valueAxisOptions[0] ?? options, automaticPrimary, valueAxisOptions[0] ? "valAxes[0]." : "", chartTypes);
     const valueAxes = [primaryAxis];
-    if (automaticSecondary) valueAxes.push(normalizeValueAxis(valueAxisOptions[1], automaticSecondary, "valAxes[1].", chartTypes));
+
+    if (automaticSecondary) {
+        valueAxes.push(normalizeValueAxis(valueAxisOptions[1], automaticSecondary, "valAxes[1].", chartTypes));
+    }
 
     return {
         type: normalizedType,

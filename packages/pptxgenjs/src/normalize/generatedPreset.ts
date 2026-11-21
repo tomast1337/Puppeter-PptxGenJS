@@ -30,20 +30,30 @@ function variables(width: number, height: number): Record<string, number> {
         "5cd8": 225 * ANGLE,
         "7cd8": 315 * ANGLE,
     };
+
     for (const divisor of [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 32]) {
         values[`wd${divisor}`] = width / divisor;
         values[`hd${divisor}`] = height / divisor;
         values[`ssd${divisor}`] = values.ss! / divisor;
         values[`lsd${divisor}`] = values.ls! / divisor;
     }
+
     return values;
 }
 
 function formulaValue(token: string, values: Record<string, number>): number {
     const numeric = Number(token);
-    if (!Number.isNaN(numeric)) return numeric;
+
+    if (!Number.isNaN(numeric)) {
+        return numeric;
+    }
+
     const value = values[token];
-    if (value === undefined) throw new Error(`Unknown DrawingML guide: ${token}`);
+
+    if (value === undefined) {
+        throw new Error(`Unknown DrawingML guide: ${token}`);
+    }
+
     return value;
 }
 
@@ -51,6 +61,7 @@ function evaluate(formula: string, values: Record<string, number>): number {
     const [operator, ...tokens] = formula.trim().split(/\s+/);
     const args = tokens.map(token => formulaValue(token, values));
     const [x = 0, y = 0, z = 0] = args;
+
     switch (operator) {
         case "val":
             return x;
@@ -93,6 +104,7 @@ function evaluate(formula: string, values: Record<string, number>): number {
 
 function radialParameter(angle: number, rx: number, ry: number): number {
     const radians = angleRadians(angle);
+
     return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
 }
 
@@ -102,14 +114,18 @@ function arcSegments(current: Point, rx: number, ry: number, start: number, swee
     const commands: string[] = [];
     let travelled = 0;
     let end = current;
+
     while (Math.abs(sweep - travelled) > 1e-6) {
         const remainder = sweep - travelled;
         const step = Math.sign(remainder) * Math.min(Math.abs(remainder), 180 * ANGLE);
+
         travelled += step;
         const parameter = radialParameter(start + travelled, rx, ry);
+
         end = [center[0] + rx * Math.cos(parameter), center[1] + ry * Math.sin(parameter)];
         commands.push(`A ${clean(rx * sx)} ${clean(ry * sy)} 0 0 ${step >= 0 ? 1 : 0} ${clean(end[0] * sx)} ${clean(end[1] * sy)}`);
     }
+
     return { data: commands.join(" "), end };
 }
 
@@ -122,13 +138,16 @@ function renderPath(path: GeneratedPresetDefinition["paths"][number], values: Re
     const y = (token: string) => formulaValue(token, values);
     const commands: string[] = [];
     let current: Point = [0, 0];
+
     for (const command of path.commands) {
         const [kind, ...args] = command;
+
         if (kind === "M" || kind === "L") {
             current = [x(args[0]!), y(args[1]!)];
             commands.push(`${kind} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
         } else if (kind === "A") {
             const arc = arcSegments(current, x(args[0]!), y(args[1]!), formulaValue(args[2]!, values), formulaValue(args[3]!, values), sx, sy);
+
             commands.push(arc.data);
             current = arc.end;
         } else if (kind === "Q") {
@@ -137,8 +156,11 @@ function renderPath(path: GeneratedPresetDefinition["paths"][number], values: Re
         } else if (kind === "C") {
             current = [x(args[4]!), y(args[5]!)];
             commands.push(`C ${clean(x(args[0]!) * sx)} ${clean(y(args[1]!) * sy)} ${clean(x(args[2]!) * sx)} ${clean(y(args[3]!) * sy)} ${clean(current[0] * sx)} ${clean(current[1] * sy)}`);
-        } else commands.push("Z");
+        } else {
+            commands.push("Z");
+        }
     }
+
     return commands.join(" ");
 }
 
@@ -150,10 +172,17 @@ export function generatedPresetGeometry(name: GeneratedPresetName, width: number
     // PptxGenJS 4.0.1 emits the non-standard `folderCorner` token while the
     // DrawingML preset is named `foldedCorner`; LibreOffice therefore renders
     // the pinned reference as an empty shape.
-    if (name === "folderCorner") return { kind: "path", data: "M 0 0", faces: [], outlineData: "M 0 0" };
+    if (name === "folderCorner") {
+        return { kind: "path", data: "M 0 0", faces: [], outlineData: "M 0 0" };
+    }
+
     const definition = GENERATED_PRESET_SHAPES[name];
     const values = variables(width, height);
-    for (const [guide, formula] of [...definition.adjustments, ...definition.guides]) values[guide] = evaluate(formula, values);
+
+    for (const [guide, formula] of [...definition.adjustments, ...definition.guides]) {
+        values[guide] = evaluate(formula, values);
+    }
+
     const rendered = definition.paths.map(path => ({ path, data: renderPath(path, values, width, height) }));
     const faces = rendered
         .filter(({ path }) => path.fill !== "none")
@@ -165,6 +194,7 @@ export function generatedPresetGeometry(name: GeneratedPresetName, width: number
         .filter(({ path }) => path.stroke !== "false")
         .map(({ data }) => data)
         .join(" ");
+
     return { kind: "path", data: rendered.map(({ data }) => data).join(" "), faces, outlineData };
 }
 
@@ -174,11 +204,23 @@ export function generatedPresetGeometry(name: GeneratedPresetName, width: number
  */
 export function presetTextInsets(name: string, width: number, height: number, adjustments: Readonly<Record<string, number>> = {}): NormalizedShape["textInsets"] {
     const definition = GENERATED_TEXT_RECTS[name];
-    if (!definition) return undefined;
+
+    if (!definition) {
+        return undefined;
+    }
+
     const values = variables(width, height);
-    for (const [guide, formula] of definition.adjustments) values[guide] = adjustments[guide] ?? evaluate(formula, values);
-    for (const [guide, formula] of definition.guides) values[guide] = evaluate(formula, values);
+
+    for (const [guide, formula] of definition.adjustments) {
+        values[guide] = adjustments[guide] ?? evaluate(formula, values);
+    }
+
+    for (const [guide, formula] of definition.guides) {
+        values[guide] = evaluate(formula, values);
+    }
+
     // `rect` is a four-tuple, and map keeps its length.
     const [left, top, right, bottom] = definition.rect.map(token => formulaValue(token, values)) as [number, number, number, number];
+
     return [clean(top), clean(width - right), clean(height - bottom), clean(left)];
 }

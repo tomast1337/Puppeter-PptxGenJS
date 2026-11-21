@@ -28,12 +28,19 @@ const IMPLIED_END: Readonly<Record<string, { readonly closes: ReadonlySet<string
     const cell = rule(["td", "th"], ["tr", "table"]);
     const section = rule(["tbody", "thead", "tfoot"], ["table"]);
     const definition = rule(["dt", "dd"], ["dl"]);
+
     return { td: cell, th: cell, tr: rule(["tr"], ["table", "tbody", "thead", "tfoot"]), tbody: section, thead: section, tfoot: section, li: rule(["li"], ["ul", "ol"]), dt: definition, dd: definition, option: rule(["option"], ["select", "optgroup"]), p: rule(["p"], ["td", "th", "li", "table"]) };
 })();
 
 function checkLimit(name: keyof TableHtmlLimits, value: unknown): number {
-    if (value === undefined) return TABLE_HTML_LIMITS[name];
-    if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+    if (value === undefined) {
+        return TABLE_HTML_LIMITS[name];
+    }
+
+    if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+        return value;
+    }
+
     throw new TypeError(`tableToSlides option \`htmlLimits.${name}\` must be a positive integer, got ${JSON.stringify(value)}`);
 }
 
@@ -46,37 +53,61 @@ function checkLimit(name: keyof TableHtmlLimits, value: unknown): number {
 export function checkTableHtmlLimits(markup: string, limits: TableHtmlLimits = {}): void {
     const maxLength = checkLimit("maxLength", limits.maxLength);
     const maxDepth = checkLimit("maxDepth", limits.maxDepth);
+
     if (markup.length > maxLength) {
         throw new Error(`tableToSlides: the HTML string is ${markup.length} characters long, over the limit of ${maxLength}; pass a smaller table, or raise the limit with the option htmlLimits: { maxLength }`);
     }
+
     const lower = markup.toLowerCase();
     const open: string[] = [];
+
     TAG.lastIndex = 0;
     for (let match = TAG.exec(markup); match; match = TAG.exec(markup)) {
         const [, end, rawName] = match;
-        if (rawName === undefined) continue; // a comment
+
+        if (rawName === undefined) {
+            continue;
+        } // a comment
+
         const name = rawName.toLowerCase();
+
         if (end) {
             const index = open.lastIndexOf(name);
-            if (index >= 0) open.length = index;
+
+            if (index >= 0) {
+                open.length = index;
+            }
+
             continue;
         }
-        if (VOID_ELEMENTS.has(name)) continue;
+
+        if (VOID_ELEMENTS.has(name)) {
+            continue;
+        }
+
         if (RAW_TEXT_ELEMENTS.has(name)) {
             const close = lower.indexOf(`</${name}`, TAG.lastIndex);
+
             TAG.lastIndex = close < 0 ? markup.length : close;
         }
+
         const implied = IMPLIED_END[name];
+
         if (implied) {
             for (let index = open.length - 1; index >= 0; index--) {
                 const element = open[index] ?? "";
-                if (implied.scope.has(element)) break;
+
+                if (implied.scope.has(element)) {
+                    break;
+                }
+
                 if (implied.closes.has(element)) {
                     open.length = index;
                     break;
                 }
             }
         }
+
         open.push(name);
         if (open.length > maxDepth) {
             throw new Error(`tableToSlides: the HTML string nests elements more than ${maxDepth} deep; flatten the markup, or raise the limit with the option htmlLimits: { maxDepth }`);

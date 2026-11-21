@@ -20,9 +20,16 @@ function setsRunStyle(props: PptxGenJS.SlideNumberProps): boolean {
  * else writes none, and the inset is inherited.
  */
 function slideNumberMargin(margin: unknown): number | FourSideMargin | undefined {
-    if (typeof margin === "number") return margin;
-    if (!Array.isArray(margin)) return undefined;
+    if (typeof margin === "number") {
+        return margin;
+    }
+
+    if (!Array.isArray(margin)) {
+        return undefined;
+    }
+
     const side = (index: number) => Number(margin[index]) || 0;
+
     return [side(3), side(1), side(2), side(0)];
 }
 
@@ -54,5 +61,6 @@ export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: Pptx
         fontMetrics,
         bodyFontFace,
     );
+
     return { kind: "text", style, text };
 }

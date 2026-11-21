@@ -18,29 +18,60 @@ export interface NormalizedHtmlTable {
 
 function cssPixels(value: string | null | undefined, relativeTo: number): number {
     const source = value?.trim();
-    if (!source || source === "auto") return 0;
+
+    if (!source || source === "auto") {
+        return 0;
+    }
+
     const amount = parseFloat(source);
-    if (!Number.isFinite(amount)) return 0;
-    if (source.endsWith("%")) return (relativeTo * amount) / 100;
-    if (source.endsWith("in")) return inchesToPixels(amount);
-    if (source.endsWith("pt")) return pointsToPixels(amount);
+
+    if (!Number.isFinite(amount)) {
+        return 0;
+    }
+
+    if (source.endsWith("%")) {
+        return (relativeTo * amount) / 100;
+    }
+
+    if (source.endsWith("in")) {
+        return inchesToPixels(amount);
+    }
+
+    if (source.endsWith("pt")) {
+        return pointsToPixels(amount);
+    }
+
     return amount;
 }
 
 function textContent(cell: HTMLTableCellElement): string {
     const read = (node: Node): string => {
-        if (node.nodeType === node.TEXT_NODE) return node.nodeValue ?? "";
-        if (node instanceof cell.ownerDocument.defaultView!.HTMLBRElement) return "\n";
+        if (node.nodeType === node.TEXT_NODE) {
+            return node.nodeValue ?? "";
+        }
+
+        if (node instanceof cell.ownerDocument.defaultView!.HTMLBRElement) {
+            return "\n";
+        }
+
         return Array.from(node.childNodes).map(read).join("");
     };
+
     return read(cell).trim();
 }
 
 function colorValue(value: string): string {
-    if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") return "FFFFFF";
+    if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") {
+        return "FFFFFF";
+    }
+
     const channels = value.match(/rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)/i);
+
     // A computed color that is not rgb() (jsdom's "canvastext") becomes "NaNNaNNaN" in PptxGenJS 4.0.1, which writes black.
-    if (!channels) return HEX_COLOR.test(value) ? value.replace(/^#/, "") : "000000";
+    if (!channels) {
+        return HEX_COLOR.test(value) ? value.replace(/^#/, "") : "000000";
+    }
+
     return channels
         .slice(1, 4)
         .map(channel => Number(channel).toString(16).padStart(2, "0"))
@@ -50,15 +81,25 @@ function colorValue(value: string): string {
 
 function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
     const view = cell.ownerDocument.defaultView;
-    if (!view) throw new Error("tableToSlides requires a document with a window");
+
+    if (!view) {
+        throw new Error("tableToSlides requires a document with a window");
+    }
+
     const style = view.getComputedStyle(cell);
     const inherited = (property: string): string => {
         let current: Element | null = cell;
+
         while (current) {
             const value = view.getComputedStyle(current).getPropertyValue(property).trim();
-            if (value && value !== "inherit" && value !== "initial") return value;
+
+            if (value && value !== "inherit" && value !== "initial") {
+                return value;
+            }
+
             current = current.parentElement;
         }
+
         return "";
     };
     const fontWeight = inherited("font-weight");
@@ -76,25 +117,34 @@ function cellOptions(cell: HTMLTableCellElement): PptxGenJS.TableCellProps {
         rowspan: cell.rowSpan > 1 ? cell.rowSpan : undefined,
     };
     const align = style.textAlign === "start" ? "left" : style.textAlign === "end" ? "right" : style.textAlign;
-    if (align === "left" || align === "center" || align === "right") options.align = align;
+
+    if (align === "left" || align === "center" || align === "right") {
+        options.align = align;
+    }
+
     if (style.verticalAlign === "top" || style.verticalAlign === "middle" || style.verticalAlign === "bottom") {
         options.valign = style.verticalAlign;
     }
+
     if (style.paddingLeft) {
         options.margin = mapSides([style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft], value => Math.round(parseFloat(value) || 0));
     }
+
     const borderSides = ["top", "right", "bottom", "left"] as const;
+
     options.border = borderSides.map(side => ({
         type: style.getPropertyValue(`border-${side}-style`) === "dashed" ? "dash" : style.getPropertyValue(`border-${side}-style`) === "none" ? "none" : "solid",
         pt: Math.round(parseFloat(style.getPropertyValue(`border-${side}-width`)) || 0),
         color: colorValue(style.getPropertyValue(`border-${side}-color`)),
     })) as [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps];
+
     return options;
 }
 
 /** The element if it is a <table> in a document with a window, whose computed styles tableToSlides() reads. */
 function tableWithWindow(element: Element | null | undefined): HTMLTableElement | undefined {
     const view = element?.ownerDocument?.defaultView;
+
     return view && element instanceof view.HTMLTableElement ? element : undefined;
 }
 
@@ -108,23 +158,39 @@ function tableWithWindow(element: Element | null | undefined): HTMLTableElement 
 export function findHtmlTable(source: string | HTMLTableElement, createDocument: () => Document, limits?: TableHtmlLimits): HTMLTableElement {
     if (typeof source !== "string") {
         const table = tableWithWindow(source);
-        if (!table) throw new TypeError("tableToSlides: the element is not a <table> in a document with a window, whose computed styles are read; pass a table of the page (or of a jsdom document), its id, or its HTML");
+
+        if (!table) {
+            throw new TypeError("tableToSlides: the element is not a <table> in a document with a window, whose computed styles are read; pass a table of the page (or of a jsdom document), its id, or its HTML");
+        }
+
         return table;
     }
+
     if (source.trimStart().startsWith("<")) {
         checkTableHtmlLimits(source, limits);
         const document = createDocument();
+
         if (!document.defaultView) {
             throw new Error("tableToSlides: parsing an HTML string needs a document with a window to read computed styles, and createDocument() made one without (a browser's createHTMLDocument()); insert the table into the page and pass the element or its id, or pass a createDocument option");
         }
+
         document.body.innerHTML = source;
         const table = tableWithWindow(document.querySelector("table"));
-        if (!table) throw new Error("tableToSlides: the HTML string has no <table> element");
+
+        if (!table) {
+            throw new Error("tableToSlides: the HTML string has no <table> element");
+        }
+
         return table;
     }
+
     const globalDocument = (globalThis as { document?: Document }).document;
     const table = tableWithWindow(globalDocument?.getElementById(source));
-    if (!table) throw new Error(`tableToSlides: Table ID "${source}" does not exist! Put the table in the global document, or pass the <table> element or its HTML`);
+
+    if (!table) {
+        throw new Error(`tableToSlides: Table ID "${source}" does not exist! Put the table in the global document, or pass the <table> element or its HTML`);
+    }
+
     return table;
 }
 
@@ -137,6 +203,7 @@ export function normalizeHtmlTable(element: HTMLTableElement, options: PptxGenJS
     const firstCells = firstRow ? Array.from(firstRow.cells) : [];
     const measured: number[] = [];
     const explicitWidths: Array<number | undefined> = [];
+
     firstCells.forEach(cell => {
         const colspan = Math.max(1, cell.colSpan);
         const width =
@@ -148,6 +215,7 @@ export function normalizeHtmlTable(element: HTMLTableElement, options: PptxGenJS
                     firstCells.reduce((sum, item) => sum + item.colSpan, 0),
                 );
         const declared = Number(cell.getAttribute("data-pptx-width"));
+
         for (let index = 0; index < colspan; index++) {
             measured.push(width / colspan);
             explicitWidths.push(declared > 0 ? declared / colspan : undefined);
@@ -161,7 +229,9 @@ export function normalizeHtmlTable(element: HTMLTableElement, options: PptxGenJS
     const body = sectionRows(":scope > tbody > tr");
     const foot = sectionRows(":scope > tfoot > tr");
     const unsectioned = head.length || body.length || foot.length ? [] : sectionRows(":scope > tr");
+
     element.dataset.puppeteerGenSource = "true";
+
     return {
         rows: [...head, ...body, ...foot, ...unsectioned],
         headerRows: head.length,

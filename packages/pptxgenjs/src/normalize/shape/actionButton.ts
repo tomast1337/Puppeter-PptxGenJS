@@ -27,6 +27,7 @@ function buttonBox(width: number, height: number): ButtonBox {
     const cx = width / 2;
     const cy = height / 2;
     const half = (short * 3) / 8;
+
     return { short, cx, cy, half, left: cx - half, right: cx + half, top: cy - half, bottom: cy + half };
 }
 
@@ -37,6 +38,7 @@ const button =
     (width, height) => {
         const base = framePath(width, height);
         const { icon, details = "", iconModifier = "darken", darkLess = [], dark = [], light = [] } = draw(buttonBox(width, height));
+
         return {
             kind: "path",
             data: `${base} ${icon}`,
@@ -70,6 +72,7 @@ function information({ short, cx, cy, half, left, top }: ButtonBox): ButtonIcon 
         [stemLeft, y29],
     ]);
     const details = `${dot.move} ${dot.arcs} Z ${stem}`;
+
     return { icon: `${circle.move} ${circle.arcs} Z`, details, light: [details] };
 }
 
