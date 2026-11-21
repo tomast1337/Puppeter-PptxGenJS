@@ -124,6 +124,9 @@ impl Renderer {
 
     /// Registers a font file (TTF/OTF/TTC). Returns the number of faces registered.
     pub fn add_font(&mut self, data: Vec<u8>) -> u32 {
+        if !text::font::usable_font_file(&data) {
+            return 0;
+        }
         let families = self.fonts.collection.register_fonts(Blob::from(data), None);
         // parley appends the `emoji` generic family for emoji-presentation clusters.
         for (id, _) in &families {
@@ -1560,5 +1563,27 @@ mod tests {
         let mut r = Renderer::new();
         assert!(render(&mut r, &build::deck(vec![SlideObject::Image(wide)])).unwrap().starts_with(b"%PDF"));
         assert_eq!(r.warnings(), vec!["clip path past the page's coordinate range not rendered".to_owned()]);
+    }
+
+    // GHSA-fmx3-qwqc-h37c, found by fuzzing add_font: a face with 0 units per em gave infinite glyph advances,
+    // and krilla unwrapped the box of the run, a panic that aborts the wasm instance. Such a file is not registered.
+    #[test]
+    fn does_not_register_a_font_whose_units_per_em_opentype_forbids() {
+        let Some(mut font) = liberation_sans() else { return };
+        // The table directory: 12-byte header, then 16-byte records (tag, checksum, offset, length).
+        let tables = usize::from(u16::from_be_bytes([font[4], font[5]]));
+        let head = (0..tables)
+            .map(|i| &font[12 + 16 * i..28 + 16 * i])
+            .find(|record| &record[..4] == b"head")
+            .map(|record| u32::from_be_bytes(record[8..12].try_into().unwrap()) as usize)
+            .unwrap();
+        // head.unitsPerEm is the u16 at byte 18 of the table.
+        for units in [0u16, 15, 16385] {
+            font[head + 18..head + 20].copy_from_slice(&units.to_be_bytes());
+            let mut r = Renderer::new();
+            let faces = r.add_font(font.clone());
+            assert!(r.render_html(&profile::tests::document(profile::tests::TEXT)).unwrap().starts_with(b"%PDF"));
+            assert_eq!(faces, 0, "{units} units per em");
+        }
     }
 }
