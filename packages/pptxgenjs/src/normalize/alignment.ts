@@ -28,6 +28,7 @@ const WRITTEN_ANCHOR: Readonly<Record<VerticalAlignSource, (valign: string) => s
  * genXmlParagraphProps writes an `algn` for these four values and none for a falsy one; any other value would reach the
  * slide's CSS as it is, so it is refused.
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function paragraphAlign(align: unknown): ParagraphAlign | undefined {
     if (!align) {
         return undefined;
@@ -44,6 +45,7 @@ export function paragraphAlign(align: unknown): ParagraphAlign | undefined {
  * A `valign` as the model's value, read as PptxGenJS 4.0.1 reads it at `source`; falsy is unset. A value it writes no
  * valid anchor for is refused: it would otherwise reach the slide's CSS as it is.
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function verticalAlign(valign: unknown, source: VerticalAlignSource): VerticalAlign | undefined {
     if (!valign) {
         return undefined;

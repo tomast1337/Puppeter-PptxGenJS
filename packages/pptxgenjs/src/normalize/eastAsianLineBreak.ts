@@ -30,6 +30,7 @@ const OTHER_LANGUAGE_BREAK = new RegExp(`(?<=\\p{Script=Han})(?=${WIDE}|")|(?<=$
 const FULL_WIDTH_FROM = 0x2000;
 
 /** The marks that hang in a run in `language` (its primary subtag's entry in `marksByLanguage`), or undefined. */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function languageHangingMarks(language: string, marksByLanguage: Readonly<Record<string, string>>): string | undefined {
     return marksByLanguage[language.split("-")[0]?.toLowerCase() ?? ""];
 }
@@ -50,13 +51,12 @@ export function hangingSegments(text: string, next: string | undefined, marks: s
     const segments: HangingSegment[] = [];
     let plain = "";
 
-    characters.forEach((character, index) => {
+    for (const [index, character] of characters.entries()) {
         const after = characters[index + 1] ?? next;
 
         if (!marks.includes(character) || (after !== undefined && (marks.includes(after) || after === DASH))) {
             plain += character;
-
-            return;
+            continue;
         }
 
         if (plain) {
@@ -65,7 +65,8 @@ export function hangingSegments(text: string, next: string | undefined, marks: s
 
         segments.push({ text: character, hangs: true });
         plain = "";
-    });
+    }
+
     if (plain || !segments.length) {
         segments.push({ text: plain, hangs: false });
     }

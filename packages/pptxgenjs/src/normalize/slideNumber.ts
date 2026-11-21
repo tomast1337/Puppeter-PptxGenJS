@@ -19,18 +19,18 @@ function setsRunStyle(props: PptxGenJS.SlideNumberProps): boolean {
  * reads as [top, right, bottom, left] (points; a missing side is 0), returned as [left, right, bottom, top]. Anything
  * else writes none, and the inset is inherited.
  */
-function slideNumberMargin(margin: unknown): number | FourSideMargin | undefined {
+function slideNumberMargin(margin: unknown): { kind: "margin"; margin: number | FourSideMargin } | { kind: "inherited" } {
     if (typeof margin === "number") {
-        return margin;
+        return { kind: "margin", margin };
     }
 
     if (!Array.isArray(margin)) {
-        return undefined;
+        return { kind: "inherited" };
     }
 
     const side = (index: number) => Number(margin[index]) || 0;
 
-    return [side(3), side(1), side(2), side(0)];
+    return { kind: "margin", margin: [side(3), side(1), side(2), side(0)] };
 }
 
 /**
@@ -46,6 +46,8 @@ export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: Pptx
     const fontSize = setsRunStyle(own) ? own.fontSize || defaults.fontSizePt : setsRunStyle(last) ? last.fontSize || defaults.fontSizePt : PPTX_DEFAULTS.text.fontSizePt;
     // PptxGenJS matches the first letter: "ctr" centers, "justify" falls back to left.
     const align = own.align?.startsWith("c") ? "center" : own.align?.startsWith("r") ? "right" : defaults.align;
+    const ownMargin = slideNumberMargin(own.margin);
+    const margin = ownMargin.kind === "margin" ? ownMargin : slideNumberMargin(last.margin);
     const text = normalizeText(
         String(slideNumber),
         {
@@ -55,7 +57,7 @@ export function normalizeSlideNumber(own: PptxGenJS.SlideNumberProps, last: Pptx
             bold: Boolean(own.bold),
             align,
             valign: verticalAlign(own.valign || last.valign || defaults.valign, "slideNumber"),
-            margin: slideNumberMargin(own.margin) ?? slideNumberMargin(last.margin),
+            margin: margin.kind === "margin" ? margin.margin : undefined,
         },
         target,
         fontMetrics,

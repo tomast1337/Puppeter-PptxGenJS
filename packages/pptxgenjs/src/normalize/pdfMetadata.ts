@@ -40,44 +40,48 @@ export function normalizePdfMetadata(input: unknown): PresentationMetadata {
         throw new TypeError(`PuppeteerGen option \`pdfMetadata.${unknown}\` is not a PDF property PdfLapas writes; use one of ${[...KNOWN_KEYS].join(", ")}`);
     }
 
-    const strings = STRING_KEYS.flatMap(key => {
+    const entries: [string, string][] = [];
+
+    for (const key of STRING_KEYS) {
         const value = options[key];
 
         if (value === undefined || value === "") {
-            return [];
+            continue;
         }
 
         if (typeof value !== "string") {
             throw new TypeError(`PuppeteerGen option \`pdfMetadata.${key}\` must be a string, got ${describe(value)}`);
         }
 
-        return [[key, value]];
-    });
-    const dates = DATE_KEYS.flatMap(key => {
+        entries.push([key, value]);
+    }
+
+    for (const key of DATE_KEYS) {
         const value = options[key];
 
-        return value === undefined ? [] : [[key, isoDate(key, value)]];
-    });
+        if (value === undefined) {
+            continue;
+        }
 
-    return Object.fromEntries([...strings, ...dates]);
-}
+        // The date as a UTC ISO string, checked to fit a PDF date.
+        if (!(value instanceof Date)) {
+            throw new TypeError(`PuppeteerGen option \`pdfMetadata.${key}\` must be a Date, got ${describe(value)}`);
+        }
 
-function isoDate(key: string, value: unknown): string {
-    if (!(value instanceof Date)) {
-        throw new TypeError(`PuppeteerGen option \`pdfMetadata.${key}\` must be a Date, got ${describe(value)}`);
+        const year = value.getUTCFullYear();
+
+        if (Number.isNaN(year)) {
+            throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is an Invalid Date; pass a Date built from a valid time, such as new Date("2026-11-19T12:00:00Z")`);
+        }
+
+        if (year < 0 || year > MAX_PDF_YEAR) {
+            throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is in the year ${year}; a PDF date needs a year from 0 to ${MAX_PDF_YEAR}`);
+        }
+
+        entries.push([key, value.toISOString()]);
     }
 
-    const year = value.getUTCFullYear();
-
-    if (Number.isNaN(year)) {
-        throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is an Invalid Date; pass a Date built from a valid time, such as new Date("2026-11-19T12:00:00Z")`);
-    }
-
-    if (year < 0 || year > MAX_PDF_YEAR) {
-        throw new RangeError(`PuppeteerGen option \`pdfMetadata.${key}\` is in the year ${year}; a PDF date needs a year from 0 to ${MAX_PDF_YEAR}`);
-    }
-
-    return value.toISOString();
+    return Object.fromEntries(entries);
 }
 
 function describe(value: unknown): string {

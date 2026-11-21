@@ -67,13 +67,6 @@ function fallsBackFullWidth(character: string, font: GlyphAdvances): boolean {
     return FULL_WIDTH.test(character) && !font.advances.has(character.codePointAt(0) ?? 0);
 }
 
-/** Whether the last character of `left` that is not a break marker and the first of `right` both fall back full-width, or neither does. */
-function sameWidthEdge(left: readonly string[], right: readonly string[], font: GlyphAdvances): boolean {
-    const visible = (characters: readonly string[]) => characters.filter(character => !BREAK_MARKER.test(character));
-
-    return fallsBackFullWidth(visible(left).at(-1) ?? "", font) === fallsBackFullWidth(visible(right)[0] ?? "", font);
-}
-
 /**
  * `text` cut where it goes from characters a fallback face draws 1em wide (FULL_WIDTH, not in `font`) to others and
  * back, each stretch for a run of its own; a break marker stays with the stretch before it. A word spreads its
@@ -173,6 +166,7 @@ const spacing = (value: number) => Math.round(value * SPACING_DIGITS) / SPACING_
  * up to 1/(512 x size px) narrower than the font's (8pt: 0.044 px over a 720 px line, against the 1/6 px step); the
  * WASM renderer uses the exact size. Size the words for that truncation if a tie between steps flips in Chromium.
  */
+// eslint-disable-next-line pdflapas/no-nullable-return -- phase 2 (#425)
 export function advanceGridWordSpacing(text: string, sizePt: number, font: GlyphAdvances | undefined, gridPt: number | undefined, charSpacingPt: number, kerned: boolean, cursor: GridCursor = { rounded: 0, laidOut: 0 }, after = ""): WordSpacing | undefined {
     const spaceAdvance = font?.advances.get(" ".codePointAt(0) ?? 0);
     const continued = cursor.word;
@@ -188,11 +182,11 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     const sizePx = pointsToPixels(sizePt);
     const gridPx = pointsToPixels(gridPt);
     const charSpacing = pointsToPixels(charSpacingPt);
-    // The grid step at or below `width`, floored to a LayoutUnit, when `width` is off the grid; undefined on it.
-    const offStep = (width: number) => {
+    // The grid step at or below `width`, floored to a LayoutUnit, when `width` is off the grid.
+    const offStep = (width: number): { kind: "off"; step: number } | { kind: "on" } => {
         const step = Math.floor(width / gridPx + FLOAT_NOISE) * gridPx;
 
-        return width - step > OFF_GRID ? floorLayoutUnit(step) : undefined;
+        return width - step > OFF_GRID ? { kind: "off", step: floorLayoutUnit(step) } : { kind: "on" };
     };
     // Natural and rounded advance of a character, px; one the font does not map is 1em when FULL_WIDTH (its fallback
     // face draws it so), else neither widened nor narrowed.
@@ -224,7 +218,28 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
     const pieces = runPieces(text).map(piece => [...piece]);
     const following = runPieces(after).map(piece => [...piece]);
     // A word does not go on from characters a fallback face draws 1em wide to others or back: see fullWidthStretches.
-    const goesOn = following[0] !== undefined && isWord(following[0].join("")) && sameWidthEdge(pieces.at(-1) ?? [], following[0], font);
+    let goesOn = false;
+
+    if (following[0] !== undefined && isWord(following[0].join(""))) {
+        // Whether the last character of the run that is not a break marker and the first of `after` both fall back
+        // full-width, or neither does.
+        const left: string[] = [];
+        const right: string[] = [];
+
+        for (const character of pieces.at(-1) ?? []) {
+            if (!BREAK_MARKER.test(character)) {
+                left.push(character);
+            }
+        }
+
+        for (const character of following[0]) {
+            if (!BREAK_MARKER.test(character)) {
+                right.push(character);
+            }
+        }
+
+        goesOn = fallsBackFullWidth(left.at(-1) ?? "", font) === fallsBackFullWidth(right[0] ?? "", font);
+    }
 
     for (const [index, piece] of pieces.entries()) {
         const last = index === pieces.length - 1;
@@ -248,7 +263,12 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
         const joins = last && goesOn && isWord(piece.join(""));
         const characters = joins ? [...piece, ...(following[0] ?? [])] : piece;
         // The pairs whose left character is in the piece: PowerPoint kerns a pair on its left glyph's advance.
-        const inner = characters.reduce((sum, character, at) => sum + kern(characters[at - 1], character), 0);
+        let inner = 0;
+
+        for (const [at, character] of characters.entries()) {
+            inner += kern(characters[at - 1], character);
+        }
+
         const next = last ? following[joins ? 1 : 0] : pieces[index + 1];
         const edge = next === undefined || next.includes("\t") ? 0 : kern(characters.at(-1), next[0]);
 
@@ -260,7 +280,7 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
             // Kerned, its own span: one LayoutUnit wider than its kerned width, rounded up, as an unkerned space is.
             const own = pair ? ceilLayoutUnit(width + inner + edge) + LAYOUT_UNIT : ceilLayoutUnit(characters.length * (spaceWidth - UNDER_LAYOUT_UNIT));
             const step = offStep(rounded);
-            const stretch = step === undefined ? own : Math.max(own, step + START_PAST_STEP - laidOut);
+            const stretch = step.kind === "on" ? own : Math.max(own, step.step + START_PAST_STEP - laidOut);
 
             if (!pair && stretch === own) {
                 spaces.push(spacing(spaceSpacing));
@@ -272,12 +292,21 @@ export function advanceGridWordSpacing(text: string, sizePt: number, font: Glyph
             laidOut += stretch;
         } else {
             // The renderers kern the word's inner pairs themselves, and no pair across its span's edge.
-            const advances = characters.map(advance);
-            const natural = inner + advances.reduce((sum, { natural }) => sum + natural, 0);
+            let naturalSum = 0;
+            let roundedSum = 0;
 
-            rounded += inner + edge + advances.reduce((sum, { rounded }) => sum + rounded + charSpacing, 0);
+            for (const character of characters) {
+                const { natural, rounded } = advance(character);
+
+                naturalSum += natural;
+                roundedSum = roundedSum + rounded + charSpacing;
+            }
+
+            const natural = inner + naturalSum;
+
+            rounded += inner + edge + roundedSum;
             const step = offStep(rounded);
-            const end = step === undefined ? floorLayoutUnit(rounded) : Math.max(floorLayoutUnit(rounded), step + PAST_STEP);
+            const end = step.kind === "on" ? floorLayoutUnit(rounded) : Math.max(floorLayoutUnit(rounded), step.step + PAST_STEP);
             const wordSpacing = spacing((end - laidOut - UNDER_LAYOUT_UNIT - natural) / characters.length);
 
             words.push(wordSpacing);
