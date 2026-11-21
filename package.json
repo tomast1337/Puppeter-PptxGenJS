@@ -28,6 +28,7 @@
     "bench:wasm": "bun run scripts/bench-wasm.ts",
     "fonts:check": "bun run scripts/check-fonts.ts",
     "test:visual:gallery": "VISUAL_GALLERY_DIR=visual-comparison bun run tests/visual/compare.ts",
+    "lint": "bun --bun eslint \"packages/*/src/**/*.{ts,tsx}\" scripts tests examples",
     "fmt": "bun run fmt:ts && bun run fmt:rust",
     "fmt:check": "bun run fmt:ts:check && bun run fmt:rust:check",
     "fmt:ts": "sh scripts/bun-fmt.sh",
@@ -36,15 +37,18 @@
     "fmt:rust:check": "sh scripts/with-rust.sh cargo fmt --manifest-path crates/Cargo.toml --all --check"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "5.10.0",
     "@types/bun": "latest",
     "@types/fontkit": "2.0.9",
     "@types/jsdom": "^21.1.7",
     "@types/pdfkit": "0.17.7",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19",
+    "eslint": "10.14.0",
     "pptxgenjs": "4.0.1",
     "react": "^19",
     "react-dom": "^19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "8.72.1"
   }
 }

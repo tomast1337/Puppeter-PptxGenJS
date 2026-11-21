@@ -279,6 +279,7 @@ For each compatibility or rendering change:
 
 ```bash
 bun run fmt:check
+bun run lint
 bun run typecheck
 bun test
 bun run test:visual        # or test:visual:docker, the only environment whose scores count
@@ -312,7 +313,7 @@ comments with concrete evidence. Do not loosen thresholds only to make a regress
 - **Every commit carries a `Signed-off-by` trailer for the human author** (`git commit -s`). Do not
   add AI co-author trailers.
 - **Required checks must pass** before merge: "Build and test package", "Packed package on Node.js 22",
-  "Packed package on Node.js 24", "Visual parity", "WASM build", and "Format" (#27). Never rename a CI
+  "Packed package on Node.js 24", "Visual parity", "WASM build", "Format" (#27), and "Lint". Never rename a CI
   job: the branch rules match on these names.
 - **Rebase merges only, linear history.** `main` accepts only rebase merges (the ruleset enforces it),
   so every commit on a PR lands on `main` as written: each one builds, says why, and carries its
