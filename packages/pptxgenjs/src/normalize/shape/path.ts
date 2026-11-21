@@ -15,11 +15,13 @@ export function cleanNumber(value: number): number {
 
 function drawingAngleParameter(degrees: number, rx: number, ry: number): number {
     const radians = degreesToRadians(degrees);
+
     return Math.atan2(rx * Math.sin(radians), ry * Math.cos(radians));
 }
 
 function ellipseRayPoint(cx: number, cy: number, rx: number, ry: number, degrees: number): PixelPoint {
     const parameter = drawingAngleParameter(degrees, rx, ry);
+
     return [cx + rx * Math.cos(parameter), cy + ry * Math.sin(parameter)];
 }
 
@@ -40,41 +42,50 @@ function arcEndpoint(current: PixelPoint, rx: number, ry: number, startDegrees: 
     const end = drawingAngleParameter(startDegrees + sweepDegrees, rx, ry);
     const centerX = current[0] - rx * Math.cos(start);
     const centerY = current[1] - ry * Math.sin(start);
+
     return [centerX + rx * Math.cos(end), centerY + ry * Math.sin(end)];
 }
 
 export function drawingPath() {
     const commands: string[] = [];
     let current: PixelPoint = [0, 0];
+
     return {
         move(x: number, y: number) {
             current = [x, y];
             commands.push(pointCommand("M", [current]));
+
             return this;
         },
         line(x: number, y: number) {
             current = [x, y];
             commands.push(pointCommand("L", [current]));
+
             return this;
         },
         arc(rx: number, ry: number, start: number, sweep: number) {
             const result = arcPathCommand(current, rx, ry, start, sweep);
+
             current = result.end;
             commands.push(result.command);
+
             return this;
         },
         quadratic(controlX: number, controlY: number, x: number, y: number) {
             current = [x, y];
             commands.push(pointCommand("Q", [[controlX, controlY], current]));
+
             return this;
         },
         cubic(controlX1: number, controlY1: number, controlX2: number, controlY2: number, x: number, y: number) {
             current = [x, y];
             commands.push(`C ${[controlX1, controlY1, controlX2, controlY2, x, y].map(cleanNumber).join(" ")}`);
+
             return this;
         },
         close() {
             commands.push("Z");
+
             return this;
         },
         data() {
@@ -85,6 +96,7 @@ export function drawingPath() {
 
 export function arcPathCommand(current: PixelPoint, rx: number, ry: number, startDegrees: number, sweepDegrees: number): { command: string; end: PixelPoint } {
     const end = arcEndpoint(current, rx, ry, startDegrees, sweepDegrees);
+
     return {
         command: `A ${cleanNumber(rx)} ${cleanNumber(ry)} 0 ${Math.abs(sweepDegrees) > 180 ? 1 : 0} ${sweepDegrees >= 0 ? 1 : 0} ${cleanNumber(end[0])} ${cleanNumber(end[1])}`,
         end,
@@ -109,10 +121,13 @@ export function ellipseArcCommands(
     const commands: string[] = [];
     const segmentCount = Math.max(1, Math.ceil(Math.abs(sweep) / 180));
     const segmentSweep = sweep / segmentCount;
+
     for (let index = 0; index < segmentCount; index++) {
         const arc = arcPathCommand(current, rx, ry, start + segmentSweep * index, segmentSweep);
+
         commands.push(arc.command);
         current = arc.end;
     }
+
     return { move: pointCommand("M", [first]), arcs: commands.join(" "), start: first, end: current };
 }

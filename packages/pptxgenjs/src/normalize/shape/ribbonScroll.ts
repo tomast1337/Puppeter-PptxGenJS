@@ -48,6 +48,7 @@ function leftRightRibbonGeometry(width: number, height: number): PathGeometry {
         .move(x2, ry2 - ry)
         .line(x2, ly3)
         .data();
+
     return {
         kind: "path",
         data: `${main} ${dark}`,

@@ -29,8 +29,14 @@ const WRITTEN_ANCHOR: Readonly<Record<VerticalAlignSource, (valign: string) => s
  * slide's CSS as it is, so it is refused.
  */
 export function paragraphAlign(align: unknown): ParagraphAlign | undefined {
-    if (!align) return undefined;
-    if (typeof align === "string" && Object.hasOwn(ALIGN_H, align)) return align as ParagraphAlign; // hasOwn: one of ALIGN_H's keys, which equal its values
+    if (!align) {
+        return undefined;
+    }
+
+    if (typeof align === "string" && Object.hasOwn(ALIGN_H, align)) {
+        return align as ParagraphAlign;
+    } // hasOwn: one of ALIGN_H's keys, which equal its values
+
     throw new TypeError(`Text option \`align\` is ${JSON.stringify(align)}; use one of ${Object.values(ALIGN_H).join(", ")}`);
 }
 
@@ -39,8 +45,15 @@ export function paragraphAlign(align: unknown): ParagraphAlign | undefined {
  * valid anchor for is refused: it would otherwise reach the slide's CSS as it is.
  */
 export function verticalAlign(valign: unknown, source: VerticalAlignSource): VerticalAlign | undefined {
-    if (!valign) return undefined;
+    if (!valign) {
+        return undefined;
+    }
+
     const anchor = typeof valign === "string" ? WRITTEN_ANCHOR[source](valign) : "";
-    if (Object.hasOwn(ANCHORS, anchor)) return ANCHORS[anchor];
+
+    if (Object.hasOwn(ANCHORS, anchor)) {
+        return ANCHORS[anchor];
+    }
+
     throw new TypeError(`Text option \`valign\` is ${JSON.stringify(valign)}; use one of ${Object.values(ALIGN_V).join(", ")}`);
 }

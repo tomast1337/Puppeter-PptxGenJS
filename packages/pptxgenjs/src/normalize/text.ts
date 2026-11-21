@@ -65,17 +65,33 @@ function inheritedOptions(parent: PptxGenJS.TextPropsOptions, child: PptxGenJS.T
     // `lineSpacingMultiple: null` into the options it is given, step 6 B copies them onto each run, and PptxGenJS
     // reads them only by truthiness, so options that went through PptxGenJS once must give the same text again.
     const inherited = { ...setOptions(parentText), ...setOptions(child) };
-    if (child.hyperlink && child.color == null) delete inherited.color;
+
+    if (child.hyperlink && child.color == null) {
+        delete inherited.color;
+    }
+
     return inherited;
 }
 
 // --- TEXT STYLING ---
 
 function underlineStyle(style?: string): NormalizedTextRun["decoration"]["underlineStyle"] {
-    if (style === "dbl" || style === "wavyDbl") return "double";
-    if (style?.includes("dash") || style?.includes("Dash")) return "dashed";
-    if (style?.includes("dot") || style?.includes("Dot")) return "dotted";
-    if (style?.includes("wavy")) return "wavy";
+    if (style === "dbl" || style === "wavyDbl") {
+        return "double";
+    }
+
+    if (style?.includes("dash") || style?.includes("Dash")) {
+        return "dashed";
+    }
+
+    if (style?.includes("dot") || style?.includes("Dot")) {
+        return "dotted";
+    }
+
+    if (style?.includes("wavy")) {
+        return "wavy";
+    }
+
     return "solid";
 }
 
@@ -87,13 +103,23 @@ function underlineStyle(style?: string): NormalizedTextRun["decoration"]["underl
 function underlineType(options: PptxGenJS.TextPropsOptions): string | undefined {
     // `unknown`: PptxGenJS's types declare only the object form; the string and boolean forms work at runtime.
     const underline: unknown = options.underline;
-    if (typeof underline === "string") return underline;
-    if (underline === true) return "sng";
+
+    if (typeof underline === "string") {
+        return underline;
+    }
+
+    if (underline === true) {
+        return "sng";
+    }
+
     return options.underline?.style || (options.hyperlink ? "sng" : undefined);
 }
 
 function textShadow(options: PptxGenJS.TextPropsOptions): NormalizedShadow | undefined {
-    if (!options.glow) return undefined;
+    if (!options.glow) {
+        return undefined;
+    }
+
     return {
         visible: true,
         color: normalizeColor({
@@ -108,8 +134,14 @@ function textShadow(options: PptxGenJS.TextPropsOptions): NormalizedShadow | und
 }
 
 function getVerticalAlign(options: PptxGenJS.TextPropsOptions): "sub" | "super" | "baseline" {
-    if (options.subscript) return "sub";
-    if (options.superscript) return "super";
+    if (options.subscript) {
+        return "sub";
+    }
+
+    if (options.superscript) {
+        return "super";
+    }
+
     return "baseline";
 }
 
@@ -122,11 +154,22 @@ function getVerticalAlign(options: PptxGenJS.TextPropsOptions): "sub" | "super" 
  * uses one.
  */
 function kerned(options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup): boolean {
-    if (!RENDERING_TARGETS[target].readsKern) return true;
-    if (options.charSpacing || (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) < PPTX_DEFAULTS.text.kernMinSizePt) return false;
+    if (!RENDERING_TARGETS[target].readsKern) {
+        return true;
+    }
+
+    if (options.charSpacing || (options.fontSize ?? PPTX_DEFAULTS.text.fontSizePt) < PPTX_DEFAULTS.text.kernMinSizePt) {
+        return false;
+    }
+
     const fontFace = options.fontFace ?? PPTX_DEFAULTS.text.fontFace;
-    if (fontMetrics(fontFace)?.pairKerning === false) return false;
+
+    if (fontMetrics(fontFace)?.pairKerning === false) {
+        return false;
+    }
+
     const advances = fontMetrics.glyphAdvances?.(fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
+
     return advances === undefined || Boolean(advances.kerning?.size);
 }
 
@@ -144,16 +187,28 @@ function runSpacing(text: string, options: PptxGenJS.TextPropsOptions, escaped: 
     // A U+2011 drawn with the hyphen-minus glyph takes its advance.
     const drawn = RENDERING_TARGETS[target].nonBreakingHyphen === "hyphen-minus" ? text.replaceAll(NON_BREAKING_HYPHEN, "-") : text;
     const spacing = advanceGridWordSpacing(drawn, sizePt, font, advanceGridPt, charSpacing, kerned(options, target, fontMetrics), cursor, after);
-    if (!spacing) return { characterSpacing: pointsToPixels(charSpacing) };
+
+    if (!spacing) {
+        return { characterSpacing: pointsToPixels(charSpacing) };
+    }
+
     const [word, ...others] = spacing.words;
-    if (word !== undefined && !others.length && runPieces(text).length === 1) return { characterSpacing: word };
-    if (!spacing.words.length && !spacing.spaces) return { characterSpacing: spacing.space };
+
+    if (word !== undefined && !others.length && runPieces(text).length === 1) {
+        return { characterSpacing: word };
+    }
+
+    if (!spacing.words.length && !spacing.spaces) {
+        return { characterSpacing: spacing.space };
+    }
+
     return { characterSpacing: spacing.space, wordCharacterSpacing: spacing.words, ...(spacing.spaces ? { spaceCharacterSpacing: spacing.spaces } : {}) };
 }
 
 /** The caller's `fontMetrics` underline for the face (#391), in em: the band drawn in place of its `post` band. */
 function underlineBand(metrics: FontWinMetrics | undefined): Pick<NormalizedTextDecoration, "underlineBand"> {
     const band = metrics?.underline;
+
     return band ? { underlineBand: { position: band.position / metrics.unitsPerEm, thickness: band.thickness / metrics.unitsPerEm } } : {};
 }
 
@@ -242,12 +297,14 @@ const ROMAN_NUMERALS: Array<[number, string]> = [
 function generateRoman(value: number, upper: boolean): string {
     let current = Math.max(1, value);
     let result = "";
+
     for (const [amount, glyph] of ROMAN_NUMERALS) {
         while (current >= amount) {
             result += glyph;
             current -= amount;
         }
     }
+
     return upper ? result : result.toLowerCase();
 }
 
@@ -255,25 +312,41 @@ function generateAlpha(value: number, upper: boolean): string {
     let result = "";
     let current = Math.max(1, value);
     const baseCharCode = upper ? 65 : 97;
+
     while (current > 0) {
         current--;
         result = String.fromCharCode(baseCharCode + (current % 26)) + result;
         current = Math.floor(current / 26);
     }
+
     return result;
 }
 
 function numberMarker(type: string, value: number): string {
     let core = String(value);
 
-    if (type.startsWith("alphaLc")) core = generateAlpha(value, false);
-    else if (type.startsWith("alphaUc")) core = generateAlpha(value, true);
-    else if (type.startsWith("romanLc")) core = generateRoman(value, false);
-    else if (type.startsWith("romanUc")) core = generateRoman(value, true);
+    if (type.startsWith("alphaLc")) {
+        core = generateAlpha(value, false);
+    } else if (type.startsWith("alphaUc")) {
+        core = generateAlpha(value, true);
+    } else if (type.startsWith("romanLc")) {
+        core = generateRoman(value, false);
+    } else if (type.startsWith("romanUc")) {
+        core = generateRoman(value, true);
+    }
 
-    if (type.endsWith("ParenBoth")) return `(${core})`;
-    if (type.endsWith("ParenR")) return `${core})`;
-    if (type.endsWith("Plain")) return core;
+    if (type.endsWith("ParenBoth")) {
+        return `(${core})`;
+    }
+
+    if (type.endsWith("ParenR")) {
+        return `${core})`;
+    }
+
+    if (type.endsWith("Plain")) {
+        return core;
+    }
+
     return `${core}.`;
 }
 
@@ -297,6 +370,7 @@ interface NumberSequence {
  */
 function sequenceIndex(lists: readonly NumberSequence[], { level, numberType, start }: Pick<NormalizedTextBullet, "level" | "numberType" | "start">): number {
     const list = lists.find(open => open.level === level);
+
     return list && list.numberType === numberType && list.start === start ? list.next : 0;
 }
 
@@ -306,7 +380,9 @@ function paragraphLevel(options: PptxGenJS.TextPropsOptions): number {
 }
 
 function normalizeBullet(options: PptxGenJS.TextPropsOptions, lists: readonly NumberSequence[]): NormalizedTextBullet | undefined {
-    if (!options.bullet) return undefined;
+    if (!options.bullet) {
+        return undefined;
+    }
 
     const config = typeof options.bullet === "object" ? options.bullet : {};
     const level = paragraphLevel(options);
@@ -317,6 +393,7 @@ function normalizeBullet(options: PptxGenJS.TextPropsOptions, lists: readonly Nu
     const code = config.characterCode ?? config.code;
 
     let marker: string = PPTX_DEFAULTS.bullet.character;
+
     if (kind === "number") {
         marker = numberMarker(numberType, start + sequenceIndex(lists, { level, numberType, start }));
     } else if (code && /^[0-9a-f]{4,6}$/i.test(code)) {
@@ -375,6 +452,7 @@ function paragraphFromPieces(
     const { markBaseline: _markBaseline, ...feedLineBox } = lineBox;
 
     const align = paragraphAlign(first.align) ?? PPTX_DEFAULTS.text.align;
+
     return {
         runs,
         align,
@@ -403,19 +481,29 @@ function paragraphFromPieces(
  */
 function pieceRuns(piece: TextPiece, next: TextPiece | undefined, options: PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup, cursor: GridCursor, kernedText: string): NormalizedTextRun[] {
     // A soft break starts a line, so the sums start again with it, exactly where PowerPoint's line does.
-    if (options.softBreakBefore) Object.assign(cursor, { rounded: 0, laidOut: 0, word: undefined });
+    if (options.softBreakBefore) {
+        Object.assign(cursor, { rounded: 0, laidOut: 0, word: undefined });
+    }
+
     const marks = languageHangingMarks(options.lang ?? PPTX_DEFAULTS.theme.language, RENDERING_TARGETS[target].hangingMarks);
-    if (!marks) return fallbackRuns(piece.text, options, target, fontMetrics, cursor, kernedText);
+
+    if (!marks) {
+        return fallbackRuns(piece.text, options, target, fontMetrics, cursor, kernedText);
+    }
+
     const after = next && !next.options.softBreakBefore ? [...next.text][0] : undefined;
     const font = fontMetrics.glyphAdvances?.(options.fontFace ?? PPTX_DEFAULTS.text.fontFace, options.bold ?? PPTX_DEFAULTS.text.bold, options.italic ?? PPTX_DEFAULTS.text.italic);
     const segments = hangingSegments(piece.text, after, marks);
+
     return segments.flatMap(({ text, hangs }, index) => {
         const rest = segments.slice(index + 1).map(segment => segment.text);
         // A word does not go on into a mark that hangs: the mark's advance is cancelled and its U+3000 laid out apart.
         const kerned = segments[index + 1]?.hangs ? "" : wordAfter(`${rest.join("")}${kernedText}`);
+
         return fallbackRuns(text, options, target, fontMetrics, cursor, kerned).flatMap(run => {
             // Only the piece's first stretch starts after its soft break.
             const segment = index ? { ...run, softBreakBefore: false } : run;
+
             return hangs ? hangingMarkRuns(segment, font) : [segment];
         });
     });
@@ -432,8 +520,10 @@ function fallbackRuns(text: string, options: PptxGenJS.TextPropsOptions, target:
     const fallback = fallbackSegments(text, fontFace, bold, italic, target, fontMetrics);
     const font = RENDERING_TARGETS[target].advanceGridPt === undefined ? undefined : fontMetrics.glyphAdvances?.(fontFace, bold, italic);
     const segments = font ? fallback.flatMap(segment => fullWidthStretches(segment.text, font).map(stretch => ({ ...segment, text: stretch }))) : fallback;
+
     return segments.map(({ text: stretch, fallbackFaces }, index) => {
         const run = normalizeTextRun(stretch, options, target, fontMetrics, cursor, index === segments.length - 1 ? kernedText : "");
+
         // Only the first stretch starts after the piece's soft break.
         return { ...run, ...(fallbackFaces.length ? { fallbackFaces } : {}), ...(index ? { softBreakBefore: false } : {}) };
     });
@@ -446,18 +536,34 @@ function fallbackRuns(text: string, options: PptxGenJS.TextPropsOptions, target:
  */
 function kernedAfter(pieces: readonly TextPiece[], index: number, pieceOptions: (piece: TextPiece) => PptxGenJS.TextPropsOptions, target: RenderingTarget, fontMetrics: FontMetricsLookup): string {
     const first = pieces[index];
-    if (!first) return "";
+
+    if (!first) {
+        return "";
+    }
+
     const options = pieceOptions(first);
-    if (!kerned(options, target, fontMetrics)) return "";
+
+    if (!kerned(options, target, fontMetrics)) {
+        return "";
+    }
+
     const { fontFace, bold, italic, fontSizePt } = PPTX_DEFAULTS.text;
     const font = (piece: PptxGenJS.TextPropsOptions) => [piece.fontFace ?? fontFace, piece.bold ?? bold, piece.italic ?? italic, piece.fontSize ?? fontSizePt, piece.superscript, piece.subscript, piece.baseline].join("|");
     let after = "";
+
     for (const piece of pieces.values().drop(index + 1)) {
         const next = pieceOptions(piece);
-        if (next.softBreakBefore || font(next) !== font(options) || !kerned(next, target, fontMetrics)) break;
+
+        if (next.softBreakBefore || font(next) !== font(options) || !kerned(next, target, fontMetrics)) {
+            break;
+        }
+
         after += piece.text;
-        if (piece.text.includes(" ") || piece.text.includes("\t")) break;
+        if (piece.text.includes(" ") || piece.text.includes("\t")) {
+            break;
+        }
     }
+
     return wordAfter(after);
 }
 
@@ -468,6 +574,7 @@ function hanPunctuationBreaks(runs: NormalizedTextRun[], hangingMarks: Readonly<
         const following = runs[index + 1];
         const next = following && !following.softBreakBefore ? following.text.charAt(0) : "";
         const text = breakAroundHanPunctuation(run.text, previous, next, languageHangingMarks(run.language, hangingMarks) !== undefined);
+
         return text === run.text ? run : { ...run, text };
     });
 }
@@ -483,7 +590,11 @@ function hanPunctuationBreaks(runs: NormalizedTextRun[], hangingMarks: Readonly<
  */
 function spacedLineEndOffset(runs: readonly NormalizedTextRun[], spacing: LineSpacing | undefined, lineBox: NormalizedTextParagraph["lineBox"], target: RenderingTarget, fontMetrics: FontMetricsLookup): number {
     const fontSize = Math.max(0, ...runs.map(run => run.fontSize));
-    if (!RENDERING_TARGETS[target].fontLineBaseline || !isSpaced(spacing, fontSize, target)) return 0;
+
+    if (!RENDERING_TARGETS[target].fontLineBaseline || !isSpaced(spacing, fontSize, target)) {
+        return 0;
+    }
+
     return Math.min(0, lineBox.baseline + singleLineExtents(runs, fontMetrics).descent - lineBox.height);
 }
 
@@ -495,9 +606,16 @@ function spacedLineEndOffset(runs: readonly NormalizedTextRun[], spacing: LineSp
  * 9). `fontSize` is the paragraph's largest, in px.
  */
 function isSpaced(spacing: LineSpacing | undefined, fontSize: number, target: RenderingTarget): spacing is LineSpacing {
-    if (spacing === undefined) return false;
+    if (spacing === undefined) {
+        return false;
+    }
+
     const single = PPTX_DEFAULTS.text.singleLineEm;
-    if ("em" in spacing) return spacing.em !== single;
+
+    if ("em" in spacing) {
+        return spacing.em !== single;
+    }
+
     return !(RENDERING_TARGETS[target].fontLineBaseline && Math.abs(spacing.exact - single * fontSize) < SINGLE_LINE_EPSILON);
 }
 
@@ -513,6 +631,7 @@ function joinOpeningBrackets(runs: NormalizedTextRun[]): NormalizedTextRun[] {
     return runs.map((run, index) => {
         const previous = run.softBreakBefore ? "" : (runs[index - 1]?.text.at(-1) ?? "");
         const text = `${previous}${run.text}`.replace(BEFORE_OPENING_BRACKET, WORD_JOINER).slice(previous.length);
+
         return text === run.text ? run : { ...run, text };
     });
 }
@@ -522,8 +641,12 @@ function joinOpeningBrackets(runs: NormalizedTextRun[]): NormalizedTextRun[] {
  * rounds it half-up to whole points (RENDERING_TARGETS.spacingWholePoints), so 0.49 is 0 and 0.5 is 1.
  */
 function spacingPoints(points: number, target: RenderingTarget): number {
-    if (!RENDERING_TARGETS[target].spacingWholePoints) return points;
+    if (!RENDERING_TARGETS[target].spacingWholePoints) {
+        return points;
+    }
+
     const { spacingPointsPerPoint } = PPTX_DEFAULTS.units;
+
     // Whole hundredths, as written, so the half-up step is exact integer arithmetic.
     return Math.floor((Math.round(points * spacingPointsPerPoint) + spacingPointsPerPoint / 2) / spacingPointsPerPoint);
 }
@@ -559,24 +682,40 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions, w
         const record = records.get(item.key);
         // A copy, so the mutations below never reach the caller's options.
         const options = record?.state ?? sharedRunOptions(Array.isArray(input) ? writing.shared : undefined, item.key, item.own);
+
         if (!record) {
             // A run's own `shadow` draws nothing: PptxGenJS 4.0.1 genXmlTextRunProperties writes only `glow` into the run's
             // <a:effectLst> (COMPATIBILITY.text runShadow). A string's options are the text box's, whose shadow is written.
-            if (Array.isArray(input)) delete options.shadow;
+            if (Array.isArray(input)) {
+                delete options.shadow;
+            }
+
             records.set(item.key, { start: { ...options }, state: options });
         }
+
         const text = item.text.replace(/\r\n?/g, "\n");
         // STEP 4 C splits a text with a line feed that does not end with one, and sets `breakLine` on the shared record,
         // so every piece ends a paragraph, the last one too. A text ending with a line feed is written whole, its line
         // feeds kept inside `<a:t>` (splitAtLineFeeds).
         const lines = text.endsWith("\n") ? [text] : text.split("\n");
-        if (lines.length > 1) options.breakLine = true;
-        for (const line of lines) pieces.push({ text: line, options, ...(line ? {} : { noRun: true }) });
+
+        if (lines.length > 1) {
+            options.breakLine = true;
+        }
+
+        for (const line of lines) {
+            pieces.push({ text: line, options, ...(line ? {} : { noRun: true }) });
+        }
     }
+
     // STEP 4 A gives the first run the box's bullet.
     const first = pieces[0]?.options;
     const box = writing.box ?? parent;
-    if (first && !first.bullet && box.bullet) first.bullet = box.bullet;
+
+    if (first && !first.bullet && box.bullet) {
+        first.bullet = box.bullet;
+    }
+
     return pieces;
 }
 
@@ -584,6 +723,7 @@ function piecesFromInput(input: TextInput, parent: PptxGenJS.TextPropsOptions, w
 function underlinedTrue(options: PptxGenJS.TextPropsOptions): boolean {
     // `unknown`: PptxGenJS's types declare only the object form; the boolean works at runtime.
     const underline: unknown = options.underline;
+
     return underline === true;
 }
 
@@ -606,13 +746,18 @@ const UNWRITTEN_RUN_OPTIONS: ReadonlySet<string> = new Set([
 function writeBoxOptions(lines: readonly TextPiece[][], box: PptxGenJS.TextPropsOptions): void {
     // `Record`: options are written by name, which the declared option type does not index.
     const written: Record<string, unknown> = { ...box };
+
     for (const line of lines) {
         for (const { options } of line) {
             // `as`: the same record, written by name; its pieces read the writes.
             const run = options as Record<string, unknown>;
+
             for (const [name, value] of Object.entries(written)) {
-                if (!run[name] && !UNWRITTEN_RUN_OPTIONS.has(name) && !(name === "color" && run.hyperlink)) run[name] = value;
+                if (!run[name] && !UNWRITTEN_RUN_OPTIONS.has(name) && !(name === "color" && run.hyperlink)) {
+                    run[name] = value;
+                }
             }
+
             written.fontSize ||= run.fontSize;
         }
     }
@@ -627,13 +772,17 @@ function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextP
 
     pieces.forEach((piece, index) => {
         const { options } = piece;
+
         if (current.length > 0) {
             const aligned = Boolean(options.align || parentAlign);
             const startsGroup = aligned ? options.align !== pieces[index - 1]?.options.align : Boolean(options.bullet);
+
             if (startsGroup) {
                 groups.push(current);
                 current = [];
-                if (!aligned) options.breakLine = false;
+                if (!aligned) {
+                    options.breakLine = false;
+                }
             }
         }
 
@@ -645,7 +794,10 @@ function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextP
         }
     });
 
-    if (current.length || groups.length === 0) groups.push(current);
+    if (current.length || groups.length === 0) {
+        groups.push(current);
+    }
+
     return groups;
 }
 
@@ -656,8 +808,12 @@ function groupPieces(pieces: TextPiece[], parentAlign?: PptxGenJS.HAlign): TextP
  */
 function markFontSizes(lines: readonly TextPiece[][], parent: PptxGenJS.TextPropsOptions): Array<number | undefined> {
     let size = parent.fontSize || undefined;
+
     return lines.map(line => {
-        for (const piece of line) size ||= piece.options.fontSize || undefined;
+        for (const piece of line) {
+            size ||= piece.options.fontSize || undefined;
+        }
+
         return size;
     });
 }
@@ -666,30 +822,52 @@ function markFontSizes(lines: readonly TextPiece[][], parent: PptxGenJS.TextProp
 function splitAtLineFeeds(line: TextPiece[], markFontSize: number | undefined): PieceGroup[] {
     let current: TextPiece[] = [];
     const groups = [current];
+
     for (const piece of line) {
         const lines = piece.text.split("\n");
+
         lines.forEach((text, index) => {
             if (index > 0) {
                 current = [];
                 groups.push(current);
             }
+
             current.push(lines.length === 1 ? piece : { ...piece, text, ...(index === lines.length - 1 ? { tail: true } : {}) });
         });
     }
+
     return groups.map((pieces, index) => ({ pieces, paragraph: line[0]?.options, endsParagraph: index === groups.length - 1, markFontSize }));
 }
 
 function getTextDirection(vert?: string): "vertical" | "vertical270" | "stacked" | "horizontal" {
-    if (vert === "vert") return "vertical";
-    if (vert === "vert270") return "vertical270";
-    if (vert?.includes("wordArtVert")) return "stacked";
+    if (vert === "vert") {
+        return "vertical";
+    }
+
+    if (vert === "vert270") {
+        return "vertical270";
+    }
+
+    if (vert?.includes("wordArtVert")) {
+        return "stacked";
+    }
+
     return "horizontal";
 }
 
 function getFitMode(options: PptxGenJS.TextPropsOptions): "shrink" | "resize" | "none" {
-    if (options.fit) return options.fit;
-    if (options.shrinkText) return "shrink";
-    if (options.autoFit) return "resize";
+    if (options.fit) {
+        return options.fit;
+    }
+
+    if (options.shrinkText) {
+        return "shrink";
+    }
+
+    if (options.autoFit) {
+        return "resize";
+    }
+
     return PPTX_DEFAULTS.text.fit;
 }
 
@@ -713,14 +891,21 @@ export function normalizeText(
     paragraphAlign(options.align);
     const records = new Map<object, RunRecord>();
     const lines = groupPieces(piecesFromInput(input, options, writing, records), options.align);
+
     writeBoxOptions(lines, writing.box ?? options);
     for (const [key, { start, state }] of records) {
         // A string's options and a cell's option-less runs are the box's own, not a run options object.
-        if (writing.shared && Array.isArray(input) && key !== options) recordSharedRun(writing.shared, key, start, state);
+        if (writing.shared && Array.isArray(input) && key !== options) {
+            recordSharedRun(writing.shared, key, start, state);
+        }
+
         // A table cell gets no addTextDefinition, which turns a text box's `underline: true` into `{ style: "sng" }`:
         // in a cell the boolean writes no `u`. Set after STEP 6, which keeps the cell's underline off the run.
-        if (writing.cell && underlinedTrue(state)) Object.assign(state, { underline: false });
+        if (writing.cell && underlinedTrue(state)) {
+            Object.assign(state, { underline: false });
+        }
     }
+
     const markSizes = markFontSizes(lines, options);
     const groups = lines.flatMap((line, index) => splitAtLineFeeds(line, markSizes[index]));
 
@@ -734,18 +919,23 @@ export function normalizeText(
         // Shallower levels' lists stay open; a paragraph ends its own level's and deeper ones, and a numbered one
         // reopens its own (sequenceIndex).
         const shallower = lists.filter(open => open.level < level);
-        if (bullet?.kind !== "number") lists = shallower;
-        else {
+
+        if (bullet?.kind !== "number") {
+            lists = shallower;
+        } else {
             const numberIndex = sequenceIndex(lists, bullet);
             const next = emptyNumberedParagraph === "skipped" ? numberIndex + (empty ? 0 : 1) : runless ? 0 : numberIndex + 1;
+
             lists = [...shallower, { level, numberType: bullet.numberType, start: bullet.start, next }];
         }
+
         // shortcut: PowerPoint's dropped first space before was measured on top-anchored text boxes only; middle and
         // bottom anchors and table cells follow the same rule until a measurement says otherwise.
         const first = index === 0 && !spacesFirstParagraph ? { spaceBefore: 0 } : {};
         // PowerPoint and LibreOffice leave the last paragraph's space after out of the text height, so it does not
         // lift middle- or bottom-anchored text (or grow a table row); the text ends where its last line does.
         const last = index === groups.length - 1 ? { spaceAfter: lineEndOffset } : {};
+
         return { ...paragraph, ...(bullet && !runless ? { bullet } : {}), ...first, ...last };
     });
     // CSS keeps only the larger of two adjacent margins; a target that adds them gets each space after moved onto
@@ -788,6 +978,7 @@ export function paragraphLineBox(paragraph: LineBoxInput, target: RenderingTarge
     const box = fontLineBox(paragraph, target, fontMetrics, themeFontFace, markFontFace, markFontSize);
     // An exact line height (`<a:spcPts>`) is fixed whatever the line holds.
     const exact = paragraph.spacing !== undefined && "exact" in paragraph.spacing;
+
     return baselinesOnGrid(RENDERING_TARGETS[target].escapementGrowsLine && !exact ? escapementLineBox(box, paragraph.runs) : box, target);
 }
 
@@ -807,8 +998,13 @@ function escapementLineBox(box: NormalizedTextParagraph["lineBox"], runs: readon
     const size = Math.max(0, ...drawn.map(run => run.fontSize));
     const above = Math.max(0, ...drawn.map(run => ascentEm * run.fontSize + run.baselineOffset - ascentEm * size));
     const below = Math.max(0, ...drawn.map(run => lineDescentEm * run.fontSize - run.baselineOffset - lineDescentEm * size));
-    if (!above && !below) return box;
+
+    if (!above && !below) {
+        return box;
+    }
+
     const { height, baseline, markBaseline, breakBaseline } = box;
+
     return {
         height: height + above + below,
         baseline: baseline + above,
@@ -820,12 +1016,17 @@ function escapementLineBox(box: NormalizedTextParagraph["lineBox"], runs: readon
 /** `lineBox` with each baseline on the target's grid, a mark or break baseline kept only where it still differs. */
 function baselinesOnGrid(lineBox: NormalizedTextParagraph["lineBox"], target: RenderingTarget): NormalizedTextParagraph["lineBox"] {
     const { baselineGridPerInch } = RENDERING_TARGETS[target];
-    if (baselineGridPerInch === undefined) return lineBox;
+
+    if (baselineGridPerInch === undefined) {
+        return lineBox;
+    }
+
     // One division of whole numbers, so the HTML writes 23.36, not 23.359999999999996.
     const { cssDpi } = PPTX_DEFAULTS.units;
     const onGrid = (value: number) => (Math.round((value * baselineGridPerInch) / cssDpi) * cssDpi) / baselineGridPerInch;
     const { height, baseline, markBaseline, breakBaseline } = lineBox;
     const [line, mark, soft] = [onGrid(baseline), markBaseline === undefined ? undefined : onGrid(markBaseline), breakBaseline === undefined ? undefined : onGrid(breakBaseline)];
+
     return { height, baseline: line, ...(mark !== undefined && mark !== line ? { markBaseline: mark } : {}), ...(soft !== undefined && soft !== line ? { breakBaseline: soft } : {}) };
 }
 
@@ -837,10 +1038,18 @@ function fontLineBox(paragraph: LineBoxInput, target: RenderingTarget, fontMetri
     const { spacing } = paragraph;
     const box = lineBoxOf(fontSize, spacing === undefined ? undefined : "exact" in spacing ? spacing.exact : spacing.em * fontSize);
     const { spacedLineBaseline, fontLineBaseline } = RENDERING_TARGETS[target];
-    if (isSpaced(spacing, fontSize, target)) return spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
+
+    if (isSpaced(spacing, fontSize, target)) {
+        return spacedLineBaseline !== undefined ? { ...box, baseline: spacedLineBaseline * box.height } : box;
+    }
+
     const { runs } = paragraph;
     const last = runs.at(-1);
-    if (!fontLineBaseline || !last) return box;
+
+    if (!fontLineBaseline || !last) {
+        return box;
+    }
+
     // PowerPoint counts the paragraph mark on the last line and a soft break on the line it ends, at the size of the last
     // run and of the run before the break; in a paragraph with a run it ignores the size PptxGenJS writes on <a:endParaRPr> (a
     // run-less one takes it, paragraphFromPieces) but reads its typeface,
@@ -851,6 +1060,7 @@ function fontLineBox(paragraph: LineBoxInput, target: RenderingTarget, fontMetri
     const markBaseline = fontBaseline([...runs, { fontFace: markFontFace, fontSize: markFontSize ?? last.fontSize }], box.height, fontMetrics);
     const breakSize = Math.max(0, ...runs.map((run, index) => (index > 0 && run.softBreakBefore ? (runs[index - 1]?.fontSize ?? 0) : 0)));
     const breakBaseline = breakSize ? fontBaseline([...runs, { fontFace: themeFontFace, fontSize: breakSize }], box.height, fontMetrics) : baseline;
+
     return { ...box, baseline, ...(markBaseline !== baseline ? { markBaseline } : {}), ...(breakBaseline !== baseline ? { breakBaseline } : {}) };
 }
 
@@ -861,6 +1071,7 @@ function fontLineBox(paragraph: LineBoxInput, target: RenderingTarget, fontMetri
  */
 function fontBaseline(runs: ReadonlyArray<Pick<NormalizedTextRun, "fontFace" | "fontSize">>, height: number, fontMetrics: FontMetricsLookup): number {
     const { ascent, descent } = singleLineExtents(runs, fontMetrics);
+
     return ascent + descent > height ? (ascent * height) / (ascent + descent) : ascent;
 }
 
@@ -868,17 +1079,21 @@ function fontBaseline(runs: ReadonlyArray<Pick<NormalizedTextRun, "fontFace" | "
 function singleLineExtents(runs: ReadonlyArray<Pick<NormalizedTextRun, "fontFace" | "fontSize">>, fontMetrics: FontMetricsLookup): { ascent: number; descent: number } {
     let ascent = 0;
     let descent = 0;
+
     for (const run of runs) {
         const share = ascentShare(fontMetrics(run.fontFace));
+
         ascent = Math.max(ascent, share * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
         descent = Math.max(descent, (1 - share) * PPTX_DEFAULTS.text.singleLineEm * run.fontSize);
     }
+
     return { ascent, descent };
 }
 
 /** The part of a single-spaced line above the baseline in a font with `metrics`, else the font-independent 1em of 1.2em. */
 function ascentShare(metrics: FontWinMetrics | undefined): number {
     const { singleLineEm, lineDescentEm } = PPTX_DEFAULTS.text;
+
     return metrics ? metrics.winAscent / (metrics.winAscent + metrics.winDescent) : (singleLineEm - lineDescentEm) / singleLineEm;
 }
 
@@ -898,13 +1113,21 @@ const WRAP_GRID_EPSILON = 1e-6;
  */
 export function floorTextWrapWidth(text: NormalizedTextBox, width: number, target: RenderingTarget): NormalizedTextBox {
     const grid = RENDERING_TARGETS[target].wrapWidthGridPt;
-    if (grid === undefined || !text.wrap || text.direction !== "horizontal") return text;
+
+    if (grid === undefined || !text.wrap || text.direction !== "horizontal") {
+        return text;
+    }
+
     const [top, right, bottom, left] = text.margin;
     const step = pointsToPixels(grid);
     const inner = width - left - right;
     // A width on the grid in inches comes back a hair under it in px; it is on the grid.
     const remainder = inner - Math.floor(inner / step + WRAP_GRID_EPSILON) * step;
-    if (inner <= 0 || remainder <= WRAP_GRID_EPSILON * step) return text;
+
+    if (inner <= 0 || remainder <= WRAP_GRID_EPSILON * step) {
+        return text;
+    }
+
     return { ...text, margin: [top, right + remainder, bottom, left] };
 }
 
@@ -915,6 +1138,10 @@ export function floorTextWrapWidth(text: NormalizedTextBox, width: number, targe
  */
 export function collapseTextMargins(text: NormalizedTextBox, height: number): NormalizedTextBox {
     const [top, right, bottom, left] = text.margin;
-    if (top + bottom <= height) return text;
+
+    if (top + bottom <= height) {
+        return text;
+    }
+
     return { ...text, margin: [height / 2, right, height / 2, left] };
 }

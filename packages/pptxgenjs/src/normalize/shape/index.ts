@@ -18,6 +18,7 @@ const BASIC_GEOMETRY = {
     roundRect: (width, height, options) => {
         // PptxGenJS 4.0.1 writes the `adj` guide only for a truthy rectRadius; 0 keeps the preset's 1/6 corner.
         const radius = !options.rectRadius ? Math.min(width, height) / 6 : Math.min(Math.min(width, height) / 2, inchesToPixels(Math.max(0, options.rectRadius)));
+
         return { kind: "rect", radius: px(radius) };
     },
     ellipse: () => ({ kind: "ellipse" }),
@@ -52,22 +53,35 @@ export const CORE_SVG_SHAPES: readonly string[] = Object.freeze([...Object.keys(
 function shapeTextInsets(shapeName: CustomShapeName, options: PptxGenJS.ShapeProps, width: number, height: number): NormalizedShape["textInsets"] {
     // The roundRect corner is the only adjustment PdfLapas reads (rectRadius in inches, as the `adj` PptxGenJS writes).
     const corner: Record<string, number> = shapeName === "roundRect" && options.rectRadius ? { adj: (inchesToPixels(options.rectRadius) * OOXML_PERCENT) / Math.min(width, height) } : {};
+
     return presetTextInsets(shapeName, width, height, corner);
 }
 
 export function normalizeShape(shapeName: CustomShapeName, options: PptxGenJS.ShapeProps, width: number, height: number, pageSize: PageSize): NormalizedShape {
     // The name comes from the caller: check it, so an Object.prototype name never reaches a lookup.
     const geometry: ShapeGeometry | undefined = isGeneratedPreset(shapeName) ? (w, h) => generatedPresetGeometry(shapeName, w, h) : isHandDrawn(shapeName) ? HAND_DRAWN_GEOMETRY[shapeName] : undefined;
-    if (!geometry) throw new Error(`Unsupported shape geometry: ${shapeName}`);
-    if (options.shadow?.type === "inner") throw innerShadowError(`shape "${shapeName}"`);
+
+    if (!geometry) {
+        throw new Error(`Unsupported shape geometry: ${shapeName}`);
+    }
+
+    if (options.shadow?.type === "inner") {
+        throw innerShadowError(`shape "${shapeName}"`);
+    }
+
     const link = normalizeHyperlink(options.hyperlink);
+
     return { name: shapeName, width: px(width), height: px(height), geometry: geometry(width, height, options, pageSize), textInsets: shapeTextInsets(shapeName, options, width, height), link };
 }
 
 export function normalizeShapeTextBox(text: NormalizedTextBox, shape: NormalizedShape): NormalizedTextBox {
-    if (!shape.textInsets) return text;
+    if (!shape.textInsets) {
+        return text;
+    }
+
     const [insetTop, insetRight, insetBottom, insetLeft] = shape.textInsets;
     const [marginTop, marginRight, marginBottom, marginLeft] = text.margin;
+
     return {
         ...text,
         margin: [marginTop + insetTop, marginRight + insetRight, marginBottom + insetBottom, marginLeft + insetLeft],

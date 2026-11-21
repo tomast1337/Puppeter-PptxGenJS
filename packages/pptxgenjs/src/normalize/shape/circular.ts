@@ -8,6 +8,7 @@ const DEFAULT_ARC_THICKNESS_RATIO = 0.5;
 
 function normalizedSweep(start: number, end: number): number {
     const delta = (((end - start) % 360) + 360) % 360;
+
     return delta === 0 ? 360 : delta;
 }
 
@@ -17,6 +18,7 @@ function outerArc(shapeName: keyof typeof DEFAULT_ANGLE_RANGES, options: PptxGen
     const start = ((range[0] % 360) + 360) % 360;
     const end = ((range[1] % 360) + 360) % 360;
     const sweep = normalizedSweep(start, end);
+
     return { end, sweep, outer: ellipseArcCommands(width / 2, height / 2, width / 2, height / 2, start, sweep) };
 }
 
@@ -24,16 +26,19 @@ function arc(width: number, height: number, options: PptxGenJS.ShapeProps): Path
     const { outer } = outerArc("arc", options, width, height);
     const face = `${outer.move} ${outer.arcs} L ${cleanNumber(width / 2)} ${cleanNumber(height / 2)} Z`;
     const outline = `${outer.move} ${outer.arcs}`;
+
     return { kind: "path", data: face, faces: [{ data: face }], outlineData: outline };
 }
 
 function pie(width: number, height: number, options: PptxGenJS.ShapeProps): PathGeometry {
     const { outer } = outerArc("pie", options, width, height);
+
     return { kind: "path", data: `${outer.move} ${outer.arcs} L ${cleanNumber(width / 2)} ${cleanNumber(height / 2)} Z` };
 }
 
 function chord(width: number, height: number, options: PptxGenJS.ShapeProps): PathGeometry {
     const { outer } = outerArc("chord", options, width, height);
+
     return { kind: "path", data: `${outer.move} ${outer.arcs} Z` };
 }
 
@@ -44,6 +49,7 @@ function blockArc(width: number, height: number, options: PptxGenJS.ShapeProps):
     const innerX = Math.max(width / 2 - thickness, MIN_INNER_RADIUS);
     const innerY = Math.max(height / 2 - thickness, MIN_INNER_RADIUS);
     const inner = ellipseArcCommands(width / 2, height / 2, innerX, innerY, end, -sweep);
+
     return {
         kind: "path",
         data: `${outer.move} ${outer.arcs} L ${cleanNumber(inner.start[0])} ${cleanNumber(inner.start[1])} ${inner.arcs} Z`,

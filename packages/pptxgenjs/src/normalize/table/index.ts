@@ -21,10 +21,14 @@ function span(value?: number): number {
 
 export function columnCount(rows: PptxGenJS.TableRow[]): number {
     const firstRow = rows[0] ?? [];
+
     return Math.max(
         1,
         firstRow.reduce((total, cell) => {
-            if (typeof cell !== "object" || cell === null) return total + 1;
+            if (typeof cell !== "object" || cell === null) {
+                return total + 1;
+            }
+
             return total + span(cell.options?.colspan);
         }, 0),
     );
@@ -38,6 +42,7 @@ export function columnCount(rows: PptxGenJS.TableRow[]): number {
 function addTableSize(value: PptxGenJS.Coord, pageInches: number): { emu: number; pixels: number } {
     const emu = smartParseEmu(value, pageInches * PPTX_DEFAULTS.units.emuPerInch);
     const pixels = emu && emu < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(emu) : convertToPixels(value, inchesToPixels(pageInches));
+
     return { emu, pixels };
 }
 
@@ -47,13 +52,19 @@ function addTableSize(value: PptxGenJS.Coord, pageInches: number): { emu: number
  * 1 EMU for a string (`typeof w === "number" ? w : 1`).
  */
 function widthBesideColW(w: PptxGenJS.Coord | undefined): number {
-    if (typeof w !== "number") return emuToPixels(1);
+    if (typeof w !== "number") {
+        return emuToPixels(1);
+    }
+
     return w < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(w) : emuToPixels(w);
 }
 
 /** Scalar `colW`, or a single-item one over several columns: PptxGenJS 4.0.1 gives every column that width. */
 function repeatedColumnWidth(count: number, options: PptxGenJS.TableProps): number | undefined {
-    if (typeof options.colW === "number") return options.colW;
+    if (typeof options.colW === "number") {
+        return options.colW;
+    }
+
     return Array.isArray(options.colW) && options.colW.length === 1 && count > 1 ? options.colW[0] : undefined;
 }
 
@@ -64,32 +75,47 @@ function repeatedColumnWidth(count: number, options: PptxGenJS.TableProps): numb
  */
 export function addTableLeavesNoWidth(count: number, options: PptxGenJS.TableProps): boolean {
     const repeatedWidth = repeatedColumnWidth(count, options);
-    if (repeatedWidth !== undefined) return !Math.floor(repeatedWidth * count);
+
+    if (repeatedWidth !== undefined) {
+        return !Math.floor(repeatedWidth * count);
+    }
+
     return Array.isArray(options.colW) && options.colW.length !== count && !options.w;
 }
 
 function tableWidthAndColumns(count: number, options: PptxGenJS.TableProps, pageSize: PageSize): { width: number; columns: number[] } {
     const evenly = (width: number) => ({ width, columns: Array<number>(count).fill(width / count) });
-    if (addTableLeavesNoWidth(count, options)) return evenly(inchesToPixels(count));
+
+    if (addTableLeavesNoWidth(count, options)) {
+        return evenly(inchesToPixels(count));
+    }
 
     // PptxGenJS 4.0.1 sets `w` to the floored total for scalar/single-item colW, which addTableDefinition (step 4) reads
     // as inches below 20 and as EMU from 20 on: colW 7 over 3 columns is a 21 EMU table, colW 914400 an inch a column.
     const repeatedWidth = repeatedColumnWidth(count, options);
+
     if (repeatedWidth !== undefined) {
         const total = Math.floor(repeatedWidth * count);
+
         return evenly(total < PPTX_DEFAULTS.table.emuReadAsInchesBelow ? inchesToPixels(total) : emuToPixels(total));
     }
+
     if (Array.isArray(options.colW) && options.colW.length === count) {
         // genXmlTable (step 2) writes each width through inch2Emu (100 is inches, 914400 EMU) and shares `w` for one
         // that is not a number.
         const columns = options.colW.map(width => {
             const pixels = inch2EmuToPixels(width);
+
             return Number.isNaN(pixels) ? widthBesideColW(options.w) / count : pixels;
         });
+
         return { width: columns.reduce((sum, width) => sum + width, 0), columns };
     }
+
     // A `colW` of the wrong length is dropped, and `w` shared as it stands.
-    if (Array.isArray(options.colW)) return evenly(widthBesideColW(options.w));
+    if (Array.isArray(options.colW)) {
+        return evenly(widthBesideColW(options.w));
+    }
 
     // Without `colW`, a falsy `w` (unset or 0) is the slide width less the default margins, floored to the inch.
     return evenly(options.w ? addTableSize(options.w, pageSize.width).pixels : inchesToPixels(Math.floor(pageSize.width - PPTX_DEFAULTS.slide.marginIn * 2)));
@@ -101,6 +127,7 @@ function tableWidthAndColumns(count: number, options: PptxGenJS.TableProps, page
  */
 function rowsHeight(h: PptxGenJS.Coord, pageSize: PageSize): number {
     const { emu, pixels } = addTableSize(h, pageSize.height);
+
     return emu >= PPTX_DEFAULTS.table.emuReadAsInchesBelow && emu <= PPTX_DEFAULTS.units.inchesBelow ? inchesToPixels(emu) : pixels;
 }
 
@@ -113,10 +140,18 @@ function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: P
     const { rowH, h } = options;
     const heightFromTable = h === undefined ? undefined : px(rowsHeight(h, pageSize) / Math.max(1, rowCount));
     const height = (inches: number): Px | undefined => (inches > 0 ? inch2EmuToPixels(inches) : undefined);
+
     return Array.from({ length: rowCount }, (_, index) => {
         const own = Array.isArray(rowH) ? rowH[index] : undefined;
-        if (own) return height(Number(own));
-        if (rowH && !Number.isNaN(Number(rowH))) return height(Number(rowH));
+
+        if (own) {
+            return height(Number(own));
+        }
+
+        if (rowH && !Number.isNaN(Number(rowH))) {
+            return height(Number(rowH));
+        }
+
         return heightFromTable;
     });
 }
@@ -136,17 +171,33 @@ function rowHeights(rowCount: number, options: PptxGenJS.TableProps, pageSize: P
 function fitRowsToGrid(rows: NormalizedTableRow[], columns: readonly number[], target: RenderingTarget): NormalizedTableRow[] {
     const count = columns.length;
     const taken = new Set<string>();
+
     return rows.map((row, rowIndex) => {
         let column = 0;
         const cells = row.cells.flatMap(cell => {
-            while (taken.has(`${rowIndex},${column}`)) column++;
-            if (column >= count) return [];
+            while (taken.has(`${rowIndex},${column}`)) {
+                column++;
+            }
+
+            if (column >= count) {
+                return [];
+            }
+
             const colspan = Math.min(cell.colspan, count - column);
-            for (let r = rowIndex; r < rowIndex + cell.rowspan; r++) for (let c = column; c < column + colspan; c++) taken.add(`${r},${c}`);
+
+            for (let r = rowIndex; r < rowIndex + cell.rowspan; r++) {
+                for (let c = column; c < column + colspan; c++) {
+                    taken.add(`${r},${c}`);
+                }
+            }
+
             const width = columns.slice(column, column + colspan).reduce((sum, value) => sum + value, 0);
+
             column += colspan;
+
             return [{ ...cell, colspan, text: floorTextWrapWidth(cell.text, width, target) }];
         });
+
         return { ...row, cells };
     });
 }
@@ -156,6 +207,7 @@ function fitRowsToGrid(rows: NormalizedTableRow[], columns: readonly number[], t
 function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder {
     const type = border ? border.type || PPTX_DEFAULTS.border.whenProvidedType : PPTX_DEFAULTS.table.border.type;
     const width = type === "none" ? 0 : pointsToPixels(checkedSize(border?.pt ?? PPTX_DEFAULTS.table.border.widthPt, "border.pt", PPTX_DEFAULTS.limits.lineWidthPt));
+
     return {
         visible: type !== "none",
         // A "none" side is written as <a:noFill/> without its color, so PptxGenJS never checks that color either.
@@ -169,6 +221,7 @@ function normalizeBorder(border?: PptxGenJS.BorderProps): NormalizedTableBorder 
 
 function normalizeBorders(border?: PptxGenJS.BorderProps | [PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps, PptxGenJS.BorderProps]): [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder] {
     const sides = Array.isArray(border) ? border : [border, border, border, border];
+
     return sides.map(side => normalizeBorder(side)) as [NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder, NormalizedTableBorder];
 }
 
@@ -178,9 +231,14 @@ function normalizeBorders(border?: PptxGenJS.BorderProps | [PptxGenJS.BorderProp
 function richText(input: PptxGenJS.TableCell[], cellOptions: PptxGenJS.TextPropsOptions): PptxGenJS.TextProps[] {
     return input.flatMap(cell => {
         const value = cell.text ?? "";
-        if (Array.isArray(value)) return richText(value, cellOptions);
+
+        if (Array.isArray(value)) {
+            return richText(value, cellOptions);
+        }
+
         // `as`: a run in a cell takes the same text options as an addText() run.
         const own = cell.options as PptxGenJS.TextPropsOptions | undefined;
+
         return [{ text: String(value), options: own ?? cellOptions }];
     });
 }
@@ -198,15 +256,31 @@ function missing(value: unknown): boolean {
 
 function inheritedCellOptions(table: PptxGenJS.TableProps, cell: PptxGenJS.TableCellProps): PptxGenJS.TableCellProps {
     const inherited: Record<string, unknown> = { ...cell };
+
     for (const name of INHERITED_CELL_OPTIONS) {
         // `bold: false` in a bold table is bold.
-        if (missing(inherited[name]) && table[name] !== undefined) inherited[name] = table[name];
+        if (missing(inherited[name]) && table[name] !== undefined) {
+            inherited[name] = table[name];
+        }
     }
-    if (missing(inherited.fontSize)) inherited.fontSize = PPTX_DEFAULTS.table.fontSizePt;
-    if (missing(inherited.valign)) inherited.valign = PPTX_DEFAULTS.table.valign;
-    if (missing(inherited.margin)) inherited.margin = PPTX_DEFAULTS.table.marginIn;
+
+    if (missing(inherited.fontSize)) {
+        inherited.fontSize = PPTX_DEFAULTS.table.fontSizePt;
+    }
+
+    if (missing(inherited.valign)) {
+        inherited.valign = PPTX_DEFAULTS.table.valign;
+    }
+
+    if (missing(inherited.margin)) {
+        inherited.margin = PPTX_DEFAULTS.table.marginIn;
+    }
+
     // PptxGenJS writes no color for an uncolored linked cell, so it takes the theme's hyperlink color (LibreOffice).
-    if (missing(inherited.color) && !inherited.hyperlink) inherited.color = PPTX_DEFAULTS.table.color;
+    if (missing(inherited.color) && !inherited.hyperlink) {
+        inherited.color = PPTX_DEFAULTS.table.color;
+    }
+
     return inherited as PptxGenJS.TableCellProps;
 }
 
@@ -224,9 +298,17 @@ export function tableCell(cell: PptxGenJS.TableCell | string | number | boolean 
     if (cell === null || cell === undefined) {
         throw new Error(`addTable: rows[${row}][${column}] is ${cell}. PptxGenJS 4.0.1 fails on a missing cell; pass "" or { text: "" } for an empty cell.`);
     }
-    if (typeof cell === "string" || typeof cell === "number") return { text: String(cell) };
-    if (typeof cell !== "object") return { text: "" };
+
+    if (typeof cell === "string" || typeof cell === "number") {
+        return { text: String(cell) };
+    }
+
+    if (typeof cell !== "object") {
+        return { text: "" };
+    }
+
     const text: unknown = cell.text;
+
     return text === "" || (text && text !== true) ? cell : { ...cell, text: "" };
 }
 
@@ -235,7 +317,10 @@ export function tableCell(cell: PptxGenJS.TableCell | string | number | boolean 
  * cells (addTableDefinition step 2), and autoPage then fails on it with a TypeError. That row is rejected here instead.
  */
 export function tableRow(row: unknown, index: number): PptxGenJS.TableRow {
-    if (!Array.isArray(row)) throw new Error(`addTable: rows[${index}] is ${row === null ? "null" : `of type ${typeof row}`}, not an array of cells. Wrap the cells of each row in an array: [[{ text: "A" }], [{ text: "B" }]].`);
+    if (!Array.isArray(row)) {
+        throw new Error(`addTable: rows[${index}] is ${row === null ? "null" : `of type ${typeof row}`}, not an array of cells. Wrap the cells of each row in an array: [[{ text: "A" }], [{ text: "B" }]].`);
+    }
+
     return row;
 }
 
@@ -251,7 +336,10 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
     if (!Array.isArray(tableRows) || tableRows.length === 0) {
         throw new Error("addTable: tableRows must be a non-empty array");
     }
-    if (!Array.isArray(tableRows[0])) throw new Error("addTable: each row must be an array of cells");
+
+    if (!Array.isArray(tableRows[0])) {
+        throw new Error("addTable: each row must be an array of cells");
+    }
 
     const count = columnCount(tableRows);
     const { width, columns } = tableWidthAndColumns(count, options, pageSize);
@@ -283,10 +371,12 @@ export function normalizeTable(tableRows: PptxGenJS.TableRow[], options: PptxGen
                     // deck's theme; pass pres.theme.bodyFontFace in once #256 settles the table normalizer's inputs.
                     const theme = PPTX_DEFAULTS.theme.bodyFontFace;
                     const text = normalizeText(input, textOptions, target, fontMetrics, theme, cellOptions.fontFace ?? theme, { box, shared: writing.shared, cell: true });
+
                     text.margin = tableMarginPixels(cellOptions.margin);
                     // PptxGenJS 4.0.1 writes `fit` (and `shrinkText`, `autoFit`) only into a text box's <a:bodyPr>
                     // (genXmlBodyProperties); a cell gets a bare <a:bodyPr/>, so its row grows to the text instead.
                     text.fit = "none";
+
                     return {
                         text,
                         colspan: span(cellOptions.colspan),

@@ -17,6 +17,7 @@ export function mapSides<T>([first, second, third, fourth]: Sides<T>, convert: (
  */
 function tableMargin(margin: number | Sides<number> | undefined, fromPoints: (points: number) => number, fromInches: (inches: number) => number): FourSideMargin {
     const sides = margin === undefined ? PPTX_DEFAULTS.table.marginIn : typeof margin === "number" ? ([margin, margin, margin, margin] as const) : margin;
+
     return mapSides(sides, sides[0] >= 1 ? fromPoints : fromInches);
 }
 
@@ -48,16 +49,25 @@ export function slideMarginInches(margin: number | Sides<number> = PPTX_DEFAULTS
  */
 export function textMarginPixels(margin?: number | Sides<number>, inset?: number): FourSideMargin {
     if (margin === undefined) {
-        if (typeof inset === "number" && !Number.isNaN(inset)) return mapSides([inset, inset, inset, inset], inch2EmuToPixels);
+        if (typeof inset === "number" && !Number.isNaN(inset)) {
+            return mapSides([inset, inset, inset, inset], inch2EmuToPixels);
+        }
+
         return mapSides(PPTX_DEFAULTS.text.marginIn, inchesToPixels);
     }
-    if (typeof margin === "number") return mapSides([margin, margin, margin, margin], pointsToPixels);
+
+    if (typeof margin === "number") {
+        return mapSides([margin, margin, margin, margin], pointsToPixels);
+    }
+
     const [left, right, bottom, top] = margin;
+
     return mapSides([top, right, bottom, left], pointsToPixels);
 }
 
 function padding([top, right, bottom, left]: FourSideMargin): string {
     const px = (value: number) => `${Number(value.toFixed(6))}px`;
+
     return `${px(top)} ${px(right)} ${px(bottom)} ${px(left)}`;
 }
 

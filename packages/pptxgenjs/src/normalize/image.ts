@@ -23,12 +23,18 @@ const IMAGE_DATA = /^(data:)?(?:(image\/[\w.+-]+)?;)?base64,([a-z\d+/=\s]+)$/i;
 /** Checks image `data` and returns it as the data URI the HTML profile carries. */
 function imageDataUri(data: string, path?: string): DataUri {
     const match = data.match(IMAGE_DATA);
+
     if (!match?.[3]?.replace(/\s/g, "")) {
         throw new Error(`Image data must be base64-encoded image data, like "image/png;base64,iVBORw0KGgo…" or "data:image/png;base64,iVBORw0KGgo…"; got "${data.slice(0, 40)}"`);
     }
-    if (match[1] && match[2]) return data as DataUri; // `as`: IMAGE_DATA matched "data:image/…;base64," and a payload
+
+    if (match[1] && match[2]) {
+        return data as DataUri;
+    } // `as`: IMAGE_DATA matched "data:image/…;base64," and a payload
+
     const fallback = MIME_TYPES[`.${PPTX_DEFAULTS.image.fallbackExtension}`];
     const mime = match[2] ?? MIME_TYPES[path?.match(/\.\w+$/)?.[0]?.toLowerCase() ?? ""] ?? fallback;
+
     return `data:${mime};base64,${match[3]}` as DataUri; // `as`: mime is image/… from IMAGE_DATA or MIME_TYPES
 }
 
@@ -36,7 +42,11 @@ function imageDataUri(data: string, path?: string): DataUri {
 export function binaryString(bytes: ArrayBuffer | Uint8Array): string {
     const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     let binary = "";
-    for (let index = 0; index < view.length; index += 0x8000) binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
+
+    for (let index = 0; index < view.length; index += 0x8000) {
+        binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
+    }
+
     return binary;
 }
 
@@ -85,28 +95,53 @@ export interface ImageSourceOptions {
 const IMAGE_SOURCE_KEYS: ReadonlySet<string> = new Set(["timeoutMs", "maxBytes", "baseDir", "allowRemote", "allowLocalPaths", "allowedHosts", "maxRedirects"]);
 
 function checkPositive(name: string, value: unknown, integer: boolean): void {
-    if (value === undefined || (typeof value === "number" && value > 0 && Number.isFinite(value) && (!integer || Number.isInteger(value)))) return;
+    if (value === undefined || (typeof value === "number" && value > 0 && Number.isFinite(value) && (!integer || Number.isInteger(value)))) {
+        return;
+    }
+
     throw new TypeError(`PuppeteerGen option \`imageSources.${name}\` must be a positive ${integer ? "integer" : "number"}, got ${JSON.stringify(value)}`);
 }
 
 /** The `imageSources` option, checked where it enters: a mistyped limit would otherwise be ignored silently. */
 function imageSourceOptions(options: unknown): ImageSourceOptions {
-    if (options === undefined) return {};
-    if (typeof options !== "object" || options === null) throw new TypeError(`PuppeteerGen option \`imageSources\` must be an object, got ${JSON.stringify(options)}`);
+    if (options === undefined) {
+        return {};
+    }
+
+    if (typeof options !== "object" || options === null) {
+        throw new TypeError(`PuppeteerGen option \`imageSources\` must be an object, got ${JSON.stringify(options)}`);
+    }
+
     const unknownKey = Object.keys(options).find(key => !IMAGE_SOURCE_KEYS.has(key));
-    if (unknownKey) throw new TypeError(`PuppeteerGen option \`imageSources\` has unknown key "${unknownKey}"; expected one of ${[...IMAGE_SOURCE_KEYS].join(", ")}`);
+
+    if (unknownKey) {
+        throw new TypeError(`PuppeteerGen option \`imageSources\` has unknown key "${unknownKey}"; expected one of ${[...IMAGE_SOURCE_KEYS].join(", ")}`);
+    }
+
     const { timeoutMs, maxBytes, baseDir, allowRemote, allowLocalPaths, allowedHosts, maxRedirects } = options as Record<string, unknown>; // `as`: checked it is a non-null object
+
     checkPositive("timeoutMs", timeoutMs, false);
     checkPositive("maxBytes", maxBytes, true);
-    if (baseDir !== undefined && (typeof baseDir !== "string" || !baseDir)) throw new TypeError(`PuppeteerGen option \`imageSources.baseDir\` must be a non-empty directory path, got ${JSON.stringify(baseDir)}`);
-    if (allowRemote !== undefined && typeof allowRemote !== "boolean") throw new TypeError(`PuppeteerGen option \`imageSources.allowRemote\` must be a boolean, got ${JSON.stringify(allowRemote)}`);
-    if (allowLocalPaths !== undefined && typeof allowLocalPaths !== "boolean") throw new TypeError(`PuppeteerGen option \`imageSources.allowLocalPaths\` must be a boolean, got ${JSON.stringify(allowLocalPaths)}`);
+    if (baseDir !== undefined && (typeof baseDir !== "string" || !baseDir)) {
+        throw new TypeError(`PuppeteerGen option \`imageSources.baseDir\` must be a non-empty directory path, got ${JSON.stringify(baseDir)}`);
+    }
+
+    if (allowRemote !== undefined && typeof allowRemote !== "boolean") {
+        throw new TypeError(`PuppeteerGen option \`imageSources.allowRemote\` must be a boolean, got ${JSON.stringify(allowRemote)}`);
+    }
+
+    if (allowLocalPaths !== undefined && typeof allowLocalPaths !== "boolean") {
+        throw new TypeError(`PuppeteerGen option \`imageSources.allowLocalPaths\` must be a boolean, got ${JSON.stringify(allowLocalPaths)}`);
+    }
+
     if (allowedHosts !== undefined && !(Array.isArray(allowedHosts) && allowedHosts.every(host => typeof host === "string" && host.length > 0))) {
         throw new TypeError(`PuppeteerGen option \`imageSources.allowedHosts\` must be an array of host names, got ${JSON.stringify(allowedHosts)}`);
     }
+
     if (maxRedirects !== undefined && !(typeof maxRedirects === "number" && Number.isInteger(maxRedirects) && maxRedirects >= 0)) {
         throw new TypeError(`PuppeteerGen option \`imageSources.maxRedirects\` must be a whole number from 0, got ${JSON.stringify(maxRedirects)}`);
     }
+
     return options as ImageSourceOptions; // `as`: every key was checked above
 }
 
@@ -116,8 +151,15 @@ function imageSourceOptions(options: unknown): ImageSourceOptions {
  */
 export function imageResolver(options: { resolveImage?: (source: string) => Promise<string>; imageSources?: unknown }, resolve: (source: string, options: ImageSourceOptions) => Promise<string>): (source: string) => Promise<string> {
     const imageSources = imageSourceOptions(options.imageSources);
-    if (!options.resolveImage) return source => resolve(source, imageSources);
-    if (options.imageSources !== undefined) throw new TypeError("PuppeteerGen options `imageSources` and `resolveImage` cannot be combined: `imageSources` configures the default resolver; apply the limits inside your resolveImage instead");
+
+    if (!options.resolveImage) {
+        return source => resolve(source, imageSources);
+    }
+
+    if (options.imageSources !== undefined) {
+        throw new TypeError("PuppeteerGen options `imageSources` and `resolveImage` cannot be combined: `imageSources` configures the default resolver; apply the limits inside your resolveImage instead");
+    }
+
     return options.resolveImage;
 }
 
@@ -128,24 +170,33 @@ export function imageTooLargeError(source: string, bytes: number, maxBytes: numb
 /** The body, read until it ends or passes `maxBytes`, so an oversized one is never buffered whole. */
 async function readImageBody(response: Response, source: string, maxBytes: number): Promise<Uint8Array> {
     const length = Number(response.headers.get("content-length"));
-    if (length > maxBytes) throw imageTooLargeError(source, length, maxBytes);
+
+    if (length > maxBytes) {
+        throw imageTooLargeError(source, length, maxBytes);
+    }
+
     const chunks: Uint8Array[] = [];
     let total = 0;
     const reader = response.body?.getReader();
+
     for (let read = await reader?.read(); reader && read && !read.done; read = await reader.read()) {
         total += read.value.byteLength;
         if (total > maxBytes) {
             await reader.cancel();
             throw imageTooLargeError(source, total, maxBytes);
         }
+
         chunks.push(read.value);
     }
+
     const bytes = new Uint8Array(total);
     let offset = 0;
+
     for (const chunk of chunks) {
         bytes.set(chunk, offset);
         offset += chunk.byteLength;
     }
+
     return bytes;
 }
 
@@ -157,7 +208,10 @@ const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]
 
 /** Throws unless `url`, `source` itself or a redirect from it, is an http(s) URL on an allowed host. */
 function checkRemoteUrl(url: URL, source: string, allowedHosts: readonly string[] | undefined): void {
-    if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`Image fetch redirected to a ${url.protocol} URL: ${source}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error(`Image fetch redirected to a ${url.protocol} URL: ${source}`);
+    }
+
     if (allowedHosts && !allowedHosts.some(host => host.toLowerCase() === url.hostname)) {
         throw new Error(`Image host '${url.hostname}' is not in the PuppeteerGen option imageSources.allowedHosts: ${source}; add the host or embed the image as a data URI`);
     }
@@ -169,43 +223,81 @@ function checkRemoteUrl(url: URL, source: string, allowedHosts: readonly string[
  */
 async function fetchFollowingRedirects(source: string, options: ImageSourceOptions, signal: AbortSignal): Promise<Response> {
     const { allowedHosts, maxRedirects } = options;
-    if (allowedHosts === undefined && maxRedirects === undefined) return fetch(source, { signal });
+
+    if (allowedHosts === undefined && maxRedirects === undefined) {
+        return fetch(source, { signal });
+    }
+
     let url = new URL(source);
+
     for (let redirects = 0; ; redirects++) {
         checkRemoteUrl(url, source, allowedHosts);
         const response = await fetch(url, { signal, redirect: "manual" });
+
         // A browser hides a manual redirect's target (an opaque redirect), so it cannot be checked.
-        if (response.type === "opaqueredirect") throw new Error(`Image fetch was redirected and this runtime cannot check the target against imageSources: ${source}`);
+        if (response.type === "opaqueredirect") {
+            throw new Error(`Image fetch was redirected and this runtime cannot check the target against imageSources: ${source}`);
+        }
+
         const location = response.headers.get("location");
-        if (!REDIRECT_STATUSES.has(response.status) || location === null) return response;
+
+        if (!REDIRECT_STATUSES.has(response.status) || location === null) {
+            return response;
+        }
+
         await response.body?.cancel();
         const limit = maxRedirects ?? IMAGE_SOURCE_LIMITS.maxRedirects;
-        if (redirects >= limit) throw new Error(`Image fetch was redirected more than ${limit} times: ${source}; raise the PuppeteerGen option imageSources.maxRedirects`);
+
+        if (redirects >= limit) {
+            throw new Error(`Image fetch was redirected more than ${limit} times: ${source}; raise the PuppeteerGen option imageSources.maxRedirects`);
+        }
+
         url = new URL(location, url);
     }
 }
 
 async function fetchImage(source: string, options: ImageSourceOptions): Promise<string> {
-    if (options.allowRemote === false) throw new Error(`Remote image URLs are not allowed (PuppeteerGen option imageSources.allowRemote is false): ${source}`);
+    if (options.allowRemote === false) {
+        throw new Error(`Remote image URLs are not allowed (PuppeteerGen option imageSources.allowRemote is false): ${source}`);
+    }
+
     const timeoutMs = options.timeoutMs ?? IMAGE_SOURCE_LIMITS.timeoutMs;
     const timeoutError = (error: unknown) => new Error(`Image fetch timed out after ${timeoutMs} ms: ${source}; check the server or raise the PuppeteerGen option imageSources.timeoutMs`, { cause: error });
     let response: Response;
+
     try {
         // shortcut: without allowedHosts any host is fetched, as PptxGenJS does, and addresses are not filtered (no
         // private-range check after DNS); a service that must block internal addresses sets allowedHosts or passes its own resolveImage.
         response = await fetchFollowingRedirects(source, options, AbortSignal.timeout(timeoutMs));
     } catch (error) {
-        if (isTimeout(error)) throw timeoutError(error);
-        if (error instanceof Error && error.message.includes(source)) throw error;
+        if (isTimeout(error)) {
+            throw timeoutError(error);
+        }
+
+        if (error instanceof Error && error.message.includes(source)) {
+            throw error;
+        }
+
         throw new Error(`Unable to fetch image: ${source}`, { cause: error });
     }
-    if (!response.ok) throw new Error(`Unable to fetch image (${response.status}): ${source}`);
+
+    if (!response.ok) {
+        throw new Error(`Unable to fetch image (${response.status}): ${source}`);
+    }
+
     const mime = response.headers.get("content-type")?.split(";")[0]?.trim();
-    if (!mime?.startsWith("image/")) throw new Error(`Remote resource is not an image: ${source}`);
+
+    if (!mime?.startsWith("image/")) {
+        throw new Error(`Remote resource is not an image: ${source}`);
+    }
+
     try {
         return dataUri(await readImageBody(response, source, options.maxBytes ?? IMAGE_SOURCE_LIMITS.maxBytes), mime);
     } catch (error) {
-        if (isTimeout(error)) throw timeoutError(error);
+        if (isTimeout(error)) {
+            throw timeoutError(error);
+        }
+
         throw error;
     }
 }
@@ -222,6 +314,7 @@ export class UnresolvedImageError extends Error {
 
     constructor(source: string, result: unknown) {
         const got = typeof result === "string" ? JSON.stringify(result.length > 80 ? `${result.slice(0, 80)}…` : result) : typeof result;
+
         super(`resolveImage returned ${got} for image "${source}", not a data URI: a resolver must read or fetch the image and return its bytes as "data:image/<type>;base64,<data>", so the PDF does not depend on the network or the filesystem`);
         this.name = "UnresolvedImageError";
         this.source = source;
@@ -231,19 +324,31 @@ export class UnresolvedImageError extends Error {
 
 /** Checks what `resolveImage` returned for `source`: only a data URI may become an image's `src` (AGENTS.md, images resolve before PDF generation). */
 export function resolvedImageDataUri(source: string, result: unknown): DataUri {
-    if (typeof result === "string" && RESOLVED_IMAGE.test(result)) return result as DataUri; // `as`: RESOLVED_IMAGE matched
+    if (typeof result === "string" && RESOLVED_IMAGE.test(result)) {
+        return result as DataUri;
+    } // `as`: RESOLVED_IMAGE matched
+
     throw new UnresolvedImageError(source, result);
 }
 
 /** Runtime-neutral image resolution: data URIs and http(s) URLs only. File paths need a runtime adapter. */
 export async function resolveRemoteImageSource(source: string, options: ImageSourceOptions = {}): Promise<string> {
-    if (/^data:/i.test(source)) return imageDataUri(source);
-    if (/^https?:\/\//i.test(source)) return fetchImage(source, options);
+    if (/^data:/i.test(source)) {
+        return imageDataUri(source);
+    }
+
+    if (/^https?:\/\//i.test(source)) {
+        return fetchImage(source, options);
+    }
+
     throw new Error(`Cannot resolve image path '${source}' without filesystem access: use the Node entry ("@pdflapas/pptxgenjs") or pass a resolveImage option`);
 }
 
 function normalizeSizing(sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | undefined, sourceWidth: number, sourceHeight: number, boxWidth: number, boxHeight: number, pageWidth: number, pageHeight: number): NormalizedImageSizing {
-    if (!sizing) return { type: "stretch" };
+    if (!sizing) {
+        return { type: "stretch" };
+    }
+
     if (sizing.type === "crop") {
         return {
             type: "crop",
@@ -253,16 +358,25 @@ function normalizeSizing(sizing: NonNullable<PptxGenJS.ImageProps["sizing"]> | u
             height: px(sourceHeight),
         };
     }
+
     const scale = sizing.type === "contain" ? Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight) : Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight);
     const width = sourceWidth * scale;
     const height = sourceHeight * scale;
+
     return { type: sizing.type, x: px((boxWidth - width) / 2), y: px((boxHeight - height) / 2), width: px(width), height: px(height) };
 }
 
 export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize): NormalizedImage {
     const raw = options.data ?? options.path;
-    if (!raw) throw new Error("addImage() requires either 'data' or 'path'");
-    if (typeof raw !== "string") throw new Error("Image source must be a string");
+
+    if (!raw) {
+        throw new Error("addImage() requires either 'data' or 'path'");
+    }
+
+    if (typeof raw !== "string") {
+        throw new Error("Image source must be a string");
+    }
+
     const source: NormalizedImageSource = options.data !== undefined ? { source: imageDataUri(raw, options.path), sourceKind: "data" } : { source: raw, sourceKind: /^https?:\/\//i.test(raw) ? "remote" : "path" };
     const sizing = options.sizing;
     const pageWidth = inchesToPixels(pageSize.width);
@@ -274,6 +388,7 @@ export function normalizeImage(options: PptxGenJS.ImageProps, pageSize: PageSize
     const normalizedSizing = normalizeSizing(sizing, sourceWidth, sourceHeight, boxWidth, boxHeight, pageWidth, pageHeight);
     const transparency = Math.max(0, Math.min(100, options.transparency ?? PPTX_DEFAULTS.image.transparency));
     const link = normalizeHyperlink(options.hyperlink);
+
     return {
         ...source,
         sizing: normalizedSizing,

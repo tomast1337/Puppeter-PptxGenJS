@@ -24,6 +24,7 @@ export function isEastAsian(character: string): boolean {
 function eastAsianFaces(fontFace: string, target: RenderingTarget): readonly string[] {
     const { byFace, otherFaces } = RENDERING_TARGETS[target].eastAsianFallback;
     const face = fontFace.toLowerCase();
+
     // Own keys only: a face named like an Object.prototype member is just another face.
     return (Object.hasOwn(byFace, face) ? byFace[face] : undefined) ?? otherFaces;
 }
@@ -31,6 +32,7 @@ function eastAsianFaces(fontFace: string, target: RenderingTarget): readonly str
 /** The target's chain for a run in `fontFace`: `fallbackFaces`, then its East Asian faces, without `fontFace`. */
 export function fallbackChain(fontFace: string, target: RenderingTarget): readonly string[] {
     const face = fontFace.toLowerCase();
+
     return [...RENDERING_TARGETS[target].fallbackFaces, ...eastAsianFaces(fontFace, target)].filter((value, index, all) => value.toLowerCase() !== face && all.indexOf(value) === index);
 }
 
@@ -52,16 +54,24 @@ export function fallbackSegments(text: string, fontFace: string, bold: boolean, 
     const { emojiFace } = RENDERING_TARGETS[target];
     const lookup = fontMetrics.glyphAdvances;
     const own = chain.length ? lookup?.(fontFace, bold, italic) : undefined;
-    if (!lookup || !own) return [{ text, fallbackFaces: chain }];
+
+    if (!lookup || !own) {
+        return [{ text, fallbackFaces: chain }];
+    }
+
     // Each face's characters, looked up once for the run.
     const characters = new Map<string, ReadonlyMap<number, number> | undefined>();
     const has = (face: string, codePoint: number) => {
-        if (!characters.has(face)) characters.set(face, lookup(face, bold, italic)?.advances);
+        if (!characters.has(face)) {
+            characters.set(face, lookup(face, bold, italic)?.advances);
+        }
+
         return characters.get(face)?.has(codePoint) ?? false;
     };
     const eastAsian = eastAsianFaces(fontFace, target).filter(face => chain.includes(face));
     const segments: { text: string; first: string | undefined }[] = [];
     let held: string | undefined;
+
     for (const { segment } of GRAPHEMES.segment(text)) {
         const codePoint = segment.codePointAt(0) ?? 0;
         const missing = !own.advances.has(codePoint);
@@ -69,13 +79,22 @@ export function fallbackSegments(text: string, fontFace: string, bold: boolean, 
         const emoji = missing && emojiFace !== undefined && PICTOGRAPHIC.test(segment) && has(emojiFace, codePoint);
         const sticky = missing && !emoji && isEastAsian(segment);
         const first = emoji ? emojiFace : sticky ? ((held && has(held, codePoint) ? held : eastAsian.find(face => has(face, codePoint))) ?? natural) : natural;
+
         held = sticky ? first : undefined;
         // The chain's own first needs no stretch of its own.
         const key = first === natural ? undefined : first;
         const last = segments.at(-1);
-        if (last && last.first === key) last.text += segment;
-        else segments.push({ text: segment, first: key });
+
+        if (last && last.first === key) {
+            last.text += segment;
+        } else {
+            segments.push({ text: segment, first: key });
+        }
     }
-    if (segments.every(({ first }) => first === undefined)) return [{ text, fallbackFaces: chain }];
+
+    if (segments.every(({ first }) => first === undefined)) {
+        return [{ text, fallbackFaces: chain }];
+    }
+
     return segments.map(({ text: piece, first }) => ({ text: piece, fallbackFaces: first === undefined ? chain : [first, ...chain.filter(face => face !== first)] }));
 }
