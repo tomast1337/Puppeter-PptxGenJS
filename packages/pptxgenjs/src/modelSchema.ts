@@ -282,6 +282,7 @@ const componentProps = z.unknown().transform((props, context) => {
         return cloneComponentProps(props);
     } catch (error) {
         context.addIssue({ code: "custom", message: error instanceof Error ? error.message : String(error) });
+
         return z.NEVER;
     }
 });
@@ -322,13 +323,6 @@ export class InvalidModelError extends Error {
     }
 }
 
-/** `["slides", 0, "background"]` as `slides[0].background`; the root is `model`. */
-function jsonPath(path: readonly PropertyKey[]): string {
-    let text = "model";
-    for (const key of path) text += typeof key === "number" ? `[${key}]` : `.${String(key)}`;
-    return text;
-}
-
 /**
  * Checks model JSON from another producer (a stored or hand-built getModel() result) and returns it as the typed,
  * branded model modelToHtml() renders. Throws InvalidModelError naming every wrong value's path. A new object:
@@ -336,6 +330,23 @@ function jsonPath(path: readonly PropertyKey[]): string {
  */
 export function parseModel(input: unknown): NormalizedPresentation {
     const result = presentation.safeParse(input);
-    if (result.success) return result.data;
-    throw new InvalidModelError(result.error.issues.map(issue => ({ path: jsonPath(issue.path), message: issue.message })));
+
+    if (result.success) {
+        return result.data;
+    }
+
+    const issues: { path: string; message: string }[] = [];
+
+    for (const issue of result.error.issues) {
+        // `["slides", 0, "background"]` as `slides[0].background`; the root is `model`.
+        let path = "model";
+
+        for (const key of issue.path) {
+            path += typeof key === "number" ? `[${key}]` : `.${String(key)}`;
+        }
+
+        issues.push({ path, message: issue.message });
+    }
+
+    throw new InvalidModelError(issues);
 }

@@ -10,14 +10,25 @@ export class ComponentRegistry {
         if (!definition || typeof definition.render !== "function" || (definition.validate !== undefined && typeof definition.validate !== "function")) {
             throw new Error("Component definition requires a render function and optional validator");
         }
-        if (definition.schema !== undefined && typeof definition.schema?.parse !== "function") throw new Error("Component schema requires a parse function");
+
+        if (definition.schema !== undefined && typeof definition.schema?.parse !== "function") {
+            throw new Error("Component schema requires a parse function");
+        }
+
         const versions = this.definitions.get(type) ?? new Map<number, ComponentDefinition>();
-        if (versions.has(version)) throw new Error(`Component already registered: ${type}@${version}`);
+
+        if (versions.has(version)) {
+            throw new Error(`Component already registered: ${type}@${version}`);
+        }
+
         const { schema, validate, render } = definition;
+
         versions.set(version, {
             render: (savedProps, context) => {
                 const props = schema ? parseComponentProps(schema, savedProps) : (savedProps as unknown as Props);
+
                 validate?.(props);
+
                 return render(props, context);
             },
         });
@@ -26,7 +37,11 @@ export class ComponentRegistry {
 
     get(type: string, version: number): ComponentDefinition {
         const definition = this.definitions.get(type)?.get(version);
-        if (!definition) throw new Error(`Unknown component: ${type}@${version}`);
+
+        if (!definition) {
+            throw new Error(`Unknown component: ${type}@${version}`);
+        }
+
         return definition;
     }
 }
